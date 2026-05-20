@@ -1969,3 +1969,28 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
   transform-origin: left;
   background: linear-gradient(90deg, var(--upz-electric), var(--upz-lime));
 }
+
+/* ===================================================================
+   Service figure (full-width infographic) + process on light bg
+   =================================================================== */
+.svc-figure-head {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 48px; align-items: end; margin-bottom: 32px;
+}
+.svc-figure {
+  margin: 0; overflow: hidden;
+  border: 1.5px solid var(--upz-off-white);
+  background: var(--upz-paper);
+}
+.svc-figure img { display: block; width: 100%; height: auto; }
+
+/* Process block reused on a light section */
+.brand-process--light .brand-step { border-bottom-color: var(--upz-line); }
+.brand-process--light .brand-step:first-child { border-top-color: var(--upz-line); }
+.brand-process--light .brand-step-body h3 { color: var(--fg-1); }
+.brand-process--light .brand-step-body p { color: var(--fg-3); }
+.brand-process--light .brand-process-media { border-color: var(--upz-carbon); }
+
+@media (max-width: 860px) {
+  .svc-figure-head { grid-template-columns: 1fr; gap: 16px; }
+}

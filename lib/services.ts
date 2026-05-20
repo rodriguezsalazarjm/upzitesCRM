@@ -57,7 +57,7 @@ export const SERVICES: Service[] = [
     tagline: "Tu sitio web es tu vendedor 24/7.",
     card: "Sitios de alto rendimiento con SEO técnico y diseño UX/UI integrados de fábrica. Rápidos, modernos y optimizados para convertir visitantes en clientes.",
     tags: ["Alto rendimiento", "SEO integrado", "UX/UI"],
-    image: "/images/diseno-web.jpg",
+    image: "/images/diseno-web-cover.jpg",
     accent: "var(--upz-electric)",
     detail: {
       headline: "Diseño web de alto rendimiento",

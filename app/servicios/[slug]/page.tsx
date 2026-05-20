@@ -6,8 +6,9 @@ import { Eyebrow, Reveal, Sticker } from "@/components/Atoms";
 import { SERVICES, getService } from "@/lib/services";
 
 export function generateStaticParams() {
-  // "branding" has a dedicated static route at app/servicios/branding/page.tsx
-  return SERVICES.filter((s) => s.slug !== "branding").map((s) => ({ slug: s.slug }));
+  // "branding" and "diseno-web" have dedicated static routes under app/servicios/
+  const custom = ["branding", "diseno-web"];
+  return SERVICES.filter((s) => !custom.includes(s.slug)).map((s) => ({ slug: s.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
