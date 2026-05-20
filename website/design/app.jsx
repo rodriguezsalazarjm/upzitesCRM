@@ -1,8 +1,8 @@
-import { TopNav, Hero, Marquee, Intro, Services, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
-import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
-import { TechMarquee } from "@/components/TechMarquee";
+/* =====================================================================
+   UPZITES — App shell · Final structure
+   ===================================================================== */
 
-export default function Home() {
+function App() {
   return (
     <div id="top">
       <TopNav />
@@ -17,7 +17,7 @@ export default function Home() {
       <Stats />
       <Intro />
 
-      {/* Free site audit */}
+      {/* Free site audit (frontend mock, to wire later with Antigravity) */}
       <AuditTool />
 
       {/* Services */}
@@ -54,3 +54,5 @@ export default function Home() {
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);

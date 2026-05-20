@@ -1,0 +1,295 @@
+/* =====================================================================
+   UPZITES — Colors & Type Foundations
+   Tropical Underground · Studio Design
+   ===================================================================== */
+
+/* ---------- FONTS ---------------------------------------------------- */
+
+/* Bebas Neue — the brand sheet's canonical display family.
+   Loaded from Google Fonts for consistent rendering across surfaces.
+   The uploaded Boldonse.otf is kept as a stylistic fallback. */
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+
+@font-face {
+  font-family: "Boldonse";
+  src: url("./fonts/Boldonse.otf") format("opentype");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Extralight.otf") format("opentype");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Semibold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Extrabold.otf") format("opentype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvena";
+  src: url("./fonts/Helvena-Black.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- TOKENS --------------------------------------------------- */
+
+:root {
+  /* -- Base palette ------------------------------------------------- */
+  --upz-off-white:    #FAFBF5;  /* primary surface */
+  --upz-ivory:        #F4F1E8;  /* warm ivory secondary surface */
+  --upz-paper:        #FFFFFF;  /* clean white */
+  --upz-carbon:       #111111;  /* black for type / blocks */
+  --upz-ink:          #001B2A;  /* deep navy / "ink blue" */
+  --upz-ash:          #6B6B6B;  /* secondary text */
+  --upz-line:         #E6E4DC;  /* hairlines on light surface */
+  --upz-line-strong:  #111111;  /* editorial frame strokes */
+
+  /* -- Bright accents ---------------------------------------------- */
+  --upz-electric:     #0057FF;  /* cobalt blue · primary action */
+  --upz-tomato:       #FF3B30;  /* poster red · urgency */
+  --upz-solar:        #FFD100;  /* solar yellow · highlight */
+  --upz-tangerine:    #FFBA00;  /* mandarin · warm CTA */
+  --upz-guava:        #FF5CAB;  /* guava pink · tropical accent */
+  --upz-lime:         #A6FF00;  /* lime green · highlighter */
+
+  /* -- Semantic foreground ----------------------------------------- */
+  --fg-1: var(--upz-carbon);     /* primary text / headlines */
+  --fg-2: var(--upz-ink);        /* secondary, links inactive */
+  --fg-3: var(--upz-ash);        /* muted body / metadata */
+  --fg-invert: var(--upz-off-white);
+
+  /* -- Semantic background ----------------------------------------- */
+  --bg-1: var(--upz-off-white);  /* default page */
+  --bg-2: var(--upz-ivory);      /* warm card / section */
+  --bg-3: var(--upz-paper);      /* product card / UI surface */
+  --bg-invert: var(--upz-carbon);
+
+  /* -- Action / state ---------------------------------------------- */
+  --action:        var(--upz-electric);
+  --action-hover:  #0046D1;
+  --action-press:  #0039AC;
+  --on-action:     var(--upz-off-white);
+  --danger:        var(--upz-tomato);
+  --warn:          var(--upz-solar);
+  --success:       var(--upz-lime);
+
+  /* -- Highlight (sticker/tape feel) ------------------------------- */
+  --hl-lime:    var(--upz-lime);
+  --hl-pink:    var(--upz-guava);
+  --hl-yellow:  var(--upz-solar);
+  --hl-blue:    var(--upz-electric);
+  --hl-red:     var(--upz-tomato);
+
+  /* -- Typography families ----------------------------------------- */
+  --font-display:  "Bebas Neue", "Boldonse", "Helvena", "Arial Black", system-ui, sans-serif;
+  --font-text:     "Helvena", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:     "IBM Plex Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
+
+  /* -- Type scale (modular, fixed-pixel for editorial precision) --- */
+  --fs-hero:    clamp(56px, 9vw, 168px);  /* huge poster headlines */
+  --fs-d1:      clamp(44px, 6vw, 96px);   /* display 1 */
+  --fs-d2:      clamp(36px, 4.5vw, 72px); /* display 2 */
+  --fs-h1:      48px;
+  --fs-h2:      36px;
+  --fs-h3:      24px;
+  --fs-h4:      18px;
+  --fs-body:    16px;
+  --fs-small:   14px;
+  --fs-micro:   12px;
+  --fs-label:   11px;  /* uppercase eyebrow / barcode line */
+
+  --lh-tight:   0.92;
+  --lh-snug:    1.05;
+  --lh-normal:  1.4;
+  --lh-loose:   1.6;
+
+  --tracking-display: -0.02em;
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.08em;
+  --tracking-xwide:   0.16em;
+
+  /* -- Spacing scale (4-base) ------------------------------------- */
+  --sp-0:  0px;
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+  --sp-9:  96px;
+  --sp-10: 128px;
+
+  /* -- Radii (intentionally restrained — editorial > rounded) ----- */
+  --r-0:    0px;        /* default — most blocks are flat */
+  --r-1:    4px;        /* small chips, inputs */
+  --r-2:    8px;        /* cards on light surface */
+  --r-3:    14px;       /* product / project tiles */
+  --r-pill: 999px;      /* pill tags / buttons-light */
+
+  /* -- Borders ----------------------------------------------------- */
+  --bd-hair:    1px solid var(--upz-line);
+  --bd-1:       1.5px solid var(--upz-carbon);
+  --bd-2:       2px solid var(--upz-carbon);
+  --bd-frame:   3px solid var(--upz-carbon);  /* poster frame */
+
+  /* -- Shadows (used sparingly — flat editorial > soft drops) ----- */
+  --sh-0: none;
+  --sh-1: 0 1px 0 0 var(--upz-line);
+  --sh-2: 0 6px 0 0 var(--upz-carbon);                       /* hard offset stamp */
+  --sh-3: 0 18px 40px -22px rgba(17,17,17,0.35);             /* gentle product card */
+  --sh-press: inset 0 2px 0 0 rgba(0,0,0,0.18);
+
+  /* -- Motion ------------------------------------------------------ */
+  --ease-snap:   cubic-bezier(.2,.8,.2,1);
+  --ease-press:  cubic-bezier(.5,0,.7,.2);
+  --dur-fast:    120ms;
+  --dur-base:    220ms;
+  --dur-slow:    420ms;
+}
+
+/* ---------- ELEMENT DEFAULTS ---------------------------------------- */
+
+html, body {
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Display — Boldonse, very tight, black */
+.h-hero,
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: var(--tracking-display);
+  line-height: var(--lh-tight);
+  color: var(--fg-1);
+  text-transform: uppercase;
+}
+.h-hero    { font-size: var(--fs-hero); }
+.h-display { font-size: var(--fs-d1); }
+
+h1, .h1 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+h2, .h2 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--fs-h2);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+h3, .h3 {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-h3);
+  line-height: 1.15;
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+h4, .h4 {
+  font-family: var(--font-text);
+  font-weight: 700;
+  font-size: var(--fs-h4);
+  line-height: 1.2;
+  color: var(--fg-1);
+}
+
+p, .p {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--fg-2);
+}
+
+/* Editorial eyebrow — "01. LOGOTIPO PRINCIPAL" */
+.eyebrow {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-xwide);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg-3);
+  text-transform: uppercase;
+}
+
+code, .code, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--bg-2);
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+}
+
+a {
+  color: var(--action);
+  text-decoration: none;
+  border-bottom: 2px solid currentColor;
+  transition: color var(--dur-fast) var(--ease-snap);
+}
+a:hover { color: var(--action-hover); }
