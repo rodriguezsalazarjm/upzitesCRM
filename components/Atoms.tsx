@@ -5,9 +5,8 @@ import React, { useState, useEffect, useRef } from "react";
 // ---------- Brand mark ----------------------------------------------
 export function Brand({ size }: { size?: "lg" }) {
   return (
-    <a href="#top" className="nav-brand" aria-label="UPZITES home">
-      <span className="nav-brand-iso">↗</span>
-      <span className="nav-brand-word" style={size === "lg" ? { fontSize: 64 } : undefined}>upzites</span>
+    <a href="#top" className={`nav-brand${size === "lg" ? " nav-brand--lg" : ""}`} aria-label="UPZITES home">
+      <img src="/images/upzites-logo-full.png" alt="UPZITES" className="nav-brand-img" />
     </a>
   );
 }

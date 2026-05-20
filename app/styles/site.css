@@ -2078,3 +2078,11 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
   .qs-founder { grid-template-columns: 1fr; gap: 32px; }
   .founder-carousel { max-width: 360px; margin: 0 auto; }
 }
+
+/* ===================================================================
+   Brand logo (image) in header + footer
+   =================================================================== */
+.nav-brand-img { height: 34px; width: auto; display: block; }
+.nav-brand--lg .nav-brand-img { height: 48px; }
+.footer-bigword--logo { display: block; }
+.footer-bigword--logo img { width: 100%; height: auto; display: block; }

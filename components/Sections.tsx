@@ -626,8 +626,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="footer-bigword">
-          upzites<span className="arr">↗</span>
+        <div className="footer-bigword footer-bigword--logo">
+          <img src="/images/studio-desing.png" alt="Studio Desing" />
         </div>
 
         <div className="footer-foot">

@@ -89,7 +89,7 @@ export const SERVICES: Service[] = [
     tagline: "Tu tienda online, tu motor de ventas más potente.",
     card: "Tiendas online funcionales que venden. Maximizamos la experiencia de compra y las pasarelas de pago para incrementar tus ingresos.",
     tags: ["Shopify", "WooCommerce", "Conversión"],
-    image: "/images/ecommerce.jpg",
+    image: "/images/ecommerce-cover.jpg",
     accent: "var(--upz-solar)",
     detail: {
       headline: "E-commerce que convierte",
