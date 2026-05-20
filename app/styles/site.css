@@ -2157,3 +2157,28 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 @media (max-width: 700px) {
   .service-nav-label { display: none; }
 }
+
+/* ===================================================================
+   Marketing page extras (hero note + audience list)
+   =================================================================== */
+.brand-hero-note {
+  font-family: var(--font-text); font-size: 15px; line-height: 1.5;
+  color: var(--fg-3); max-width: 480px; margin: -6px 0 26px;
+  border-left: 2px solid var(--svc-accent, var(--upz-electric));
+  padding-left: 14px;
+}
+.mkt-points {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  border-top: 1.5px solid var(--upz-carbon); margin-top: 24px;
+}
+.mkt-point {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 22px 28px 22px 0; border-bottom: 1px solid var(--upz-line);
+  font-family: var(--font-text); font-size: 18px; line-height: 1.4; color: var(--fg-1);
+}
+.mkt-point-arr { color: var(--svc-accent, var(--upz-electric)); font-weight: 900; flex: none; }
+.section--carbon .pill { border-color: rgba(250, 251, 245, 0.42); color: var(--upz-off-white); }
+@media (max-width: 860px) {
+  .mkt-points { grid-template-columns: 1fr; }
+  .mkt-point { padding: 18px 0; }
+}

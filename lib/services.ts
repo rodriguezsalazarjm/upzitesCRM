@@ -120,7 +120,7 @@ export const SERVICES: Service[] = [
     tagline: "Las campañas deben ser una inversión, no un gasto.",
     card: "Servicio integral: contenido, grabación de reels y TikTok, community manager y campañas en Meta y Google Ads. Estrategia y data para escalar tus ingresos.",
     tags: ["Contenido", "Community manager", "Meta & Google Ads"],
-    image: "/images/marketing-digital.jpg",
+    image: "/images/marketing-cover.jpg",
     accent: "var(--upz-guava)",
     detail: {
       headline: "Marketing digital integral",

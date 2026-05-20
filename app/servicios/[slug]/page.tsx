@@ -8,7 +8,7 @@ import { SERVICES, getService } from "@/lib/services";
 
 export function generateStaticParams() {
   // "branding" and "diseno-web" have dedicated static routes under app/servicios/
-  const custom = ["branding", "diseno-web", "ecommerce"];
+  const custom = ["branding", "diseno-web", "ecommerce", "marketing-digital"];
   return SERVICES.filter((s) => !custom.includes(s.slug)).map((s) => ({ slug: s.slug }));
 }
 
