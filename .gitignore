@@ -42,3 +42,10 @@ next-env.d.ts
 
 # claude code local settings
 .claude/settings.local.json
+
+# Raw image source dumps — keep the repo light.
+# Drop originals here; we optimize them with sharp and commit only the
+# web-ready versions under public/images/.
+public/images/Branding/
+public/images/home1.png
+public/images/home2.png
