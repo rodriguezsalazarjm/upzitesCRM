@@ -50,11 +50,16 @@ const PROCESO = [
   { num: "04", t: "Organizamos", d: "Entregamos sistemas claros para que tu marca pueda aplicarse con coherencia y crecer sin perder fuerza." },
 ];
 
-const FOUNDER_PHOTOS = [
+const JOSE_PHOTOS = [
   "/images/founder-1.jpg",
   "/images/founder-2.jpg",
   "/images/founder-3.jpg",
   "/images/founder-4.jpg",
+];
+const JILLY_PHOTOS = [
+  "/images/jilly-1.jpg",
+  "/images/jilly-2.jpg",
+  "/images/jilly-3.jpg",
 ];
 
 export default function NosotrosPage() {
@@ -261,42 +266,102 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      {/* 9. El founder */}
-      <section className="section" data-screen-label="Nosotros · Founder">
+      {/* 9. Nuestro equipo */}
+      <section className="section" data-screen-label="Nosotros · Equipo">
         <div className="shell">
-          <Eyebrow num="08">El founder</Eyebrow>
-          <div className="nos-founder">
+          <Eyebrow num="08">Nuestro equipo</Eyebrow>
+          <div className="services-head">
+            <Reveal>
+              <h2 className="services-h">
+                Un equipo pequeño.<br />
+                <span className="b">Una presencia grande<span style={{ color: ACCENT }}>.</span></span>
+              </h2>
+            </Reveal>
+            <Reveal delay={120}>
+              <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 460, margin: 0 }}>
+                UPZITES se construye desde dos fuerzas que se complementan: la
+                estructura visual y técnica de José, y la energía organizada y
+                social de Jilly. Uno construye la experiencia; la otra mantiene el
+                flow.
+              </p>
+            </Reveal>
+          </div>
+
+          {/* José */}
+          <div className="nos-founder team-member">
             <Reveal>
               <div className="nos-founder-photos">
-                {FOUNDER_PHOTOS.map((src, i) => (
-                  <img key={i} src={src} alt={`José Manuel Rodríguez — foto ${i + 1}`} loading="lazy" />
+                {JOSE_PHOTOS.map((src, i) => (
+                  <img key={i} src={src} alt={`José Rodríguez — foto ${i + 1}`} loading="lazy" />
                 ))}
               </div>
             </Reveal>
             <Reveal delay={120}>
               <div className="nos-founder-bio">
-                <h2 className="brand-promise-h">José Manuel Rodríguez</h2>
-                <p className="qs-bio-role">
-                  Founder &amp; CEO de UPZITES · Desarrollador Full Stack &amp; Diseñador Web
-                </p>
+                <h3 className="team-name">José Rodríguez</h3>
+                <p className="qs-bio-role">Diseño &amp; Desarrollo Web · Founder</p>
                 <p className="brand-body">
-                  Ayudo a marcas, emprendedores y empresas a transformar su presencia
-                  digital a través de sitios web modernos, funcionales y orientados a
-                  resultados.
+                  Diseñador y desarrollador de UPZITES. Combina diseño gráfico,
+                  desarrollo web y pensamiento técnico para crear marcas digitales,
+                  interfaces y sitios con estructura, rendimiento y carácter.
                 </p>
                 <p className="brand-body" style={{ marginTop: 12 }}>
-                  Como fundador de UPZITES, combino desarrollo web, diseño estratégico
-                  y visión de negocio para crear experiencias que comunican,
-                  convierten y escalan.
+                  Viene del mundo de la ingeniería civil y la construcción, donde
+                  desarrolló una mentalidad analítica y orientada a resultados que
+                  hoy aplica al diseño digital, UX/UI y desarrollo web.
                 </p>
                 <div className="intro-tags" style={{ marginTop: 20 }}>
-                  <Pill dot>Full Stack</Pill>
-                  <Pill dot>Diseño UX/UI</Pill>
+                  <Pill dot>Diseño web</Pill>
+                  <Pill dot>Frontend &amp; Backend</Pill>
+                  <Pill dot>UX/UI</Pill>
+                  <Pill dot>Diseño gráfico</Pill>
+                  <Pill dot>Visión técnica</Pill>
                   <Pill dot>Visión de negocio</Pill>
                 </div>
               </div>
             </Reveal>
           </div>
+
+          {/* Jilly */}
+          <div className="nos-founder team-member team-member--rev">
+            <Reveal>
+              <div className="nos-founder-photos">
+                {JILLY_PHOTOS.map((src, i) => (
+                  <img key={i} src={src} alt={`Jilly Moreno — foto ${i + 1}`} loading="lazy" />
+                ))}
+              </div>
+            </Reveal>
+            <Reveal delay={120}>
+              <div className="nos-founder-bio">
+                <h3 className="team-name">Jilly Moreno</h3>
+                <p className="qs-bio-role">Administración &amp; Social Media</p>
+                <p className="brand-body">
+                  Mantiene el ritmo interno de UPZITES. Licenciada en Administración
+                  de Empresas con más de 7 años en gestión administrativa, RR.HH.,
+                  operaciones, atención al cliente y remuneraciones.
+                </p>
+                <p className="brand-body" style={{ marginTop: 12 }}>
+                  Es la mezcla de estructura y glamour: organiza procesos, cuida los
+                  detalles y se mantiene al día con los trends de Instagram y TikTok
+                  para que la marca nunca pierda frescura cultural.
+                </p>
+                <div className="intro-tags" style={{ marginTop: 20 }}>
+                  <Pill dot>Administración</Pill>
+                  <Pill dot>RR.HH.</Pill>
+                  <Pill dot>Operaciones</Pill>
+                  <Pill dot>Atención al cliente</Pill>
+                  <Pill dot>Social media</Pill>
+                  <Pill dot>Organización</Pill>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+
+          <Reveal delay={80}>
+            <p className="team-closing">
+              José construye la experiencia. <span className="mark">Jilly mantiene el ritmo</span>.
+            </p>
+          </Reveal>
         </div>
       </section>
 

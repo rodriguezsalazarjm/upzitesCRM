@@ -39,9 +39,16 @@ export function QuienesSomos() {
                 <Pill dot>Sistema</Pill>
                 <Pill dot>Carácter</Pill>
               </div>
-              <p className="qs-founder-credit">
-                Fundado por <strong>José Manuel Rodríguez</strong> · Founder &amp; CEO
-              </p>
+              <div className="qs-team">
+                <div className="qs-team-member">
+                  <img src="/images/founder-1.jpg" alt="José Rodríguez" loading="lazy" />
+                  <div><strong>José Rodríguez</strong><span>Diseño &amp; Desarrollo · Founder</span></div>
+                </div>
+                <div className="qs-team-member">
+                  <img src="/images/jilly-1.jpg" alt="Jilly Moreno" loading="lazy" />
+                  <div><strong>Jilly Moreno</strong><span>Administración &amp; Social Media</span></div>
+                </div>
+              </div>
               <div className="hero-actions" style={{ marginTop: 22 }}>
                 <Link href="/nosotros" className="btn btn-dark btn-lg">Saber más <span className="arr">↗</span></Link>
               </div>
