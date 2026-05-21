@@ -73,7 +73,7 @@ export function AuditTool() {
     const u = url.trim();
     const res = await runAudit(u);
     
-    if (res.success && res.data) {
+    if (res.success) {
       setResult(res.data);
     } else {
       alert("Hubo un error al auditar: " + res.error);
