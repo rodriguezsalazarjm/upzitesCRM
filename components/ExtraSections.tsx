@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Eyebrow, Reveal, Barcode } from "./Atoms";
-import { runAudit } from "@/app/actions/audit";
+import { runAudit } from "@/lib/pagespeed";
 
 // ---------- Mock score generator (deterministic from URL) ----------
 function hashStr(s: string) {
