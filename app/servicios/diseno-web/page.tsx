@@ -233,6 +233,7 @@ export default function DisenoWebPage() {
               digital clara, rápida y lista para competir.
             </p>
             <Link href="/#contact" className="btn btn-lime btn-lg">Quiero una web 24/7 <span className="arr">↗</span></Link>
+            <Link href="/#projects" className="btn btn-light btn-lg">Ver proyectos <span className="arr">↗</span></Link>
           </Reveal>
         </div>
       </section>

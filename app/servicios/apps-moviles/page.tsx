@@ -374,6 +374,7 @@ export default function AppsMovilesPage() {
               listo para usuarios reales.
             </p>
             <Link href="/#contact" className="btn btn-lime btn-lg">Quiero crear mi app <span className="arr">↗</span></Link>
+            <Link href="/#projects" className="btn btn-light btn-lg">Ver proyectos <span className="arr">↗</span></Link>
           </Reveal>
         </div>
       </section>

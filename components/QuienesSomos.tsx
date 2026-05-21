@@ -87,7 +87,8 @@ export function QuienesSomos() {
 
         <Reveal delay={120}>
           <div className="hero-actions" style={{ justifyContent: "center", marginTop: 28 }}>
-            <Link href="/nosotros" className="btn btn-dark btn-lg">Saber más sobre nosotros <span className="arr">↗</span></Link>
+            <a href="#projects" className="btn btn-dark btn-lg">Ver proyectos <span className="arr">↗</span></a>
+            <Link href="/nosotros" className="btn btn-ivory btn-lg">Saber más sobre nosotros <span className="arr">↗</span></Link>
           </div>
         </Reveal>
       </div>

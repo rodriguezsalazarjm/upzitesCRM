@@ -349,6 +349,7 @@ export default function MarketingDigitalPage() {
               con más estrategia.
             </p>
             <Link href="/#contact" className="btn btn-lime btn-lg">Quiero activar mi marketing digital <span className="arr">↗</span></Link>
+            <Link href="/#projects" className="btn btn-light btn-lg">Ver proyectos <span className="arr">↗</span></Link>
           </Reveal>
         </div>
       </section>

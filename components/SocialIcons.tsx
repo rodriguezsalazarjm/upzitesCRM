@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type SocialType = "instagram" | "facebook" | "tiktok" | "x" | "threads" | "linkedin";
+export type SocialType = "instagram" | "facebook" | "tiktok" | "x" | "threads" | "linkedin" | "behance";
 export type SocialLink = { type: SocialType; url: string };
 
 const LABELS: Record<SocialType, string> = {
@@ -10,6 +10,7 @@ const LABELS: Record<SocialType, string> = {
   x: "X (Twitter)",
   threads: "Threads",
   linkedin: "LinkedIn",
+  behance: "Behance",
 };
 
 const ICONS: Record<SocialType, ReactNode> = {
@@ -45,6 +46,11 @@ const ICONS: Record<SocialType, ReactNode> = {
       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
     </svg>
   ),
+  behance: (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.101 3-3.074 0-5.564-1.729-5.564-5.675 0-3.91 2.325-5.92 5.466-5.92 3.082 0 4.964 1.782 5.375 4.426.078.506.109 1.188.095 2.14h-7.027c.13 3.211 3.483 3.312 4.588 2.029h2.7zm-7.207-4h4.396c-.157-1.215-.949-1.7-2.196-1.7-1.343 0-2.085.624-2.2 1.7zm-5.221.652c.749.331 1.293 1.014 1.293 2.27 0 2.084-1.564 3.078-3.451 3.078H0V5h4.971c1.804 0 3.367.504 3.367 2.665 0 1.07-.485 1.683-1.34 2.106 1.187.319 1.5 1.378 1.5 1.881zM2.595 9.557h2.083c.785 0 1.355-.344 1.355-1.117 0-.83-.633-1.073-1.36-1.073H2.595v2.19zm2.196 5.99c.815 0 1.516-.275 1.516-1.226 0-.953-.563-1.366-1.484-1.366h-2.23v2.592h2.198z" />
+    </svg>
+  ),
 };
 
 export const UPZITES_SOCIALS: SocialLink[] = [
@@ -58,6 +64,7 @@ export const JOSE_SOCIALS: SocialLink[] = [
   { type: "x", url: "https://x.com/Zalazarjmr" },
   { type: "threads", url: "https://www.threads.com/@joserodrizg" },
   { type: "linkedin", url: "https://www.linkedin.com/in/jose-rodr%C3%ADguez-400547138/" },
+  { type: "behance", url: "https://www.behance.net/josemarodrigu44" },
 ];
 
 export const JILLY_SOCIALS: SocialLink[] = [

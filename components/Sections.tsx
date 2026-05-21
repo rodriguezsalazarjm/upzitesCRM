@@ -6,7 +6,7 @@ import { Brand, Eyebrow, Reveal, Pill, Stamp, Sticker, Barcode } from "./Atoms";
 import { SERVICES } from "@/lib/services";
 import { HeroBackground } from "./HeroBackground";
 import { CountUp } from "./CountUp";
-import { ProjectsAccordion } from "./ProjectsAccordion";
+import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 
 // ---------- Top nav -------------------------------------------------
@@ -76,7 +76,7 @@ export function Hero() {
           </p>
           <div className="hero-actions">
             <a href="#contact" className="btn btn-dark btn-lg">Contacto <span className="arr">↗</span></a>
-            <a href="#projects" className="btn btn-ivory btn-lg">Ver Portfolio <span className="arr">↗</span></a>
+            <a href="#projects" className="btn btn-ivory btn-lg">Ver proyectos <span className="arr">↗</span></a>
           </div>
           <div className="hero-tags">
             <div className="hero-tag-row">
@@ -178,7 +178,7 @@ export function Projects() {
       <div className="shell">
         <Eyebrow num="04">Proyectos · Selected work</Eyebrow>
         <div className="projects-head">
-          <Reveal>
+          <Reveal variant="left">
             <h2>
               Marcas que ya<br />
               no se ven<br />
@@ -193,7 +193,7 @@ export function Projects() {
           </Reveal>
         </div>
 
-        <ProjectsAccordion />
+        <ProjectsGallery />
       </div>
     </section>
   );

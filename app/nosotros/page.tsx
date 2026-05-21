@@ -92,6 +92,7 @@ export default function NosotrosPage() {
             </p>
             <div className="hero-actions">
               <a href="#proceso" className="btn btn-dark btn-lg">Conoce cómo trabajamos <span className="arr">↗</span></a>
+              <Link href="/#projects" className="btn btn-ivory btn-lg">Ver proyectos <span className="arr">↗</span></Link>
               <Link href="/servicios" className="btn btn-ivory btn-lg">Ver servicios <span className="arr">↗</span></Link>
             </div>
           </Reveal>

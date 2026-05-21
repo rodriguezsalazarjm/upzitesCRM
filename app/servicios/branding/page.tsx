@@ -192,6 +192,7 @@ export default function BrandingPage() {
               que quieren entrar al mercado con presencia, claridad y actitud.
             </p>
             <Link href="/#contact" className="btn btn-lime btn-lg">Quiero mi branding estratégico <span className="arr">↗</span></Link>
+            <Link href="/#projects" className="btn btn-light btn-lg">Ver proyectos <span className="arr">↗</span></Link>
           </Reveal>
         </div>
       </section>

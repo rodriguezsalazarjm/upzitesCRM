@@ -256,6 +256,7 @@ export default function EcommercePage() {
               una plataforma comercial clara, rápida, escalable y con carácter.
             </p>
             <Link href="/#contact" className="btn btn-lime btn-lg">Quiero mi e-commerce <span className="arr">↗</span></Link>
+            <Link href="/#projects" className="btn btn-light btn-lg">Ver proyectos <span className="arr">↗</span></Link>
           </Reveal>
         </div>
       </section>
