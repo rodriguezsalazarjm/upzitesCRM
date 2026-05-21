@@ -13,8 +13,23 @@ export function Brand({ size }: { size?: "lg" }) {
 
 // ---------- Editorial eyebrow + horizontal rule ---------------------
 export function Eyebrow({ num, children }: { num?: string, children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    if (!ref.current) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) { setSeen(true); io.disconnect(); }
+        });
+      },
+      { threshold: 0.6 }
+    );
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, []);
   return (
-    <div className="eyebrow-row">
+    <div ref={ref} className={`eyebrow-row${seen ? " is-in" : ""}`}>
       <span className="eyebrow">{num ? `${num} · ` : ""}{children}</span>
       <span className="rule"></span>
     </div>
@@ -80,7 +95,7 @@ export function Stamp({ text, color, bg, size }: { text: string, color?: string,
 }
 
 // ---------- Reveal-on-scroll (IntersectionObserver) ----------------
-export function Reveal({ children, delay, as }: { children: React.ReactNode, delay?: number, as?: any }) {
+export function Reveal({ children, delay, as, variant }: { children: React.ReactNode, delay?: number, as?: any, variant?: "up" | "left" | "right" | "scale" | "clip" }) {
   const ref = useRef<HTMLElement>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
@@ -100,10 +115,11 @@ export function Reveal({ children, delay, as }: { children: React.ReactNode, del
     return () => io.disconnect();
   }, []);
   const Tag = as || "div";
+  const variantClass = variant && variant !== "up" ? ` reveal--${variant}` : "";
   return (
     <Tag
       ref={ref}
-      className={`reveal${seen ? " is-in" : ""}`}
+      className={`reveal${variantClass}${seen ? " is-in" : ""}`}
       style={{ transitionDelay: delay ? `${delay}ms` : undefined }}
     >
       {children}

@@ -242,7 +242,7 @@ export default function NosotrosPage() {
         <div className="shell">
           <Eyebrow num="07">Quién es UPZITES</Eyebrow>
           <div className="brand-promise">
-            <Reveal>
+            <Reveal variant="clip">
               <figure className="brand-promise-media" style={{ margin: 0 }}>
                 <img src="/images/nosotros/santiago.jpg" alt="Santiago de Chile — base de UPZITES" />
               </figure>
@@ -291,7 +291,7 @@ export default function NosotrosPage() {
 
           {/* José */}
           <div className="nos-founder team-member">
-            <Reveal>
+            <Reveal variant="clip">
               <div className="nos-founder-photos">
                 {JOSE_PHOTOS.map((src, i) => (
                   <img key={i} src={src} alt={`José Rodríguez — foto ${i + 1}`} loading="lazy" />
@@ -327,7 +327,7 @@ export default function NosotrosPage() {
 
           {/* Jilly */}
           <div className="nos-founder team-member team-member--rev">
-            <Reveal>
+            <Reveal variant="clip">
               <div className="nos-founder-photos">
                 {JILLY_PHOTOS.map((src, i) => (
                   <img key={i} src={src} alt={`Jilly Moreno — foto ${i + 1}`} loading="lazy" />

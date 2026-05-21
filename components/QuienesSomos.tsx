@@ -60,7 +60,7 @@ export function QuienesSomos() {
 
         <div className="qs-cards">
           {BLOCKS.map((b, i) => (
-            <Reveal key={b.name} delay={i * 80}>
+            <Reveal key={b.name} delay={i * 80} variant="scale">
               <article className="qs-card">
                 <div className="qs-card-img">
                   <img src={b.img} alt={b.name} loading="lazy" />
