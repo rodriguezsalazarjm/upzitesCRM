@@ -6,6 +6,7 @@ import { Brand, Eyebrow, Reveal, Pill, Stamp, Sticker, Barcode } from "./Atoms";
 import { SERVICES } from "@/lib/services";
 import { HeroBackground } from "./HeroBackground";
 import { CountUp } from "./CountUp";
+import { ProjectsAccordion } from "./ProjectsAccordion";
 
 // ---------- Top nav -------------------------------------------------
 export function TopNav() {
@@ -169,83 +170,11 @@ export function Services() {
 }
 
 // ---------- 04 PROJECTS --------------------------------------------
-const PROJECTS = [
-  {
-    name: "Valle Smash",
-    cat: "Identidad retro · Pop art",
-    year: "2025",
-    bg: "#FF3B30", fg: "#FAFBF5",
-    layout: "span-7 wide",
-    filter: "Branding",
-    blurb: "Identidad inspirada en los diners americanos y el pop art",
-  },
-  {
-    name: "Gloobitos",
-    cat: "Identidad emocional",
-    year: "2025",
-    bg: "#FF5CAB", fg: "#111111",
-    layout: "span-5 wide",
-    filter: "Branding",
-    blurb: "Marca tierna y emocional, diseñada para el afecto",
-  },
-  {
-    name: "Reyes Protec",
-    cat: "Protección automotriz",
-    year: "2025",
-    bg: "#FFD100", fg: "#111111",
-    layout: "span-4 tall",
-    filter: "Branding",
-    blurb: "Identidad para el sector de protección automotriz",
-  },
-  {
-    name: "TechServ",
-    cat: "Tecnología · B2B",
-    year: "2024",
-    bg: "#001B2A", fg: "#A6FF00",
-    layout: "span-4 tall",
-    filter: "Branding",
-    blurb: "Marca minimalista, tecnológica y profesional",
-  },
-  {
-    name: "Profile",
-    cat: "Web empresarial",
-    year: "2024",
-    bg: "#F4F1E8", fg: "#111111",
-    layout: "span-4 tall",
-    filter: "Web",
-    blurb: "Liderazgo, experiencia y resultados medibles",
-  },
-  {
-    name: "V&R Automotriz",
-    cat: "Branding automotriz",
-    year: "2024",
-    bg: "#0057FF", fg: "#FAFBF5",
-    layout: "span-8 short",
-    filter: "Branding",
-    blurb: "Una identidad profesional que representa libertad",
-  },
-  {
-    name: "Archivo",
-    cat: "Ver el resto del trabajo",
-    year: "2025",
-    bg: "#111111", fg: "#FAFBF5",
-    layout: "span-4 short",
-    filter: "Web",
-    blurb: "Más de 50 proyectos terminados · ver archivo completo",
-    isArchive: true,
-  },
-];
-
-const FILTERS = ["Todos", "Branding", "Web"];
-
 export function Projects() {
-  const [active, setActive] = useState("Todos");
-  const list = active === "Todos" ? PROJECTS : PROJECTS.filter((p) => p.filter === active);
-
   return (
     <section id="projects" className="section section--ivory" data-screen-label="04 Projects">
       <div className="shell">
-        <Eyebrow num="04">Proyectos destacados · Selected work</Eyebrow>
+        <Eyebrow num="04">Proyectos · Selected work</Eyebrow>
         <div className="projects-head">
           <Reveal>
             <h2>
@@ -255,46 +184,14 @@ export function Projects() {
             </h2>
           </Reveal>
           <Reveal delay={100}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "flex-end" }}>
-              <div className="projects-filter">
-                {FILTERS.map((f) => (
-                  <button
-                    key={f}
-                    className={`filter-pill${active === f ? " is-active" : ""}`}
-                    onClick={() => setActive(f)}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <a href="#" className="btn btn-ivory">Ver archivo completo <span className="arr">↗</span></a>
-            </div>
+            <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 440, margin: 0 }}>
+              Branding e identidad, y las webs que hemos construido. Abre cada
+              proyecto para ver la galería o una vista previa en vivo del sitio.
+            </p>
           </Reveal>
         </div>
 
-        <div className="projects-grid">
-          {list.map((p, i) => (
-            <Reveal key={p.name} delay={i * 50}>
-              <article className={`project-card ${p.layout}`}>
-                <div className="project-img" style={{ background: p.bg, color: p.fg }}>
-                  <div className="project-img-meta">
-                    <span className="tag">{p.filter}</span>
-                    <span className="tag">{p.year}</span>
-                  </div>
-                  <span className="project-img-word">{p.name}</span>
-                  <span className="project-img-stamp" style={{ color: p.fg }}>{p.isArchive ? "+50 CASOS · ARCHIVO" : `CASO · 00${i+1}`}</span>
-                </div>
-                <div className="project-meta">
-                  <div>
-                    <div className="project-name">{p.name}</div>
-                    <div className="project-cat">{p.cat}</div>
-                  </div>
-                  <span className="project-card-arr">↗</span>
-                </div>
-              </article>
-            </Reveal>
-          ))}
-        </div>
+        <ProjectsAccordion />
       </div>
     </section>
   );
