@@ -2253,3 +2253,48 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
   .proj-browser-body { height: 440px; }
   .proj-gallery img { height: 220px; }
 }
+
+/* ---- Project category groups + case-study panel ---- */
+.proj-cat-group { margin-bottom: 6px; }
+.proj-cat-label {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-text); font-weight: 800; font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--upz-carbon);
+  margin: 26px 0 2px;
+}
+.proj-cat-label span { font-family: var(--font-mono); color: var(--fg-3); }
+.proj-case { display: grid; gap: 18px; }
+.proj-desc { font-family: var(--font-text); font-size: 16px; line-height: 1.55; color: var(--fg-1); max-width: 720px; margin: 0; }
+.proj-case-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 720px; }
+.proj-meta-label { display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); margin-bottom: 10px; }
+.proj-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.proj-tag { font-family: var(--font-text); font-weight: 600; font-size: 12px; padding: 6px 12px; border: 1.5px solid var(--upz-carbon); border-radius: 999px; }
+.proj-benefits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.proj-benefits li { display: flex; gap: 10px; font-family: var(--font-text); font-size: 14px; line-height: 1.4; color: var(--fg-2); }
+.proj-benefit-arr { color: var(--svc-accent, var(--upz-electric)); font-weight: 900; flex: none; }
+
+/* ---- Gallery marquee ---- */
+.gm { position: relative; overflow: hidden; margin-top: 22px; border-top: 1px solid var(--upz-line); border-bottom: 1px solid var(--upz-line); padding: 18px 0; }
+.gm-track { display: flex; width: max-content; animation-name: gm-scroll; animation-timing-function: linear; animation-iteration-count: infinite; }
+.gm:hover .gm-track { animation-play-state: paused; }
+.gm-item { flex: none; margin-right: 14px; padding: 0; border: 1.5px solid var(--upz-carbon); background: var(--upz-paper); cursor: zoom-in; display: block; line-height: 0; overflow: hidden; }
+.gm-item img { height: 260px; width: auto; display: block; object-fit: cover; transition: transform var(--dur-base) var(--ease-snap); }
+.gm-item:hover img { transform: scale(1.04); }
+.gm-hint { position: absolute; top: 8px; right: 12px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); background: var(--bg-1); padding: 2px 6px; pointer-events: none; }
+@keyframes gm-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .gm-track { animation: none; } .gm { overflow-x: auto; } }
+
+/* ---- Lightbox ---- */
+.lightbox { position: fixed; inset: 0; z-index: 10000; background: rgba(17, 17, 17, 0.92); display: flex; align-items: center; justify-content: center; padding: 4vh 4vw; }
+.lightbox-img { max-width: 92vw; max-height: 88vh; object-fit: contain; border: 1.5px solid rgba(250, 251, 245, 0.22); cursor: default; }
+.lightbox-close { position: absolute; top: 18px; right: 22px; width: 44px; height: 44px; border-radius: 999px; background: transparent; border: 1.5px solid rgba(250, 251, 245, 0.5); color: var(--upz-off-white); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lightbox-close:hover { background: rgba(250, 251, 245, 0.12); }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 999px; background: rgba(250, 251, 245, 0.1); border: 1.5px solid rgba(250, 251, 245, 0.4); color: var(--upz-off-white); font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.lightbox-nav:hover { background: var(--upz-electric); border-color: var(--upz-electric); }
+.lightbox-prev { left: 18px; }
+.lightbox-next { right: 18px; }
+.lightbox-count { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 12px; color: rgba(250, 251, 245, 0.8); letter-spacing: 0.1em; }
+@media (max-width: 700px) {
+  .gm-item img { height: 190px; }
+  .lightbox-nav { width: 42px; height: 42px; font-size: 22px; }
+}

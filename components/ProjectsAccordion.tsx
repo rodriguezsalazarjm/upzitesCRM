@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { BRANDING_PROJECTS, WEB_PROJECTS } from "@/lib/projects";
+import { BRANDING_PROJECTS, BRANDING_CATEGORIES, WEB_PROJECTS } from "@/lib/projects";
+import { GalleryMarquee } from "./GalleryMarquee";
 
 function clean(url: string) {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
 export function ProjectsAccordion() {
-  const [openB, setOpenB] = useState<number | null>(0);
-  const [openW, setOpenW] = useState<number | null>(null);
+  const [openB, setOpenB] = useState<string | null>(BRANDING_PROJECTS[0]?.slug ?? null);
+  const [openW, setOpenW] = useState<string | null>(null);
 
   return (
     <div className="proj-blocks">
@@ -18,36 +19,62 @@ export function ProjectsAccordion() {
         <h3 className="proj-block-title">
           Branding &amp; Identidad <span>{String(BRANDING_PROJECTS.length).padStart(2, "0")}</span>
         </h3>
-        <div className="proj-acc">
-          {BRANDING_PROJECTS.map((p, i) => {
-            const open = openB === i;
-            return (
-              <div className={`proj-row${open ? " is-open" : ""}`} key={p.slug}>
-                <button
-                  type="button"
-                  className="proj-head"
-                  aria-expanded={open}
-                  onClick={() => setOpenB(open ? null : i)}
-                >
-                  <span className="proj-num">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="proj-name">{p.name}</span>
-                  <span className="proj-cat">{p.category}</span>
-                  <span className="proj-toggle" aria-hidden="true">+</span>
-                </button>
-                <div className="proj-panel">
-                  <div className="proj-panel-inner">
-                    <p className="proj-blurb">{p.blurb}</p>
-                    <div className="proj-gallery">
-                      {p.images.map((src, j) => (
-                        <img key={j} src={src} alt={`${p.name} — ${j + 1}`} loading="lazy" />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+
+        {BRANDING_CATEGORIES.map((cat) => {
+          const items = BRANDING_PROJECTS.filter((p) => p.category === cat.key);
+          if (!items.length) return null;
+          return (
+            <div className="proj-cat-group" key={cat.key}>
+              <div className="proj-cat-label">
+                {cat.label} <span>{String(items.length).padStart(2, "0")}</span>
               </div>
-            );
-          })}
-        </div>
+              <div className="proj-acc">
+                {items.map((p, i) => {
+                  const open = openB === p.slug;
+                  return (
+                    <div className={`proj-row${open ? " is-open" : ""}`} key={p.slug}>
+                      <button
+                        type="button"
+                        className="proj-head"
+                        aria-expanded={open}
+                        onClick={() => setOpenB(open ? null : p.slug)}
+                      >
+                        <span className="proj-num">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="proj-name">{p.name}</span>
+                        <span className="proj-cat">{p.images.length} piezas</span>
+                        <span className="proj-toggle" aria-hidden="true">+</span>
+                      </button>
+                      <div className="proj-panel">
+                        <div className="proj-panel-inner">
+                          <div className="proj-case">
+                            <p className="proj-desc">{p.description}</p>
+                            <div className="proj-case-meta">
+                              <div className="proj-meta-col">
+                                <span className="proj-meta-label">Puntos fuertes</span>
+                                <div className="proj-tags">
+                                  {p.fuertes.map((f) => <span key={f} className="proj-tag">{f}</span>)}
+                                </div>
+                              </div>
+                              <div className="proj-meta-col">
+                                <span className="proj-meta-label">Beneficios</span>
+                                <ul className="proj-benefits">
+                                  {p.beneficios.map((b) => (
+                                    <li key={b}><span className="proj-benefit-arr">↗</span>{b}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                          {open && <GalleryMarquee images={p.images} name={p.name} />}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Webs & Desarrollo */}
@@ -57,14 +84,14 @@ export function ProjectsAccordion() {
         </h3>
         <div className="proj-acc">
           {WEB_PROJECTS.map((p, i) => {
-            const open = openW === i;
+            const open = openW === p.slug;
             return (
               <div className={`proj-row${open ? " is-open" : ""}`} key={p.slug}>
                 <button
                   type="button"
                   className="proj-head"
                   aria-expanded={open}
-                  onClick={() => setOpenW(open ? null : i)}
+                  onClick={() => setOpenW(open ? null : p.slug)}
                 >
                   <span className="proj-num">{String(i + 1).padStart(2, "0")}</span>
                   <span className="proj-name">
