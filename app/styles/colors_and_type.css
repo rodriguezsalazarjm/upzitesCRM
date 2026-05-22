@@ -5,74 +5,15 @@
 
 /* ---------- FONTS ---------------------------------------------------- */
 
-/* Bebas Neue — the brand sheet's canonical display family.
-   Loaded from Google Fonts for consistent rendering across surfaces.
-   The uploaded Boldonse.otf is kept as a stylistic fallback. */
+/* Display family (Bebas Neue) is loaded via next/font/google in
+   app/layout.tsx (self-hosted, non-blocking) and exposed as --font-bebas.
 
-@font-face {
-  font-family: "Boldonse";
-  src: url("/fonts/Boldonse.otf") format("opentype");
-  font-weight: 400 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Extralight.otf") format("opentype");
-  font-weight: 200;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Light.otf") format("opentype");
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Medium.otf") format("opentype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Semibold.otf") format("opentype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Extrabold.otf") format("opentype");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Helvena";
-  src: url("/fonts/Helvena-Black.otf") format("opentype");
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
+   NOTE: the previous local @font-face rules for "Boldonse" and "Helvena"
+   pointed at /fonts/*.otf files that don't exist in the project, so every
+   request returned 404 and the browser always fell back to the system stack
+   defined in --font-text. They were removed to eliminate those 404s with no
+   visual change. If the real .otf files are added under /public/fonts later,
+   re-introduce them here (ideally via next/font/local). */
 
 /* ---------- TOKENS --------------------------------------------------- */
 
