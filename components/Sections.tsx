@@ -27,6 +27,7 @@ export function TopNav() {
       <div className="shell nav-inner">
         <Brand />
         <nav className="nav-links">
+          <Link href="/">Inicio</Link>
           <div className="nav-dropdown">
             <Link href="/servicios" className="nav-dropdown-trigger">
               Servicios <span className="nav-caret" aria-hidden="true">▾</span>
@@ -68,25 +69,29 @@ export function TopNav() {
 
       <div className={`nav-mobile${open ? " is-open" : ""}`}>
         <div className="nav-mobile-inner">
+          <div className="nav-mobile-links">
+            <Link href="/" onClick={close}>Inicio</Link>
+            <Link href="/nosotros" onClick={close}>Nosotros</Link>
+            <Link href="/#projects" onClick={close}>Proyectos</Link>
+            <Link href="/#auditoria" onClick={close}>Auditoría</Link>
+            <Link href="/#agenda" onClick={close}>Agenda</Link>
+            <Link href="/#contact" onClick={close}>Contacto</Link>
+          </div>
           <span className="nav-mobile-label">Servicios</span>
           <div className="nav-mobile-services">
             {SERVICES.map((s) => (
               <Link key={s.slug} href={`/servicios/${s.slug}`} onClick={close}>{s.title}</Link>
             ))}
+            <Link href="/servicios" className="nav-mobile-services-all" onClick={close}>
+              Ver todos <span className="arr">↗</span>
+            </Link>
           </div>
-          <div className="nav-mobile-links">
-            <Link href="/servicios" onClick={close}>Servicios</Link>
-            <Link href="/#auditoria" onClick={close}>Auditoría</Link>
-            <Link href="/nosotros" onClick={close}>Nosotros</Link>
-            <Link href="/#agenda" onClick={close}>Agenda</Link>
-            <Link href="/#projects" onClick={close}>Proyectos</Link>
-            <Link href="/#process" onClick={close}>Proceso</Link>
-            <Link href="/#contact" onClick={close}>Contacto</Link>
+          <div className="nav-mobile-foot">
+            <SocialLinks links={UPZITES_SOCIALS} className="nav-mobile-socials" />
+            <Link href="/#contact" className="btn btn-primary btn-lg" onClick={close}>
+              Hablemos <span className="arr">↗</span>
+            </Link>
           </div>
-          <SocialLinks links={UPZITES_SOCIALS} className="nav-mobile-socials" />
-          <Link href="/#contact" className="btn btn-primary btn-lg" onClick={close}>
-            Hablemos <span className="arr">↗</span>
-          </Link>
         </div>
       </div>
     </header>
@@ -209,6 +214,46 @@ export function Services() {
               </Link>
             </Reveal>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- Showcase band (brand in the wild) ----------------------
+export function Showcase() {
+  return (
+    <section className="section section--ivory showcase" data-screen-label="Showcase">
+      <div className="shell">
+        <Eyebrow num="02">UPZITES en el mundo real</Eyebrow>
+        <div className="services-head">
+          <Reveal>
+            <h2 className="services-h">
+              Tu marca, lista para<br />
+              <span className="b">verse en todas partes<span style={{ color: "var(--upz-tomato)" }}>.</span></span>
+            </h2>
+          </Reveal>
+          <Reveal delay={120}>
+            <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 460, margin: 0 }}>
+              De la calle a la pantalla: identidad, web y piezas que funcionan
+              como un solo sistema. Coherente, reconocible y con actitud.
+            </p>
+          </Reveal>
+        </div>
+
+        <div className="showcase-grid">
+          <Reveal variant="clip">
+            <figure className="showcase-fig">
+              <img src="/images/home-1.jpg" alt="Identidad UPZITES aplicada en la calle" loading="lazy" />
+              <figcaption><span className="b">●</span> Marca en la calle</figcaption>
+            </figure>
+          </Reveal>
+          <Reveal variant="clip" delay={120}>
+            <figure className="showcase-fig">
+              <img src="/images/home-2.jpg" alt="Sistema de marca UPZITES en web y piezas" loading="lazy" />
+              <figcaption><span className="b">●</span> Sistema en pantalla</figcaption>
+            </figure>
+          </Reveal>
         </div>
       </div>
     </section>
@@ -588,11 +633,17 @@ export function Footer() {
           <img src="/images/studio-desing.png" alt="Studio Desing" />
         </div>
 
+        <nav className="footer-legal" aria-label="Legal">
+          <Link href="/privacidad">Política de privacidad</Link>
+          <Link href="/terminos">Términos y condiciones</Link>
+          <Link href="/cookies">Política de cookies</Link>
+        </nav>
+
         <div className="footer-foot">
           <span className="footer-cities">
             <span className="b">●</span> Santiago de Chile
           </span>
-          <span className="footer-meta">UPZ · {new Date().getFullYear()} · 0001 · Diseño estratégico con carácter</span>
+          <span className="footer-meta">© {new Date().getFullYear()} UPZITES · Todos los derechos reservados · Diseño estratégico con carácter</span>
           <a href="#top" className="footer-toplink">Volver arriba <span className="arr">↗</span></a>
         </div>
       </div>

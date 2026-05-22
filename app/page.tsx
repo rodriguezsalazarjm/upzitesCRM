@@ -1,4 +1,4 @@
-import { TopNav, Hero, Marquee, Services, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
+import { TopNav, Hero, Marquee, Services, Showcase, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
 import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
 
@@ -18,6 +18,9 @@ export default function Home() {
 
       {/* Services */}
       <Services />
+
+      {/* Brand in the wild */}
+      <Showcase />
 
       {/* Free site audit */}
       <AuditTool />

@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 
 // ---------- Brand mark ----------------------------------------------
 export function Brand({ size }: { size?: "lg" }) {
   return (
-    <a href="#top" className={`nav-brand${size === "lg" ? " nav-brand--lg" : ""}`} aria-label="UPZITES home">
+    <Link href="/" className={`nav-brand${size === "lg" ? " nav-brand--lg" : ""}`} aria-label="UPZITES — Inicio">
       <img src="/images/upzites-logo-full.png" alt="UPZITES" className="nav-brand-img" />
-    </a>
+    </Link>
   );
 }
 
@@ -75,7 +76,7 @@ export function Stamp({ text, color, bg, size }: { text: string, color?: string,
   const s = size || 132;
   const r = s / 2 - 12;
   return (
-    <div className="hero-stamp" style={{ width: s, height: s, background: bg, color }}>
+    <div className="hero-stamp" style={{ background: bg, color }}>
       <svg viewBox={`0 0 ${s} ${s}`}>
         <defs>
           <path id="stamp-path" d={`M ${s/2}, ${s/2} m -${r}, 0 a ${r},${r} 0 1,1 ${r*2},0 a ${r},${r} 0 1,1 -${r*2},0`} />
@@ -99,7 +100,14 @@ export function Reveal({ children, delay, as, variant }: { children: React.React
   const ref = useRef<HTMLElement>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
-    if (!ref.current) return;
+    const el = ref.current;
+    if (!el) return;
+    // Safety: if IntersectionObserver is unavailable, reveal right away.
+    if (typeof IntersectionObserver === "undefined") { setSeen(true); return; }
+    // Reveal immediately anything already within (or above) the first viewport
+    // at mount — avoids elements staying hidden if the observer never fires.
+    const rect = el.getBoundingClientRect();
+    if (rect.top < (window.innerHeight || 0) * 0.95) { setSeen(true); return; }
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -109,9 +117,9 @@ export function Reveal({ children, delay, as, variant }: { children: React.React
           }
         });
       },
-      { threshold: 0.12 }
+      { threshold: 0.1, rootMargin: "0px 0px -8% 0px" }
     );
-    io.observe(ref.current);
+    io.observe(el);
     return () => io.disconnect();
   }, []);
   const Tag = as || "div";

@@ -32,7 +32,7 @@ const BLOCKS = [
     kicker: "Equipo",
     name: "Jilly Moreno",
     role: "Administración & Social Media",
-    img: "/images/jilly-1.jpg",
+    img: "/images/jilly-4.jpg",
     text: "Licenciada en Administración con +7 años en gestión, RR.HH. y operaciones. Mantiene el ritmo de UPZITES: organiza procesos, cuida los detalles y conecta la marca con los trends de Instagram y TikTok.",
     socials: JILLY_SOCIALS,
   },

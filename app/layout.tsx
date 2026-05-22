@@ -4,6 +4,7 @@ import { Preloader } from "@/components/Preloader";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { FloatingActions } from "@/components/FloatingActions";
 import { CookieConsent } from "@/components/CookieConsent";
+import { PromoPopup } from "@/components/PromoPopup";
 
 export const metadata: Metadata = {
   title: "UPZITES — Diseño estratégico con carácter",
@@ -22,6 +23,7 @@ export default function RootLayout({
         <ScrollProgress />
         {children}
         <FloatingActions />
+        <PromoPopup />
         <CookieConsent />
       </body>
     </html>
