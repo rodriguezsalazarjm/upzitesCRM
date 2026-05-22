@@ -51,7 +51,7 @@ export default function BrandingPage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/branding-cover.jpg" alt="Sistema de marca tropical underground sobre escritorio creativo" />
+              <img src="/images/branding-cover.webp" alt="Sistema de marca tropical underground sobre escritorio creativo" />
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@ export default function BrandingPage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/branding-system.jpg" alt="Sistema de identidad de marca completo: papelería, packaging y web" />
+                <img src="/images/branding-system.webp" alt="Sistema de identidad de marca completo: papelería, packaging y web" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -144,7 +144,7 @@ export default function BrandingPage() {
             </div>
             <Reveal delay={120}>
               <div className="brand-process-media">
-                <img src="/images/branding-process.jpg" alt="Muestras de color, tipografías y dirección de arte" />
+                <img src="/images/branding-process.webp" alt="Muestras de color, tipografías y dirección de arte" />
               </div>
             </Reveal>
           </div>

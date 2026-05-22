@@ -105,7 +105,7 @@ export default function MarketingDigitalPage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/marketing-cover.jpg" alt="Creación de contenido y marketing digital: grabación, redes y analítica" />
+              <img src="/images/marketing-cover.webp" alt="Creación de contenido y marketing digital: grabación, redes y analítica" />
             </div>
           </div>
         </div>
@@ -141,7 +141,7 @@ export default function MarketingDigitalPage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/marketing-promise.jpg" alt="Presencia digital como sistema: contenido y campañas en varios dispositivos" />
+                <img src="/images/marketing-promise.webp" alt="Presencia digital como sistema: contenido y campañas en varios dispositivos" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -224,7 +224,7 @@ export default function MarketingDigitalPage() {
             </div>
             <Reveal delay={120}>
               <div className="brand-process-media">
-                <img src="/images/marketing-process.jpg" alt="Espacio de trabajo con analítica, contenido y campañas" />
+                <img src="/images/marketing-process.webp" alt="Espacio de trabajo con analítica, contenido y campañas" />
               </div>
             </Reveal>
           </div>

@@ -26,7 +26,7 @@ export const SERVICES: Service[] = [
     tagline: "Identidad que vende, no solo que se ve bonita.",
     card: "Creamos identidades visuales memorables. Convertimos tu visión en un sistema visual coherente, profesional y poderoso.",
     tags: ["Identidad", "Sistema visual", "Manual"],
-    image: "/images/branding-cover.jpg",
+    image: "/images/branding-cover.webp",
     accent: "var(--upz-tomato)",
     detail: {
       headline: "Branding estratégico",
@@ -57,7 +57,7 @@ export const SERVICES: Service[] = [
     tagline: "Tu sitio web es tu vendedor 24/7.",
     card: "Sitios de alto rendimiento con SEO técnico y diseño UX/UI integrados de fábrica. Rápidos, modernos y optimizados para convertir visitantes en clientes.",
     tags: ["Alto rendimiento", "SEO integrado", "UX/UI"],
-    image: "/images/diseno-web-cover.jpg",
+    image: "/images/diseno-web-cover.webp",
     accent: "var(--upz-electric)",
     detail: {
       headline: "Diseño web de alto rendimiento",
@@ -89,7 +89,7 @@ export const SERVICES: Service[] = [
     tagline: "Tu tienda online, tu motor de ventas más potente.",
     card: "Tiendas online funcionales que venden. Maximizamos la experiencia de compra y las pasarelas de pago para incrementar tus ingresos.",
     tags: ["Shopify", "WooCommerce", "Conversión"],
-    image: "/images/ecommerce-cover.jpg",
+    image: "/images/ecommerce-cover.webp",
     accent: "var(--upz-solar)",
     detail: {
       headline: "E-commerce que convierte",
@@ -120,7 +120,7 @@ export const SERVICES: Service[] = [
     tagline: "Las campañas deben ser una inversión, no un gasto.",
     card: "Servicio integral: contenido, grabación de reels y TikTok, community manager y campañas en Meta y Google Ads. Estrategia y data para escalar tus ingresos.",
     tags: ["Contenido", "Community manager", "Meta & Google Ads"],
-    image: "/images/marketing-cover.jpg",
+    image: "/images/marketing-cover.webp",
     accent: "var(--upz-guava)",
     detail: {
       headline: "Marketing digital integral",
@@ -152,7 +152,7 @@ export const SERVICES: Service[] = [
     tagline: "Pon tu negocio en el bolsillo de tus clientes.",
     card: "Aplicaciones móviles nativas y multiplataforma para empresas y emprendedores. Experiencias intuitivas, veloces y escalables para iOS y Android.",
     tags: ["iOS", "Android", "Multiplataforma"],
-    image: "/images/apps-cover.jpg",
+    image: "/images/apps-cover.webp",
     accent: "var(--upz-lime)",
     detail: {
       headline: "Desarrollo de apps móviles",

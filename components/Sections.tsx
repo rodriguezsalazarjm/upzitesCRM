@@ -244,11 +244,11 @@ export function Showcase() {
 
         <div className="showcase-grid">
           <figure className="showcase-fig">
-            <img src="/images/home-1.jpg" alt="Identidad UPZITES aplicada en la calle" loading="lazy" />
+            <img src="/images/home-1.webp" alt="Identidad UPZITES aplicada en la calle" loading="lazy" />
             <figcaption><span className="b">●</span> Marca en la calle</figcaption>
           </figure>
           <figure className="showcase-fig">
-            <img src="/images/home-2.jpg" alt="Sistema de marca UPZITES en web y piezas" loading="lazy" />
+            <img src="/images/home-2.webp" alt="Sistema de marca UPZITES en web y piezas" loading="lazy" />
             <figcaption><span className="b">●</span> Sistema en pantalla</figcaption>
           </figure>
         </div>
@@ -633,7 +633,7 @@ export function Footer() {
         </div>
 
         <div className="footer-bigword footer-bigword--logo">
-          <img src="/images/studio-desing.png" alt="Studio Desing" width={720} height={115} loading="lazy" />
+          <img src="/images/studio-desing.webp" alt="Studio Desing" width={720} height={115} loading="lazy" />
         </div>
 
         <nav className="footer-legal" aria-label="Legal">

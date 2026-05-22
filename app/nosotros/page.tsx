@@ -52,16 +52,16 @@ const PROCESO = [
 ];
 
 const JOSE_PHOTOS = [
-  "/images/founder-1.jpg",
-  "/images/founder-2.jpg",
-  "/images/founder-3.jpg",
-  "/images/founder-4.jpg",
+  "/images/founder-1.webp",
+  "/images/founder-2.webp",
+  "/images/founder-3.webp",
+  "/images/founder-4.webp",
 ];
 const JILLY_PHOTOS = [
-  "/images/jilly-1.jpg",
-  "/images/jilly-2.jpg",
-  "/images/jilly-3.jpg",
-  "/images/jilly-4.jpg",
+  "/images/jilly-1.webp",
+  "/images/jilly-2.webp",
+  "/images/jilly-3.webp",
+  "/images/jilly-4.webp",
 ];
 
 export default function NosotrosPage() {
@@ -244,7 +244,7 @@ export default function NosotrosPage() {
           <Eyebrow num="07">Quién es UPZITES</Eyebrow>
           <div className="brand-promise">
             <figure className="brand-promise-media brand-promise-media--in" style={{ margin: 0 }}>
-              <img src="/images/nosotros/santiago.jpg" alt="Santiago de Chile — base de UPZITES" />
+              <img src="/images/nosotros/santiago.webp" alt="Santiago de Chile — base de UPZITES" />
             </figure>
             <Reveal delay={120}>
               <div>

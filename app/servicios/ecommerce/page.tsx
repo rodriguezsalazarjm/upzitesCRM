@@ -81,7 +81,7 @@ export default function EcommercePage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/ecommerce-cover.jpg" alt="Tienda online de streetwear diseñada para vender, en desktop y móvil" />
+              <img src="/images/ecommerce-cover.webp" alt="Tienda online de streetwear diseñada para vender, en desktop y móvil" />
             </div>
           </div>
         </div>
@@ -116,7 +116,7 @@ export default function EcommercePage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/ecommerce-promise.jpg" alt="Identidad de marca y tienda online que conectan y convierten" />
+                <img src="/images/ecommerce-promise.webp" alt="Identidad de marca y tienda online que conectan y convierten" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -211,7 +211,7 @@ export default function EcommercePage() {
             </div>
             <Reveal delay={120}>
               <div className="brand-process-media">
-                <img src="/images/ecommerce-process.jpg" alt="Tienda online moderna en desktop y móvil con fichas de producto" />
+                <img src="/images/ecommerce-process.webp" alt="Tienda online moderna en desktop y móvil con fichas de producto" />
               </div>
             </Reveal>
           </div>

@@ -28,7 +28,7 @@ export function Preloader() {
     <div className={`preloader${loading ? "" : " is-done"}`} aria-hidden={!loading}>
       {mounted && (
         <div className="preloader-stage">
-          <img src="/images/upzites-white.png" alt="UPZITES" className="preloader-logo" width={621} height={170} />
+          <img src="/images/upzites-white.webp" alt="UPZITES" className="preloader-logo" width={621} height={170} />
           <div className="preloader-bar"><span /></div>
         </div>
       )}

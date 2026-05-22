@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PHOTOS = [
-  "/images/founder-1.jpg",
-  "/images/founder-2.jpg",
-  "/images/founder-3.jpg",
-  "/images/founder-4.jpg",
+  "/images/founder-1.webp",
+  "/images/founder-2.webp",
+  "/images/founder-3.webp",
+  "/images/founder-4.webp",
 ];
 const ALT = "José Manuel Rodríguez — Founder & CEO de UPZITES";
 

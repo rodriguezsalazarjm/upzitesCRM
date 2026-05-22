@@ -27,10 +27,10 @@ export const BRANDING_CATEGORIES: { key: BrandingCategory; label: string }[] = [
 ];
 
 function gallery(slug: string, n: number): string[] {
-  return Array.from({ length: n }, (_, i) => `/images/proyectos/${slug}/${String(i + 1).padStart(2, "0")}.jpg`);
+  return Array.from({ length: n }, (_, i) => `/images/proyectos/${slug}/${String(i + 1).padStart(2, "0")}.webp`);
 }
 function detail(slug: string): string[] {
-  return [`/images/proyectos/${slug}.jpg`, ...Array.from({ length: 4 }, (_, i) => `/images/proyectos/${slug}-d${i + 1}.jpg`)];
+  return [`/images/proyectos/${slug}.webp`, ...Array.from({ length: 4 }, (_, i) => `/images/proyectos/${slug}-d${i + 1}.webp`)];
 }
 
 export const BRANDING_PROJECTS: BrandingProject[] = [
@@ -62,9 +62,9 @@ export const BRANDING_PROJECTS: BrandingProject[] = [
     fuertes: ["Imagen robusta", "Sistema técnico", "Aplicaciones comerciales"],
     beneficios: ["Confianza para clientes B2B", "Presencia clara y profesional"],
     images: [
-      "/images/proyectos/ironmallas/03.jpg",
-      "/images/proyectos/ironmallas/04.jpg",
-      "/images/proyectos/ironmallas/05.jpg",
+      "/images/proyectos/ironmallas/03.webp",
+      "/images/proyectos/ironmallas/04.webp",
+      "/images/proyectos/ironmallas/05.webp",
     ],
   },
   {
@@ -149,8 +149,8 @@ export const BRANDING_PROJECTS: BrandingProject[] = [
 ];
 
 export const WEB_PROJECTS: WebProject[] = [
-  { slug: "profileempresarial", name: "Profile Empresarial", url: "https://www.profileempresarial.com", category: "Web corporativa", cover: "/images/websites/profileempresarial-cover.jpg", shot: "/images/websites/profileempresarial-full.jpg" },
-  { slug: "grafiks", name: "Grafiks", url: "https://www.grafiks.cl", category: "Estudio creativo", cover: "/images/websites/grafiks-cover.jpg", shot: "/images/websites/grafiks-full.jpg" },
-  { slug: "ironmallas", name: "Iron Mallas", url: "https://www.ironmallas.cl", category: "Web industrial", cover: "/images/websites/ironmallas-cover.jpg", shot: "/images/websites/ironmallas-full.jpg" },
-  { slug: "kyrontecnology", name: "Kyron Technology", url: "https://www.kyrontecnology.com", category: "Web tecnología", status: "En construcción", cover: "/images/websites/kyrontecnology-cover.jpg", shot: "/images/websites/kyrontecnology-full.jpg" },
+  { slug: "profileempresarial", name: "Profile Empresarial", url: "https://www.profileempresarial.com", category: "Web corporativa", cover: "/images/websites/profileempresarial-cover.webp", shot: "/images/websites/profileempresarial-full.webp" },
+  { slug: "grafiks", name: "Grafiks", url: "https://www.grafiks.cl", category: "Estudio creativo", cover: "/images/websites/grafiks-cover.webp", shot: "/images/websites/grafiks-full.webp" },
+  { slug: "ironmallas", name: "Iron Mallas", url: "https://www.ironmallas.cl", category: "Web industrial", cover: "/images/websites/ironmallas-cover.webp", shot: "/images/websites/ironmallas-full.webp" },
+  { slug: "kyrontecnology", name: "Kyron Technology", url: "https://www.kyrontecnology.com", category: "Web tecnología", status: "En construcción", cover: "/images/websites/kyrontecnology-cover.webp", shot: "/images/websites/kyrontecnology-full.webp" },
 ];

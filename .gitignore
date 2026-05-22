@@ -52,3 +52,8 @@ public/images/home1.png
 public/images/home2.png
 public/images/jilly moreno/
 public/images/websites/*.png
+
+# Raster originals superseded by .webp (kept locally, served as webp)
+public/images/**/*.jpg
+public/images/**/*.jpeg
+public/images/**/*.png

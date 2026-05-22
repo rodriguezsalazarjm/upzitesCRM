@@ -112,7 +112,7 @@ export default function AppsMovilesPage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/apps-cover.jpg" alt="Interfaz de app móvil en varios dispositivos iOS y Android" />
+              <img src="/images/apps-cover.webp" alt="Interfaz de app móvil en varios dispositivos iOS y Android" />
             </div>
           </div>
         </div>
@@ -148,7 +148,7 @@ export default function AppsMovilesPage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/apps-promise.jpg" alt="Sistema visual de app móvil consistente en varias pantallas" />
+                <img src="/images/apps-promise.webp" alt="Sistema visual de app móvil consistente en varias pantallas" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -198,7 +198,7 @@ export default function AppsMovilesPage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/apps-enfoque.jpg" alt="Persona usando una app móvil en un entorno real" />
+                <img src="/images/apps-enfoque.webp" alt="Persona usando una app móvil en un entorno real" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -243,7 +243,7 @@ export default function AppsMovilesPage() {
             </div>
             <Reveal delay={120}>
               <div className="brand-process-media">
-                <img src="/images/apps-process.jpg" alt="Wireframes y flujos de usuario para diseño de app" />
+                <img src="/images/apps-process.webp" alt="Wireframes y flujos de usuario para diseño de app" />
               </div>
             </Reveal>
           </div>

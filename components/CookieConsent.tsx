@@ -35,7 +35,7 @@ export function CookieConsent() {
     <div className="cookie glass" role="dialog" aria-live="polite" aria-label="Aviso de cookies">
       <div className="cookie-head">
         <span className="cookie-iso">
-          <img src="/images/logo/isotipo.png" alt="UPZITES" />
+          <img src="/images/logo/isotipo.webp" alt="UPZITES" />
         </span>
         <div className="cookie-text">
           <strong>Cookies, pero de las buenas 🍪</strong>

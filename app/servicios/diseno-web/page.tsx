@@ -64,7 +64,7 @@ export default function DisenoWebPage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/diseno-web-cover.jpg" alt="Sitio web responsive de alto rendimiento en desktop, tablet y móvil" />
+              <img src="/images/diseno-web-cover.webp" alt="Sitio web responsive de alto rendimiento en desktop, tablet y móvil" />
             </div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function DisenoWebPage() {
           <div className="brand-promise">
             <Reveal>
               <div className="brand-promise-media">
-                <img src="/images/diseno-web-promise.jpg" alt="Web trabajando 24/7: leads, ventas y engagement" />
+                <img src="/images/diseno-web-promise.webp" alt="Web trabajando 24/7: leads, ventas y engagement" />
               </div>
             </Reveal>
             <Reveal delay={120}>
@@ -160,7 +160,7 @@ export default function DisenoWebPage() {
           </div>
           <Reveal delay={160}>
             <figure className="svc-figure">
-              <img src="/images/diseno-web-conversion.jpg" alt="Infografía: estrategia de diseño y conversión, del descubrimiento a la conversión" />
+              <img src="/images/diseno-web-conversion.webp" alt="Infografía: estrategia de diseño y conversión, del descubrimiento a la conversión" />
             </figure>
           </Reveal>
         </div>
@@ -186,7 +186,7 @@ export default function DisenoWebPage() {
             </div>
             <Reveal delay={120}>
               <div className="brand-process-media">
-                <img src="/images/diseno-web-process.jpg" alt="Wireframes, arquitectura de información, SEO y flujo de conversión" />
+                <img src="/images/diseno-web-process.webp" alt="Wireframes, arquitectura de información, SEO y flujo de conversión" />
               </div>
             </Reveal>
           </div>
