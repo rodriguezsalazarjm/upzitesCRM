@@ -38,10 +38,48 @@ async function fetchPSI(url: string, strategy: "mobile" | "desktop") {
 
 const pct = (score: number | undefined) => Math.round((score || 0) * 100);
 
-export async function runAudit(targetUrl: string): Promise<AuditResult> {
+// ---- normalization + per-session cache (saves PageSpeed quota) -----
+const CACHE_PREFIX = "upz-audit:";
+
+export function normalizeUrl(targetUrl: string): string {
   let url = targetUrl.trim();
-  if (!url) return { success: false, error: "Ingresa una URL." };
+  if (!url) return "";
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  return url;
+}
+
+export function getCachedAudit(targetUrl: string): AuditData | null {
+  const url = normalizeUrl(targetUrl);
+  if (!url) return null;
+  try {
+    const raw = sessionStorage.getItem(CACHE_PREFIX + url.toLowerCase());
+    return raw ? (JSON.parse(raw) as AuditData) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Turn raw Google/API errors into friendly Spanish messages for visitors.
+function friendlyError(msg: string): string {
+  if (/quota|queries per day|rate.?limit|429/i.test(msg)) {
+    return "La auditoría está recibiendo mucha demanda en este momento. Vuelve a intentarlo en unos minutos.";
+  }
+  if (/referer|blocked|forbidden|403/i.test(msg)) {
+    return "No pudimos ejecutar la auditoría desde este dominio. Inténtalo más tarde.";
+  }
+  if (/lighthouse|no se pudo|unable|invalid|400/i.test(msg)) {
+    return "No pudimos analizar esa URL. Revisa que sea correcta y que el sitio sea público.";
+  }
+  return "No pudimos completar la auditoría. Inténtalo de nuevo en un momento.";
+}
+
+export async function runAudit(targetUrl: string): Promise<AuditResult> {
+  const url = normalizeUrl(targetUrl);
+  if (!url) return { success: false, error: "Ingresa una URL." };
+
+  // Serve from per-session cache when possible — no API call, no quota.
+  const cached = getCachedAudit(url);
+  if (cached) return { success: true, data: { ...cached, url: targetUrl } };
 
   try {
     const [mobile, desktop] = await Promise.all([
@@ -61,22 +99,27 @@ export async function runAudit(targetUrl: string): Promise<AuditResult> {
       audits["total-blocking-time"]?.numericValue ||
       0;
 
-    return {
-      success: true,
-      data: {
-        url: targetUrl,
-        performanceMobile: pct(cat.performance?.score),
-        performanceDesktop: pct(desktop?.lighthouseResult?.categories?.performance?.score),
-        seo: pct(cat.seo?.score),
-        accessibility: pct(cat.accessibility?.score),
-        bestPractices: pct(cat["best-practices"]?.score),
-        lcp: lcp.toFixed(1),
-        cls: cls.toFixed(2),
-        inp: Math.round(inp),
-      },
+    const data: AuditData = {
+      url: targetUrl,
+      performanceMobile: pct(cat.performance?.score),
+      performanceDesktop: pct(desktop?.lighthouseResult?.categories?.performance?.score),
+      seo: pct(cat.seo?.score),
+      accessibility: pct(cat.accessibility?.score),
+      bestPractices: pct(cat["best-practices"]?.score),
+      lcp: lcp.toFixed(1),
+      cls: cls.toFixed(2),
+      inp: Math.round(inp),
     };
+
+    try {
+      sessionStorage.setItem(CACHE_PREFIX + url.toLowerCase(), JSON.stringify(data));
+    } catch {
+      /* ignore storage errors (private mode, quota) */
+    }
+
+    return { success: true, data };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Error al analizar la URL";
-    return { success: false, error: msg };
+    const raw = error instanceof Error ? error.message : "Error al analizar la URL";
+    return { success: false, error: friendlyError(raw) };
   }
 }

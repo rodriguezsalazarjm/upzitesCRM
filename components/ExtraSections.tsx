@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Eyebrow, Reveal, Barcode } from "./Atoms";
-import { runAudit } from "@/lib/pagespeed";
+import { runAudit, getCachedAudit } from "@/lib/pagespeed";
 
 // ---------- Mock score generator (deterministic from URL) ----------
 function hashStr(s: string) {
@@ -59,6 +59,9 @@ export function AuditTool() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const lastRunRef = useRef(0);
+  const COOLDOWN_MS = 12000;
 
   function clean(u: string) {
     return u.replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -66,25 +69,41 @@ export function AuditTool() {
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
-    if (!url.trim()) return;
+    const u = url.trim();
+    if (!u) return;
+    setNotice(null);
+
+    // Cached result for this URL → instant, no API call, no cooldown.
+    const cached = getCachedAudit(u);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+
+    // Cooldown between live audits to protect the API quota / avoid spam.
+    const since = Date.now() - lastRunRef.current;
+    if (since < COOLDOWN_MS) {
+      setNotice(`Espera ${Math.ceil((COOLDOWN_MS - since) / 1000)} s antes de auditar otra URL.`);
+      return;
+    }
+
+    lastRunRef.current = Date.now();
     setLoading(true);
     setResult(null);
-    
-    const u = url.trim();
+
     const res = await runAudit(u);
-    
     if (res.success) {
       setResult(res.data);
     } else {
-      alert("Hubo un error al auditar: " + res.error);
+      setNotice(res.error);
     }
-    
     setLoading(false);
   }
 
   function reset() {
     setResult(null);
     setUrl("");
+    setNotice(null);
   }
 
   return (
@@ -135,6 +154,9 @@ export function AuditTool() {
             Reporte preliminar sin email. Para el informe completo en PDF,
             te lo enviamos a tu correo.
           </div>
+          {notice && (
+            <div className="audit-notice" role="alert">{notice}</div>
+          )}
         </Reveal>
 
         {loading && (
