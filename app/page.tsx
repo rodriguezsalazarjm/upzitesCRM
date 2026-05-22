@@ -2,6 +2,7 @@ import { TopNav, Hero, Marquee, Services, Showcase, Projects, Process, Stats, Te
 import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
 import { TechMarquee } from "@/components/TechMarquee";
+import { BriefForms } from "@/components/BriefForms";
 
 export default function Home() {
   return (
@@ -55,6 +56,9 @@ export default function Home() {
 
       {/* Social proof */}
       <Testimonials />
+
+      {/* Brand / personal-brand brief forms (native, send to contacto@upzites.com) */}
+      <BriefForms />
 
       {/* Big CTA + contact form (sends to contacto@upzites.com) */}
       <BigCTA />
