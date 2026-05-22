@@ -2763,10 +2763,20 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
   background: linear-gradient(to top, rgba(17, 17, 17, 0.82), transparent);
 }
 .showcase-fig figcaption .b { color: var(--upz-lime); }
+.showcase { padding-bottom: 48px; }
+.showcase-stack-note {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--fg-3);
+  text-align: center; margin: 36px 0 0;
+}
 @media (max-width: 700px) {
   .showcase-grid { grid-template-columns: 1fr; gap: 12px; }
   .showcase-fig { aspect-ratio: 3 / 4; }
+  .showcase { padding-bottom: 36px; }
+  .showcase-stack-note { margin-top: 24px; }
 }
+/* Tech marquee sits right under the showcase — tighten the rhythm */
+.showcase + .tech-marquee { margin-top: 0; }
 
 /* ===================================================================
    Legal pages (privacidad / términos / cookies)

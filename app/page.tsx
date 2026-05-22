@@ -1,6 +1,7 @@
 import { TopNav, Hero, Marquee, Services, Showcase, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
 import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
+import { TechMarquee } from "@/components/TechMarquee";
 
 export default function Home() {
   return (
@@ -21,6 +22,9 @@ export default function Home() {
 
       {/* Brand in the wild */}
       <Showcase />
+
+      {/* Tech / tooling stack marquee */}
+      <TechMarquee />
 
       {/* Free site audit */}
       <AuditTool />

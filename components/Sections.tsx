@@ -225,7 +225,7 @@ export function Showcase() {
   return (
     <section className="section section--ivory showcase" data-screen-label="Showcase">
       <div className="shell">
-        <Eyebrow num="02">UPZITES en el mundo real</Eyebrow>
+        <Eyebrow>UPZITES en el mundo real</Eyebrow>
         <div className="services-head">
           <Reveal>
             <h2 className="services-h">
@@ -255,6 +255,10 @@ export function Showcase() {
             </figure>
           </Reveal>
         </div>
+
+        <p className="showcase-stack-note">
+          Diseñamos y construimos con herramientas estándar de la industria:
+        </p>
       </div>
     </section>
   );
