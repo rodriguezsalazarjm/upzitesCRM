@@ -962,12 +962,12 @@ body {
 .tech-logo {
   display: inline-flex; align-items: center; justify-content: center;
   flex: 0 0 auto;
+  color: var(--upz-off-white);
   opacity: .9;
   transition: transform var(--dur-fast) var(--ease-snap), opacity var(--dur-fast);
 }
-.tech-logo img {
-  height: 30px; width: auto; max-width: none; display: block;
-  /* logos are already white PNGs */
+.tech-logo svg {
+  width: 30px; height: 30px; display: block;
 }
 .tech-marquee-sep { flex: 0 0 auto; }
 .tech-marquee-track > .tech-logo:hover {
@@ -979,7 +979,7 @@ body {
   .tech-marquee { overflow-x: auto; }
 }
 @media (max-width: 700px) {
-  .tech-logo img { height: 24px; }
+  .tech-logo svg { width: 26px; height: 26px; }
   .tech-marquee-track { gap: 26px; }
 }
 
