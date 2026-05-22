@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
+import { Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import { Preloader } from "@/components/Preloader";
-import { ScrollProgress } from "@/components/ScrollProgress";
-import { FloatingActions } from "@/components/FloatingActions";
-import { CookieConsent } from "@/components/CookieConsent";
-import { PromoPopup } from "@/components/PromoPopup";
+import { DeferredUI } from "@/components/DeferredUI";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+
+const bebas = Bebas_Neue({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-bebas",
+});
 
 export const metadata: Metadata = {
   title: "UPZITES — Diseño estratégico con carácter",
@@ -18,14 +23,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="scroll-smooth">
+    <html lang="es" className={`scroll-smooth ${bebas.variable}`}>
       <body>
         <Preloader />
-        <ScrollProgress />
         {children}
-        <FloatingActions />
-        <PromoPopup />
-        <CookieConsent />
+        <DeferredUI />
         <SpeedInsights />
       </body>
     </html>

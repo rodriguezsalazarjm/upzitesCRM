@@ -1302,6 +1302,27 @@ body {
   padding: 28px 28px 24px;
   position: sticky; top: 96px;
 }
+/* Facade shown before Cal.com loads (click-to-load, keeps it out of initial DOM) */
+.agenda-cal-facade {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 14px; width: 100%; min-height: 580px; padding: 44px 40px; text-align: left;
+  background: var(--upz-paper); border: none; cursor: pointer;
+}
+.agenda-cal-facade-tag {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+.agenda-cal-facade-title {
+  font-family: var(--font-display); font-weight: 900;
+  font-size: clamp(34px, 4.4vw, 52px); line-height: 0.96; letter-spacing: -0.02em;
+  text-transform: uppercase; color: var(--upz-carbon);
+}
+.agenda-cal-facade-sub {
+  font-family: var(--font-text); font-size: 15px; line-height: 1.5;
+  color: var(--fg-2); max-width: 360px;
+}
+.agenda-cal-facade-btn { margin-top: 10px; pointer-events: none; }
+.agenda-cal-facade:hover .agenda-cal-facade-btn { background: #000; transform: translateY(-2px); }
 .agenda-cal-head {
   display: flex; justify-content: space-between; align-items: end;
   margin-bottom: 20px;
@@ -1989,7 +2010,7 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 .preloader-stage { display: flex; flex-direction: column; align-items: center; gap: 28px; }
 .preloader-logo {
   width: clamp(200px, 42vw, 440px); height: auto; display: block;
-  animation: logoFocus 1.15s var(--ease-snap) both;
+  animation: logoFocus 0.5s var(--ease-snap) both;
   will-change: transform, opacity, filter;
 }
 @keyframes logoFocus {
@@ -2000,13 +2021,13 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 .preloader-bar {
   width: clamp(150px, 32vw, 260px); height: 2px;
   background: rgba(250, 251, 245, 0.16); overflow: hidden;
-  opacity: 0; animation: barIn 0.4s 0.5s var(--ease-snap) forwards;
+  opacity: 0; animation: barIn 0.2s 0.05s var(--ease-snap) forwards;
 }
 @keyframes barIn { to { opacity: 1; } }
 .preloader-bar span {
   display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0);
   background: linear-gradient(90deg, var(--upz-electric), var(--upz-lime));
-  animation: barFill 1.9s 0.5s ease-out forwards;
+  animation: barFill 0.5s 0.05s ease-out forwards;
 }
 @keyframes barFill { to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) {

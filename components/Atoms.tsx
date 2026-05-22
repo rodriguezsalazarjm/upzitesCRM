@@ -7,7 +7,7 @@ import Link from "next/link";
 export function Brand({ size }: { size?: "lg" }) {
   return (
     <Link href="/" className={`nav-brand${size === "lg" ? " nav-brand--lg" : ""}`} aria-label="UPZITES — Inicio">
-      <img src="/images/upzites-logo-full.png" alt="UPZITES" className="nav-brand-img" />
+      <img src="/images/upzites-logo-full.png" alt="UPZITES" className="nav-brand-img" width={621} height={170} />
     </Link>
   );
 }

@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+/* Bebas Neue is loaded via next/font/google in app/layout.tsx (self-hosted,
+   non-blocking) and exposed as the --font-bebas CSS variable. */
 @import "tailwindcss";
 @import "./styles/colors_and_type.css";
 @import "./styles/site.css";

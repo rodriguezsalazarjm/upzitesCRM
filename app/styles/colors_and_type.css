@@ -124,7 +124,7 @@
   --hl-red:     var(--upz-tomato);
 
   /* -- Typography families ----------------------------------------- */
-  --font-display:  "Bebas Neue", "Boldonse", "Helvena", "Arial Black", system-ui, sans-serif;
+  --font-display:  var(--font-bebas), "Bebas Neue", "Boldonse", "Helvena", "Arial Black", system-ui, sans-serif;
   --font-text:     "Helvena", "Inter", "Helvetica Neue", Arial, sans-serif;
   --font-mono:     "IBM Plex Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
 

@@ -10,7 +10,8 @@ export function Preloader() {
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => setLoading(false), reduce ? 800 : 2400);
+    // Keep the intro brief so it never blocks the hero / LCP.
+    const t = setTimeout(() => setLoading(false), reduce ? 200 : 500);
     return () => clearTimeout(t);
   }, []);
 
@@ -27,7 +28,7 @@ export function Preloader() {
     <div className={`preloader${loading ? "" : " is-done"}`} aria-hidden={!loading}>
       {mounted && (
         <div className="preloader-stage">
-          <img src="/images/upzites-white.png" alt="UPZITES" className="preloader-logo" />
+          <img src="/images/upzites-white.png" alt="UPZITES" className="preloader-logo" width={621} height={170} />
           <div className="preloader-bar"><span /></div>
         </div>
       )}

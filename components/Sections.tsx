@@ -633,7 +633,7 @@ export function Footer() {
         </div>
 
         <div className="footer-bigword footer-bigword--logo">
-          <img src="/images/studio-desing.png" alt="Studio Desing" />
+          <img src="/images/studio-desing.png" alt="Studio Desing" width={720} height={115} loading="lazy" />
         </div>
 
         <nav className="footer-legal" aria-label="Legal">

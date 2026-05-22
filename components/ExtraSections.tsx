@@ -260,6 +260,7 @@ function buildDays() {
 const SLOTS = ["09:00", "10:30", "12:00", "14:30", "16:00", "17:30"];
 
 export function ScheduleMeeting() {
+  const [calOpen, setCalOpen] = useState(false);
   return (
     <section className="agenda" id="agenda" data-screen-label="Agenda meeting">
       <div className="shell">
@@ -306,12 +307,23 @@ export function ScheduleMeeting() {
           </div>
 
           <Reveal delay={140}>
-            <aside className="agenda-cal" style={{ padding: 0, overflow: "hidden", background: "#fff" }}>
-              {/* Este es el iframe de Cal.com. */}
-              <iframe 
-                src="https://cal.com/jose-manuel-rodriguez-z9ee2y/60min?embed=1" 
-                style={{ width: "100%", height: "100%", minHeight: "580px", border: "none" }}
-              />
+            <aside className="agenda-cal" style={{ padding: 0, overflow: "hidden", background: "#fff", minHeight: 580 }}>
+              {calOpen ? (
+                /* Cal.com solo se carga al hacer clic — fuera del DOM inicial. */
+                <iframe
+                  src="https://cal.com/jose-manuel-rodriguez-z9ee2y/60min?embed=1"
+                  title="Agenda con UPZITES"
+                  loading="lazy"
+                  style={{ width: "100%", height: "100%", minHeight: "580px", border: "none" }}
+                />
+              ) : (
+                <button type="button" className="agenda-cal-facade" onClick={() => setCalOpen(true)}>
+                  <span className="agenda-cal-facade-tag">Cal.com · Google Meet · 30 min</span>
+                  <span className="agenda-cal-facade-title">Reserva tu reunión</span>
+                  <span className="agenda-cal-facade-sub">Toca para ver la disponibilidad en vivo y elegir tu horario.</span>
+                  <span className="btn btn-dark btn-lg agenda-cal-facade-btn">Ver disponibilidad <span className="arr">↗</span></span>
+                </button>
+              )}
             </aside>
           </Reveal>
         </div>
