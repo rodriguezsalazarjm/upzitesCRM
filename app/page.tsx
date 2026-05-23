@@ -2,6 +2,7 @@ import { TopNav, Hero, Marquee, Services, Showcase, Projects, Process, Stats, Te
 import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
 import { TechMarquee } from "@/components/TechMarquee";
+import { SmartLayer } from "@/components/SmartLayer";
 
 export default function Home() {
   return (
@@ -19,6 +20,9 @@ export default function Home() {
 
       {/* Services */}
       <Services />
+
+      {/* Smart layer — AI & automation as a premium extension */}
+      <SmartLayer />
 
       {/* Brand in the wild */}
       <Showcase />
