@@ -44,6 +44,7 @@ export function TopNav() {
               </Link>
             </div>
           </div>
+          <Link href="/#ia">IA</Link>
           <Link href="/#auditoria">Auditoría</Link>
           <Link href="/nosotros">Nosotros</Link>
           <Link href="/#agenda">Agenda</Link>
@@ -73,6 +74,7 @@ export function TopNav() {
           <div className="nav-mobile-links">
             <Link href="/" onClick={close}>Inicio</Link>
             <Link href="/nosotros" onClick={close}>Nosotros</Link>
+            <Link href="/#ia" onClick={close}>IA</Link>
             <Link href="/#projects" onClick={close}>Proyectos</Link>
             <Link href="/#auditoria" onClick={close}>Auditoría</Link>
             <Link href="/#agenda" onClick={close}>Agenda</Link>
@@ -149,7 +151,7 @@ export function Hero() {
 
 // ---------- Top marquee --------------------------------------------
 export function Marquee({ items, variant }: { items?: string[], variant?: "carbon" }) {
-  const list = items || ["Branding estratégico", "Diseño web de alto rendimiento", "E-commerce", "Marketing digital integral", "Apps móviles", "SEO integrado", "UX/UI Design", "Contenido & Ads"];
+  const list = items || ["Branding estratégico", "Diseño web de alto rendimiento", "Websites + IA", "E-commerce", "Marketing digital integral", "Experiencias inteligentes", "Apps móviles", "Automatización UX", "SEO integrado", "UX/UI Design"];
   const loop = [...list, ...list];
   return (
     <div className={`marquee${variant === "carbon" ? " marquee--carbon" : ""}`} data-screen-label="Marquee">
@@ -198,6 +200,7 @@ export function Services() {
               >
                 <div className="service-media">
                   <img src={s.image} alt={s.title} loading="lazy" />
+                  {s.badge && <span className="service-badge">{s.badge}</span>}
                 </div>
                 <div className="service-num">
                   <span>{s.num} / {total}</span>

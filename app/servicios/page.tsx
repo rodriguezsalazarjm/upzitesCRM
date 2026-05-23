@@ -72,6 +72,7 @@ export default function ServiciosPage() {
                 >
                   <div className="service-media">
                     <img src={s.image} alt={s.title} loading="lazy" />
+                    {s.badge && <span className="service-badge">{s.badge}</span>}
                   </div>
                   <div className="service-num">
                     <span>{s.num} / {total}</span>

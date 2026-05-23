@@ -15,6 +15,7 @@ export type Service = {
   tags: string[];
   image: string;
   accent: string;
+  badge?: string;
   detail: ServiceDetail;
 };
 
@@ -55,10 +56,11 @@ export const SERVICES: Service[] = [
     slug: "diseno-web",
     title: "Diseño web",
     tagline: "Tu sitio web es tu vendedor 24/7.",
-    card: "Sitios de alto rendimiento con SEO técnico y diseño UX/UI integrados de fábrica. Rápidos, modernos y optimizados para convertir visitantes en clientes.",
-    tags: ["Alto rendimiento", "SEO integrado", "UX/UI"],
+    card: "Sitios de alto rendimiento con SEO técnico y UX/UI de fábrica. Y ahora tu web puede integrar un chatbot con IA que responde a tus clientes por ti.",
+    tags: ["Alto rendimiento", "SEO integrado", "Chatbot IA"],
     image: "/images/diseno-web-cover.webp",
     accent: "var(--upz-electric)",
+    badge: "Nuevo · IA",
     detail: {
       headline: "Diseño web de alto rendimiento",
       intro: [
@@ -87,10 +89,11 @@ export const SERVICES: Service[] = [
     slug: "ecommerce",
     title: "E-commerce",
     tagline: "Tu tienda online, tu motor de ventas más potente.",
-    card: "Tiendas online funcionales que venden. Maximizamos la experiencia de compra y las pasarelas de pago para incrementar tus ingresos.",
-    tags: ["Shopify", "WooCommerce", "Conversión"],
+    card: "Tiendas online que venden, ahora potenciadas con IA: recomendaciones inteligentes y atención automática para subir tu conversión.",
+    tags: ["Shopify", "WooCommerce", "IA + Conversión"],
     image: "/images/ecommerce-cover.webp",
     accent: "var(--upz-solar)",
+    badge: "Nuevo · IA",
     detail: {
       headline: "E-commerce que convierte",
       intro: [
@@ -173,6 +176,38 @@ export const SERVICES: Service[] = [
         "Escalable para crecer con tu negocio",
       ],
       cta: "¿Tienes una idea para una app? Vamos a construirla correctamente.",
+    },
+  },
+  {
+    num: "06",
+    slug: "automatizacion-ia",
+    title: "Automatización con IA",
+    tagline: "Tu negocio funcionando solo, 24/7.",
+    card: "Conectamos tus herramientas y automatizamos procesos con IA (n8n, Make, chatbots). Menos tareas manuales y más tiempo para crecer — sin perder el control ni tu identidad.",
+    tags: ["n8n", "Make", "Chatbots IA"],
+    image: "/images/automatizacion-ia-cover.webp",
+    accent: "var(--upz-tangerine)",
+    badge: "Nuevo",
+    detail: {
+      headline: "Automatización con IA",
+      intro: [
+        "La IA no reemplaza tu marca: hace que tu negocio funcione mejor. Conectamos tus herramientas y diseñamos automatizaciones que eliminan tareas repetitivas, responden a tus clientes y mueven la información sola.",
+        "Lo integramos como una capa estratégica sobre lo que ya tienes — con criterio, sin convertirte en una empresa fría de software.",
+      ],
+      includes: [
+        { title: "Chatbots e IA conversacional", body: "Asistentes que responden a tus clientes 24/7 con el tono de tu marca, califican leads y agendan reuniones." },
+        { title: "Automatización de flujos (n8n / Make)", body: "Conectamos formularios, CRM, email, WhatsApp, Sheets y más para que la información viaje sola." },
+        { title: "Captación y seguimiento", body: "Leads que entran, se clasifican y reciben seguimiento automático sin intervención manual." },
+        { title: "Integraciones a medida", body: "Conexión entre tus plataformas (web, tienda, agenda, pagos) mediante APIs e integraciones inteligentes." },
+        { title: "Reportes automáticos", body: "Métricas y resúmenes que llegan solos a tu correo o panel, listos para decidir." },
+      ],
+      benefits: [
+        "Menos tareas manuales, más foco en crecer",
+        "Atención al cliente 24/7 sin perder tu tono",
+        "Procesos más rápidos y con menos errores",
+        "Escalable: empieza simple y crece por módulos",
+      ],
+      cta: "¿Listo para que tu negocio trabaje aunque tú no estés?",
     },
   },
 ];

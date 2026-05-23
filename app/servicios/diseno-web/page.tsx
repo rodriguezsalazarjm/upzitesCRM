@@ -22,6 +22,7 @@ const CARDS: FeatureCard[] = [
   { num: "06", title: "Diseño responsive", visible: "Tu web debe verse fuerte en cualquier pantalla.", detail: "Adaptamos la experiencia para desktop, tablet y móvil, cuidando legibilidad, navegación, velocidad y conversión en cada formato.", micro: "Mobile no es versión secundaria." },
   { num: "07", title: "Performance y velocidad", visible: "Una web lenta pierde clientes.", detail: "Optimizamos estructura, imágenes, componentes y carga para construir una experiencia rápida, limpia y profesional.", micro: "Rápida, clara, lista para convertir." },
   { num: "08", title: "Sistema escalable", visible: "Diseñamos una web que pueda crecer contigo.", detail: "Creamos componentes, secciones reutilizables y estructura flexible para sumar nuevas páginas, servicios, casos, artículos o campañas sin romper el sistema.", micro: "Tu web no debe quedarse pequeña." },
+  { num: "09", title: "Chatbot con IA · opcional", visible: "Tu web responde a tus clientes por ti, 24/7.", detail: "Complemento opcional (con costo adicional): un chatbot con IA entrenado con tu información que responde dudas, califica leads y guía a la compra con el tono de tu marca. Se integra al sitio sin cambiar su diseño.", micro: "Atención automática, sin perder tu voz." },
 ];
 
 const PROCESS = [
