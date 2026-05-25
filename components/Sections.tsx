@@ -103,58 +103,8 @@ export function TopNav() {
 
 // ---------- HERO ----------------------------------------------------
 export function Hero() {
-  const heroRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const reveal = () => {
-      el.querySelectorAll<HTMLElement>(".hero-stamp, .hero-title-line, .hero-sub, .hero-actions a, .hero-tags .pill")
-        .forEach((x) => x.style.opacity = "1");
-    };
-
-    const fallback = setTimeout(reveal, 3000);
-
-    import("animejs").then(({ animate, createTimeline, stagger, cubicBezier }) => {
-      clearTimeout(fallback);
-      const tl = createTimeline({ playbackEase: cubicBezier(0.2, 0.8, 0.2, 1) });
-
-      tl.add(el.querySelector(".hero-stamp")!, {
-        scale: [0, 1],
-        rotate: [-180, 0],
-        duration: 600,
-        ease: "outBack(overshoot = 1.4)",
-      }, 0)
-      .add(el.querySelectorAll(".hero-title-line"), {
-        translateY: [80, 0],
-        opacity: [0, 1],
-        duration: 600,
-        delay: stagger(80),
-      }, 200)
-      .add(el.querySelector(".hero-sub")!, {
-        translateY: [20, 0],
-        opacity: [0, 1],
-        duration: 400,
-      }, 600)
-      .add(el.querySelectorAll(".hero-actions a"), {
-        translateY: [20, 0],
-        opacity: [0, 1],
-        duration: 400,
-        delay: stagger(80),
-      }, 700)
-      .add(el.querySelectorAll(".hero-tags .pill"), {
-        translateY: [16, 0],
-        opacity: [0, 1],
-        duration: 350,
-        delay: stagger(60, { from: "last" }),
-      }, 800);
-    });
-  }, []);
-
   return (
-    <section className="hero grain" id="top" data-screen-label="01 Hero" ref={heroRef}>
+    <section className="hero grain" id="top" data-screen-label="01 Hero">
       <HeroBackground />
       <div className="shell" style={{ position: "relative" }}>
         <div className="hero-runner">
@@ -235,11 +185,9 @@ export function Services() {
         entries.forEach((e) => {
           if (e.isIntersecting) {
             io.disconnect();
-            const fallback = setTimeout(() => {
-              cards.forEach((c) => c.style.opacity = "1");
-            }, 3000);
+            const reveal = () => cards.forEach((c) => { c.style.opacity = "1"; c.style.transform = "none"; });
+            setTimeout(reveal, 1500);
             import("animejs").then(({ animate, stagger, cubicBezier }) => {
-              clearTimeout(fallback);
               animate(cards as unknown as HTMLElement[], {
                 opacity: [0, 1],
                 translateY: [30, 0],
@@ -247,7 +195,7 @@ export function Services() {
                 delay: stagger(60, { from: "center" }),
                 ease: cubicBezier(0.2, 0.8, 0.2, 1),
               });
-            });
+            }).catch(reveal);
           }
         });
       },
@@ -327,11 +275,9 @@ export function Showcase() {
         entries.forEach((e) => {
           if (e.isIntersecting) {
             io.disconnect();
-            const fallback = setTimeout(() => {
-              figs.forEach((f) => f.style.opacity = "1");
-            }, 3000);
+            const reveal = () => figs.forEach((f) => { f.style.opacity = "1"; f.style.clipPath = "none"; });
+            setTimeout(reveal, 1800);
             import("animejs").then(({ animate, stagger, cubicBezier }) => {
-              clearTimeout(fallback);
               animate(figs as unknown as HTMLElement[], {
                 clipPath: ["inset(50% 0% 50% 0%)", "inset(0% 0% 0% 0%)"],
                 opacity: [0, 1],
@@ -339,7 +285,7 @@ export function Showcase() {
                 delay: stagger(200),
                 ease: cubicBezier(0.2, 0.8, 0.2, 1),
               });
-            });
+            }).catch(reveal);
           }
         });
       },
@@ -455,11 +401,9 @@ export function Process() {
         entries.forEach((e) => {
           if (e.isIntersecting) {
             io.disconnect();
-            const fallback = setTimeout(() => {
-              rows.forEach((r) => r.style.opacity = "1");
-            }, 3000);
+            const reveal = () => rows.forEach((r) => { r.style.opacity = "1"; r.style.transform = "none"; });
+            setTimeout(reveal, 1500);
             import("animejs").then(({ animate, stagger, cubicBezier }) => {
-              clearTimeout(fallback);
               animate(rows as unknown as HTMLElement[], {
                 opacity: [0, 1],
                 translateY: [24, 0],
@@ -467,7 +411,7 @@ export function Process() {
                 delay: stagger(100),
                 ease: cubicBezier(0.2, 0.8, 0.2, 1),
               });
-            });
+            }).catch(reveal);
           }
         });
       },
