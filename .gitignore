@@ -1,62 +1,35 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+node_modules/
+.pnpm-store/
 
-# testing
-/coverage
+# next.js / builds
+.next/
+out/
+dist/
+build/
 
-# next.js
-/.next/
-/out/
+# turbo
+.turbo/
 
-# production
-/build
+# env
+.env
+.env*.local
+*.env
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # misc
 .DS_Store
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
-# vercel
 .vercel
-
-# typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code local settings
-.claude/settings.local.json
-
-# Raw image source dumps — keep the repo light.
-# Drop originals here; we optimize them with sharp and commit only the
-# web-ready versions under public/images/.
-public/images/Branding/
-public/images/home1.png
-public/images/home2.png
-public/images/jilly moreno/
-public/images/websites/*.png
-
-# Raster originals superseded by .webp (kept locally, served as webp)
-public/images/**/*.jpg
-public/images/**/*.jpeg
-public/images/**/*.png
-
-# Source project images (optimized output lives in public/images/proyectos/<slug>/)
-public/images/proyectos/Branding/
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
