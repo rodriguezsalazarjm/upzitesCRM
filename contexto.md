@@ -69,13 +69,15 @@ este protocolo de relevo.
   app/layout.tsx, app/page.tsx, app/nosotros/page.tsx, app/proyectos/page.tsx,
   components/{FloatingActions,PromoPopup,ExtraSections,Sections}.tsx,
   next.config.ts, .env.example}.
-- Estado: terminado (sin commitear).
-- Siguiente: commitear+pushear a `upzitesCRM`; decidir descarte de
-  `upzites-vercel-pixel` y docs redundantes; en BriefForms (server component,
-  ahora links internos a /brief/*) ubicar un evento Lead en la pagina del brief
-  si se quiere medir esa conversion.
-- Bloqueos: definir el ID real de pixel por env (`NEXT_PUBLIC_META_PIXEL_ID`)
-  en Vercel; hoy usa el fallback `1009533758712390`.
+- Estado: terminado, commiteado y pusheado (commit `a206e5c` en
+  `origin/master` = upzitesCRM). Tambien se elimino el worktree
+  `upzites-vercel-pixel` (ya no aporta nada nuevo) y se consolidaron
+  contexto2.md + contextocrm.md dentro de este documento (Anexos A y B).
+- Siguiente: definir `NEXT_PUBLIC_META_PIXEL_ID` real en Vercel; planificar
+  como la version pro reemplaza a la web operativa (repo `upzites`/Vercel); en
+  BriefForms (server component, links internos a /brief/*) ubicar un evento
+  Lead en la pagina del brief si se quiere medir esa conversion.
+- Bloqueos: hoy el pixel usa el fallback `1009533758712390` si no hay env.
 
 ### [2026-06-16 13:18] - claude
 - Foco: contexto inicial + diseno del protocolo de relevo.
