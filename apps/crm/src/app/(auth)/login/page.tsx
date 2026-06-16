@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [email, setEmail] = useState('admin@upzites.cl');
   const [password, setPassword] = useState('demo1234');
   const router = useRouter();
@@ -17,9 +18,23 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simular auth
-    await new Promise((r) => setTimeout(r, 800));
+    setError('');
+
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    setLoading(false);
+
+    if (!response.ok) {
+      setError('Credenciales invalidas');
+      return;
+    }
+
     router.push('/dashboard');
+    router.refresh();
   };
 
   return (
@@ -35,7 +50,7 @@ export default function LoginPage() {
 
         <div>
           <blockquote className="text-2xl font-light leading-relaxed text-blue-100">
-            "El CRM que nació del sitio web: captura leads, conversa, cotiza y cobra."
+            &ldquo;El CRM que nació del sitio web: captura leads, conversa, cotiza y cobra.&rdquo;
           </blockquote>
           <div className="mt-8 grid grid-cols-3 gap-4">
             {[
@@ -118,6 +133,11 @@ export default function LoginPage() {
                 <>Ingresar <ArrowRight className="h-4 w-4" /></>
               )}
             </Button>
+            {error && (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                {error}
+              </p>
+            )}
           </form>
 
           <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-3">

@@ -35,7 +35,7 @@ export function LegalPage({
           ))}
 
           <p className="legal-contact">
-            ¿Dudas sobre este documento? Escríbenos a{" "}
+            ¿Dudas sobre este documento Escríbenos a{" "}
             <a href="mailto:contacto@upzites.com">contacto@upzites.com</a>.
           </p>
         </div>

@@ -13,7 +13,7 @@ export function Brand({ size }: { size?: "lg" }) {
 }
 
 // ---------- Editorial eyebrow + horizontal rule ---------------------
-export function Eyebrow({ num, children }: { num?: string, children: React.ReactNode }) {
+export function Eyebrow({ num, children }: { num?: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
@@ -38,7 +38,17 @@ export function Eyebrow({ num, children }: { num?: string, children: React.React
 }
 
 // ---------- Sticker / tape -----------------------------------------
-export function Sticker({ tone, angle, children, style }: { tone?: string, angle?: number, children: React.ReactNode, style?: React.CSSProperties }) {
+export function Sticker({
+  tone,
+  angle,
+  children,
+  style,
+}: {
+  tone?: string;
+  angle?: number;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
   return (
     <span
       className={`sticker sticker-${tone || "lime"}`}
@@ -50,7 +60,7 @@ export function Sticker({ tone, angle, children, style }: { tone?: string, angle
 }
 
 // ---------- Pill chip ----------------------------------------------
-export function Pill({ children, solid, dot }: { children: React.ReactNode, solid?: boolean, dot?: boolean }) {
+export function Pill({ children, solid, dot }: { children: React.ReactNode; solid?: boolean; dot?: boolean }) {
   return (
     <span className={`pill${solid ? " pill-solid" : ""}`}>
       {dot ? <span className="dot"></span> : null}
@@ -72,7 +82,7 @@ export function Barcode({ heights }: { heights?: number[] }) {
 }
 
 // ---------- Stamp (circle with text on path) -----------------------
-export function Stamp({ text, color, bg, size }: { text: string, color?: string, bg?: string, size?: number }) {
+export function Stamp({ text, color, bg, size }: { text: string; color: string; bg: string; size?: number }) {
   const s = size || 132;
   const r = s / 2 - 12;
   return (
@@ -96,18 +106,34 @@ export function Stamp({ text, color, bg, size }: { text: string, color?: string,
 }
 
 // ---------- Reveal-on-scroll (IntersectionObserver) ----------------
-export function Reveal({ children, delay, as, variant }: { children: React.ReactNode, delay?: number, as?: any, variant?: "up" | "left" | "right" | "scale" | "clip" }) {
+export function Reveal({
+  children,
+  delay,
+  as,
+  variant,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  as?: React.ElementType;
+  variant?: "up" | "left" | "right" | "scale" | "clip";
+}) {
   const ref = useRef<HTMLElement>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     // Safety: if IntersectionObserver is unavailable, reveal right away.
-    if (typeof IntersectionObserver === "undefined") { setSeen(true); return; }
+    if (typeof IntersectionObserver === "undefined") {
+      const raf = requestAnimationFrame(() => setSeen(true));
+      return () => cancelAnimationFrame(raf);
+    }
     // Reveal immediately anything already within (or above) the first viewport
     // at mount — avoids elements staying hidden if the observer never fires.
     const rect = el.getBoundingClientRect();
-    if (rect.top < (window.innerHeight || 0) * 0.95) { setSeen(true); return; }
+    if (rect.top < (window.innerHeight || 0) * 0.95) {
+      const raf = requestAnimationFrame(() => setSeen(true));
+      return () => cancelAnimationFrame(raf);
+    }
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {

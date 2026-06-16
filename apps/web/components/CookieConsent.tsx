@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const KEY = "upz-cookies";
+const CONSENT_EVENT = "upz-cookie-consent";
 
 export function CookieConsent() {
   const [show, setShow] = useState(false);
@@ -23,6 +24,7 @@ export function CookieConsent() {
   function decide(value: "accepted" | "rejected") {
     try {
       localStorage.setItem(KEY, value);
+      window.dispatchEvent(new Event(CONSENT_EVENT));
     } catch {
       /* ignore */
     }

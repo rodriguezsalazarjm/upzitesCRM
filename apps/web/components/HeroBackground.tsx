@@ -44,7 +44,8 @@ export function HeroBackground() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const parent = canvas?.parentElement;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
     if (!canvas || !parent) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;

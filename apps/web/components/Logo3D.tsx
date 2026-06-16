@@ -37,14 +37,14 @@ export function Logo3D() {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setReduce(true);
-      return;
+      const raf = requestAnimationFrame(() => setReduce(true));
+      return () => cancelAnimationFrame(raf);
     }
     const el = ref.current;
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
-      setShow(true);
-      return;
+      const raf = requestAnimationFrame(() => setShow(true));
+      return () => cancelAnimationFrame(raf);
     }
     const io = new IntersectionObserver(
       (entries) => {

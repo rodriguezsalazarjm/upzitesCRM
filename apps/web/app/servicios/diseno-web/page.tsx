@@ -123,7 +123,7 @@ export default function DisenoWebPage() {
       {/* 4. Qué incluye · cards interactivas */}
       <section id="incluye" className="section" data-screen-label="Web · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye el Diseño Web?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye el Diseño Web</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">

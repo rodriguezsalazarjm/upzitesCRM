@@ -1,14 +1,15 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Brand, Eyebrow, Reveal, Pill, Stamp, Sticker, Barcode } from "./Atoms";
-import { SERVICES } from "@/lib/services";
+import { EXPRESS_SOLUTIONS, SERVICES } from "@/lib/services";
 import { HeroBackground } from "./HeroBackground";
 import { CountUp } from "./CountUp";
 import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 import { BriefForms } from "./BriefForms";
+import { trackCompleteRegistration, trackLead } from "@/lib/meta-pixel";
 
 // ---------- Top nav -------------------------------------------------
 export function TopNav() {
@@ -29,6 +30,7 @@ export function TopNav() {
         <Brand />
         <nav className="nav-links">
           <Link href="/">Inicio</Link>
+          <Link href="/#soluciones-express">Soluciones</Link>
           <div className="nav-dropdown">
             <Link href="/servicios" className="nav-dropdown-trigger">
               Servicios <span className="nav-caret" aria-hidden="true">▾</span>
@@ -40,24 +42,26 @@ export function TopNav() {
                 </Link>
               ))}
               <Link href="/servicios" className="nav-menu-all" role="menuitem">
-                Ver todos <span className="arr">↗</span>
+                Ver todos <span className="arr">&#8599;</span>
               </Link>
             </div>
           </div>
           <Link href="/#ia">IA</Link>
-          <Link href="/#auditoria">Auditoría</Link>
           <Link href="/nosotros">Nosotros</Link>
-          <Link href="/#agenda">Agenda</Link>
           <Link href="/#projects">Proyectos</Link>
-          <Link href="/#process">Proceso</Link>
-          <Link href="/#contact">Contacto</Link>
+          <Link href="/contacto">Contacto</Link>
         </nav>
         <div className="nav-spacer"></div>
         <span className="nav-meta">SANTIAGO · CHILE</span>
         <SocialLinks links={UPZITES_SOCIALS} className="nav-socials" />
-        <Link href="/#contact" className="btn btn-primary btn-sm nav-cta">
-          Hablemos <span className="arr">↗</span>
-        </Link>
+        <div className="nav-actions">
+          <Link href="/api/brochure/download?source=header_button" className="btn btn-ivory btn-sm nav-cta nav-cta-secondary">
+            Brochure <span className="arr">&#8599;</span>
+          </Link>
+          <Link href="/contacto" className="btn btn-primary btn-sm nav-cta">
+            Hablemos <span className="arr">&#8599;</span>
+          </Link>
+        </div>
         <button
           type="button"
           className={`nav-burger${open ? " is-open" : ""}`}
@@ -73,12 +77,11 @@ export function TopNav() {
         <div className="nav-mobile-inner">
           <div className="nav-mobile-links">
             <Link href="/" onClick={close}>Inicio</Link>
+            <Link href="/#soluciones-express" onClick={close}>Soluciones</Link>
             <Link href="/nosotros" onClick={close}>Nosotros</Link>
             <Link href="/#ia" onClick={close}>IA</Link>
             <Link href="/#projects" onClick={close}>Proyectos</Link>
-            <Link href="/#auditoria" onClick={close}>Auditoría</Link>
-            <Link href="/#agenda" onClick={close}>Agenda</Link>
-            <Link href="/#contact" onClick={close}>Contacto</Link>
+            <Link href="/contacto" onClick={close}>Contacto</Link>
           </div>
           <span className="nav-mobile-label">Servicios</span>
           <div className="nav-mobile-services">
@@ -86,13 +89,16 @@ export function TopNav() {
               <Link key={s.slug} href={`/servicios/${s.slug}`} onClick={close}>{s.title}</Link>
             ))}
             <Link href="/servicios" className="nav-mobile-services-all" onClick={close}>
-              Ver todos <span className="arr">↗</span>
+              Ver todos <span className="arr">&#8599;</span>
             </Link>
           </div>
           <div className="nav-mobile-foot">
             <SocialLinks links={UPZITES_SOCIALS} className="nav-mobile-socials" />
-            <Link href="/#contact" className="btn btn-primary btn-lg" onClick={close}>
-              Hablemos <span className="arr">↗</span>
+            <Link href="/api/brochure/download?source=mobile_button" className="btn btn-ivory btn-lg" onClick={close}>
+              Brochure <span className="arr">&#8599;</span>
+            </Link>
+            <Link href="/contacto" className="btn btn-primary btn-lg" onClick={close}>
+              Hablemos <span className="arr">&#8599;</span>
             </Link>
           </div>
         </div>
@@ -127,8 +133,8 @@ export function Hero() {
             tu negocio. Diseño con sangre, sistema y dirección.
           </p>
           <div className="hero-actions">
-            <a href="#contact" className="btn btn-dark btn-lg">Contacto <span className="arr">↗</span></a>
-            <a href="#projects" className="btn btn-ivory btn-lg">Ver proyectos <span className="arr">↗</span></a>
+            <Link href="/contacto" className="btn btn-dark btn-lg">Contacto <span className="arr">&#8599;</span></Link>
+            <a href="#projects" className="btn btn-ivory btn-lg">Ver proyectos <span className="arr">&#8599;</span></a>
           </div>
           <div className="hero-tags">
             <div className="hero-tag-row">
@@ -159,7 +165,7 @@ export function Marquee({ items, variant }: { items?: string[], variant?: "carbo
         {loop.map((t, i) => (
           <React.Fragment key={i}>
             <span>{t}</span>
-            <span className="dot">●</span>
+            <span className="dot">•</span>
           </React.Fragment>
         ))}
       </div>
@@ -218,15 +224,15 @@ export function Services() {
           </Reveal>
           <Reveal delay={120}>
             <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 460, margin: 0 }}>
-              Cinco frentes estratégicos. Un solo sistema. Trabajamos como
-              un equipo interno embebido, no como una agencia que entrega
-              archivos y desaparece.
+              Marca, web, contenido, ads, apps y automatización conectados
+              como un solo sistema. No hacemos piezas sueltas: construimos
+              presencia digital con dirección comercial.
             </p>
           </Reveal>
         </div>
 
         <div className="services-grid" ref={gridRef}>
-          {SERVICES.map((s, i) => (
+          {SERVICES.map((s) => (
             <Link
               key={s.slug}
               href={`/servicios/${s.slug}`}
@@ -248,10 +254,90 @@ export function Services() {
               </div>
               <div className="service-card-foot">
                 <span className="service-card-foot-label">Más detalles</span>
-                <span className="service-card-arr">↗</span>
+                <span className="service-card-arr">&#8599;</span>
               </div>
             </Link>
           ))}
+          <Link
+            href="/api/brochure/download?source=home_services_card"
+            className="service-card brochure-service-card"
+            style={{ "--svc-accent": "var(--upz-lime)" } as React.CSSProperties}
+          >
+            <div className="service-num">
+              <span>UPZ / PDF</span>
+              <span>Brochure</span>
+            </div>
+            <h3 className="service-card-title">Descarga el brochure</h3>
+            <p className="service-card-body">
+              Revisa la propuesta de UPZITES: marca, web, contenido, ads,
+              automatización, CRM y soluciones express en un solo documento.
+            </p>
+            <div className="service-card-tags">
+              <span>Servicios</span>
+              <span>PDF</span>
+              <span>Guía comercial</span>
+            </div>
+            <div className="service-card-foot">
+              <span className="service-card-foot-label">Descargar ahora</span>
+              <span className="service-card-arr">&#8599;</span>
+            </div>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- EXPRESS SOLUTIONS --------------------------------------
+export function ExpressSolutions() {
+  return (
+    <section id="soluciones-express" className="section section--ivory" data-screen-label="Soluciones Express">
+      <div className="shell">
+        <Eyebrow num="02">Soluciones Express</Eyebrow>
+        <div className="services-head">
+          <Reveal>
+            <h2 className="services-h">
+              Activa tu marca<br />
+              <span className="b">sin esperar semanas<span style={{ color: "var(--upz-tomato)" }}>.</span></span>
+            </h2>
+          </Reveal>
+          <Reveal delay={120}>
+            <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 500, margin: 0 }}>
+              Productos digitales rápidos para marcas, emprendedores y eventos
+              que necesitan verse profesionales, captar contactos o vender mejor.
+              Cada solución puede crecer hacia un proyecto completo.
+            </p>
+          </Reveal>
+        </div>
+
+        <div className="services-grid">
+          {EXPRESS_SOLUTIONS.map((solution, i) => {
+            const href = solution.href.startsWith("#") ? `/${solution.href}` : solution.href;
+            return (
+              <Reveal key={solution.slug} delay={i * 60}>
+                <Link
+                  href={href}
+                  className="service-card"
+                  style={{ opacity: 1, "--svc-accent": "var(--upz-lime)" } as React.CSSProperties}
+                >
+                  <div className="service-num">
+                    <span>{String(i + 1).padStart(2, "0")} / 05</span>
+                    <span>Express</span>
+                  </div>
+                  <h3 className="service-card-title">{solution.title}</h3>
+                  <p className="service-card-body">{solution.description}</p>
+                  <div className="service-card-tags">
+                    <span>{solution.idealFor}</span>
+                    {solution.addOn && <span>{solution.addOn}</span>}
+                  </div>
+                  <div className="service-card-foot">
+                    <span className="service-card-foot-label">{solution.cta}</span>
+                    <span className="service-card-arr">&#8599;</span>
+                  </div>
+                </Link>
+              </Reveal>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -317,11 +403,11 @@ export function Showcase() {
         <div className="showcase-grid">
           <figure className="showcase-fig">
             <img src="/images/home-1.webp" alt="Identidad UPZITES aplicada en la calle" loading="lazy" />
-            <figcaption><span className="b">●</span> Marca en la calle</figcaption>
+            <figcaption><span className="b">•</span> Marca en la calle</figcaption>
           </figure>
           <figure className="showcase-fig">
             <img src="/images/home-2.webp" alt="Sistema de marca UPZITES en web y piezas" loading="lazy" />
-            <figcaption><span className="b">●</span> Sistema en pantalla</figcaption>
+            <figcaption><span className="b">•</span> Sistema en pantalla</figcaption>
           </figure>
         </div>
 
@@ -365,7 +451,7 @@ export function Projects() {
 const STEPS = [
   {
     num: "01", title: "Estrategia",
-    body: "Auditamos marca, mercado y oferta. Definimos posicionamiento, audiencia y narrativa. La base no es estética — es comercial.",
+    body: "Auditamos marca, mercado y oferta. Definimos posicionamiento, audiencia y narrativa. La base no es estética: es comercial.",
     deliverables: ["Brand audit", "Posicionamiento", "Roadmap"],
   },
   {
@@ -434,15 +520,15 @@ export function Process() {
           </Reveal>
           <Reveal delay={120}>
             <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "rgba(250,251,245,.72)", maxWidth: 460, margin: 0 }}>
-              No vendemos plantillas. Cada proyecto pasa por las cuatro fases —
-              estrategia, identidad, experiencia digital y lanzamiento — con
+              No vendemos plantillas. Cada proyecto pasa por las cuatro fases:
+              estrategia, identidad, experiencia digital y lanzamiento, con
               entregables claros y métricas reales.
             </p>
           </Reveal>
         </div>
 
         <div className="process-grid" ref={processRef}>
-          {STEPS.map((s, i) => (
+          {STEPS.map((s) => (
             <div key={s.num} className="process-row">
               <span className="process-row-num">{s.num}</span>
               <h3 className="process-row-title">{s.title}</h3>
@@ -450,7 +536,7 @@ export function Process() {
               <div className="process-row-deliverables">
                 {s.deliverables.map((d) => <span key={d}>{d}</span>)}
               </div>
-              <span className="process-row-arr">↗</span>
+              <span className="process-row-arr">&#8599;</span>
             </div>
           ))}
         </div>
@@ -487,33 +573,33 @@ export function Stats() {
 // ---------- 06 TESTIMONIALS ----------------------------------------
 const TESTIMONIALS = [
   {
-    quote: <>"UPZITES no nos hizo un logo. Nos rediseñó la <span className="hl">estrategia entera</span>. Ahora la marca dirige las decisiones del negocio."</>,
+    quote: <>UPZITES no nos hizo un logo. Nos rediseñó la <span className="hl">estrategia entera</span>. Ahora la marca dirige las decisiones del negocio.</>,
     name: "Camila Reyes", role: "Founder · Núa Skincare",
     init: "CR", color: "#FF5CAB",
     featured: true,
   },
   {
-    quote: <>"La web que entregaron es la pieza comercial más fuerte que tenemos. <span className="hl">2.4× conversión</span> en el primer trimestre."</>,
+    quote: <>La web que entregaron es la pieza comercial más fuerte que tenemos. <span className="hl">2.4× conversión</span> en el primer trimestre.</>,
     name: "Diego Salas", role: "CEO · Barrio",
     init: "DS", color: "#A6FF00",
   },
   {
-    quote: <>"Trabajan como equipo interno, no como agencia. Tienen criterio, ritmo y velocidad. Difícil de encontrar."</>,
+    quote: <>Trabajan como equipo interno, no como agencia. Tienen criterio, ritmo y velocidad. Difícil de encontrar.</>,
     name: "Andrea Pino", role: "Brand Lead · Calor Coffee",
     init: "AP", color: "#FFD100",
   },
   {
-    quote: <>"Lo que UPZITES hace es <span className="hl">dirección creativa real</span>. Defienden las ideas que importan y matan las que no."</>,
+    quote: <>Lo que UPZITES hace es <span className="hl">dirección creativa real</span>. Defienden las ideas que importan y matan las que no.</>,
     name: "Mateo López", role: "Director · Verbo Magazine",
     init: "ML", color: "#0057FF",
   },
   {
-    quote: <>"El sistema visual que construyeron sigue vivo tres años después. Escalable, reconocible, premium. Eso vale."</>,
+    quote: <>El sistema visual que construyeron sigue vivo tres años después. Escalable, reconocible, premium. Eso vale.</>,
     name: "Sofía Marín", role: "CMO · Sereno Hotels",
     init: "SM", color: "#FF3B30",
   },
   {
-    quote: <>"Latinos pensando global. Hablan español, entienden Miami, diseñan para competir afuera. Mi mejor inversión del año."</>,
+    quote: <>Latinos pensando global. Hablan español, entienden Miami, diseñan para competir afuera. Mi mejor inversión del año.</>,
     name: "Luis Vargas", role: "Founder · Nomada",
     init: "LV", color: "#FFBA00",
   },
@@ -543,7 +629,7 @@ export function Testimonials() {
           {TESTIMONIALS.map((t, i) => (
             <Reveal key={i} delay={i * 60}>
               <figure className={`testimonial-card${t.featured ? " is-featured" : ""}`}>
-                <span className="testimonial-mark">"</span>
+                <span className="testimonial-mark">&ldquo;</span>
                 <blockquote className="testimonial-quote">{t.quote}</blockquote>
                 <div className="testimonial-foot">
                   <span className="testimonial-avatar" style={{ background: t.color, color: "var(--upz-carbon)" }}>{t.init}</span>
@@ -569,47 +655,50 @@ export function BigCTA() {
   function update(k: string, v: string) { setState((s) => ({ ...s, [k]: v })); }
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const subject = encodeURIComponent(`Brief UPZITES — ${state.brand || state.name || "Nuevo proyecto"}`);
+    const subject = encodeURIComponent(`Brief UPZITES · ${state.brand || state.name || "Nuevo proyecto"}`);
     const body = encodeURIComponent(
       `Nombre: ${state.name}\nEmail: ${state.email}\nMarca / proyecto: ${state.brand}\nQué necesita: ${state.scope}\n\n${state.brief}`
     );
-    window.location.href = `mailto:contacto@upzites.com?subject=${subject}&body=${body}`;
+    trackLead({ currency: "CLP" });
+    window.location.href = `mailto:contacto@upzites.comsubject=${subject}&body=${body}`;
     setSent(true);
   }
 
   return (
-    <section id="contact" className="bigcta" data-screen-label="07 Big CTA">
+    <section id="contact" className="bigcta home-contact-cta" data-screen-label="07 Big CTA">
       <div className="shell">
-        <div className="bigcta-stamp">↗</div>
+        <div className="bigcta-stamp">&#8599;</div>
         <div className="bigcta-eyebrow">
           <span>08 · Hablemos</span>
           <span className="rule"></span>
           <span>UPZ / {new Date().getFullYear()} · contacto@upzites.com</span>
         </div>
 
-        <Reveal>
-          <h2 className="bigcta-h">
-            Tu marca<br />
-            no necesita<br />
-            <span className="strike">más ruido</span>.<br />
-            necesita<br />
-            <span className="hl">dirección</span><span className="em">.</span>
-          </h2>
-        </Reveal>
+        <div className="bigcta-title-col">
+          <Reveal>
+            <h2 className="bigcta-h">
+              Tu marca<br />
+              no necesita<br />
+              <span className="strike">más ruido</span>.<br />
+              necesita<br />
+              <span className="hl">dirección</span><span className="em">.</span>
+            </h2>
+          </Reveal>
+        </div>
 
         <div className="bigcta-form-wrap">
           <Reveal>
             <div className="bigcta-form-intro">
               <p>
                 Cuéntanos qué quieres construir. Auditamos tu marca, definimos la
-                dirección y diseñamos el sistema. Respondemos en 48h hábiles —
+                dirección y diseñamos el sistema. Respondemos en 48h hábiles,
                 sin formularios eternos, sin agencia-speak.
               </p>
               <div className="meta">
-                <div className="meta-row"><span className="b">●</span> contacto@upzites.com</div>
-                <div className="meta-row"><span className="b">●</span> Santiago de Chile</div>
-                <div className="meta-row"><span className="b">●</span> Lun–Vie · 09:00 – 18:00 GMT-4</div>
-                <div className="meta-row"><span className="b">●</span> Respuesta en 48h hábiles</div>
+                <div className="meta-row"><span className="b">•</span> contacto@upzites.com</div>
+                <div className="meta-row"><span className="b">•</span> Santiago de Chile</div>
+                <div className="meta-row"><span className="b">•</span> Lun-Vie · 09:00 · 18:00 GMT-4</div>
+                <div className="meta-row"><span className="b">•</span> Respuesta en 48h hábiles</div>
               </div>
             </div>
           </Reveal>
@@ -617,7 +706,7 @@ export function BigCTA() {
           <Reveal delay={120}>
             {sent ? (
               <div className="bigcta-confirm">
-                <span className="check">↗</span>
+                <span className="check">✓</span>
                 <div>
                   <strong>Recibido · {state.name || "Tu brief está en camino"}</strong>
                   <p>
@@ -654,11 +743,11 @@ export function BigCTA() {
                 </div>
                 <div className="field field-full">
                   <label htmlFor="cta-brief">Cuéntanos del proyecto</label>
-                  <textarea id="cta-brief" value={state.brief} onChange={(e) => update("brief", e.target.value)} rows={3} placeholder="Contexto, objetivos, fechas, presupuesto aproximado…" />
+                  <textarea id="cta-brief" value={state.brief} onChange={(e) => update("brief", e.target.value)} rows={3} placeholder="Contexto, objetivos, fechas, presupuesto aproximado..." />
                 </div>
                 <div className="bigcta-form-submit">
                   <button type="submit" className="btn btn-lime btn-lg">
-                    Enviar brief a contacto@upzites.com <span className="arr">↗</span>
+                    Enviar brief a contacto@upzites.com <span className="arr">&#8599;</span>
                   </button>
                   <small>Al enviar aceptas que respondamos por correo. Cero spam.</small>
                 </div>
@@ -667,7 +756,9 @@ export function BigCTA() {
           </Reveal>
         </div>
 
-        <BriefForms />
+        <div className="home-brief-row">
+          <BriefForms />
+        </div>
       </div>
     </section>
   );
@@ -677,7 +768,13 @@ export function BigCTA() {
 export function Footer() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
-  function submit(e: React.FormEvent) { e.preventDefault(); if (email) setDone(true); }
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (email) {
+      trackCompleteRegistration({ registration_method: "newsletter" });
+      setDone(true);
+    }
+  }
 
   return (
     <footer className="footer" data-screen-label="08 Footer">
@@ -708,6 +805,7 @@ export function Footer() {
             <Link href="/servicios/ecommerce">E-commerce</Link>
             <Link href="/servicios/marketing-digital">Marketing digital</Link>
             <Link href="/servicios/apps-moviles">Apps móviles</Link>
+            <Link href="/api/brochure/download?source=footer">Brochure UPZITES</Link>
           </div>
 
           <div className="footer-col">
@@ -720,7 +818,7 @@ export function Footer() {
             <h4>Newsletter · Tropical Underground</h4>
             {done ? (
               <p style={{ fontFamily: "var(--font-text)", fontSize: 14, color: "var(--upz-carbon)", margin: 0 }}>
-                Recibido. <span style={{ color: "var(--upz-electric)" }}>↗</span> Pronto en tu inbox.
+                Recibido. <span style={{ color: "var(--upz-electric)" }}>✓</span> Pronto en tu inbox.
               </p>
             ) : (
               <form className="newsletter" onSubmit={submit}>
@@ -729,7 +827,7 @@ export function Footer() {
                     type="email" placeholder="tu@email.com"
                     value={email} onChange={(e) => setEmail(e.target.value)} required
                   />
-                  <button type="submit" aria-label="Suscribirme">↗</button>
+                  <button type="submit" aria-label="Suscribirme">&#8599;</button>
                 </div>
                 <span className="newsletter-note">Una vez al mes · Sin spam · Cancelas cuando quieras</span>
               </form>
@@ -738,7 +836,7 @@ export function Footer() {
         </div>
 
         <div className="footer-bigword footer-bigword--logo">
-          <img src="/images/studio-desing.webp" alt="Studio Desing" width={720} height={115} loading="lazy" />
+          <img src="/images/studio-desing@4x.png" alt="Studio Desing" width={720} height={115} loading="lazy" />
         </div>
 
         <nav className="footer-legal" aria-label="Legal">
@@ -749,10 +847,10 @@ export function Footer() {
 
         <div className="footer-foot">
           <span className="footer-cities">
-            <span className="b">●</span> Santiago de Chile
+            <span className="b">•</span> Santiago de Chile
           </span>
           <span className="footer-meta">© {new Date().getFullYear()} UPZITES · Todos los derechos reservados · Diseño estratégico con carácter</span>
-          <a href="#top" className="footer-toplink">Volver arriba <span className="arr">↗</span></a>
+          <a href="#top" className="footer-toplink">Volver arriba <span className="arr">&#8593;</span></a>
         </div>
       </div>
     </footer>

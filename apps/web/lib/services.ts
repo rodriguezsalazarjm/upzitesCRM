@@ -19,7 +19,7 @@ export type Service = {
   detail: ServiceDetail;
 };
 
-export const SERVICES: Service[] = [
+const LEGACY_SERVICES: Service[] = [
   {
     num: "01",
     slug: "branding",
@@ -48,7 +48,7 @@ export const SERVICES: Service[] = [
         "Listo para pantallas 4K y entornos móviles",
         "Propiedad total con archivos fuente editables",
       ],
-      cta: "¿Listo para construir una marca que genere resultados reales?",
+      cta: "¿Listo para construir una marca que genere resultados reales",
     },
   },
   {
@@ -81,7 +81,7 @@ export const SERVICES: Service[] = [
         "Navegación intuitiva que reduce la fricción",
         "Escalable y fácil de administrar por tu equipo",
       ],
-      cta: "¿Quieres una plataforma de alto rendimiento que venda por ti?",
+      cta: "¿Quieres una plataforma de alto rendimiento que venda por ti",
     },
   },
   {
@@ -113,7 +113,7 @@ export const SERVICES: Service[] = [
         "Adaptable a móvil y pantallas 4K",
         "Diseño que refuerza marca y credibilidad",
       ],
-      cta: "¿Es hora de que tu tienda online sea tu motor de ventas más potente?",
+      cta: "¿Es hora de que tu tienda online sea tu motor de ventas más potente",
     },
   },
   {
@@ -145,7 +145,7 @@ export const SERVICES: Service[] = [
         "Equipo multidisciplinario",
         "Reportes claros y transparentes",
       ],
-      cta: "¿Quieres escalar tu negocio y dejar de adivinar qué funciona en publicidad?",
+      cta: "¿Quieres escalar tu negocio y dejar de adivinar qué funciona en publicidad",
     },
   },
   {
@@ -175,7 +175,7 @@ export const SERVICES: Service[] = [
         "Asesoramiento en monetización y lanzamiento",
         "Escalable para crecer con tu negocio",
       ],
-      cta: "¿Tienes una idea para una app? Vamos a construirla correctamente.",
+      cta: "¿Tienes una idea para una app Vamos a construirla correctamente.",
     },
   },
   {
@@ -185,7 +185,7 @@ export const SERVICES: Service[] = [
     tagline: "Tu negocio funcionando solo, 24/7.",
     card: "Conectamos tus herramientas y automatizamos procesos con IA (n8n, Make, chatbots). Menos tareas manuales y más tiempo para crecer — sin perder el control ni tu identidad.",
     tags: ["n8n", "Make", "Chatbots IA"],
-    image: "/images/automatizacion-ia-cover.webp",
+    image: "/images/automatizacion-ia-ai.png",
     accent: "var(--upz-tangerine)",
     badge: "Nuevo",
     detail: {
@@ -207,8 +207,150 @@ export const SERVICES: Service[] = [
         "Procesos más rápidos y con menos errores",
         "Escalable: empieza simple y crece por módulos",
       ],
-      cta: "¿Listo para que tu negocio trabaje aunque tú no estés?",
+      cta: "¿Listo para que tu negocio trabaje aunque tú no estés",
     },
+  },
+];
+
+export const SERVICES: Service[] = [
+  {
+    ...LEGACY_SERVICES[0],
+    num: "01",
+    title: "Branding y Dirección Visual",
+    tagline: "Marcas con sistema, no solo logos bonitos.",
+    card: "Creamos identidad, narrativa y dirección visual para que tu marca sea coherente en web, redes, campañas, contenido y ventas.",
+    tags: ["Identidad", "Dirección visual", "Sistema"],
+  },
+  {
+    ...LEGACY_SERVICES[1],
+    num: "02",
+    title: "Diseño y Desarrollo Web",
+    tagline: "Webs, landings y sistemas digitales que venden.",
+    card: "Construimos landing pages, sitios corporativos, catálogos, e-commerce y sistemas conectados a formularios, CRM y automatizaciones.",
+    tags: ["Web", "Landing", "CRM"],
+  },
+  {
+    ...LEGACY_SERVICES[2],
+    num: "03",
+    title: "E-commerce",
+    tagline: "Tiendas online, catálogos y sistemas de venta conectados.",
+    card: "Creamos tiendas, catálogos y experiencias de compra que conectan marca, productos, pagos, WhatsApp, CRM y automatizaciones.",
+    tags: ["Tienda online", "Catálogos", "Pagos"],
+  },
+  {
+    ...LEGACY_SERVICES[3],
+    num: "04",
+    title: "Marketing Digital y Contenido",
+    tagline: "Contenido conectado al sistema de marca.",
+    card: "Produccion de contenido, fotografia, reels, creativos, redes sociales y direccion editorial bajo una misma estrategia visual y comercial.",
+    tags: ["Contenido", "Fotografia", "Redes"],
+  },
+  {
+    num: "05",
+    slug: "ads-performance",
+    title: "Ads y Performance",
+    tagline: "Publicidad con intencion, datos y conversion.",
+    card: "Gestionamos Meta Ads, Google Ads, creatividades, funnels, retargeting y medición para convertir atención en leads y ventas.",
+    tags: ["Meta Ads", "Google Ads", "ROAS"],
+    image: "/images/marketing-cover.webp",
+    accent: "var(--upz-solar)",
+    badge: "Nuevo",
+    detail: {
+      headline: "Ads y Performance",
+      intro: [
+        "Sin datos ni sistema, los ads son ruido pagado. Diseñamos campañas con estructura, creatividad, medición y optimización continua.",
+        "Conectamos pauta, landing pages, formularios, WhatsApp y CRM para que cada click tenga un camino comercial claro.",
+      ],
+      includes: [
+        { title: "Ads Setup & Lanzamiento", body: "Configuración de cuentas, pixel, conversiones, audiencias y campañas iniciales." },
+        { title: "Meta Ads Management", body: "Gestión mensual de campañas en Facebook e Instagram con creatividades y testing." },
+        { title: "Google Ads Management", body: "Campañas de búsqueda, display y YouTube con estructura de keywords y medición." },
+        { title: "Performance Full", body: "Meta + Google + creatividades + optimización de funnel y dashboard de métricas." },
+      ],
+      benefits: [
+        "Campañas conectadas a objetivos comerciales",
+        "Creatividades alineadas a marca",
+        "Tracking de conversiones y leads",
+        "Lectura clara de ROAS, CPL y calidad de prospectos",
+      ],
+      cta: "Quieres invertir en publicidad con sistema y no a ciegas",
+    },
+  },
+  {
+    ...LEGACY_SERVICES[4],
+    num: "06",
+    title: "Apps Móviles",
+    tagline: "Experiencias móviles para negocios que necesitan estar más cerca.",
+    card: "Aplicaciones móviles nativas y multiplataforma para operaciones, clientes, reservas, comunidades o productos digitales.",
+    tags: ["iOS", "Android", "Producto digital"],
+  },
+  {
+    ...LEGACY_SERVICES[5],
+    num: "07",
+    title: "Automatización e Inteligencia Artificial",
+    tagline: "Tu negocio funcionando mejor, 24/7.",
+    card: "Creamos formularios inteligentes, asistentes IA, bots de atención, flujos automáticos, reportes y conexiones con CRM.",
+    tags: ["IA", "Bots", "Automatización"],
+  },
+];
+
+export type ExpressSolution = {
+  slug: string;
+  title: string;
+  description: string;
+  idealFor: string;
+  benefit: string;
+  cta: string;
+  href: string;
+  addOn?: string;
+};
+
+export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
+  {
+    slug: "invitaciones-digitales",
+    title: "Invitaciones Digitales",
+    description: "Invitaciones web personalizadas para eventos, con RSVP, mapas, cuenta regresiva, musica y regalos.",
+    idealFor: "bodas, cumpleanos, baby showers y eventos corporativos",
+    benefit: "Una experiencia digital elegante antes, durante y despues del evento.",
+    cta: "Ver invitaciones",
+    href: "/contacto",
+    addOn: "Album QR en Vivo",
+  },
+  {
+    slug: "reel-express-24h",
+    title: "Reel Express 24H",
+    description: "Guion, grabación, edición y reel vertical listo para publicar en 24 horas.",
+    idealFor: "emprendedores, marcas personales, restaurantes y negocios locales",
+    benefit: "Contenido rapido sin perder direccion visual.",
+    cta: "Crear mi reel",
+    href: "/contacto",
+  },
+  {
+    slug: "landing-express",
+    title: "Landing Express",
+    description: "Landing one page para captar leads, lanzar un servicio, validar una idea o activar una campana.",
+    idealFor: "servicios, lanzamientos, eventos y campañas",
+    benefit: "Una pagina enfocada en conversion sin esperar semanas.",
+    cta: "Lanzar mi pagina",
+    href: "/contacto",
+  },
+  {
+    slug: "catalogo-web-express",
+    title: "Catalogo Web Express",
+    description: "Catalogo simple para mostrar productos, organizar categorias y recibir pedidos por WhatsApp o formulario.",
+    idealFor: "tiendas pequenas, mayoristas y marcas con venta consultiva",
+    benefit: "Digitaliza tu oferta sin construir una tienda completa.",
+    cta: "Crear catalogo",
+    href: "/contacto",
+  },
+  {
+    slug: "carta-qr-restaurante",
+    title: "Carta QR Restaurante",
+    description: "Menu digital con QR para mesas, categorias, fotos, precios, descripciones y contacto rapido.",
+    idealFor: "restaurantes, cafeterias, bares, food trucks y dark kitchens",
+    benefit: "Una carta facil de actualizar y mejor presentada para tus clientes.",
+    cta: "Crear carta QR",
+    href: "/contacto",
   },
 ];
 

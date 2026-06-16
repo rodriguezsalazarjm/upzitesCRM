@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -22,7 +22,7 @@ const FILTERS = [
 ];
 
 function clean(url: string) {
-  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return url.replace(/^https:\/\//, "").replace(/\/$/, "");
 }
 
 export function ProjectsGallery() {
@@ -70,7 +70,7 @@ export function ProjectsGallery() {
                 <span className="pg-card-name">{p.name}</span>
                 <span className="pg-card-cat">{p.category}</span>
               </span>
-              <span className="pg-card-hover"><span>Ver caso</span> <span className="arr">↗</span></span>
+              <span className="pg-card-hover"><span>Ver caso</span> <span className="arr">&#8599;</span></span>
             </button>
           ))}
 
@@ -82,7 +82,7 @@ export function ProjectsGallery() {
                 <span className="pg-card-name">{p.name}</span>
                 <span className="pg-card-cat">Sitio web{p.status ? ` · ${p.status}` : ""}</span>
               </span>
-              <span className="pg-card-hover"><span>Ver sitio</span> <span className="arr">↗</span></span>
+              <span className="pg-card-hover"><span>Ver sitio</span> <span className="arr">&#8599;</span></span>
             </button>
           ))}
       </div>
@@ -90,7 +90,7 @@ export function ProjectsGallery() {
       {sel && (
         <div className="pg-modal" onClick={() => setSel(null)} role="dialog" aria-modal="true">
           <div className="pg-modal-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="pg-modal-close" type="button" onClick={() => setSel(null)} aria-label="Cerrar">✕</button>
+            <button className="pg-modal-close" type="button" onClick={() => setSel(null)} aria-label="Cerrar">×</button>
 
             {sel.kind === "branding" ? (
               <div className="pg-case">
@@ -109,7 +109,7 @@ export function ProjectsGallery() {
                       <span className="pg-case-label">Beneficios</span>
                       <ul className="proj-benefits">
                         {sel.p.beneficios.map((b) => (
-                          <li key={b}><span className="proj-benefit-arr">↗</span>{b}</li>
+                          <li key={b}><span className="proj-benefit-arr">&#8599;</span>{b}</li>
                         ))}
                       </ul>
                     </div>
@@ -129,7 +129,7 @@ export function ProjectsGallery() {
                   <div className="proj-browser-bar">
                     <span className="proj-dot" /><span className="proj-dot" /><span className="proj-dot" />
                     <span className="proj-url">{clean(sel.p.url)}</span>
-                    <a className="proj-open" href={sel.p.url} target="_blank" rel="noopener noreferrer">Abrir sitio ↗</a>
+                    <a className="proj-open" href={sel.p.url} target="_blank" rel="noopener noreferrer">Abrir sitio &#8599;</a>
                   </div>
                   <img className="pg-shot-img" src={sel.p.shot} alt={`Captura de ${sel.p.name}`} loading="lazy" />
                 </div>

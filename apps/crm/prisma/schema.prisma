@@ -1,0 +1,472 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  publicKey String   @unique @default(cuid()) @map("public_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users           User[]
+  companies       Company[]
+  contacts        Contact[]
+  pipelineStages  PipelineStage[]
+  opportunities   Opportunity[]
+  activities      Activity[]
+  leadSources     LeadSource[]
+  forms           Form[]
+  formSubmissions FormSubmission[]
+  webEvents       WebEvent[]
+  integrations    Integration[]
+  automationRules AutomationRule[]
+  aiInsights      AiInsight[]
+  auditLogs       AuditLog[]
+  subscriptions   WorkspaceSubscription[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  workspaceId  String   @map("workspace_id")
+  name         String
+  email        String
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(SALES)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
+  createdActivities   Activity[]           @relation("ActivityCreator")
+  passwordResetTokens PasswordResetToken[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  website     String?
+  industry    String?
+  size        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts      Contact[]
+  opportunities Opportunity[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("companies")
+}
+
+model Contact {
+  id             String        @id @default(cuid())
+  workspaceId    String        @map("workspace_id")
+  companyId      String?       @map("company_id")
+  firstName      String        @map("first_name")
+  lastName       String        @map("last_name")
+  email          String?
+  phone          String?
+  status         ContactStatus @default(LEAD)
+  source         String?
+  utmSource      String?       @map("utm_source")
+  utmMedium      String?       @map("utm_medium")
+  utmCampaign    String?       @map("utm_campaign")
+  value          Int           @default(0)
+  tags           String[]      @default([])
+  lastActivityAt DateTime?     @map("last_activity_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  opportunities   Opportunity[]
+  activities      Activity[]
+  formSubmissions FormSubmission[]
+  aiInsights      AiInsight[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, status])
+  @@index([workspaceId, source])
+  @@map("contacts")
+}
+
+model PipelineStage {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  key         OpportunityStage
+  name        String
+  position    Int
+  probability Int
+  isWon       Boolean          @default(false) @map("is_won")
+  isLost      Boolean          @default(false) @map("is_lost")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, position])
+  @@map("pipeline_stages")
+}
+
+model Opportunity {
+  id                String            @id @default(cuid())
+  workspaceId       String            @map("workspace_id")
+  contactId         String?           @map("contact_id")
+  companyId         String?           @map("company_id")
+  stageId           String            @map("stage_id")
+  ownerId           String?           @map("owner_id")
+  title             String
+  value             Int               @default(0)
+  probability       Int
+  expectedCloseDate DateTime?         @map("expected_close_date")
+  status            OpportunityStatus @default(OPEN)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company    Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner      User?         @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities Activity[]
+  aiInsights AiInsight[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, stageId])
+  @@map("opportunities")
+}
+
+model Activity {
+  id            String       @id @default(cuid())
+  workspaceId   String       @map("workspace_id")
+  contactId     String?      @map("contact_id")
+  opportunityId String?      @map("opportunity_id")
+  createdById   String?      @map("created_by")
+  type          ActivityType
+  title         String
+  description   String?
+  dueAt         DateTime?    @map("due_at")
+  completedAt   DateTime?    @map("completed_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  createdBy   User?        @relation("ActivityCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, type])
+  @@map("activities")
+}
+
+model LeadSource {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@map("lead_sources")
+}
+
+model Form {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  publicId    String   @unique @default(cuid()) @map("public_id")
+  name        String
+  title       String
+  description String?
+  submitLabel String   @default("Enviar") @map("submit_label")
+  source      String   @default("Formulario web")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  submissions FormSubmission[]
+
+  @@index([workspaceId])
+  @@map("forms")
+}
+
+model FormSubmission {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  formId      String   @map("form_id")
+  contactId   String?  @map("contact_id")
+  payload     Json
+  pageUrl     String?  @map("page_url")
+  referrer    String?
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  form      Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([formId])
+  @@map("form_submissions")
+}
+
+model WebEvent {
+  id          String       @id @default(cuid())
+  workspaceId String       @map("workspace_id")
+  type        WebEventType
+  pageUrl     String       @map("page_url")
+  referrer    String?
+  element     String?
+  formId      String?      @map("form_id")
+  contactId   String?      @map("contact_id")
+  visitorId   String?      @map("visitor_id")
+  sessionId   String?      @map("session_id")
+  utmSource   String?      @map("utm_source")
+  utmMedium   String?      @map("utm_medium")
+  utmCampaign String?      @map("utm_campaign")
+  metadata    Json?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, type, createdAt])
+  @@index([workspaceId, pageUrl])
+  @@map("web_events")
+}
+
+model Integration {
+  id          String              @id @default(cuid())
+  workspaceId String              @map("workspace_id")
+  provider    IntegrationProvider
+  name        String
+  status      IntegrationStatus   @default(DISCONNECTED)
+  config      Json?
+  lastSyncAt  DateTime?           @map("last_sync_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@index([workspaceId, status])
+  @@map("integrations")
+}
+
+model AutomationRule {
+  id           String            @id @default(cuid())
+  workspaceId  String            @map("workspace_id")
+  name         String
+  description  String?
+  trigger      AutomationTrigger
+  action       AutomationAction
+  isActive     Boolean           @default(true) @map("is_active")
+  conditions   Json?
+  actionConfig Json?             @map("action_config")
+  lastRunAt    DateTime?         @map("last_run_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, isActive])
+  @@map("automation_rules")
+}
+
+model AiInsight {
+  id            String        @id @default(cuid())
+  workspaceId   String        @map("workspace_id")
+  contactId     String?       @map("contact_id")
+  opportunityId String?       @map("opportunity_id")
+  type          AiInsightType
+  title         String
+  description   String
+  score         Int?
+  status        InsightStatus @default(OPEN)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, type])
+  @@map("ai_insights")
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  priceClp    Int      @map("price_clp")
+  maxUsers    Int      @map("max_users")
+  maxContacts Int      @map("max_contacts")
+  features    String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  subscriptions WorkspaceSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model WorkspaceSubscription {
+  id          String             @id @default(cuid())
+  workspaceId String             @map("workspace_id")
+  planId      String             @map("plan_id")
+  status      SubscriptionStatus @default(TRIAL)
+  trialEndsAt DateTime?          @map("trial_ends_at")
+  renewsAt    DateTime?          @map("renews_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status])
+  @@map("workspace_subscriptions")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  actorId     String?  @map("actor_id")
+  action      String
+  entity      String
+  entityId    String?  @map("entity_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@map("audit_logs")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  SALES
+}
+
+enum ContactStatus {
+  LEAD
+  ACTIVE
+  CUSTOMER
+  INACTIVE
+}
+
+enum OpportunityStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum ActivityType {
+  EMAIL
+  CALL
+  MEETING
+  NOTE
+  DEAL
+}
+
+enum WebEventType {
+  PAGE_VIEW
+  CTA_CLICK
+  FORM_SUBMIT
+  WHATSAPP_CLICK
+}
+
+enum IntegrationProvider {
+  WHATSAPP
+  GOOGLE_CALENDAR
+  GMAIL
+  TRANSBANK
+  MERCADO_PAGO
+  KHIPU
+  GOOGLE_ANALYTICS
+  SEARCH_CONSOLE
+  GOOGLE_ADS
+}
+
+enum IntegrationStatus {
+  DISCONNECTED
+  CONNECTED
+  NEEDS_ATTENTION
+}
+
+enum AutomationTrigger {
+  LEAD_CREATED
+  OPPORTUNITY_STAGE_CHANGED
+  NO_ACTIVITY
+  PAYMENT_CONFIRMED
+}
+
+enum AutomationAction {
+  CREATE_TASK
+  MOVE_OPPORTUNITY
+  CREATE_INSIGHT
+  SEND_NOTIFICATION
+}
+
+enum AiInsightType {
+  LEAD_SCORE
+  CONTACT_SUMMARY
+  NEXT_BEST_ACTION
+  COLD_OPPORTUNITY
+}
+
+enum InsightStatus {
+  OPEN
+  DISMISSED
+  APPLIED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}

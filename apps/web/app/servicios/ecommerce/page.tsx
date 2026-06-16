@@ -140,7 +140,7 @@ export default function EcommercePage() {
       {/* 4. Qué incluye · cards interactivas */}
       <section id="incluye" className="section" data-screen-label="E-commerce · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye el E-commerce?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye el E-commerce</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">

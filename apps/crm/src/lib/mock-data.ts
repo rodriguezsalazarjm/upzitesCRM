@@ -34,6 +34,8 @@ export interface Activity {
   description: string;
   contactName: string;
   time: string;
+  dueAt?: string;
+  completedAt?: string;
   icon?: string;
 }
 

@@ -24,7 +24,10 @@ function Slideshow({ images, alt }: { images: string[]; alt: string }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     if (!mounted || images.length < 2) return;

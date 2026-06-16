@@ -1,12 +1,14 @@
-import { TopNav, Hero, Marquee, Services, Showcase, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
-import { AuditTool, ScheduleMeeting } from "@/components/ExtraSections";
+import { TopNav, Hero, Marquee, Services, ExpressSolutions, Showcase, Projects, Process, Stats, Testimonials, BigCTA, Footer } from "@/components/Sections";
+import { ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
 import { TechMarquee } from "@/components/TechMarquee";
 import { SmartLayer } from "@/components/SmartLayer";
+import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 
 export default function Home() {
   return (
     <div id="top">
+      <ViewContentOnLoad contentName="Home" contentCategory="landing" contentId="page:home" />
       <TopNav />
 
       {/* Above-the-fold */}
@@ -21,6 +23,9 @@ export default function Home() {
       {/* Services */}
       <Services />
 
+      {/* Express solutions */}
+      <ExpressSolutions />
+
       {/* Smart layer — AI & automation as a premium extension */}
       <SmartLayer />
 
@@ -29,9 +34,6 @@ export default function Home() {
 
       {/* Tech / tooling stack marquee */}
       <TechMarquee />
-
-      {/* Free site audit */}
-      <AuditTool />
 
       {/* About the studio + founder */}
       <QuienesSomos />

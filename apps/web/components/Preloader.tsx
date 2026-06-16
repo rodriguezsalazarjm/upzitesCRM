@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 
 export function Preloader() {
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -26,12 +23,10 @@ export function Preloader() {
 
   return (
     <div className={`preloader${loading ? "" : " is-done"}`} aria-hidden={!loading}>
-      {mounted && (
-        <div className="preloader-stage">
-          <img src="/images/upzites-white.webp" alt="UPZITES" className="preloader-logo" width={621} height={170} />
-          <div className="preloader-bar"><span /></div>
-        </div>
-      )}
+      <div className="preloader-stage">
+        <img src="/images/upzites-white.webp" alt="UPZITES" className="preloader-logo" width={621} height={170} />
+        <div className="preloader-bar"><span /></div>
+      </div>
     </div>
   );
 }

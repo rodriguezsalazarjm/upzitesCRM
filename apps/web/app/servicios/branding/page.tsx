@@ -105,7 +105,7 @@ export default function BrandingPage() {
       {/* 4. Qué incluye · cards interactivas */}
       <section id="incluye" className="section" data-screen-label="Branding · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye el Branding Estratégico?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye el Branding Estratégico</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">

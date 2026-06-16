@@ -1,5 +1,6 @@
 import { TopNav, Footer, Marquee } from "@/components/Sections";
 import { Projects } from "@/components/Sections";
+import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 
 export const metadata = {
   title: "Proyectos — UPZITES",
@@ -9,6 +10,7 @@ export const metadata = {
 export default function ProyectosPage() {
   return (
     <div id="top">
+      <ViewContentOnLoad contentName="Proyectos" contentCategory="portfolio" contentId="page:proyectos" />
       <TopNav />
 
       <section className="section" style={{ paddingTop: "120px" }}>

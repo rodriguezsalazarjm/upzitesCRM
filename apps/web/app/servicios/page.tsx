@@ -1,25 +1,25 @@
 import Link from "next/link";
-import { TopNav, Footer, Marquee, Testimonials } from "@/components/Sections";
+import { TopNav, Footer, Marquee, Testimonials, ExpressSolutions } from "@/components/Sections";
 import { Eyebrow, Reveal, Pill, Sticker } from "@/components/Atoms";
 import { SERVICES } from "@/lib/services";
 
 export const metadata = {
   title: "Servicios — UPZITES",
   description:
-    "Servicios de diseño web que convierten y estrategias de marketing digital para empresas: branding, e-commerce, marketing integral y apps móviles.",
+    "Servicios de marca, web, e-commerce, apps, contenido, ads y automatización para empresas que necesitan crecer con un sistema digital completo.",
 };
 
 const FAQ = [
   {
-    q: "¿Necesito contratar todos los servicios del ecosistema digital de UPZITES?",
+    q: "¿Necesito contratar todos los servicios del ecosistema digital de UPZITES",
     a: "No, nuestros servicios están diseñados para ser modulares y escalables. Si bien siempre recomendamos una estrategia integral (Branding + Web + Marketing) para un crecimiento exponencial, puedes iniciar con el servicio que tu negocio más necesite en este momento, como un rebranding o el desarrollo de una aplicación específica. Te ayudamos a priorizar tu inversión.",
   },
   {
-    q: "¿Cuánto tiempo tarda un proyecto de Diseño Web o Branding Estratégico?",
+    q: "¿Cuánto tiempo tarda un proyecto de Diseño Web o Branding Estratégico",
     a: "La duración varía según la complejidad y el nivel de detalle estratégico. Como regla general, un proyecto de Branding Estratégico puede tomar entre 4 y 6 semanas, mientras que un Desarrollo Web personalizado (sitio corporativo o E-commerce) suele completarse en 8 a 12 semanas. Nuestra prioridad es la calidad y la estrategia, no la velocidad.",
   },
   {
-    q: "¿Qué diferencia a UPZITES de un freelancer o una agencia tradicional?",
+    q: "¿Qué diferencia a UPZITES de un freelancer o una agencia tradicional",
     a: "Nuestra diferencia clave es la fusión de Estrategia, Diseño y Tecnología. No solo ejecutamos tareas; somos un estudio que desarrolla activos digitales a medida, escalables y con una obsesión por el detalle. A diferencia de las plantillas genéricas, nuestro enfoque garantiza que cada pieza esté orientada a la conversión y al Retorno de Inversión (ROI).",
   },
 ];
@@ -33,7 +33,7 @@ export default function ServiciosPage() {
       {/* Page header */}
       <section className="section section--tight" style={{ paddingTop: 140 }} data-screen-label="Servicios · Intro">
         <div className="shell">
-          <Eyebrow num="01">Servicios · ¿Qué sabemos hacer?</Eyebrow>
+          <Eyebrow num="01">Servicios · ¿Qué sabemos hacer</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">
@@ -94,9 +94,11 @@ export default function ServiciosPage() {
         </div>
       </section>
 
+      <ExpressSolutions />
+
       <Marquee
         variant="carbon"
-        items={["Branding", "Diseño web", "E-commerce", "Marketing digital", "Apps móviles", "SEO integrado", "Contenido & Ads"]}
+        items={["Branding", "Diseño web", "E-commerce", "Marketing digital", "Contenido", "Ads", "Apps móviles", "Automatización IA"]}
       />
 
       {/* Social proof */}
@@ -148,8 +150,9 @@ export default function ServiciosPage() {
           </Reveal>
           <Reveal delay={120}>
             <div className="hero-actions" style={{ justifyContent: "center" }}>
-              <Link href="/#contact" className="btn btn-lime btn-lg">Hablemos <span className="arr">↗</span></Link>
+              <Link href="/contacto" className="btn btn-lime btn-lg">Hablemos <span className="arr">↗</span></Link>
               <Link href="/#agenda" className="btn btn-light btn-lg">Agendar reunión <span className="arr">↗</span></Link>
+              <Link href="/api/brochure/downloadsource=services_page" className="btn btn-light btn-lg">Brochure <span className="arr">↗</span></Link>
             </div>
           </Reveal>
         </div>

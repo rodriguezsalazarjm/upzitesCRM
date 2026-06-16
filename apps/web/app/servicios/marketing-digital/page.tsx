@@ -165,7 +165,7 @@ export default function MarketingDigitalPage() {
       {/* 4. Qué incluye · cards interactivas */}
       <section id="incluye" className="section" data-screen-label="Marketing · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye Marketing Digital?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye Marketing Digital</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">

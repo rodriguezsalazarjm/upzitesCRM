@@ -3,6 +3,8 @@ import { Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import { Preloader } from "@/components/Preloader";
 import { DeferredUI } from "@/components/DeferredUI";
+import { MetaPixelNoScript, MetaPixelScript } from "@/components/MetaPixel";
+import { MetaPixelPageView } from "@/components/MetaPixelPageView";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const bebas = Bebas_Neue({
@@ -24,10 +26,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`scroll-smooth ${bebas.variable}`}>
+      <head>
+        <MetaPixelScript />
+      </head>
       <body>
+        <MetaPixelNoScript />
         <Preloader />
         {children}
         <DeferredUI />
+        <MetaPixelPageView />
         <SpeedInsights />
       </body>
     </html>

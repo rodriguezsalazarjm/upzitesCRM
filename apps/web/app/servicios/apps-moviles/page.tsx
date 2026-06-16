@@ -173,7 +173,7 @@ export default function AppsMovilesPage() {
       {/* 4. Qué incluye · cards interactivas */}
       <section id="incluye" className="section" data-screen-label="Apps · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye el Diseño de Apps?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye el Diseño de Apps</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">

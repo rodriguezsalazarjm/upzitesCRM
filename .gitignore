@@ -7,6 +7,7 @@ node_modules/
 out/
 dist/
 build/
+apps/crm/generated/
 
 # turbo
 .turbo/
@@ -21,6 +22,7 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.codex-logs/
 
 # misc
 .DS_Store

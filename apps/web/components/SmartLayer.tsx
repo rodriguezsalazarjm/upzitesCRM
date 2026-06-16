@@ -81,7 +81,7 @@ export function SmartLayer() {
             <p className="smart-foot-line">
               La IA no reemplaza tu marca. <span className="hl">La hace funcionar mejor</span>.
             </p>
-            <a href="#contact" className="btn btn-dark btn-lg">Integra IA a tu marca <span className="arr">↗</span></a>
+            <a href="/contacto" className="btn btn-dark btn-lg">Integra IA a tu marca <span className="arr">&#8599;</span></a>
           </div>
         </Reveal>
       </div>

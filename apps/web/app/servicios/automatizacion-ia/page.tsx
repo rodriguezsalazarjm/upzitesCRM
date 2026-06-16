@@ -72,7 +72,7 @@ export default function AutomatizacionIaPage() {
               </div>
             </div>
             <div className="brand-hero-media">
-              <img src="/images/automatizacion-ia-cover.webp" alt="Automatización de procesos con IA: flujos conectados entre herramientas" />
+              <img src="/images/automatizacion-ia-ai.png" alt="Automatizacion de procesos con inteligencia artificial, datos y crecimiento comercial" />
             </div>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function AutomatizacionIaPage() {
       {/* 4. Qué incluye */}
       <section id="incluye" className="section" data-screen-label="IA · Incluye">
         <div className="shell">
-          <Eyebrow num="03">¿Qué incluye la Automatización con IA?</Eyebrow>
+          <Eyebrow num="03">¿Qué incluye la Automatización con IA</Eyebrow>
           <div className="services-head">
             <Reveal>
               <h2 className="services-h">
