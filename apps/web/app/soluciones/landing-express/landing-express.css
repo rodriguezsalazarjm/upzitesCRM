@@ -165,25 +165,46 @@
 }
 .lx-topbar-brand span { color: var(--lx-electric); }
 
-/* ---------- Hero ------------------------------------------------------ */
-.lx-hero { padding: 52px 0 64px; background: var(--lx-canvas); }
+/* ---------- Hero ------------------------------------------------------
+   Bloque de portada sobre carbon: hereda de .lx-section--carbon los colores de
+   titulares, marcador y botones. Enlaza sin costura con la capa de entrada y
+   con la franja de pills, que tambien son carbon. */
+.lx-hero { padding: 52px 0 60px; }
 .lx-hero-head { text-align: center; }
 .lx-hero-head .lx-marker { justify-content: center; }
 .lx-hero h1 { margin: 18px auto 20px; max-width: 16ch; }
-.lx-hero-sub { font-size: clamp(16px, 2vw, 19px); color: var(--lx-ash); max-width: 52ch; margin: 0 auto; }
-.lx-hero-foot { text-align: center; margin-top: 34px; }
-.lx-hero-support { margin-top: 18px; font-size: 14px; color: var(--lx-ash); max-width: 52ch; margin-left: auto; margin-right: auto; }
+.lx-hero-sub {
+  font-size: clamp(16px, 2vw, 19px);
+  color: rgba(250, 251, 245, 0.76);
+  max-width: 52ch; margin: 0 auto;
+}
+.lx-hero-foot { text-align: center; margin-top: 36px; }
+.lx-hero-support {
+  margin: 18px auto 0;
+  font-size: 14px; color: rgba(250, 251, 245, 0.6);
+  max-width: 52ch;
+}
 .lx-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+/* El azul de accion no contrasta sobre carbon; en oscuro el destacador es lime. */
+.lx-section--carbon .lx-accent { color: var(--lx-lime); }
 
-/* ---------- Galería de paneles del hero -------------------------------- */
-.lx-gallery { display: flex; gap: 10px; margin-top: 40px; }
+/* ---------- Galería panorámica del hero --------------------------------
+   Sale del ancho del shell a proposito: la fila ocupa casi todo el viewport
+   para que se lea panoramica, como una tira de negativos. */
+.lx-gallery-wrap { width: 100%; padding: 0 16px; }
+.lx-gallery {
+  display: flex;
+  gap: 10px;
+  margin: 44px auto 0;
+  max-width: 1720px;
+}
 .lx-gallery-item {
   position: relative;
   margin: 0;
   overflow: hidden;
-  border: 1.5px solid var(--lx-carbon);
+  border: 1.5px solid rgba(250, 251, 245, 0.14);
   border-radius: 10px;
-  background: var(--lx-carbon);
+  background: #0b0b0b;
 }
 .lx-gallery-item img { object-fit: cover; object-position: center; }
 .lx-gallery-cap {
@@ -461,14 +482,14 @@
   .lx-gallery {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    margin-inline: -20px;
-    padding-inline: 20px;
+    margin-inline: -16px;
+    padding-inline: 16px;
     scrollbar-width: none;
   }
   .lx-gallery::-webkit-scrollbar { display: none; }
   .lx-gallery-item {
-    flex: 0 0 66vw;
-    height: 400px;
+    flex: 0 0 64vw;
+    height: 440px;
     scroll-snap-align: center;
   }
 }
@@ -498,7 +519,7 @@
   .lx-gallery-item {
     flex: 1 1 0;
     min-width: 0;
-    height: clamp(340px, 46vh, 470px);
+    height: clamp(380px, 58vh, 560px);
     transition: flex-grow var(--dur-slow) var(--ease-snap);
   }
   .lx-gallery-item:hover,

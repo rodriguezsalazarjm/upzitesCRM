@@ -116,7 +116,7 @@ export default function LandingExpressPage() {
       </div>
 
       {/* Hero */}
-      <header className="lx-hero">
+      <header className="lx-hero lx-section--carbon">
         <div className="lx-shell lx-hero-head">
           <Reveal>
             <div>
@@ -134,7 +134,7 @@ export default function LandingExpressPage() {
         {/* Galeria de paneles: se expanden al pasar el cursor. Sin JS: en
             escritorio con :hover / :focus-within, en movil como carrusel con
             scroll-snap, porque en tactil no existe el hover. */}
-        <div className="lx-shell">
+        <div className="lx-gallery-wrap">
           <Reveal delay={100}>
             <div className="lx-gallery">
               {HERO_GALLERY.map((shot) => (
@@ -161,7 +161,7 @@ export default function LandingExpressPage() {
               <div className="lx-hero-cta">
                 <SolucionWa
                   message={MSG_MAIN}
-                  className="lx-btn lx-btn--primary"
+                  className="lx-btn lx-btn--on-ink"
                   location="lx_hero"
                   contentName={CONTENT_NAME}
                   contentCategory="generico"
