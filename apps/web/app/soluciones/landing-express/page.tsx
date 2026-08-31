@@ -369,7 +369,7 @@ export default function LandingExpressPage() {
             <Reveal>
               <div>
                 <Marker n="07" label="Lo que dicen" />
-                <h2>Marcas que ya trabajaron con nosotros</h2>
+                <h2>Quienes ya dieron el paso</h2>
               </div>
             </Reveal>
             <Reveal delay={100}>
@@ -386,10 +386,10 @@ export default function LandingExpressPage() {
             <Reveal>
               <div>
                 <Marker n="08" label="Trabajo publicado" />
-                <h2>Sitios que ya están en línea</h2>
+                <h2>Marcas y sitios que ya publicamos</h2>
                 <p className="lx-lead" style={{ marginTop: 16 }}>
-                  Proyectos que diseñamos y publicamos. No son landings express: son trabajos más
-                  grandes, del mismo equipo y con el mismo criterio.
+                  Trabajo real, en línea y con nombre. No todo es una landing express: hay proyectos
+                  más grandes, del mismo equipo y con el mismo criterio.
                 </p>
               </div>
             </Reveal>
@@ -422,17 +422,6 @@ export default function LandingExpressPage() {
                 </div>
               ))}
             </div>
-
-            {TESTIMONIALS.length > 0 && (
-              <div className="lx-quotes">
-                {TESTIMONIALS.map((t) => (
-                  <figure className="lx-quote" key={`${t.brand}-${t.name}`}>
-                    <blockquote>{t.quote}</blockquote>
-                    <figcaption>{t.name} · {t.role} · {t.brand}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
 
             {BRAND_WORK.length > 0 && (
               <>
