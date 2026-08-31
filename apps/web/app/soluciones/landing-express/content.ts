@@ -212,6 +212,26 @@ export const CONDICIONES: { iva: string | null; formasPago: string[] } = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Galería del hero                                                    */
+/* ------------------------------------------------------------------ */
+
+export type HeroShot = { src: string; brand: string; kind: string };
+
+/**
+ * Paneles del hero. Todo esto SI es trabajo de UPZITES (sale de
+ * public/images/proyectos y public/images/websites), asi que aqui si se puede
+ * rotular con la marca. Se alterna claro/oscuro para que la fila respire.
+ */
+export const HERO_GALLERY: HeroShot[] = [
+  { src: "/images/websites/grafiks-cover.webp", brand: "Grafiks", kind: "Sitio web" },
+  { src: "/images/proyectos/dirtypizza/03.webp", brand: "Dirty Pizza", kind: "Identidad" },
+  { src: "/images/websites/ironmallas-cover.webp", brand: "Iron Mallas", kind: "Sitio web" },
+  { src: "/images/proyectos/valle-smash/02.webp", brand: "Valle Smash", kind: "Identidad" },
+  { src: "/images/proyectos/urbanwild/02.webp", brand: "Urban Wild", kind: "Identidad" },
+  { src: "/images/websites/profileempresarial-cover.webp", brand: "Profile Empresarial", kind: "Sitio web" },
+];
+
+/* ------------------------------------------------------------------ */
 /* Prueba social                                                       */
 /* ------------------------------------------------------------------ */
 

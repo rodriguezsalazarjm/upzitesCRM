@@ -21,6 +21,7 @@ import {
   DOMINIO_RENOVACION,
   EXAMPLES,
   FAQ,
+  HERO_GALLERY,
   INCLUYE,
   KEYWORDS,
   MSG_MAIN,
@@ -116,7 +117,7 @@ export default function LandingExpressPage() {
 
       {/* Hero */}
       <header className="lx-hero">
-        <div className="lx-shell lx-hero-grid">
+        <div className="lx-shell lx-hero-head">
           <Reveal>
             <div>
               <Marker n="00" label="Landing Page + Branding Express" />
@@ -126,10 +127,37 @@ export default function LandingExpressPage() {
                 Creamos una identidad visual express y una landing page profesional para que tu negocio
                 se vea claro, confiable y listo para captar clientes.
               </p>
-              <p className="lx-hero-support">
-                Ideal para emprendedores, marcas personales y negocios que necesitan una presencia
-                digital rápida, moderna y bien diseñada.
-              </p>
+            </div>
+          </Reveal>
+        </div>
+
+        {/* Galeria de paneles: se expanden al pasar el cursor. Sin JS: en
+            escritorio con :hover / :focus-within, en movil como carrusel con
+            scroll-snap, porque en tactil no existe el hover. */}
+        <div className="lx-shell">
+          <Reveal delay={100}>
+            <div className="lx-gallery">
+              {HERO_GALLERY.map((shot) => (
+                <figure className="lx-gallery-item" key={shot.src} tabIndex={0}>
+                  <Image
+                    src={shot.src}
+                    alt={`${shot.brand} — ${shot.kind} por UPZITES`}
+                    fill
+                    sizes="(max-width: 899px) 66vw, 30vw"
+                  />
+                  <figcaption className="lx-gallery-cap">
+                    <span className="lx-gallery-kind">{shot.kind}</span>
+                    <span className="lx-gallery-brand">{shot.brand}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="lx-shell lx-hero-foot">
+          <Reveal delay={140}>
+            <div>
               <div className="lx-hero-cta">
                 <SolucionWa
                   message={MSG_MAIN}
@@ -144,33 +172,10 @@ export default function LandingExpressPage() {
                 </SolucionWa>
                 <a className="lx-btn lx-btn--ghost" href="#incluye">Ver qué incluye</a>
               </div>
-            </div>
-          </Reveal>
-
-          <Reveal delay={120} variant="scale">
-            <div className="lx-mockup">
-              <div className="lx-laptop">
-                <div className="lx-laptop-bar"><span /><span /><span /></div>
-                <div className="lx-laptop-body">
-                  <div className="lx-skel-hero" />
-                  <div className="lx-skel-line" />
-                  <div className="lx-skel-line short" />
-                  <div className="lx-skel-row"><span /><span /><span /></div>
-                  <div className="lx-skel-btn" />
-                </div>
-              </div>
-              <div className="lx-brandcards">
-                <div className="lx-brandcard"><span className="lx-dot" style={{ background: "var(--upz-electric)" }} /> Logo</div>
-                <div className="lx-brandcard">
-                  <span className="lx-palette">
-                    <span style={{ background: "var(--upz-carbon)" }} />
-                    <span style={{ background: "var(--upz-electric)" }} />
-                    <span style={{ background: "var(--upz-lime)" }} />
-                  </span> Colores
-                </div>
-                <div className="lx-brandcard">Aa · Tipografías</div>
-                <div className="lx-brandcard"><span className="lx-dot" style={{ background: "var(--upz-lime)" }} /> WhatsApp</div>
-              </div>
+              <p className="lx-hero-support">
+                Ideal para emprendedores, marcas personales y negocios que necesitan una presencia
+                digital rápida, moderna y bien diseñada.
+              </p>
             </div>
           </Reveal>
         </div>

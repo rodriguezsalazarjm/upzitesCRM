@@ -145,7 +145,7 @@
 .lx-btn--on-ink { background: var(--lx-lime); color: var(--lx-carbon); }
 .lx-btn--on-ink:hover { background: #92e300; }
 .lx-btn--block { width: 100%; }
-.lx-btn--sm { padding: 11px 16px; min-height: 44px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+.lx-btn--sm { padding: 12px 16px; min-height: 46px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* ---------- Top bar --------------------------------------------------- */
 .lx-topbar {
@@ -166,45 +166,38 @@
 .lx-topbar-brand span { color: var(--lx-electric); }
 
 /* ---------- Hero ------------------------------------------------------ */
-.lx-hero { padding: 56px 0 60px; background: var(--lx-canvas); overflow: hidden; }
-.lx-hero-grid { display: grid; grid-template-columns: 1fr; gap: 44px; align-items: center; }
-.lx-hero h1 { margin: 18px 0 20px; }
-.lx-hero-sub { font-size: clamp(16px, 2vw, 19px); color: var(--lx-ash); max-width: 44ch; }
-.lx-hero-support { margin-top: 12px; font-size: 14px; color: var(--lx-ash); max-width: 46ch; }
-.lx-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.lx-hero { padding: 52px 0 64px; background: var(--lx-canvas); }
+.lx-hero-head { text-align: center; }
+.lx-hero-head .lx-marker { justify-content: center; }
+.lx-hero h1 { margin: 18px auto 20px; max-width: 16ch; }
+.lx-hero-sub { font-size: clamp(16px, 2vw, 19px); color: var(--lx-ash); max-width: 52ch; margin: 0 auto; }
+.lx-hero-foot { text-align: center; margin-top: 34px; }
+.lx-hero-support { margin-top: 18px; font-size: 14px; color: var(--lx-ash); max-width: 52ch; margin-left: auto; margin-right: auto; }
+.lx-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 
-/* ---------- Mockup del hero ------------------------------------------- */
-.lx-mockup { position: relative; }
-.lx-laptop {
-  background: var(--lx-paper);
-  border: 1.5px solid var(--lx-carbon);
-  border-radius: var(--lx-r-card);
-  box-shadow: var(--lx-hard);
+/* ---------- Galería de paneles del hero -------------------------------- */
+.lx-gallery { display: flex; gap: 10px; margin-top: 40px; }
+.lx-gallery-item {
+  position: relative;
+  margin: 0;
   overflow: hidden;
-}
-.lx-laptop-bar { display: flex; gap: 6px; padding: 12px 14px; border-bottom: 1.5px solid var(--lx-carbon); background: var(--lx-ivory); }
-.lx-laptop-bar span { width: 9px; height: 9px; border-radius: 999px; border: 1.5px solid var(--lx-carbon); }
-.lx-laptop-body { padding: 22px; }
-.lx-skel-hero { height: 66px; background: var(--lx-carbon); margin-bottom: 14px; }
-.lx-skel-row { display: flex; gap: 10px; margin-bottom: 10px; }
-.lx-skel-row span { flex: 1; height: 42px; border: 1.5px solid var(--lx-line); }
-.lx-skel-line { height: 9px; background: var(--lx-line); margin-bottom: 8px; }
-.lx-skel-line.short { width: 55%; }
-.lx-skel-btn { width: 116px; height: 32px; background: var(--lx-electric); margin-top: 12px; }
-.lx-brandcards { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 16px; }
-.lx-brandcard {
-  background: var(--lx-paper);
   border: 1.5px solid var(--lx-carbon);
-  border-radius: 999px;
-  padding: 9px 14px;
-  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--lx-carbon);
-  display: flex; align-items: center; gap: 8px;
+  border-radius: 10px;
+  background: var(--lx-carbon);
 }
-.lx-dot { width: 12px; height: 12px; border-radius: 999px; flex: none; }
-.lx-palette { display: flex; gap: 3px; }
-.lx-palette span { width: 12px; height: 12px; }
+.lx-gallery-item img { object-fit: cover; object-position: center; }
+.lx-gallery-cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 13px 15px;
+  background: rgba(17, 17, 17, 0.88);
+  color: var(--upz-off-white);
+}
+.lx-gallery-kind {
+  font-family: var(--lx-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--lx-lime);
+}
+.lx-gallery-brand { font-family: var(--lx-body); font-weight: 700; font-size: 14px; }
 
 /* ---------- Franja de features (pills de marca) ----------------------- */
 .lx-trust { background: var(--lx-carbon); }
@@ -350,7 +343,7 @@
 .lx-case-result { font-size: 14px; color: var(--lx-ash); margin-top: 8px; }
 .lx-case-link {
   display: inline-flex; align-items: center; gap: 8px;
-  margin-top: 12px; min-height: 44px;
+  margin-top: 12px; min-height: 46px;
   font-family: var(--lx-body); font-weight: 700; font-size: 13.5px;
   color: var(--lx-electric); text-decoration: none;
 }
@@ -462,6 +455,24 @@
    Breakpoints
    ===================================================================== */
 
+/* Móvil: sin hover posible, la fila pasa a carrusel con scroll-snap y las
+   leyendas quedan siempre visibles. */
+@media (max-width: 899px) {
+  .lx-gallery {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin-inline: -20px;
+    padding-inline: 20px;
+    scrollbar-width: none;
+  }
+  .lx-gallery::-webkit-scrollbar { display: none; }
+  .lx-gallery-item {
+    flex: 0 0 66vw;
+    height: 400px;
+    scroll-snap-align: center;
+  }
+}
+
 @media (min-width: 600px) {
   .lx-cards { grid-template-columns: repeat(2, 1fr); }
   .lx-diff { grid-template-columns: repeat(2, 1fr); }
@@ -480,6 +491,25 @@
   .lx-cases { grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .lx-quotes { grid-template-columns: repeat(3, 1fr); gap: 26px; }
   .lx-plan { padding: 36px 30px; }
+
+  /* Los paneles se reparten la fila y el que recibe el cursor (o el foco de
+     teclado) se lleva el espacio. */
+  .lx-gallery { gap: 10px; }
+  .lx-gallery-item {
+    flex: 1 1 0;
+    min-width: 0;
+    height: clamp(340px, 46vh, 470px);
+    transition: flex-grow var(--dur-slow) var(--ease-snap);
+  }
+  .lx-gallery-item:hover,
+  .lx-gallery-item:focus-visible { flex-grow: 3.4; }
+  .lx-gallery-item:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 2px; }
+  .lx-gallery-cap {
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-snap);
+  }
+  .lx-gallery-item:hover .lx-gallery-cap,
+  .lx-gallery-item:focus-visible .lx-gallery-cap { opacity: 1; }
 
   /* Pasos en fila, unidos por una linea continua. */
   .lx-steps { grid-template-columns: repeat(4, 1fr); gap: 26px; }
@@ -504,5 +534,7 @@
   .lx-btn, .lx-card, .lx-faq summary::after { transition: none; }
   .lx-btn:hover, .lx-card:hover { transform: none; }
   .lx-logos img { transition: none; }
+  .lx-gallery-item, .lx-gallery-cap { transition: none; }
+  .lx-gallery-cap { opacity: 1; }
   .lx-sticker, .lx-plan-badge { transform: none; }
 }
