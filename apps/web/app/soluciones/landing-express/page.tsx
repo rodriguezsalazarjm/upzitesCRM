@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { IBM_Plex_Mono } from "next/font/google";
-import { BrandGallery } from "@/components/BrandGallery";
+import { LandingIntro } from "@/components/LandingIntro";
 import { Reveal } from "@/components/Atoms";
 import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 import { SolucionWa } from "@/components/SolucionWa";
@@ -84,10 +84,9 @@ function Marker({ n, label }: { n: string; label: string }) {
 export default function LandingExpressPage() {
   return (
     <>
-      {/* Intro: la galeria se despliega con el scroll antes de entrar a la
-          landing. Va FUERA de .lx a proposito: ese wrapper tiene
-          `overflow-x: hidden`, que rompe el `position: sticky` del stage. */}
-      <BrandGallery />
+      {/* Pantalla de carga: capa fija que se descubre sola. Va fuera de .lx
+          porque debe cubrir el viewport completo, no el flujo de la pagina. */}
+      <LandingIntro />
 
       <div className={`lx ${mono.variable}`}>
       <script

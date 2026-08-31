@@ -1,0 +1,179 @@
+/* Pantalla de carga de /soluciones/landing-express.
+
+   Toda la animacion es CSS, sin JS: si el script falla o tarda, la capa se va
+   igual y nunca deja la pagina bloqueada. El componente solo se encarga de
+   bloquear el scroll y de sacar el nodo del DOM al terminar. */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10000; /* por encima del preloader global (9999) */
+  background: var(--upz-carbon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: introOut 0.66s cubic-bezier(0.76, 0, 0.24, 1) 1.78s forwards;
+}
+
+@keyframes introOut {
+  to {
+    opacity: 0;
+    transform: scale(1.12);
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
+
+/* --- Matriz 3D ---------------------------------------------------------- */
+
+.matrix {
+  display: flex;
+  gap: 26px;
+  align-items: center;
+  justify-content: center;
+  width: 112vw;
+  height: 128vh;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  animation: introMatrix 2.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes introMatrix {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) rotateX(26deg) rotateY(-34deg) rotateZ(13deg) translateZ(-640px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1200px) rotateX(6deg) rotateY(-8deg) rotateZ(2deg) translateZ(0);
+  }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  flex: 1 1 0;
+  min-width: 0;
+  will-change: transform;
+}
+
+/* Deriva vertical distinta por columna: da profundidad sin usar scroll. */
+.col:nth-child(1) { animation: drift 2.1s cubic-bezier(0.16, 1, 0.3, 1) both; --from: 8%; --to: -4%; }
+.col:nth-child(2) { animation: drift 2.1s cubic-bezier(0.16, 1, 0.3, 1) both; --from: -14%; --to: 3%; }
+.col:nth-child(3) { animation: drift 2.1s cubic-bezier(0.16, 1, 0.3, 1) both; --from: 6%; --to: -6%; }
+
+@keyframes drift {
+  from { transform: translateY(var(--from)); }
+  to { transform: translateY(var(--to)); }
+}
+
+/* --- Tarjetas ----------------------------------------------------------- */
+
+.card {
+  position: relative;
+  /* Proporcion del asset (820x1400). Con `flex: 1 1 0` las tarjetas colapsaban
+     a altura 0: las columnas no tienen altura definida porque el contenedor
+     las centra en vez de estirarlas. */
+  width: 100%;
+  aspect-ratio: 41 / 70;
+  overflow: hidden;
+  background: #0b0b0b;
+  border: 1.5px solid rgba(250, 251, 245, 0.14);
+  border-radius: 10px;
+}
+.card img { object-fit: cover; object-position: top center; }
+
+/* --- Viñeta y marca ------------------------------------------------------ */
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  /* Velo: sin esto el wordmark queda ilegible sobre las capturas claras. */
+  background: rgba(17, 17, 17, 0.58);
+  box-shadow:
+    inset 0 90px 110px -70px var(--upz-carbon),
+    inset 0 -90px 110px -70px var(--upz-carbon),
+    inset 110px 0 110px -90px var(--upz-carbon),
+    inset -110px 0 110px -90px var(--upz-carbon);
+}
+
+.brand {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  pointer-events: none;
+  animation: brandIn 0.7s var(--ease-snap) 0.1s both;
+}
+
+@keyframes brandIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(46px, 11vw, 128px);
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--upz-off-white);
+  margin: 0;
+  text-shadow: 0 6px 40px rgba(17, 17, 17, 0.85);
+}
+
+.bar {
+  width: clamp(140px, 30vw, 260px);
+  height: 3px;
+  background: rgba(250, 251, 245, 0.22);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--upz-lime);
+  transform-origin: left;
+  animation: barFill 1.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes barFill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* --- Móvil --------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .matrix { gap: 16px; width: 128vw; height: 122vh; }
+  .col { gap: 16px; }
+  /* Menos tarjetas y más grandes: en móvil se ve solo dos columnas. */
+  .col:nth-child(3) { display: none; }
+}
+
+/* --- Movimiento reducido -------------------------------------------------
+   Sin 3D ni derivas. La capa se va casi de inmediato: sin animacion, una
+   pantalla de carga larga es solo una espera. */
+
+@media (prefers-reduced-motion: reduce) {
+  .intro { animation: introOutFast 0.3s linear 0.2s forwards; }
+  @keyframes introOutFast {
+    to { opacity: 0; pointer-events: none; visibility: hidden; }
+  }
+  .matrix {
+    animation: none;
+    transform: none;
+    opacity: 1;
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+  }
+  .col { animation: none; transform: none; }
+  .brand, .bar span { animation: none; }
+}
