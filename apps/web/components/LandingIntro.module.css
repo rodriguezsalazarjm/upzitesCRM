@@ -4,9 +4,9 @@
    interpolaciones ocurren aqui en CSS, asi que no hay re-render por frame. */
 
 /* Recorrido de scroll que consume la capa fija. Debe ir en linea con
-   SCROLL_RANGE del componente (1.15) mas el remate para entrar a la landing. */
+   SCROLL_RANGE del componente (2.1) mas el remate para entrar a la landing. */
 .spacer {
-  height: 135vh;
+  height: 240vh;
   background: var(--upz-carbon);
   pointer-events: none;
 }

@@ -172,6 +172,12 @@
 .lx-hero { padding: 52px 0 60px; }
 .lx-hero-head { text-align: center; }
 .lx-hero-head .lx-marker { justify-content: center; }
+.lx-hero-label {
+  font-family: var(--lx-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: rgba(250, 251, 245, 0.72);
+  margin-bottom: 22px;
+}
 .lx-hero h1 { margin: 18px auto 20px; max-width: 16ch; }
 .lx-hero-sub {
   font-size: clamp(16px, 2vw, 19px);
@@ -252,6 +258,22 @@
 .lx-card h3 { margin-bottom: 8px; }
 .lx-card p { font-size: 14px; color: var(--lx-ash); }
 
+/* Variante con imagen de fondo. Va despues de `.lx-card p` a proposito: misma
+   especificidad (0,1,1), asi que gana el que aparece ultimo. */
+.lx-card--img { position: relative; padding: 0; border-color: var(--lx-carbon); }
+.lx-card--img .lx-card-bg { object-fit: cover; z-index: 0; }
+/* Velo carbon: mantiene el contraste AA sin depender de lo clara que sea la foto. */
+.lx-card--img::after {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: rgba(17, 17, 17, 0.82);
+  transition: background var(--dur-base) var(--ease-snap);
+}
+.lx-card--img:hover::after { background: rgba(17, 17, 17, 0.72); }
+.lx-card-inner { position: relative; z-index: 2; padding: 24px 22px; }
+.lx-card--img h3 { color: var(--upz-off-white); }
+.lx-card--img p { color: rgba(250, 251, 245, 0.86); }
+.lx-card--img .lx-card-icon { border-color: rgba(250, 251, 245, 0.55); color: var(--upz-off-white); }
+
 /* ---------- Split ----------------------------------------------------- */
 .lx-split { display: grid; grid-template-columns: 1fr; gap: 26px; align-items: start; }
 .lx-split p + p { margin-top: 14px; }
@@ -273,6 +295,10 @@
 }
 .lx-step h3 { margin-bottom: 7px; }
 .lx-step p { font-size: 14px; color: var(--lx-ash); }
+.lx-section--carbon .lx-step { border-color: rgba(250, 251, 245, 0.26); }
+.lx-section--carbon .lx-step-num { color: var(--upz-off-white); }
+.lx-section--carbon .lx-step p { color: rgba(250, 251, 245, 0.72); }
+.lx-section--carbon .lx-step::before { background: var(--lx-lime); }
 
 /* ---------- Planes ---------------------------------------------------- */
 .lx-plans { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 40px; align-items: stretch; }
@@ -414,14 +440,61 @@
 .lx-section--carbon .lx-diff-stamp { color: var(--lx-lime); }
 .lx-diff-stamp svg { width: 17px; height: 17px; }
 .lx-diff-text { font-size: 14.5px; line-height: 1.45; }
-.lx-addon-price {
-  display: block; margin-top: 4px;
-  font-family: var(--lx-mono); font-size: 12px; font-weight: 600;
-  letter-spacing: 0.06em; color: var(--lx-electric);
-}
 
 .lx-note { font-size: 13px; color: var(--lx-ash); margin-top: 20px; max-width: 68ch; }
 .lx-section--carbon .lx-note { color: rgba(250, 251, 245, 0.62); }
+
+/* ---------- Testimonios -------------------------------------------------- */
+.lx-tst { display: grid; grid-template-columns: 1fr; gap: 30px; margin-top: 38px; align-items: center; }
+
+/* Pila de fotos: la activa al frente, las siguientes asomando rotadas. */
+.lx-tst-stack { position: relative; height: 340px; }
+.lx-tst-photo {
+  position: absolute; inset: 0 auto auto 0;
+  width: 74%; max-width: 300px; aspect-ratio: 4 / 5;
+  margin: 0; padding: 0;
+  border: 1.5px solid var(--lx-carbon); border-radius: var(--lx-r-card);
+  background: var(--lx-ivory);
+  overflow: hidden; cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform var(--dur-slow) var(--ease-snap), opacity var(--dur-slow) var(--ease-snap);
+}
+.lx-tst-photo img { object-fit: cover; }
+.lx-tst-photo:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
+/* Sin foto: placa con la inicial, para no bloquear por no tener retrato. */
+.lx-tst-initial {
+  font-family: var(--lx-display); font-size: 92px; line-height: 1;
+  color: var(--lx-carbon);
+}
+
+.lx-tst-body blockquote {
+  margin: 0;
+  font-family: var(--lx-body); font-weight: 500;
+  font-size: clamp(18px, 2.4vw, 25px); line-height: 1.38;
+  letter-spacing: -0.01em; color: var(--lx-carbon);
+  max-width: 34ch;
+}
+.lx-tst-body figcaption { display: flex; flex-direction: column; gap: 3px; margin-top: 20px; }
+.lx-tst-name { font-family: var(--lx-body); font-weight: 700; font-size: 15px; color: var(--lx-carbon); }
+.lx-tst-role {
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-ash);
+}
+
+.lx-tst-nav { display: flex; align-items: center; gap: 14px; margin-top: 26px; }
+.lx-tst-nav button {
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  background: transparent; cursor: pointer;
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  color: var(--lx-carbon);
+  transition: background var(--dur-base) var(--ease-snap), color var(--dur-base) var(--ease-snap);
+}
+.lx-tst-nav button:hover { background: var(--lx-carbon); color: var(--upz-off-white); }
+.lx-tst-count {
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.14em; color: var(--lx-ash);
+}
 
 /* ---------- FAQ --------------------------------------------------------- */
 .lx-faq { margin-top: 30px; border-top: 1.5px solid var(--lx-carbon); }
@@ -510,6 +583,8 @@
   .lx-plans { grid-template-columns: 1fr 1fr; gap: 26px; }
   .lx-compare { grid-template-columns: 1fr 1fr; gap: 22px; }
   .lx-cases { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .lx-tst { grid-template-columns: 0.85fr 1.15fr; gap: 52px; }
+  .lx-tst-stack { height: 400px; }
   .lx-quotes { grid-template-columns: repeat(3, 1fr); gap: 26px; }
   .lx-plan { padding: 36px 30px; }
 
@@ -542,6 +617,7 @@
     width: 26px; height: 1.5px; background: var(--lx-carbon);
   }
   .lx-step:last-child::after { display: none; }
+  .lx-section--carbon .lx-step::after { background: rgba(250, 251, 245, 0.26); }
 
   .lx-sticky { display: none; }
   .lx-footer { padding-bottom: 34px; }
@@ -556,6 +632,8 @@
   .lx-btn:hover, .lx-card:hover { transform: none; }
   .lx-logos img { transition: none; }
   .lx-gallery-item, .lx-gallery-cap { transition: none; }
+  .lx-tst-photo, .lx-tst-nav button { transition: none; }
+  .lx-card--img::after { transition: none; }
   .lx-gallery-cap { opacity: 1; }
   .lx-sticker, .lx-plan-badge { transform: none; }
 }

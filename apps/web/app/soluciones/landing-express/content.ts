@@ -8,6 +8,7 @@
  */
 
 import { SITE_URL } from "@/lib/blog";
+import { WEB_PROJECTS } from "@/lib/projects";
 import type { IconKey } from "./icons";
 
 /* ------------------------------------------------------------------ */
@@ -64,7 +65,7 @@ export const PLAZO_CONDICION =
 /* ------------------------------------------------------------------ */
 
 export const MSG_MAIN =
-  "Hola UPZITES, quiero cotizar Landing Page + Branding Express para mi negocio.";
+  "Hola UPZITES, quiero profesionalizar mi marca con Landing Page + Branding Express.";
 
 export function planMessage(planName: string) {
   return `Hola UPZITES, quiero cotizar el Plan ${planName} de Landing Page + Branding Express para mi negocio.`;
@@ -86,16 +87,16 @@ export function clp(amount: number): string {
 /* Contenido                                                           */
 /* ------------------------------------------------------------------ */
 
-export type IncluyeItem = { icon: IconKey; title: string; text: string };
+export type IncluyeItem = { icon: IconKey; title: string; text: string; image: string };
 
 export const INCLUYE: IncluyeItem[] = [
-  { icon: "identidad", title: "Identidad visual base", text: "Una dirección visual clara para tu marca: colores, estilo gráfico y línea estética inicial." },
-  { icon: "paleta", title: "Paleta de colores", text: "Colores principales y secundarios para que tu marca se vea coherente." },
-  { icon: "tipografia", title: "Tipografías recomendadas", text: "Combinaciones tipográficas para títulos, textos y piezas digitales." },
-  { icon: "landing", title: "Landing page profesional", text: "Diseñamos y desarrollamos una landing enfocada en presentar tu negocio y generar consultas." },
-  { icon: "copy", title: "Copy comercial organizado", text: "Ordenamos los textos para explicar qué haces, a quién ayudas y por qué contactarte." },
-  { icon: "chat", title: "Botón a WhatsApp", text: "Llamadas a la acción para que los visitantes te escriban directamente." },
-  { icon: "movil", title: "Versión móvil optimizada", text: "Se ve impecable desde el celular, donde llegan tus clientes de Instagram y WhatsApp." },
+  { icon: "identidad", title: "Identidad visual base", text: "Una dirección visual clara para tu marca: colores, estilo gráfico y línea estética inicial.", image: "/images/branding-cover.webp" },
+  { icon: "paleta", title: "Paleta de colores", text: "Colores principales y secundarios para que tu marca se vea coherente.", image: "/images/branding-system.webp" },
+  { icon: "tipografia", title: "Tipografías recomendadas", text: "Combinaciones tipográficas para títulos, textos y piezas digitales.", image: "/images/branding-process.webp" },
+  { icon: "landing", title: "Landing page profesional", text: "Diseñamos y desarrollamos una landing enfocada en presentar tu negocio y generar consultas.", image: "/images/diseno-web-cover.webp" },
+  { icon: "copy", title: "Copy comercial organizado", text: "Ordenamos los textos para explicar qué haces, a quién ayudas y por qué contactarte.", image: "/images/diseno-web-promise.webp" },
+  { icon: "chat", title: "Botón a WhatsApp", text: "Llamadas a la acción para que los visitantes te escriban directamente.", image: "/images/diseno-web-conversion.webp" },
+  { icon: "movil", title: "Versión móvil optimizada", text: "Se ve impecable desde el celular, donde llegan tus clientes de Instagram y WhatsApp.", image: "/images/apps-cover.webp" },
 ];
 
 export const STEPS = [
@@ -123,7 +124,7 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    amountClp: 89990,
+    amountClp: 99990,
     ideal: "Presencia digital simple, rápida y profesional.",
     rounds: 2,
     features: ["Dirección visual base", "Paleta de colores", "Tipografías recomendadas", "Landing de hasta 4 secciones", "Copy básico organizado", "Botón directo a WhatsApp", "Diseño responsive", "Publicación en subdominio o link"],
@@ -133,7 +134,7 @@ export const PLANS: Plan[] = [
   {
     id: "express-pro",
     name: "Express Pro",
-    amountClp: 149990,
+    amountClp: 179990,
     ideal: "Presentación más completa y mejor estructura comercial.",
     rounds: 3,
     features: ["Todo lo del Plan Starter", "Logo simple o mejora del actual", "Landing de hasta 6 secciones", "Sección de servicios", "Sección de confianza / testimonios", "Copy comercial organizado", "Optimización móvil", "Publicación en subdominio, dominio o link"],
@@ -155,13 +156,6 @@ export function planFeatures(plan: Plan): string[] {
 export const COMPARE_BAD = ["No comunica bien", "No tiene estructura", "No genera confianza", "No explica el servicio", "No tiene identidad visual", "No guía a tomar acción"];
 export const COMPARE_GOOD = ["Presenta tu negocio de forma profesional", "Ordena visualmente tu marca", "Explica tu oferta con claridad", "Genera confianza", "CTA directo a WhatsApp", "Pensada para captar clientes"];
 
-export const EXAMPLES = [
-  { title: "Marca personal", text: "Para asesores, corredores, coaches, consultores o profesionales independientes." },
-  { title: "Servicio local", text: "Instalación, estética, salud, fotografía, gastronomía o servicios técnicos." },
-  { title: "Emprendimiento", text: "Para presentar una idea, validar un servicio o lanzar una oferta." },
-  { title: "Profesional independiente", text: "Para mostrar experiencia, servicios, beneficios y contacto." },
-];
-
 export const DIFFS = [
   "No solo diseñamos: pensamos cómo presentar mejor tu negocio.",
   "Creamos una base visual clara y útil.",
@@ -170,36 +164,6 @@ export const DIFFS = [
   "Entregamos rápido sin que parezca improvisado.",
   "Puedes escalar a web completa, ecommerce o campañas.",
 ];
-
-export type Addon = {
-  name: string;
-  /**
-   * Precio "desde" en CLP. `null` = dato pendiente: la UI NO muestra precio en
-   * lugar de inventar uno. En cuanto pongas el numero, aparece solo.
-   */
-  priceFrom: number | null;
-  note?: string;
-};
-
-/**
- * TODO(upzites): faltan los 6 precios. Mientras `priceFrom` sea null, el
- * adicional se muestra sin valor y el cliente sigue teniendo que preguntar por
- * WhatsApp — que es justo el problema que esta seccion deberia resolver.
- */
-export const ADDONS: Addon[] = [
-  { name: "Dominio personalizado", priceFrom: null /* TODO(upzites): precio */ },
-  { name: "Correo corporativo", priceFrom: null /* TODO(upzites): precio */ },
-  { name: "SEO básico", priceFrom: null /* TODO(upzites): precio */ },
-  { name: "Kit visual para redes", priceFrom: null /* TODO(upzites): precio */ },
-  { name: "Meta Pixel / Analytics", priceFrom: null /* TODO(upzites): precio */ },
-  { name: "Formulario de contacto", priceFrom: null /* TODO(upzites): precio */ },
-];
-
-/**
- * TODO(upzites): definir quien paga la renovacion anual del dominio a partir
- * del segundo ano. Mientras sea null no se muestra ninguna nota.
- */
-export const DOMINIO_RENOVACION: string | null = null;
 
 /**
  * Condiciones comerciales. TODO(upzites): confirmar si los precios publicados
@@ -251,26 +215,21 @@ export type CaseStudy = {
   result: string | null;
 };
 
-export const CASES: CaseStudy[] = [
-  {
-    slug: "grafiks",
-    brand: "Grafiks",
-    sector: "Estudio creativo",
-    url: "https://www.grafiks.cl",
-    shot: "/images/websites/grafiks-cover.webp",
-    result: null, // TODO(upzites): una linea de resultado verificable
-  },
-  {
-    slug: "ironmallas",
-    brand: "Iron Mallas",
-    sector: "Web industrial",
-    url: "https://www.ironmallas.cl",
-    shot: "/images/websites/ironmallas-cover.webp",
-    result: null, // TODO(upzites): una linea de resultado verificable
-  },
-];
+/**
+ * Se derivan del mismo `WEB_PROJECTS` que alimenta el portafolio de la web
+ * principal, en vez de duplicar la lista. Se excluyen los que tienen `status`
+ * ("En construcción"): la sección dice que ya están en línea.
+ */
+export const CASES: CaseStudy[] = WEB_PROJECTS.filter((p) => !p.status).map((p) => ({
+  slug: p.slug,
+  brand: p.name,
+  sector: p.category,
+  url: p.url,
+  shot: p.cover,
+  result: null, // TODO(upzites): una linea de resultado verificable por caso
+}));
 
-export type Testimonial = { quote: string; name: string; role: string; brand: string };
+export type Testimonial = { quote: string; name: string; role: string; brand: string; avatar?: string };
 
 /**
  * TODO(upzites): faltan testimonios reales. Vacio a proposito: el bloque no se

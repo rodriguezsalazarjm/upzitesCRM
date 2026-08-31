@@ -5,9 +5,9 @@ import { LandingIntro } from "@/components/LandingIntro";
 import { Reveal } from "@/components/Atoms";
 import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 import { SolucionWa } from "@/components/SolucionWa";
-import { ICONS, IconArrow, IconCheck, IconCross, IconPlus } from "./icons";
+import { ICONS, IconArrow, IconCheck, IconCross } from "./icons";
+import { Testimonials } from "./Testimonials";
 import {
-  ADDONS,
   CANONICAL,
   CASES,
   CHECKLIST,
@@ -18,8 +18,6 @@ import {
   CONTENT_NAME,
   DESCRIPTION,
   DIFFS,
-  DOMINIO_RENOVACION,
-  EXAMPLES,
   FAQ,
   HERO_GALLERY,
   INCLUYE,
@@ -120,13 +118,9 @@ export default function LandingExpressPage() {
         <div className="lx-shell lx-hero-head">
           <Reveal>
             <div>
-              <Marker n="00" label="Landing Page + Branding Express" />
+              <p className="lx-hero-label">Landing Page + Branding Express</p>
               <p className="lx-sticker">Listo en {PLAZO_LABEL}</p>
               <h1>Tu marca y landing listas para <span className="lx-accent">vender mejor</span></h1>
-              <p className="lx-hero-sub">
-                Creamos una identidad visual express y una landing page profesional para que tu negocio
-                se vea claro, confiable y listo para captar clientes.
-              </p>
             </div>
           </Reveal>
         </div>
@@ -167,15 +161,11 @@ export default function LandingExpressPage() {
                   contentCategory="generico"
                   sourceSection="hero"
                 >
-                  Quiero mi Branding Express
+                  Quiero profesionalizar mi marca
                   <IconArrow />
                 </SolucionWa>
                 <a className="lx-btn lx-btn--ghost" href="#incluye">Ver qué incluye</a>
               </div>
-              <p className="lx-hero-support">
-                Ideal para emprendedores, marcas personales y negocios que necesitan una presencia
-                digital rápida, moderna y bien diseñada.
-              </p>
             </div>
           </Reveal>
         </div>
@@ -231,10 +221,19 @@ export default function LandingExpressPage() {
             {INCLUYE.map((c) => {
               const Icon = ICONS[c.icon];
               return (
-                <div className="lx-card" key={c.title}>
-                  <div className="lx-card-icon"><Icon /></div>
-                  <h3>{c.title}</h3>
-                  <p>{c.text}</p>
+                <div className="lx-card lx-card--img" key={c.title}>
+                  <Image
+                    className="lx-card-bg"
+                    src={c.image}
+                    alt=""
+                    fill
+                    sizes="(max-width: 899px) 100vw, 33vw"
+                  />
+                  <div className="lx-card-inner">
+                    <div className="lx-card-icon"><Icon /></div>
+                    <h3>{c.title}</h3>
+                    <p>{c.text}</p>
+                  </div>
                 </div>
               );
             })}
@@ -243,7 +242,7 @@ export default function LandingExpressPage() {
       </section>
 
       {/* Cómo funciona */}
-      <section className="lx-section">
+      <section className="lx-section lx-section--carbon">
         <div className="lx-shell">
           <Reveal>
             <div>
@@ -361,25 +360,22 @@ export default function LandingExpressPage() {
         </div>
       </section>
 
-      {/* Ejemplos */}
-      <section className="lx-section">
-        <div className="lx-shell">
-          <Reveal>
-            <div>
-              <Marker n="07" label="Ejemplos" />
-              <h2>Marcas que pueden nacer con este servicio</h2>
-            </div>
-          </Reveal>
-          <div className="lx-cards">
-            {EXAMPLES.map((e) => (
-              <div className="lx-card" key={e.title}>
-                <h3>{e.title}</h3>
-                <p>{e.text}</p>
+      {/* Testimonios — se oculta entera si no hay ninguno cargado */}
+      {TESTIMONIALS.length > 0 && (
+        <section className="lx-section">
+          <div className="lx-shell">
+            <Reveal>
+              <div>
+                <Marker n="07" label="Lo que dicen" />
+                <h2>Marcas que ya trabajaron con nosotros</h2>
               </div>
-            ))}
+            </Reveal>
+            <Reveal delay={100}>
+              <Testimonials items={TESTIMONIALS} />
+            </Reveal>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Prueba social — se oculta entera si no hay casos cargados */}
       {CASES.length > 0 && (
@@ -468,37 +464,12 @@ export default function LandingExpressPage() {
         </div>
       </section>
 
-      {/* Addons */}
-      <section className="lx-section lx-section--tight lx-section--ivory">
-        <div className="lx-shell">
-          <Reveal>
-            <div>
-              <Marker n="10" label="También puedes agregar" />
-              <h2>Adicionales</h2>
-              <div className="lx-diff">
-                {ADDONS.map((a) => (
-                  <div className="lx-diff-item" key={a.name}>
-                    <span className="lx-diff-stamp"><IconPlus /></span>
-                    <span className="lx-diff-text">
-                      {a.name}
-                      {/* Sin precio confirmado no se muestra nada: mejor vacio que inventado. */}
-                      {a.priceFrom !== null && <span className="lx-addon-price">desde {clp(a.priceFrom)}</span>}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {DOMINIO_RENOVACION && <p className="lx-note">{DOMINIO_RENOVACION}</p>}
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
       {/* FAQ */}
       <section className="lx-section">
         <div className="lx-shell" style={{ maxWidth: 820 }}>
           <Reveal>
             <div>
-              <Marker n="11" label="Preguntas frecuentes" />
+              <Marker n="10" label="Preguntas frecuentes" />
               <h2>Resolvemos tus dudas</h2>
             </div>
           </Reveal>
@@ -515,7 +486,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="12" label="Empieza hoy" />
+              <Marker n="11" label="Empieza hoy" />
               <h2>Tu negocio ya puede verse como una marca profesional</h2>
               <p className="lx-lead">
                 Creamos tu identidad visual base y una landing page lista para compartir, captar clientes
@@ -530,7 +501,7 @@ export default function LandingExpressPage() {
                   contentCategory="generico"
                   sourceSection="cierre"
                 >
-                  Quiero mi Branding Express
+                  Quiero profesionalizar mi marca
                   <IconArrow />
                 </SolucionWa>
                 <SolucionWa
@@ -565,7 +536,7 @@ export default function LandingExpressPage() {
           contentCategory="generico"
           sourceSection="sticky"
         >
-          Quiero mi Branding Express
+          Quiero profesionalizar mi marca
         </SolucionWa>
       </div>
       </div>

@@ -36,7 +36,7 @@ const SHOTS = [
 const COLUMNS = [SHOTS.slice(0, 2), SHOTS.slice(2, 4), SHOTS.slice(4, 6)];
 
 /** Cuantos viewports de scroll dura el desplegado antes de desaparecer. */
-const SCROLL_RANGE = 1.15;
+const SCROLL_RANGE = 2.1;
 
 export function LandingIntro() {
   const rootRef = useRef<HTMLDivElement>(null);
