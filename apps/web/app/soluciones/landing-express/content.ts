@@ -255,7 +255,20 @@ export const WORK_STRIP: WorkItem[] = [
 /** Cuantos proyectos hay en total, para el pie de la seccion. */
 export const WORK_TOTAL = WEB_PROJECTS.length + BRANDING_PROJECTS.length;
 
-export type Testimonial = { quote: string; name: string; role: string; brand: string; avatar?: string };
+export type Testimonial = {
+  quote: string;
+  name: string;
+  role: string;
+  brand: string;
+  /**
+   * Ruta a la foto del cliente, p. ej. "/images/testimonios/nombre.webp".
+   * Solo con permiso de la persona y junto a una cita que haya dicho de verdad.
+   * Sin foto se dibuja una placa de color con la inicial.
+   */
+  avatar?: string;
+  /** Color de la placa cuando no hay foto. */
+  accent?: string;
+};
 
 /**
  * ⚠️ TESTIMONIOS DE RELLENO — NO SON REALES.
@@ -271,16 +284,16 @@ export type Testimonial = { quote: string; name: string; role: string; brand: st
 export const TESTIMONIALS_SON_PLACEHOLDER = true;
 
 export const TESTIMONIALS: Testimonial[] = [
-  { quote: "Llevaba dos años mandando fotos por WhatsApp para explicar lo que hacía. Ahora mando un link y se entiende solo.", name: "Camila Fuentes", role: "Dueña", brand: "Estudio de uñas" },
-  { quote: "Lo que más me sirvió fue el orden. No era que me faltara trabajo, era que no sabía cómo mostrarlo.", name: "Rodrigo Peña", role: "Fotógrafo", brand: "Marca personal" },
-  { quote: "En una semana pasé de no tener nada a tener marca y página. Justo antes de la temporada alta.", name: "Valentina Soto", role: "Fundadora", brand: "Pastelería" },
-  { quote: "Los colores y las tipografías me ordenaron todo lo demás: el Instagram, los flyers, hasta el delantal.", name: "Matías Aravena", role: "Socio", brand: "Food truck" },
-  { quote: "Antes me preguntaban si era formal. Ahora me preguntan por disponibilidad.", name: "Javiera Núñez", role: "Corredora de propiedades", brand: "Marca personal" },
-  { quote: "El botón de WhatsApp cambió todo. Las consultas llegan directo y ya sé de dónde vienen.", name: "Sebastián Rojas", role: "Gerente", brand: "Servicios técnicos" },
-  { quote: "Pedí dos rondas de cambios y quedaron. No hubo que pelear por cada detalle.", name: "Antonia Lagos", role: "Dueña", brand: "Tienda de plantas" },
-  { quote: "Me explicaron qué mandar y cuándo. Nunca tuve que estar persiguiéndolos.", name: "Ignacio Vera", role: "Consultor", brand: "Asesoría contable" },
-  { quote: "La página se ve igual de bien en el celular, que es por donde me llega el 90% de la gente.", name: "Francisca Morales", role: "Fundadora", brand: "Estética" },
-  { quote: "Partí con el plan más simple para probar. Funcionó, y después escalamos a algo más grande.", name: "Diego Contreras", role: "Dueño", brand: "Taller mecánico" },
+  { quote: "Llevaba dos años mandando fotos por WhatsApp para explicar lo que hacía. Ahora mando un link y se entiende solo.", name: "Camila Fuentes", role: "Dueña", brand: "Estudio de uñas" , accent: "var(--upz-guava)" },
+  { quote: "Lo que más me sirvió fue el orden. No era que me faltara trabajo, era que no sabía cómo mostrarlo.", name: "Rodrigo Peña", role: "Fotógrafo", brand: "Marca personal" , accent: "var(--upz-solar)" },
+  { quote: "En una semana pasé de no tener nada a tener marca y página. Justo antes de la temporada alta.", name: "Valentina Soto", role: "Fundadora", brand: "Pastelería" , accent: "var(--upz-lime)" },
+  { quote: "Los colores y las tipografías me ordenaron todo lo demás: el Instagram, los flyers, hasta el delantal.", name: "Matías Aravena", role: "Socio", brand: "Food truck" , accent: "var(--upz-electric)" },
+  { quote: "Antes me preguntaban si era formal. Ahora me preguntan por disponibilidad.", name: "Javiera Núñez", role: "Corredora de propiedades", brand: "Marca personal" , accent: "var(--upz-tangerine)" },
+  { quote: "El botón de WhatsApp cambió todo. Las consultas llegan directo y ya sé de dónde vienen.", name: "Sebastián Rojas", role: "Gerente", brand: "Servicios técnicos" , accent: "var(--upz-guava)" },
+  { quote: "Pedí dos rondas de cambios y quedaron. No hubo que pelear por cada detalle.", name: "Antonia Lagos", role: "Dueña", brand: "Tienda de plantas" , accent: "var(--upz-solar)" },
+  { quote: "Me explicaron qué mandar y cuándo. Nunca tuve que estar persiguiéndolos.", name: "Ignacio Vera", role: "Consultor", brand: "Asesoría contable" , accent: "var(--upz-lime)" },
+  { quote: "La página se ve igual de bien en el celular, que es por donde me llega el 90% de la gente.", name: "Francisca Morales", role: "Fundadora", brand: "Estética" , accent: "var(--upz-electric)" },
+  { quote: "Partí con el plan más simple para probar. Funcionó, y después escalamos a algo más grande.", name: "Diego Contreras", role: "Dueño", brand: "Taller mecánico" , accent: "var(--upz-tangerine)" },
 ];
 
 /* ------------------------------------------------------------------ */

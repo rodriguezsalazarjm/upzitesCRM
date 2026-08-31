@@ -500,7 +500,6 @@
   width: 78%; max-width: 320px; height: 100%;
   margin: 0; padding: 0;
   border: 1.5px solid var(--lx-carbon); border-radius: 14px;
-  background: var(--lx-ivory);
   overflow: hidden; cursor: pointer;
   display: grid; place-items: center;
   transition: transform var(--dur-slow) var(--ease-snap), opacity var(--dur-slow) var(--ease-snap);
@@ -508,7 +507,10 @@
 .lx-tst-photo img { object-fit: cover; }
 .lx-tst-photo:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
 /* Sin foto: placa con la inicial, para no usar retratos de gente que no es cliente. */
-.lx-tst-initial { font-family: var(--lx-display); font-size: 110px; line-height: 1; color: var(--lx-carbon); }
+.lx-tst-initial {
+  font-family: var(--lx-display); font-size: clamp(90px, 16vw, 140px);
+  line-height: 1; color: var(--lx-carbon);
+}
 
 .lx-tst-body figcaption { display: flex; flex-direction: column; gap: 5px; margin-bottom: 22px; }
 .lx-tst-name {

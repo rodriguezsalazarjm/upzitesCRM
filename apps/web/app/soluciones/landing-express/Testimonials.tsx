@@ -42,6 +42,8 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
               zIndex: 3 - offset,
               transform: `translateX(${offset * 22}px) rotate(${offset * 5}deg)`,
               opacity: offset === 0 ? 1 : 0.5,
+              // Solo pinta la placa cuando no hay foto.
+              background: t.avatar ? undefined : (t.accent ?? "var(--upz-ivory)"),
             }}
             onClick={() => setActive(i)}
             aria-label={`Ver testimonio de ${t.name}`}
@@ -49,7 +51,7 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
             tabIndex={offset === 0 ? -1 : 0}
           >
             {t.avatar ? (
-              <Image src={t.avatar} alt="" fill sizes="(max-width: 899px) 70vw, 340px" />
+              <Image src={t.avatar} alt={`${t.name}, ${t.role} de ${t.brand}`} fill sizes="(max-width: 899px) 70vw, 340px" />
             ) : (
               <span className="lx-tst-initial" aria-hidden="true">{t.name.charAt(0)}</span>
             )}
