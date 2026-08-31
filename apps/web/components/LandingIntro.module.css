@@ -1,0 +1,135 @@
+/* Pantalla de entrada de /soluciones/landing-express.
+
+   El componente solo escribe `--p` (0 a 1) segun el scroll; todas las
+   interpolaciones ocurren aqui en CSS, asi que no hay re-render por frame. */
+
+/* Recorrido de scroll que consume la capa fija. Debe ir en linea con
+   SCROLL_RANGE del componente (2.1) mas el remate para entrar a la landing. */
+.spacer {
+  height: 240vh;
+  background: var(--upz-carbon);
+  pointer-events: none;
+}
+
+.intro {
+  --p: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--upz-carbon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Decorativa: nunca debe interceptar clicks ni el scroll. */
+  pointer-events: none;
+  /* Opaca hasta el 72% del recorrido; despues se va. */
+  opacity: clamp(0, calc((1 - var(--p)) * 3.57), 1);
+}
+
+/* --- Matriz 3D ---------------------------------------------------------- */
+
+.matrix {
+  display: flex;
+  gap: 26px;
+  align-items: center;
+  justify-content: center;
+  width: 112vw;
+  height: 128vh;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transform:
+    perspective(1200px)
+    rotateX(calc(26deg - 20deg * var(--p)))
+    rotateY(calc(-34deg + 26deg * var(--p)))
+    rotateZ(calc(13deg - 11deg * var(--p)))
+    translateZ(calc(-620px + 620px * var(--p)));
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  flex: 1 1 0;
+  min-width: 0;
+  will-change: transform;
+}
+
+/* Deriva vertical distinta por columna: da profundidad al desplegado. */
+.col:nth-child(1) { transform: translateY(calc(9% - 13% * var(--p))); }
+.col:nth-child(2) { transform: translateY(calc(-15% + 18% * var(--p))); }
+.col:nth-child(3) { transform: translateY(calc(7% - 13% * var(--p))); }
+
+/* --- Tarjetas ----------------------------------------------------------- */
+
+.card {
+  position: relative;
+  /* Proporcion del asset. Con `flex: 1 1 0` las tarjetas colapsaban a altura 0:
+     las columnas no tienen altura definida porque el contenedor las centra en
+     vez de estirarlas. */
+  width: 100%;
+  aspect-ratio: 41 / 70;
+  overflow: hidden;
+  background: #0b0b0b;
+  border: 1.5px solid rgba(250, 251, 245, 0.14);
+  border-radius: 10px;
+}
+.card img { object-fit: cover; object-position: top center; }
+
+/* --- Viñeta y pista de scroll -------------------------------------------- */
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow:
+    inset 0 90px 110px -70px var(--upz-carbon),
+    inset 0 -90px 110px -70px var(--upz-carbon),
+    inset 110px 0 110px -90px var(--upz-carbon),
+    inset -110px 0 110px -90px var(--upz-carbon);
+}
+
+.hint {
+  position: absolute;
+  z-index: 3;
+  bottom: clamp(28px, 6vh, 56px);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--upz-off-white);
+  /* Se va antes que la capa, en cuanto el gesto ya se entendio. */
+  opacity: clamp(0, calc(1 - var(--p) * 4), 1);
+}
+.hint svg { color: var(--upz-lime); animation: hintNudge 1.7s var(--ease-snap) infinite; }
+
+@keyframes hintNudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+/* --- Móvil --------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .matrix { gap: 16px; width: 128vw; height: 122vh; }
+  .col { gap: 16px; }
+  /* Menos tarjetas y más grandes. */
+  .col:nth-child(3) { display: none; }
+}
+
+/* --- Movimiento reducido -------------------------------------------------
+   No se renderiza: sin animacion esto seria una pantalla negra y 135vh de
+   scroll vacio antes de la oferta. */
+
+@media (prefers-reduced-motion: reduce) {
+  .spacer,
+  .intro { display: none; }
+  .hint svg { animation: none; }
+}

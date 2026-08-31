@@ -36,7 +36,12 @@ export type SearchEventParams = {
   currency?: string;
 };
 
-export type LeadEventParams = {
+/**
+ * `Lead` acepta, ademas de value/currency validados, parametros libres de
+ * atribucion (content_name, content_category, source_section...) para poder
+ * distinguir el origen del click en el reporte de Meta.
+ */
+export type LeadEventParams = MetaPixelParams & {
   value?: number;
   currency?: string;
 };

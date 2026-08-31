@@ -1,0 +1,708 @@
+/* =====================================================================
+   UPZITES · Landing Page + Branding Express
+   Scopeado bajo .lx. Mobile first.
+
+   Construido sobre los tokens globales --upz-* de app/styles/colors_and_type.css.
+   Reglas de marca aplicadas aqui:
+     · Lienzo off-white, nunca blanco puro (el blanco solo vive en tarjetas).
+     · 70/20/10: el color brillante aparece una o dos veces por seccion.
+     · Radios: bloques y botones 0px, tarjetas 10px, pills 999px.
+     · Sombra dura desplazada (0 6px 0 0 carbon). Nunca glow.
+     · Sin degradados. Vocabulario: flecha, pills, stickers, sellos, marcadores.
+     · Movimiento contenido: 220ms snap, hover levanta 2px. Sin scale ni bounce.
+   ===================================================================== */
+
+.lx {
+  /* Superficies */
+  --lx-canvas: var(--upz-off-white);
+  --lx-ivory: var(--upz-ivory);
+  --lx-paper: var(--upz-paper);
+  --lx-carbon: var(--upz-carbon);
+  --lx-line: var(--upz-line);
+  --lx-ash: var(--upz-ash);
+
+  /* Acentos */
+  --lx-electric: var(--upz-electric);
+  --lx-lime: var(--upz-lime);
+  --lx-solar: var(--upz-solar);
+
+  /* Tipografia */
+  --lx-display: var(--font-display);
+  --lx-body: var(--font-text);
+  --lx-mono: var(--font-lx-mono), "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Geometria */
+  --lx-max: 1180px;
+  --lx-r-card: 10px;
+  --lx-hard: 0 6px 0 0 var(--upz-carbon);
+  --lx-hard-sm: 0 4px 0 0 var(--upz-carbon);
+
+  background: var(--lx-canvas);
+  color: var(--lx-carbon);
+  font-family: var(--lx-body);
+  /* La tipografia base vive aqui y se HEREDA. Si se pusiera en `.lx p` (0,1,1)
+     ganaria sobre clases de una sola clase como .lx-lead o .lx-marker (0,1,0)
+     y las anularia. */
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+.lx *, .lx *::before, .lx *::after { box-sizing: border-box; }
+
+.lx-shell { width: 100%; max-width: var(--lx-max); margin: 0 auto; padding: 0 20px; position: relative; }
+
+/* ---------- Ritmo de seccion --------------------------------------- */
+.lx-section { padding: 72px 0; position: relative; }
+.lx-section--tight { padding: 52px 0; }
+.lx-section--ivory { background: var(--lx-ivory); }
+.lx-section--carbon { background: var(--lx-carbon); }
+
+/* ---------- Tipografia --------------------------------------------- */
+.lx h1, .lx h2 {
+  margin: 0;
+  font-family: var(--lx-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  color: var(--lx-carbon);
+}
+.lx h3 {
+  margin: 0;
+  font-family: var(--lx-body);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.28;
+  letter-spacing: -0.01em;
+  color: var(--lx-carbon);
+}
+.lx h1 { font-size: clamp(48px, 7.6vw, 96px); }
+.lx h2 { font-size: clamp(34px, 5.4vw, 64px); }
+.lx-section--carbon h1, .lx-section--carbon h2, .lx-section--carbon h3 { color: var(--upz-off-white); }
+
+.lx p { margin: 0; }
+.lx-section--carbon { color: rgba(250, 251, 245, 0.78); }
+.lx-lead { font-size: clamp(15px, 1.8vw, 17px); color: var(--lx-ash); max-width: 58ch; }
+.lx-section--carbon .lx-lead { color: rgba(250, 251, 245, 0.78); }
+.lx-accent { color: var(--lx-electric); }
+
+/* ---------- Marcador numerado de seccion ---------------------------- */
+.lx-marker {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px;
+  font-family: var(--lx-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--lx-carbon);
+}
+.lx-section--carbon .lx-marker { color: var(--upz-off-white); }
+.lx-marker-num { color: var(--lx-electric); }
+.lx-section--carbon .lx-marker-num { color: var(--lx-lime); }
+.lx-marker-rule { flex: none; width: 36px; height: 1.5px; background: currentColor; opacity: 0.3; }
+
+/* ---------- Sticker / pill ------------------------------------------ */
+.lx-sticker {
+  display: inline-block;
+  font-family: var(--lx-body); font-weight: 800;
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 10px 14px;
+  background: var(--lx-lime); color: var(--lx-carbon);
+  box-shadow: var(--lx-hard);
+  transform: rotate(-1.5deg);
+}
+.lx-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--lx-body); font-weight: 700;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 8px 13px;
+  border: 1.5px solid currentColor; border-radius: 999px;
+  color: var(--lx-carbon); background: transparent;
+}
+.lx-pill .lx-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--lx-electric); flex: none; }
+
+/* ---------- Botones -------------------------------------------------- */
+.lx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--lx-body); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.02em;
+  padding: 15px 24px; min-height: 48px;
+  border: 1.5px solid transparent; border-radius: 0;
+  cursor: pointer; text-decoration: none; line-height: 1;
+  transition: transform var(--dur-base) var(--ease-snap),
+              background var(--dur-base) var(--ease-snap),
+              color var(--dur-base) var(--ease-snap),
+              border-color var(--dur-base) var(--ease-snap);
+}
+.lx-btn:hover { transform: translateY(-2px); }
+.lx-btn svg { width: 18px; height: 18px; flex: none; }
+.lx-btn--primary { background: var(--lx-electric); color: var(--upz-off-white); }
+.lx-btn--primary:hover { background: var(--action-hover); }
+.lx-btn--ghost { background: transparent; color: var(--lx-carbon); border-color: var(--lx-carbon); }
+.lx-btn--ghost:hover { background: var(--lx-carbon); color: var(--upz-off-white); }
+.lx-section--carbon .lx-btn--ghost { color: var(--upz-off-white); border-color: rgba(250, 251, 245, 0.55); }
+.lx-section--carbon .lx-btn--ghost:hover { background: var(--upz-off-white); color: var(--lx-carbon); border-color: var(--upz-off-white); }
+.lx-btn--on-ink { background: var(--lx-lime); color: var(--lx-carbon); }
+.lx-btn--on-ink:hover { background: #92e300; }
+.lx-btn--block { width: 100%; }
+.lx-btn--sm { padding: 12px 16px; min-height: 46px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ---------- Top bar --------------------------------------------------- */
+.lx-topbar {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--lx-canvas);
+  border-bottom: 1.5px solid var(--lx-carbon);
+}
+.lx-topbar-inner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 20px; max-width: var(--lx-max); margin: 0 auto;
+}
+.lx-topbar-brand {
+  font-family: var(--lx-display); font-size: 22px; letter-spacing: 0.01em;
+  text-transform: uppercase; color: var(--lx-carbon); text-decoration: none;
+  /* Target tactil >= 44px sin agrandar la caja visual del logotipo. */
+  display: inline-flex; align-items: center; min-height: 46px;
+}
+.lx-topbar-brand span { color: var(--lx-electric); }
+
+/* ---------- Hero ------------------------------------------------------
+   Bloque de portada sobre carbon: hereda de .lx-section--carbon los colores de
+   titulares, marcador y botones. Enlaza sin costura con la capa de entrada y
+   con la franja de pills, que tambien son carbon. */
+.lx-hero { padding: 52px 0 60px; }
+.lx-hero-head { text-align: center; }
+.lx-hero-head .lx-marker { justify-content: center; }
+.lx-hero-label {
+  font-family: var(--lx-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: rgba(250, 251, 245, 0.72);
+  margin-bottom: 22px;
+}
+.lx-hero h1 { margin: 18px auto 20px; max-width: 16ch; }
+.lx-hero-sub {
+  font-size: clamp(16px, 2vw, 19px);
+  color: rgba(250, 251, 245, 0.76);
+  max-width: 52ch; margin: 0 auto;
+}
+.lx-hero-foot { text-align: center; margin-top: 36px; }
+.lx-hero-support {
+  margin: 18px auto 0;
+  font-size: 14px; color: rgba(250, 251, 245, 0.6);
+  max-width: 52ch;
+}
+.lx-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+/* El azul de accion no contrasta sobre carbon; en oscuro el destacador es lime. */
+.lx-section--carbon .lx-accent { color: var(--lx-lime); }
+
+/* ---------- Galería panorámica del hero --------------------------------
+   Sale del ancho del shell a proposito: la fila ocupa casi todo el viewport
+   para que se lea panoramica, como una tira de negativos. */
+.lx-gallery-wrap { width: 100%; padding: 0 16px; }
+.lx-gallery {
+  display: flex;
+  gap: 10px;
+  margin: 44px auto 0;
+  max-width: 1720px;
+}
+.lx-gallery-item {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border: 1.5px solid rgba(250, 251, 245, 0.14);
+  border-radius: 10px;
+  background: #0b0b0b;
+}
+.lx-gallery-item img { object-fit: cover; object-position: center; }
+.lx-gallery-cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 13px 15px;
+  background: rgba(17, 17, 17, 0.88);
+  color: var(--upz-off-white);
+}
+.lx-gallery-kind {
+  font-family: var(--lx-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--lx-lime);
+}
+.lx-gallery-brand { font-family: var(--lx-body); font-weight: 700; font-size: 14px; }
+
+/* ---------- Franja de features (pills de marca) ----------------------- */
+.lx-trust { background: var(--lx-carbon); }
+.lx-trust-inner {
+  display: flex; flex-wrap: wrap; gap: 9px;
+  padding: 20px; justify-content: center; align-items: center;
+  max-width: var(--lx-max); margin: 0 auto;
+}
+.lx-trust .lx-pill { color: var(--upz-off-white); border-color: rgba(250, 251, 245, 0.4); }
+.lx-trust .lx-pill-dot { background: var(--lx-lime); }
+
+/* ---------- Tarjetas -------------------------------------------------- */
+.lx-cards { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 34px; }
+.lx-card {
+  background: var(--lx-paper);
+  border: 1.5px solid var(--lx-carbon);
+  border-radius: var(--lx-r-card);
+  padding: 24px 22px;
+  transition: transform var(--dur-base) var(--ease-snap), box-shadow var(--dur-base) var(--ease-snap);
+}
+.lx-card:hover { transform: translateY(-2px); box-shadow: var(--lx-hard); }
+/* Sello redondo que contiene el icono. */
+.lx-card-icon {
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  color: var(--lx-carbon);
+  margin-bottom: 16px;
+}
+.lx-card-icon svg { width: 21px; height: 21px; }
+.lx-card h3 { margin-bottom: 8px; }
+.lx-card p { font-size: 14px; color: var(--lx-ash); }
+
+.lx-card h3 { margin-bottom: 8px; }
+.lx-card p { font-size: 14px; color: var(--lx-ash); }
+
+/* Variante con imagen de fondo. Va despues de `.lx-card p` a proposito: misma
+   especificidad (0,1,1), asi que gana el que aparece ultimo. */
+.lx-card--img { position: relative; padding: 0; border-color: var(--lx-carbon); }
+.lx-card--img .lx-card-bg { object-fit: cover; z-index: 0; }
+/* Velo carbon: mantiene el contraste AA sin depender de lo clara que sea la foto. */
+.lx-card--img::after {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: rgba(17, 17, 17, 0.82);
+  transition: background var(--dur-base) var(--ease-snap);
+}
+.lx-card--img:hover::after { background: rgba(17, 17, 17, 0.72); }
+.lx-card-inner { position: relative; z-index: 2; padding: 24px 22px; }
+.lx-card--img h3 { color: var(--upz-off-white); }
+.lx-card--img p { color: rgba(250, 251, 245, 0.86); }
+.lx-card--img .lx-card-icon { border-color: rgba(250, 251, 245, 0.55); color: var(--upz-off-white); }
+
+/* ---------- Tarjeta formato Servicios ----------------------------------
+   Replica el patron de .service-card de la web principal: foto en duotono
+   arriba, meta en mono, titular display y cuerpo. Barrido carbon al hover. */
+.lx-svc {
+  position: relative;
+  background: var(--lx-paper);
+  border: 1.5px solid var(--lx-carbon);
+  border-radius: 0;
+  padding: 24px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--dur-base) var(--ease-snap);
+}
+.lx-svc::before {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background: var(--lx-carbon);
+  transform: translateY(101%);
+  transition: transform var(--dur-base) var(--ease-snap);
+}
+.lx-svc > * { position: relative; z-index: 1; transition: color var(--dur-base); }
+.lx-svc:hover { transform: translateY(-2px); }
+.lx-svc:hover::before { transform: translateY(0); }
+.lx-svc:hover .lx-svc-title,
+.lx-svc:hover .lx-svc-body,
+.lx-svc:hover .lx-svc-num { color: var(--upz-off-white); }
+.lx-svc:hover .lx-svc-media { border-color: var(--upz-off-white); }
+
+.lx-svc-media {
+  position: relative;
+  margin: -24px -24px 20px;
+  height: 168px;
+  overflow: hidden;
+  border-bottom: 1.5px solid var(--lx-carbon);
+}
+.lx-svc-media img { object-fit: cover; filter: grayscale(1) contrast(1.04); }
+/* El acento tiñe la foto en multiply: de ahi el duotono. */
+.lx-svc-media::after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--svc-accent, var(--lx-electric));
+  mix-blend-mode: multiply; opacity: 0.62;
+}
+
+.lx-svc-content { display: flex; flex-direction: column; flex: 1; }
+
+.lx-svc-num {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--lx-ash);
+  margin-bottom: 22px;
+}
+.lx-svc-kind { display: inline-flex; align-items: center; gap: 7px; }
+.lx-svc-kind svg { width: 15px; height: 15px; }
+.lx-svc-title {
+  font-family: var(--lx-display); font-weight: 400;
+  font-size: clamp(26px, 3vw, 34px); line-height: 0.95;
+  letter-spacing: -0.02em; text-transform: uppercase;
+  color: var(--lx-carbon);
+  margin: 0 0 12px;
+}
+.lx-svc-body { font-size: 14px; line-height: 1.5; color: var(--lx-ash); margin: 0; flex: 1; }
+
+/* Con 7 tarjetas en una grilla de 3, la última quedaba sola con dos huecos al
+   lado. La última ocupa el ancho completo y se acuesta: la fila cierra pareja
+   y se lee como cierre del bloque, no como sobrante. */
+.lx-svc--wide { grid-column: 1 / -1; }
+
+/* ---------- Split ----------------------------------------------------- */
+.lx-split { display: grid; grid-template-columns: 1fr; gap: 26px; align-items: start; }
+.lx-split p + p { margin-top: 14px; }
+
+/* ---------- Pasos 01-04 ----------------------------------------------- */
+.lx-steps { display: grid; grid-template-columns: 1fr; gap: 0; margin-top: 36px; }
+.lx-step { position: relative; padding: 26px 0 26px 22px; border-top: 1.5px solid var(--lx-carbon); }
+.lx-step::before {
+  content: ""; position: absolute; top: -6px; left: 0;
+  width: 11px; height: 11px; border-radius: 999px;
+  background: var(--lx-electric);
+}
+.lx-step:last-child { border-bottom: 1.5px solid var(--lx-carbon); }
+.lx-step-num {
+  font-family: var(--lx-display); font-weight: 400;
+  font-size: clamp(40px, 7vw, 64px); line-height: 0.86;
+  letter-spacing: -0.02em; color: var(--lx-carbon);
+  margin-bottom: 10px;
+}
+.lx-step h3 { margin-bottom: 7px; }
+.lx-step p { font-size: 14px; color: var(--lx-ash); }
+.lx-section--carbon .lx-step { border-color: rgba(250, 251, 245, 0.26); }
+.lx-section--carbon .lx-step-num { color: var(--upz-off-white); }
+.lx-section--carbon .lx-step p { color: rgba(250, 251, 245, 0.72); }
+.lx-section--carbon .lx-step::before { background: var(--lx-lime); }
+
+/* ---------- Planes ---------------------------------------------------- */
+.lx-plans { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 40px; align-items: stretch; }
+.lx-plan {
+  background: var(--lx-paper);
+  border: 1.5px solid var(--lx-line);
+  border-radius: var(--lx-r-card);
+  padding: 30px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  position: relative; height: 100%;
+}
+/* El plan recomendado gana peso: borde carbon y sombra dura desplazada. */
+.lx-plan--featured { border: 2px solid var(--lx-carbon); box-shadow: var(--lx-hard); }
+.lx-plan-badge {
+  /* A la izquierda: a la derecha chocaba con los botones flotantes globales
+     (FloatingActions) que viven en el borde derecho del viewport. */
+  position: absolute; top: -15px; left: 20px;
+  transform: rotate(-3deg);
+  background: var(--lx-solar); color: var(--lx-carbon);
+  font-family: var(--lx-body); font-weight: 800;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 8px 13px;
+  box-shadow: var(--lx-hard-sm);
+}
+.lx-plan-name {
+  font-family: var(--lx-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--lx-ash);
+  margin-bottom: 6px;
+}
+.lx-plan-price {
+  font-family: var(--lx-display); font-weight: 400;
+  font-size: clamp(46px, 6.4vw, 68px); line-height: 0.9; letter-spacing: -0.02em;
+  color: var(--lx-carbon);
+  display: flex; align-items: baseline; gap: 8px;
+}
+.lx-plan-price small {
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.16em; color: var(--lx-ash);
+}
+.lx-plan-ideal { font-size: 14px; color: var(--lx-ash); }
+.lx-plan-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; }
+.lx-plan-list li { font-size: 14px; padding-left: 26px; position: relative; line-height: 1.4; }
+.lx-plan-list li svg { position: absolute; left: 0; top: 1px; width: 17px; height: 17px; color: var(--lx-electric); }
+.lx-plan .lx-btn { margin-top: auto; }
+
+/* ---------- Comparativa ------------------------------------------------ */
+.lx-compare { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 36px; align-items: stretch; }
+.lx-compare-col { border-radius: var(--lx-r-card); padding: 26px 22px; height: 100%; }
+/* Columna "improvisada": apagada, sin relleno, borde punteado. */
+.lx-compare-col--bad { background: transparent; border: 1.5px dashed var(--lx-ash); color: var(--lx-ash); }
+.lx-compare-col--bad h3 { color: var(--lx-ash); }
+/* Columna UPZITES: bloque carbon con acento lime. */
+.lx-compare-col--good { background: var(--lx-carbon); border: 1.5px solid var(--lx-carbon); box-shadow: var(--lx-hard); }
+.lx-compare-col--good h3 { color: var(--upz-off-white); }
+.lx-compare-col h3 { margin-bottom: 18px; }
+.lx-compare-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 11px; }
+.lx-compare-list li { font-size: 14px; padding-left: 28px; position: relative; line-height: 1.4; }
+.lx-compare-list li svg { position: absolute; left: 0; top: 0; width: 18px; height: 18px; }
+.lx-compare-col--bad li { color: var(--lx-ash); }
+.lx-compare-col--bad li svg { color: var(--lx-ash); }
+.lx-compare-col--good li { color: rgba(250, 251, 245, 0.9); }
+.lx-compare-col--good li svg { color: var(--lx-lime); }
+
+/* ---------- Lista con sello numerado / suma ---------------------------- */
+.lx-diff { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 32px; }
+.lx-diff-item {
+  display: flex; gap: 14px; align-items: center;
+  background: transparent;
+  border: 1.5px solid var(--lx-line);
+  border-radius: var(--lx-r-card);
+  padding: 16px 18px;
+}
+.lx-section--carbon .lx-diff-item { border-color: rgba(250, 251, 245, 0.24); }
+.lx-diff-stamp {
+  flex: none; width: 36px; height: 36px;
+  border: 1.5px solid currentColor; border-radius: 999px;
+  display: grid; place-items: center;
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--lx-carbon);
+}
+.lx-section--carbon .lx-diff-stamp { color: var(--lx-lime); }
+.lx-diff-stamp svg { width: 17px; height: 17px; }
+.lx-diff-text { font-size: 14.5px; line-height: 1.45; }
+
+.lx-note { font-size: 13px; color: var(--lx-ash); margin-top: 20px; max-width: 68ch; }
+.lx-section--carbon .lx-note { color: rgba(250, 251, 245, 0.62); }
+
+/* ---------- Tira de portafolio ------------------------------------------
+   Reusa el panel del hero (.lx-gallery-item). Unica diferencia: como son ~20
+   proyectos no caben repartidos en la fila, asi que la tira scrollea en
+   horizontal y cada panel crece al recibir el cursor o el foco. */
+.lx-gallery--strip {
+  overflow-x: auto;
+  /* El suavizado del desplazamiento con flechas lo hace el CSS: la opcion
+     `behavior: "smooth"` de scrollBy no movia este contenedor. */
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 6px;
+}
+.lx-gallery--strip::-webkit-scrollbar { display: none; }
+.lx-strip-nav { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.lx-strip-nav button {
+  width: 48px; height: 48px;
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--lx-carbon);
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  transition: background var(--dur-base) var(--ease-snap), color var(--dur-base) var(--ease-snap);
+}
+.lx-strip-nav button:hover:not(:disabled) { background: var(--lx-carbon); color: var(--upz-off-white); }
+.lx-strip-nav button:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
+/* Deshabilitadas, no ocultas: si aparecen y desaparecen, la fila salta. */
+.lx-strip-nav button:disabled { opacity: 0.3; cursor: default; }
+.lx-gallery--strip .lx-gallery-item {
+  flex: none;
+  width: 66vw;
+  height: 430px;
+  scroll-snap-align: center;
+  text-decoration: none;
+}
+
+/* ---------- Testimonios -------------------------------------------------- */
+.lx-tst { display: grid; grid-template-columns: 1fr; gap: 34px; margin-top: 38px; align-items: center; }
+
+/* Pila: la activa al frente, dos detras rotadas y asomando. */
+.lx-tst-stack { position: relative; height: 380px; }
+.lx-tst-photo {
+  position: absolute; top: 0; left: 0;
+  width: 78%; max-width: 320px; height: 100%;
+  margin: 0; padding: 0;
+  border: 1.5px solid var(--lx-carbon); border-radius: 14px;
+  overflow: hidden; cursor: pointer;
+  display: grid; place-items: center;
+  transition: transform var(--dur-slow) var(--ease-snap), opacity var(--dur-slow) var(--ease-snap);
+}
+.lx-tst-photo img { object-fit: cover; }
+.lx-tst-photo:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
+/* Sin foto: placa con la inicial, para no usar retratos de gente que no es cliente. */
+.lx-tst-initial {
+  font-family: var(--lx-display); font-size: clamp(90px, 16vw, 140px);
+  line-height: 1; color: var(--lx-carbon);
+}
+
+.lx-tst-body figcaption { display: flex; flex-direction: column; gap: 5px; margin-bottom: 22px; }
+.lx-tst-name {
+  font-family: var(--lx-body); font-weight: 700;
+  font-size: clamp(22px, 3vw, 30px); line-height: 1.1;
+  letter-spacing: -0.02em; color: var(--lx-carbon);
+}
+.lx-tst-role {
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-ash);
+}
+.lx-tst-body blockquote {
+  margin: 0;
+  font-size: clamp(16px, 1.9vw, 19px); line-height: 1.55;
+  color: var(--lx-carbon);
+  max-width: 44ch;
+}
+
+.lx-tst-nav { display: flex; align-items: center; gap: 12px; margin-top: 30px; }
+.lx-tst-nav button {
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  background: var(--lx-carbon); color: var(--upz-off-white);
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  transition: transform var(--dur-base) var(--ease-snap), background var(--dur-base) var(--ease-snap);
+}
+.lx-tst-nav button:hover { transform: translateY(-2px); background: var(--lx-electric); border-color: var(--lx-electric); }
+.lx-tst-nav button:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
+.lx-tst-count {
+  margin-left: 6px;
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.14em; color: var(--lx-ash);
+}
+
+/* ---------- FAQ --------------------------------------------------------- */
+.lx-faq { margin-top: 30px; border-top: 1.5px solid var(--lx-carbon); }
+.lx-faq details { border-bottom: 1.5px solid var(--lx-line); }
+.lx-faq summary {
+  font-weight: 700; font-size: 16px; color: var(--lx-carbon);
+  cursor: pointer; list-style: none;
+  display: flex; justify-content: space-between; gap: 16px; align-items: center;
+  padding: 18px 0; min-height: 44px;
+}
+.lx-faq summary::-webkit-details-marker { display: none; }
+.lx-faq summary::after {
+  content: "+"; font-family: var(--lx-mono); color: var(--lx-electric);
+  font-size: 20px; line-height: 1; flex: none;
+  transition: transform var(--dur-base) var(--ease-snap);
+}
+.lx-faq details[open] summary::after { transform: rotate(45deg); }
+.lx-faq details p { padding-bottom: 20px; color: var(--lx-ash); font-size: 14.5px; max-width: 68ch; }
+
+/* ---------- Cierre ------------------------------------------------------ */
+.lx-closing { text-align: center; }
+.lx-closing .lx-marker { justify-content: center; }
+.lx-closing h2 { max-width: 20ch; margin: 0 auto 18px; }
+.lx-closing .lx-lead { margin: 0 auto; }
+.lx-closing .lx-hero-cta { justify-content: center; }
+
+/* ---------- Footer ------------------------------------------------------ */
+.lx-footer {
+  background: var(--lx-carbon); color: rgba(250, 251, 245, 0.7);
+  padding: 34px 0; text-align: center;
+  font-family: var(--lx-mono); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.lx-footer-brand {
+  font-family: var(--lx-display); font-size: 30px; letter-spacing: 0.01em;
+  color: var(--upz-off-white); margin-bottom: 8px; text-transform: uppercase;
+}
+.lx-footer p { color: inherit; font-size: 11px; letter-spacing: 0.12em; }
+.lx-footer a { color: var(--upz-off-white); text-decoration: none; }
+.lx-footer a:hover { color: var(--lx-lime); }
+
+/* ---------- CTA fijo en movil ------------------------------------------- */
+.lx-sticky {
+  position: fixed; left: 12px; right: 12px; z-index: 40;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.lx-sticky .lx-btn { width: 100%; box-shadow: var(--lx-hard); }
+/* Deja aire al final para que la barra fija no tape el footer. */
+.lx-footer { padding-bottom: 104px; }
+
+/* =====================================================================
+   Breakpoints
+   ===================================================================== */
+
+/* Móvil: sin hover posible, la fila pasa a carrusel con scroll-snap y las
+   leyendas quedan siempre visibles. */
+@media (max-width: 899px) {
+  .lx-gallery {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin-inline: -16px;
+    padding-inline: 16px;
+    scrollbar-width: none;
+  }
+  .lx-gallery::-webkit-scrollbar { display: none; }
+  .lx-gallery-item {
+    flex: 0 0 64vw;
+    height: 440px;
+    scroll-snap-align: center;
+  }
+}
+
+@media (min-width: 600px) {
+  .lx-cards { grid-template-columns: repeat(2, 1fr); }
+  .lx-diff { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 900px) {
+  .lx-shell { padding: 0 28px; }
+  .lx-section { padding: 104px 0; }
+  .lx-section--tight { padding: 72px 0; }
+  .lx-hero { padding: 84px 0 92px; }
+  .lx-hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; }
+  .lx-split { grid-template-columns: 1fr 1fr; gap: 56px; }
+  .lx-cards { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .lx-svc--wide { flex-direction: row; align-items: stretch; gap: 30px; }
+  .lx-svc--wide .lx-svc-media { margin: -24px 0 -24px -24px; width: 40%; height: auto; flex: none; border-bottom: none; border-right: 1.5px solid var(--lx-carbon); }
+  .lx-svc--wide .lx-svc-content { display: flex; flex-direction: column; justify-content: center; flex: 1; padding: 14px 0; }
+  .lx-svc--wide .lx-svc-title { font-size: clamp(30px, 3.6vw, 42px); }
+  .lx-svc--wide .lx-svc-body { flex: none; max-width: 54ch; }
+  .lx-svc--wide:hover .lx-svc-media { border-right-color: var(--upz-off-white); }
+  .lx-plans { grid-template-columns: 1fr 1fr; gap: 26px; }
+  .lx-compare { grid-template-columns: 1fr 1fr; gap: 22px; }
+  .lx-tst { grid-template-columns: 0.9fr 1.1fr; gap: 56px; }
+  .lx-tst-stack { height: 430px; }
+    .lx-plan { padding: 36px 30px; }
+
+  /* Los paneles se reparten la fila y el que recibe el cursor (o el foco de
+     teclado) se lleva el espacio. */
+  .lx-gallery { gap: 10px; }
+  .lx-gallery-item {
+    flex: 1 1 0;
+    min-width: 0;
+    height: clamp(380px, 58vh, 560px);
+    transition: flex-grow var(--dur-slow) var(--ease-snap);
+  }
+  .lx-gallery-item:hover,
+  .lx-gallery-item:focus-visible { flex-grow: 3.4; }
+
+  /* Sin snap en escritorio: peleaba con el scroll suave de las flechas y las
+     dejaba sin efecto. En movil sigue activo, que es donde se arrastra. */
+  .lx-gallery--strip { scroll-snap-type: none; }
+
+  /* La tira no reparte el ancho: fija el panel y anima `width`. */
+  .lx-gallery--strip .lx-gallery-item {
+    flex: none;
+    width: 190px;
+    height: clamp(380px, 52vh, 520px);
+    transition: width var(--dur-slow) var(--ease-snap);
+  }
+  .lx-gallery--strip .lx-gallery-item:hover,
+  .lx-gallery--strip .lx-gallery-item:focus-visible { flex-grow: 0; width: 420px; }
+  .lx-gallery-item:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 2px; }
+  .lx-gallery-cap {
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-snap);
+  }
+  .lx-gallery-item:hover .lx-gallery-cap,
+  .lx-gallery-item:focus-visible .lx-gallery-cap { opacity: 1; }
+
+  /* Pasos en fila, unidos por una linea continua. */
+  .lx-steps { grid-template-columns: repeat(4, 1fr); gap: 26px; }
+  .lx-step { padding: 26px 0 0; border-top: 1.5px solid var(--lx-carbon); border-bottom: none; }
+  .lx-step:last-child { border-bottom: none; }
+  /* Prolonga la linea sobre el gap para que los 4 pasos se lean conectados. */
+  .lx-step::after {
+    content: ""; position: absolute; top: -1.5px; left: 100%;
+    width: 26px; height: 1.5px; background: var(--lx-carbon);
+  }
+  .lx-step:last-child::after { display: none; }
+  .lx-section--carbon .lx-step::after { background: rgba(250, 251, 245, 0.26); }
+
+  .lx-sticky { display: none; }
+  .lx-footer { padding-bottom: 34px; }
+}
+
+/* =====================================================================
+   Movimiento reducido: sin transiciones ni rotaciones de sticker.
+   El resto de reveals ya los apaga .reveal en site.css.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .lx-btn, .lx-card, .lx-faq summary::after { transition: none; }
+  .lx-btn:hover, .lx-card:hover { transform: none; }
+    .lx-gallery-item, .lx-gallery-cap { transition: none; }
+  .lx-tst-photo, .lx-tst-nav button { transition: none; }
+  .lx-svc, .lx-svc::before, .lx-svc > * { transition: none; }
+  .lx-gallery--strip { scroll-behavior: auto; }
+  .lx-svc:hover { transform: none; }
+  .lx-gallery-cap { opacity: 1; }
+  .lx-sticker, .lx-plan-badge { transform: none; }
+}
