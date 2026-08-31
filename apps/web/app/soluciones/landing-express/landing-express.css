@@ -319,6 +319,8 @@
   mix-blend-mode: multiply; opacity: 0.62;
 }
 
+.lx-svc-content { display: flex; flex-direction: column; flex: 1; }
+
 .lx-svc-num {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
@@ -336,6 +338,11 @@
   margin: 0 0 12px;
 }
 .lx-svc-body { font-size: 14px; line-height: 1.5; color: var(--lx-ash); margin: 0; flex: 1; }
+
+/* Con 7 tarjetas en una grilla de 3, la última quedaba sola con dos huecos al
+   lado. La última ocupa el ancho completo y se acuesta: la fila cierra pareja
+   y se lee como cierre del bloque, no como sobrante. */
+.lx-svc--wide { grid-column: 1 / -1; }
 
 /* ---------- Split ----------------------------------------------------- */
 .lx-split { display: grid; grid-template-columns: 1fr; gap: 26px; align-items: start; }
@@ -455,11 +462,26 @@
    horizontal y cada panel crece al recibir el cursor o el foco. */
 .lx-gallery--strip {
   overflow-x: auto;
+  /* El suavizado del desplazamiento con flechas lo hace el CSS: la opcion
+     `behavior: "smooth"` de scrollBy no movia este contenedor. */
+  scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   padding-bottom: 6px;
 }
 .lx-gallery--strip::-webkit-scrollbar { display: none; }
+.lx-strip-nav { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.lx-strip-nav button {
+  width: 48px; height: 48px;
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--lx-carbon);
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  transition: background var(--dur-base) var(--ease-snap), color var(--dur-base) var(--ease-snap);
+}
+.lx-strip-nav button:hover:not(:disabled) { background: var(--lx-carbon); color: var(--upz-off-white); }
+.lx-strip-nav button:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
+/* Deshabilitadas, no ocultas: si aparecen y desaparecen, la fila salta. */
+.lx-strip-nav button:disabled { opacity: 0.3; cursor: default; }
 .lx-gallery--strip .lx-gallery-item {
   flex: none;
   width: 66vw;
@@ -606,6 +628,12 @@
   .lx-hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; }
   .lx-split { grid-template-columns: 1fr 1fr; gap: 56px; }
   .lx-cards { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .lx-svc--wide { flex-direction: row; align-items: stretch; gap: 30px; }
+  .lx-svc--wide .lx-svc-media { margin: -24px 0 -24px -24px; width: 40%; height: auto; flex: none; border-bottom: none; border-right: 1.5px solid var(--lx-carbon); }
+  .lx-svc--wide .lx-svc-content { display: flex; flex-direction: column; justify-content: center; flex: 1; padding: 14px 0; }
+  .lx-svc--wide .lx-svc-title { font-size: clamp(30px, 3.6vw, 42px); }
+  .lx-svc--wide .lx-svc-body { flex: none; max-width: 54ch; }
+  .lx-svc--wide:hover .lx-svc-media { border-right-color: var(--upz-off-white); }
   .lx-plans { grid-template-columns: 1fr 1fr; gap: 26px; }
   .lx-compare { grid-template-columns: 1fr 1fr; gap: 22px; }
   .lx-tst { grid-template-columns: 0.9fr 1.1fr; gap: 56px; }
@@ -624,15 +652,19 @@
   .lx-gallery-item:hover,
   .lx-gallery-item:focus-visible { flex-grow: 3.4; }
 
+  /* Sin snap en escritorio: peleaba con el scroll suave de las flechas y las
+     dejaba sin efecto. En movil sigue activo, que es donde se arrastra. */
+  .lx-gallery--strip { scroll-snap-type: none; }
+
   /* La tira no reparte el ancho: fija el panel y anima `width`. */
   .lx-gallery--strip .lx-gallery-item {
     flex: none;
-    width: 136px;
+    width: 190px;
     height: clamp(380px, 52vh, 520px);
     transition: width var(--dur-slow) var(--ease-snap);
   }
   .lx-gallery--strip .lx-gallery-item:hover,
-  .lx-gallery--strip .lx-gallery-item:focus-visible { flex-grow: 0; width: 400px; }
+  .lx-gallery--strip .lx-gallery-item:focus-visible { flex-grow: 0; width: 420px; }
   .lx-gallery-item:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 2px; }
   .lx-gallery-cap {
     opacity: 0;
@@ -667,6 +699,7 @@
     .lx-gallery-item, .lx-gallery-cap { transition: none; }
   .lx-tst-photo, .lx-tst-nav button { transition: none; }
   .lx-svc, .lx-svc::before, .lx-svc > * { transition: none; }
+  .lx-gallery--strip { scroll-behavior: auto; }
   .lx-svc:hover { transform: none; }
   .lx-gallery-cap { opacity: 1; }
   .lx-sticker, .lx-plan-badge { transform: none; }

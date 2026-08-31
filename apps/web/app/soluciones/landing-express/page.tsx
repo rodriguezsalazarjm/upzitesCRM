@@ -7,6 +7,7 @@ import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 import { SolucionWa } from "@/components/SolucionWa";
 import { ICONS, IconArrow, IconCheck, IconCross } from "./icons";
 import { Testimonials } from "./Testimonials";
+import { WorkStrip } from "./WorkStrip";
 import {
   CANONICAL,
     CHECKLIST,
@@ -28,6 +29,7 @@ import {
   STEPS,
   TESTIMONIALS,
   WORK_STRIP,
+  WORK_TOTAL,
   TITLE,
   TRUST_ITEMS,
   clp,
@@ -219,21 +221,31 @@ export default function LandingExpressPage() {
           <div className="lx-cards">
             {INCLUYE.map((c, i) => {
               const Icon = ICONS[c.icon];
+              // La última ocupa la fila entera: con 7 tarjetas en grilla de 3
+              // quedaba sola, con dos huecos al lado.
+              const wide = i === INCLUYE.length - 1;
               return (
                 <article
-                  className="lx-svc"
+                  className={`lx-svc${wide ? " lx-svc--wide" : ""}`}
                   key={c.title}
                   style={{ "--svc-accent": c.accent } as React.CSSProperties}
                 >
                   <div className="lx-svc-media">
-                    <Image src={c.image} alt="" fill sizes="(max-width: 899px) 100vw, 33vw" />
+                    <Image
+                      src={c.image}
+                      alt=""
+                      fill
+                      sizes={wide ? "(max-width: 899px) 100vw, 40vw" : "(max-width: 899px) 100vw, 33vw"}
+                    />
                   </div>
-                  <div className="lx-svc-num">
-                    <span>{String(i + 1).padStart(2, "0")} / {String(INCLUYE.length).padStart(2, "0")}</span>
-                    <span className="lx-svc-kind"><Icon />Incluye</span>
+                  <div className="lx-svc-content">
+                    <div className="lx-svc-num">
+                      <span>{String(i + 1).padStart(2, "0")} / {String(INCLUYE.length).padStart(2, "0")}</span>
+                      <span className="lx-svc-kind"><Icon />Incluye</span>
+                    </div>
+                    <h3 className="lx-svc-title">{c.title}</h3>
+                    <p className="lx-svc-body">{c.text}</p>
                   </div>
-                  <h3 className="lx-svc-title">{c.title}</h3>
-                  <p className="lx-svc-body">{c.text}</p>
                 </article>
               );
             })}
@@ -395,34 +407,13 @@ export default function LandingExpressPage() {
 
           <div className="lx-gallery-wrap">
             <Reveal delay={100}>
-              <div className="lx-gallery lx-gallery--strip">
-                {WORK_STRIP.map((w) => (
-                  <a
-                    className="lx-gallery-item"
-                    key={`${w.kind}-${w.slug}`}
-                    href={w.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Image
-                      src={w.image}
-                      alt={`${w.name} — ${w.kind} por UPZITES`}
-                      fill
-                      sizes="(max-width: 899px) 66vw, 400px"
-                    />
-                    <span className="lx-gallery-cap">
-                      <span className="lx-gallery-kind">{w.kind}</span>
-                      <span className="lx-gallery-brand">{w.name}</span>
-                    </span>
-                  </a>
-                ))}
-              </div>
+              <WorkStrip items={WORK_STRIP} />
             </Reveal>
           </div>
 
           <div className="lx-shell">
             <p className="lx-note">
-              {WORK_STRIP.length} proyectos publicados. Ver el portafolio completo en{" "}
+Una selección. Los {WORK_TOTAL} proyectos están en{" "}
               <a href="https://www.upzites.com/proyectos" target="_blank" rel="noopener noreferrer">
                 upzites.com/proyectos
               </a>.

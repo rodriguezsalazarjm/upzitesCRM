@@ -215,12 +215,26 @@ export type WorkItem = {
 };
 
 /**
- * Portafolio completo para la tira de paneles: los sitios publicados
- * (`WEB_PROJECTS`, sin los que siguen en construcción) y todas las marcas
- * (`BRANDING_PROJECTS`, primera lámina de cada una).
+ * Marcas destacadas para la tira. Se cura a mano: con las 16 los paneles
+ * quedaban demasiado angostos para reconocer nada. El portafolio completo vive
+ * en /proyectos y se enlaza al pie de la seccion.
+ */
+const MARCAS_DESTACADAS = [
+  "dirtypizza",
+  "valle-smash",
+  "urbanwild",
+  "crema",
+  "koriramen",
+  "gloobitos",
+  "vr-automotriz",
+];
+
+/**
+ * Portafolio de la tira: los sitios publicados (`WEB_PROJECTS`, sin los que
+ * siguen en construcción) mas las marcas destacadas.
  *
- * Sale de los mismos arrays que /proyectos en la web principal, así que al
- * publicar un proyecto nuevo aparece aquí solo, sin tocar esta landing.
+ * Sale de los mismos arrays que /proyectos en la web principal, asi que al
+ * publicar un proyecto nuevo basta con sumarlo a la lista de destacadas.
  */
 export const WORK_STRIP: WorkItem[] = [
   ...WEB_PROJECTS.filter((p) => !p.status).map((p) => ({
@@ -230,14 +244,16 @@ export const WORK_STRIP: WorkItem[] = [
     image: p.cover,
     url: p.url,
   })),
-  ...BRANDING_PROJECTS.map((p) => ({
-    slug: p.slug,
-    name: p.name,
-    kind: "Identidad",
-    image: p.images[0],
-    url: `${SITE_URL}/proyectos`,
-  })),
+  ...MARCAS_DESTACADAS.flatMap((slug) => {
+    const p = BRANDING_PROJECTS.find((b) => b.slug === slug);
+    // Si mañana se renombra un slug en /proyectos, se cae solo en vez de
+    // renderizar un panel roto.
+    return p ? [{ slug: p.slug, name: p.name, kind: "Identidad", image: p.images[0], url: `${SITE_URL}/proyectos` }] : [];
+  }),
 ];
+
+/** Cuantos proyectos hay en total, para el pie de la seccion. */
+export const WORK_TOTAL = WEB_PROJECTS.length + BRANDING_PROJECTS.length;
 
 export type Testimonial = { quote: string; name: string; role: string; brand: string; avatar?: string };
 
