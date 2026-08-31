@@ -161,7 +161,7 @@
   font-family: var(--lx-display); font-size: 22px; letter-spacing: 0.01em;
   text-transform: uppercase; color: var(--lx-carbon); text-decoration: none;
   /* Target tactil >= 44px sin agrandar la caja visual del logotipo. */
-  display: inline-flex; align-items: center; min-height: 44px;
+  display: inline-flex; align-items: center; min-height: 46px;
 }
 .lx-topbar-brand span { color: var(--lx-electric); }
 
@@ -258,6 +258,9 @@
 .lx-card h3 { margin-bottom: 8px; }
 .lx-card p { font-size: 14px; color: var(--lx-ash); }
 
+.lx-card h3 { margin-bottom: 8px; }
+.lx-card p { font-size: 14px; color: var(--lx-ash); }
+
 /* Variante con imagen de fondo. Va despues de `.lx-card p` a proposito: misma
    especificidad (0,1,1), asi que gana el que aparece ultimo. */
 .lx-card--img { position: relative; padding: 0; border-color: var(--lx-carbon); }
@@ -273,6 +276,96 @@
 .lx-card--img h3 { color: var(--upz-off-white); }
 .lx-card--img p { color: rgba(250, 251, 245, 0.86); }
 .lx-card--img .lx-card-icon { border-color: rgba(250, 251, 245, 0.55); color: var(--upz-off-white); }
+
+/* ---------- Tarjeta formato Servicios ----------------------------------
+   Replica el patron de .service-card de la web principal: foto en duotono
+   arriba, meta en mono, titular display y cuerpo. Barrido carbon al hover. */
+.lx-svc {
+  position: relative;
+  background: var(--lx-paper);
+  border: 1.5px solid var(--lx-carbon);
+  border-radius: 0;
+  padding: 24px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--dur-base) var(--ease-snap);
+}
+.lx-svc::before {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background: var(--lx-carbon);
+  transform: translateY(101%);
+  transition: transform var(--dur-base) var(--ease-snap);
+}
+.lx-svc > * { position: relative; z-index: 1; transition: color var(--dur-base); }
+.lx-svc:hover { transform: translateY(-2px); }
+.lx-svc:hover::before { transform: translateY(0); }
+.lx-svc:hover .lx-svc-title,
+.lx-svc:hover .lx-svc-body,
+.lx-svc:hover .lx-svc-num { color: var(--upz-off-white); }
+.lx-svc:hover .lx-svc-media { border-color: var(--upz-off-white); }
+
+.lx-svc-media {
+  position: relative;
+  margin: -24px -24px 20px;
+  height: 168px;
+  overflow: hidden;
+  border-bottom: 1.5px solid var(--lx-carbon);
+}
+.lx-svc-media img { object-fit: cover; filter: grayscale(1) contrast(1.04); }
+/* El acento tiñe la foto en multiply: de ahi el duotono. */
+.lx-svc-media::after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--svc-accent, var(--lx-electric));
+  mix-blend-mode: multiply; opacity: 0.62;
+}
+
+.lx-svc-num {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--lx-ash);
+  margin-bottom: 22px;
+}
+.lx-svc-kind { display: inline-flex; align-items: center; gap: 7px; }
+.lx-svc-kind svg { width: 15px; height: 15px; }
+.lx-svc-title {
+  font-family: var(--lx-display); font-weight: 400;
+  font-size: clamp(26px, 3vw, 34px); line-height: 0.95;
+  letter-spacing: -0.02em; text-transform: uppercase;
+  color: var(--lx-carbon);
+  margin: 0 0 12px;
+}
+.lx-svc-body { font-size: 14px; line-height: 1.5; color: var(--lx-ash); margin: 0; flex: 1; }
+
+/* ---------- Portafolio de marcas ---------------------------------------- */
+.lx-work-label {
+  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--lx-ash);
+  margin: 34px 0 16px;
+}
+.lx-work {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+}
+.lx-work-item { display: flex; flex-direction: column; gap: 2px; }
+.lx-work-shot {
+  position: relative; aspect-ratio: 4 / 3;
+  border: 1.5px solid var(--lx-carbon); border-radius: var(--lx-r-card);
+  overflow: hidden; margin-bottom: 9px;
+  background: var(--lx-ivory);
+}
+.lx-work-shot img {
+  object-fit: cover;
+  filter: grayscale(1);
+  transition: filter var(--dur-slow) var(--ease-snap), transform var(--dur-slow) var(--ease-snap);
+}
+.lx-work-item:hover .lx-work-shot img { filter: grayscale(0); transform: scale(1.04); }
+.lx-work-name { font-family: var(--lx-body); font-weight: 700; font-size: 14px; color: var(--lx-carbon); }
+.lx-work-cat {
+  font-family: var(--lx-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-ash);
+}
 
 /* ---------- Split ----------------------------------------------------- */
 .lx-split { display: grid; grid-template-columns: 1fr; gap: 26px; align-items: start; }
@@ -445,15 +538,15 @@
 .lx-section--carbon .lx-note { color: rgba(250, 251, 245, 0.62); }
 
 /* ---------- Testimonios -------------------------------------------------- */
-.lx-tst { display: grid; grid-template-columns: 1fr; gap: 30px; margin-top: 38px; align-items: center; }
+.lx-tst { display: grid; grid-template-columns: 1fr; gap: 34px; margin-top: 38px; align-items: center; }
 
-/* Pila de fotos: la activa al frente, las siguientes asomando rotadas. */
-.lx-tst-stack { position: relative; height: 340px; }
+/* Pila: la activa al frente, dos detras rotadas y asomando. */
+.lx-tst-stack { position: relative; height: 380px; }
 .lx-tst-photo {
-  position: absolute; inset: 0 auto auto 0;
-  width: 74%; max-width: 300px; aspect-ratio: 4 / 5;
+  position: absolute; top: 0; left: 0;
+  width: 78%; max-width: 320px; height: 100%;
   margin: 0; padding: 0;
-  border: 1.5px solid var(--lx-carbon); border-radius: var(--lx-r-card);
+  border: 1.5px solid var(--lx-carbon); border-radius: 14px;
   background: var(--lx-ivory);
   overflow: hidden; cursor: pointer;
   display: grid; place-items: center;
@@ -461,37 +554,39 @@
 }
 .lx-tst-photo img { object-fit: cover; }
 .lx-tst-photo:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
-/* Sin foto: placa con la inicial, para no bloquear por no tener retrato. */
-.lx-tst-initial {
-  font-family: var(--lx-display); font-size: 92px; line-height: 1;
-  color: var(--lx-carbon);
-}
+/* Sin foto: placa con la inicial, para no usar retratos de gente que no es cliente. */
+.lx-tst-initial { font-family: var(--lx-display); font-size: 110px; line-height: 1; color: var(--lx-carbon); }
 
-.lx-tst-body blockquote {
-  margin: 0;
-  font-family: var(--lx-body); font-weight: 500;
-  font-size: clamp(18px, 2.4vw, 25px); line-height: 1.38;
-  letter-spacing: -0.01em; color: var(--lx-carbon);
-  max-width: 34ch;
+.lx-tst-body figcaption { display: flex; flex-direction: column; gap: 5px; margin-bottom: 22px; }
+.lx-tst-name {
+  font-family: var(--lx-body); font-weight: 700;
+  font-size: clamp(22px, 3vw, 30px); line-height: 1.1;
+  letter-spacing: -0.02em; color: var(--lx-carbon);
 }
-.lx-tst-body figcaption { display: flex; flex-direction: column; gap: 3px; margin-top: 20px; }
-.lx-tst-name { font-family: var(--lx-body); font-weight: 700; font-size: 15px; color: var(--lx-carbon); }
 .lx-tst-role {
   font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
   letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-ash);
 }
-
-.lx-tst-nav { display: flex; align-items: center; gap: 14px; margin-top: 26px; }
-.lx-tst-nav button {
-  width: 46px; height: 46px;
-  display: grid; place-items: center;
-  background: transparent; cursor: pointer;
-  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+.lx-tst-body blockquote {
+  margin: 0;
+  font-size: clamp(16px, 1.9vw, 19px); line-height: 1.55;
   color: var(--lx-carbon);
-  transition: background var(--dur-base) var(--ease-snap), color var(--dur-base) var(--ease-snap);
+  max-width: 44ch;
 }
-.lx-tst-nav button:hover { background: var(--lx-carbon); color: var(--upz-off-white); }
+
+.lx-tst-nav { display: flex; align-items: center; gap: 12px; margin-top: 30px; }
+.lx-tst-nav button {
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  background: var(--lx-carbon); color: var(--upz-off-white);
+  border: 1.5px solid var(--lx-carbon); border-radius: 999px;
+  transition: transform var(--dur-base) var(--ease-snap), background var(--dur-base) var(--ease-snap);
+}
+.lx-tst-nav button:hover { transform: translateY(-2px); background: var(--lx-electric); border-color: var(--lx-electric); }
+.lx-tst-nav button:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 3px; }
 .lx-tst-count {
+  margin-left: 6px;
   font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
   letter-spacing: 0.14em; color: var(--lx-ash);
 }
@@ -569,6 +664,7 @@
 
 @media (min-width: 600px) {
   .lx-cards { grid-template-columns: repeat(2, 1fr); }
+  .lx-work { grid-template-columns: repeat(3, 1fr); }
   .lx-diff { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -580,11 +676,12 @@
   .lx-hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; }
   .lx-split { grid-template-columns: 1fr 1fr; gap: 56px; }
   .lx-cards { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .lx-work { grid-template-columns: repeat(5, 1fr); gap: 18px; }
   .lx-plans { grid-template-columns: 1fr 1fr; gap: 26px; }
   .lx-compare { grid-template-columns: 1fr 1fr; gap: 22px; }
   .lx-cases { grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .lx-tst { grid-template-columns: 0.85fr 1.15fr; gap: 52px; }
-  .lx-tst-stack { height: 400px; }
+  .lx-tst { grid-template-columns: 0.9fr 1.1fr; gap: 56px; }
+  .lx-tst-stack { height: 430px; }
   .lx-quotes { grid-template-columns: repeat(3, 1fr); gap: 26px; }
   .lx-plan { padding: 36px 30px; }
 
@@ -633,7 +730,8 @@
   .lx-logos img { transition: none; }
   .lx-gallery-item, .lx-gallery-cap { transition: none; }
   .lx-tst-photo, .lx-tst-nav button { transition: none; }
-  .lx-card--img::after { transition: none; }
+  .lx-svc, .lx-svc::before, .lx-svc > *, .lx-work-shot img { transition: none; }
+  .lx-svc:hover { transform: none; }
   .lx-gallery-cap { opacity: 1; }
   .lx-sticker, .lx-plan-badge { transform: none; }
 }

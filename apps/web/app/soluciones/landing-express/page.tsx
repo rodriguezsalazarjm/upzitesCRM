@@ -9,6 +9,7 @@ import { ICONS, IconArrow, IconCheck, IconCross } from "./icons";
 import { Testimonials } from "./Testimonials";
 import {
   CANONICAL,
+  BRAND_WORK,
   CASES,
   CHECKLIST,
   CLIENT_LOGOS,
@@ -218,23 +219,24 @@ export default function LandingExpressPage() {
             </div>
           </Reveal>
           <div className="lx-cards">
-            {INCLUYE.map((c) => {
+            {INCLUYE.map((c, i) => {
               const Icon = ICONS[c.icon];
               return (
-                <div className="lx-card lx-card--img" key={c.title}>
-                  <Image
-                    className="lx-card-bg"
-                    src={c.image}
-                    alt=""
-                    fill
-                    sizes="(max-width: 899px) 100vw, 33vw"
-                  />
-                  <div className="lx-card-inner">
-                    <div className="lx-card-icon"><Icon /></div>
-                    <h3>{c.title}</h3>
-                    <p>{c.text}</p>
+                <article
+                  className="lx-svc"
+                  key={c.title}
+                  style={{ "--svc-accent": c.accent } as React.CSSProperties}
+                >
+                  <div className="lx-svc-media">
+                    <Image src={c.image} alt="" fill sizes="(max-width: 899px) 100vw, 33vw" />
                   </div>
-                </div>
+                  <div className="lx-svc-num">
+                    <span>{String(i + 1).padStart(2, "0")} / {String(INCLUYE.length).padStart(2, "0")}</span>
+                    <span className="lx-svc-kind"><Icon />Incluye</span>
+                  </div>
+                  <h3 className="lx-svc-title">{c.title}</h3>
+                  <p className="lx-svc-body">{c.text}</p>
+                </article>
               );
             })}
           </div>
@@ -392,6 +394,7 @@ export default function LandingExpressPage() {
               </div>
             </Reveal>
 
+            <p className="lx-work-label">Sitios en línea</p>
             <div className="lx-cases">
               {CASES.map((c) => (
                 <div className="lx-case" key={c.slug}>
@@ -429,6 +432,34 @@ export default function LandingExpressPage() {
                   </figure>
                 ))}
               </div>
+            )}
+
+            {BRAND_WORK.length > 0 && (
+              <>
+                <p className="lx-work-label">Marcas creadas</p>
+                <ul className="lx-work">
+                  {BRAND_WORK.map((w) => (
+                    <li className="lx-work-item" key={w.slug}>
+                      <div className="lx-work-shot">
+                        <Image
+                          src={w.image}
+                          alt={`Identidad de ${w.name} por UPZITES`}
+                          fill
+                          sizes="(max-width: 599px) 50vw, (max-width: 899px) 33vw, 20vw"
+                        />
+                      </div>
+                      <span className="lx-work-name">{w.name}</span>
+                      <span className="lx-work-cat">{w.category}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="lx-note">
+                  Ver el portafolio completo en{" "}
+                  <a href="https://www.upzites.com/proyectos" target="_blank" rel="noopener noreferrer">
+                    upzites.com/proyectos
+                  </a>.
+                </p>
+              </>
             )}
 
             {CLIENT_LOGOS.length > 0 && (

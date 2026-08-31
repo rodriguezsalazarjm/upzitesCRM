@@ -8,7 +8,7 @@
  */
 
 import { SITE_URL } from "@/lib/blog";
-import { WEB_PROJECTS } from "@/lib/projects";
+import { BRANDING_PROJECTS, WEB_PROJECTS } from "@/lib/projects";
 import type { IconKey } from "./icons";
 
 /* ------------------------------------------------------------------ */
@@ -87,16 +87,17 @@ export function clp(amount: number): string {
 /* Contenido                                                           */
 /* ------------------------------------------------------------------ */
 
-export type IncluyeItem = { icon: IconKey; title: string; text: string; image: string };
+export type IncluyeItem = { icon: IconKey; title: string; text: string; image: string; accent: string };
 
+/** El `accent` tiñe la foto en multiply, igual que las tarjetas de Servicios. */
 export const INCLUYE: IncluyeItem[] = [
-  { icon: "identidad", title: "Identidad visual base", text: "Una dirección visual clara para tu marca: colores, estilo gráfico y línea estética inicial.", image: "/images/branding-cover.webp" },
-  { icon: "paleta", title: "Paleta de colores", text: "Colores principales y secundarios para que tu marca se vea coherente.", image: "/images/branding-system.webp" },
-  { icon: "tipografia", title: "Tipografías recomendadas", text: "Combinaciones tipográficas para títulos, textos y piezas digitales.", image: "/images/branding-process.webp" },
-  { icon: "landing", title: "Landing page profesional", text: "Diseñamos y desarrollamos una landing enfocada en presentar tu negocio y generar consultas.", image: "/images/diseno-web-cover.webp" },
-  { icon: "copy", title: "Copy comercial organizado", text: "Ordenamos los textos para explicar qué haces, a quién ayudas y por qué contactarte.", image: "/images/diseno-web-promise.webp" },
-  { icon: "chat", title: "Botón a WhatsApp", text: "Llamadas a la acción para que los visitantes te escriban directamente.", image: "/images/diseno-web-conversion.webp" },
-  { icon: "movil", title: "Versión móvil optimizada", text: "Se ve impecable desde el celular, donde llegan tus clientes de Instagram y WhatsApp.", image: "/images/apps-cover.webp" },
+  { icon: "identidad", title: "Identidad visual base", text: "Una dirección visual clara para tu marca: colores, estilo gráfico y línea estética inicial.", image: "/images/branding-cover.webp", accent: "var(--upz-guava)" },
+  { icon: "paleta", title: "Paleta de colores", text: "Colores principales y secundarios para que tu marca se vea coherente.", image: "/images/branding-system.webp", accent: "var(--upz-electric)" },
+  { icon: "tipografia", title: "Tipografías recomendadas", text: "Combinaciones tipográficas para títulos, textos y piezas digitales.", image: "/images/branding-process.webp", accent: "var(--upz-solar)" },
+  { icon: "landing", title: "Landing page profesional", text: "Diseñamos y desarrollamos una landing enfocada en presentar tu negocio y generar consultas.", image: "/images/diseno-web-cover.webp", accent: "var(--upz-electric)" },
+  { icon: "copy", title: "Copy comercial organizado", text: "Ordenamos los textos para explicar qué haces, a quién ayudas y por qué contactarte.", image: "/images/diseno-web-promise.webp", accent: "var(--upz-lime)" },
+  { icon: "chat", title: "Botón a WhatsApp", text: "Llamadas a la acción para que los visitantes te escriban directamente.", image: "/images/diseno-web-conversion.webp", accent: "var(--upz-tangerine)" },
+  { icon: "movil", title: "Versión móvil optimizada", text: "Se ve impecable desde el celular, donde llegan tus clientes de Instagram y WhatsApp.", image: "/images/apps-cover.webp", accent: "var(--upz-guava)" },
 ];
 
 export const STEPS = [
@@ -216,9 +217,9 @@ export type CaseStudy = {
 };
 
 /**
- * Se derivan del mismo `WEB_PROJECTS` que alimenta el portafolio de la web
- * principal, en vez de duplicar la lista. Se excluyen los que tienen `status`
- * ("En construcción"): la sección dice que ya están en línea.
+ * Sitios en linea. Se derivan del mismo `WEB_PROJECTS` que alimenta el
+ * portafolio de la web principal, en vez de duplicar la lista. Se excluyen los
+ * que tienen `status` ("En construcción"): la seccion dice que ya estan en linea.
  */
 export const CASES: CaseStudy[] = WEB_PROJECTS.filter((p) => !p.status).map((p) => ({
   slug: p.slug,
@@ -229,15 +230,47 @@ export const CASES: CaseStudy[] = WEB_PROJECTS.filter((p) => !p.status).map((p) 
   result: null, // TODO(upzites): una linea de resultado verificable por caso
 }));
 
+export type WorkItem = { slug: string; name: string; category: string; image: string; url?: string };
+
+/**
+ * Marcas creadas, tomadas de `BRANDING_PROJECTS` (la primera lamina de cada
+ * proyecto). Mismo origen que /proyectos, asi que el dia que agregues una marca
+ * alli aparece aqui sola.
+ */
+export const BRAND_WORK: WorkItem[] = BRANDING_PROJECTS.map((p) => ({
+  slug: p.slug,
+  name: p.name,
+  category: p.category,
+  image: p.images[0],
+}));
+
 export type Testimonial = { quote: string; name: string; role: string; brand: string; avatar?: string };
 
 /**
- * TODO(upzites): faltan testimonios reales. Vacio a proposito: el bloque no se
- * renderiza y la pagina se puede publicar sin inventar citas.
- * Forma esperada:
- *   { quote: "...", name: "Nombre Apellido", role: "Dueño", brand: "Marca" }
+ * ⚠️ TESTIMONIOS DE RELLENO — NO SON REALES.
+ *
+ * Estan aqui solo para ver y ajustar el layout. NO deben publicarse: son
+ * opiniones inventadas y presentarlas como reales seria falsear reseñas.
+ * Reemplazalos por los de verdad antes de subir a produccion; para vaciar la
+ * seccion basta con dejar el array en [].
+ *
+ * A proposito no llevan foto: se dibuja una placa con la inicial. Poner
+ * retratos de stock haria pasar por clientes a personas que no lo son.
  */
-export const TESTIMONIALS: Testimonial[] = [];
+export const TESTIMONIALS_SON_PLACEHOLDER = true;
+
+export const TESTIMONIALS: Testimonial[] = [
+  { quote: "Llevaba dos años mandando fotos por WhatsApp para explicar lo que hacía. Ahora mando un link y se entiende solo.", name: "Camila Fuentes", role: "Dueña", brand: "Estudio de uñas" },
+  { quote: "Lo que más me sirvió fue el orden. No era que me faltara trabajo, era que no sabía cómo mostrarlo.", name: "Rodrigo Peña", role: "Fotógrafo", brand: "Marca personal" },
+  { quote: "En una semana pasé de no tener nada a tener marca y página. Justo antes de la temporada alta.", name: "Valentina Soto", role: "Fundadora", brand: "Pastelería" },
+  { quote: "Los colores y las tipografías me ordenaron todo lo demás: el Instagram, los flyers, hasta el delantal.", name: "Matías Aravena", role: "Socio", brand: "Food truck" },
+  { quote: "Antes me preguntaban si era formal. Ahora me preguntan por disponibilidad.", name: "Javiera Núñez", role: "Corredora de propiedades", brand: "Marca personal" },
+  { quote: "El botón de WhatsApp cambió todo. Las consultas llegan directo y ya sé de dónde vienen.", name: "Sebastián Rojas", role: "Gerente", brand: "Servicios técnicos" },
+  { quote: "Pedí dos rondas de cambios y quedaron. No hubo que pelear por cada detalle.", name: "Antonia Lagos", role: "Dueña", brand: "Tienda de plantas" },
+  { quote: "Me explicaron qué mandar y cuándo. Nunca tuve que estar persiguiéndolos.", name: "Ignacio Vera", role: "Consultor", brand: "Asesoría contable" },
+  { quote: "La página se ve igual de bien en el celular, que es por donde me llega el 90% de la gente.", name: "Francisca Morales", role: "Fundadora", brand: "Estética" },
+  { quote: "Partí con el plan más simple para probar. Funcionó, y después escalamos a algo más grande.", name: "Diego Contreras", role: "Dueño", brand: "Taller mecánico" },
+];
 
 export type ClientLogo = { name: string; src: string };
 
