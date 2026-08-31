@@ -9,10 +9,7 @@ import { ICONS, IconArrow, IconCheck, IconCross } from "./icons";
 import { Testimonials } from "./Testimonials";
 import {
   CANONICAL,
-  BRAND_WORK,
-  CASES,
-  CHECKLIST,
-  CLIENT_LOGOS,
+    CHECKLIST,
   COMPARE_BAD,
   COMPARE_GOOD,
   CONDICIONES,
@@ -30,6 +27,7 @@ import {
   PLAZO_LABEL,
   STEPS,
   TESTIMONIALS,
+  WORK_STRIP,
   TITLE,
   TRUST_ITEMS,
   clp,
@@ -379,8 +377,8 @@ export default function LandingExpressPage() {
         </section>
       )}
 
-      {/* Prueba social — se oculta entera si no hay casos cargados */}
-      {CASES.length > 0 && (
+      {/* Portafolio — misma tira de paneles del hero, con todo el trabajo */}
+      {WORK_STRIP.length > 0 && (
         <section className="lx-section lx-section--ivory">
           <div className="lx-shell">
             <Reveal>
@@ -393,73 +391,42 @@ export default function LandingExpressPage() {
                 </p>
               </div>
             </Reveal>
+          </div>
 
-            <p className="lx-work-label">Sitios en línea</p>
-            <div className="lx-cases">
-              {CASES.map((c) => (
-                <div className="lx-case" key={c.slug}>
-                  <div className="lx-case-frame">
-                    <div className="lx-case-bar" aria-hidden="true"><span /><span /><span /></div>
-                    <div className="lx-case-shot">
-                      <Image
-                        src={c.shot}
-                        alt={`Sitio web de ${c.brand} diseñado por UPZITES`}
-                        fill
-                        sizes="(min-width: 900px) 340px, 100vw"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="lx-case-sector">{c.sector}</p>
-                    <p className="lx-case-brand">{c.brand}</p>
-                    {/* Sin resultado confirmado no se muestra linea: nada inventado. */}
-                    {c.result && <p className="lx-case-result">{c.result}</p>}
-                    <a className="lx-case-link" href={c.url} target="_blank" rel="noopener noreferrer">
-                      Ver el sitio
-                      <IconArrow />
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {BRAND_WORK.length > 0 && (
-              <>
-                <p className="lx-work-label">Marcas creadas</p>
-                <ul className="lx-work">
-                  {BRAND_WORK.map((w) => (
-                    <li className="lx-work-item" key={w.slug}>
-                      <div className="lx-work-shot">
-                        <Image
-                          src={w.image}
-                          alt={`Identidad de ${w.name} por UPZITES`}
-                          fill
-                          sizes="(max-width: 599px) 50vw, (max-width: 899px) 33vw, 20vw"
-                        />
-                      </div>
-                      <span className="lx-work-name">{w.name}</span>
-                      <span className="lx-work-cat">{w.category}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="lx-note">
-                  Ver el portafolio completo en{" "}
-                  <a href="https://www.upzites.com/proyectos" target="_blank" rel="noopener noreferrer">
-                    upzites.com/proyectos
-                  </a>.
-                </p>
-              </>
-            )}
-
-            {CLIENT_LOGOS.length > 0 && (
-              <ul className="lx-logos">
-                {CLIENT_LOGOS.map((l) => (
-                  <li key={l.name}>
-                    <Image src={l.src} alt={l.name} width={120} height={30} />
-                  </li>
+          <div className="lx-gallery-wrap">
+            <Reveal delay={100}>
+              <div className="lx-gallery lx-gallery--strip">
+                {WORK_STRIP.map((w) => (
+                  <a
+                    className="lx-gallery-item"
+                    key={`${w.kind}-${w.slug}`}
+                    href={w.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Image
+                      src={w.image}
+                      alt={`${w.name} — ${w.kind} por UPZITES`}
+                      fill
+                      sizes="(max-width: 899px) 66vw, 400px"
+                    />
+                    <span className="lx-gallery-cap">
+                      <span className="lx-gallery-kind">{w.kind}</span>
+                      <span className="lx-gallery-brand">{w.name}</span>
+                    </span>
+                  </a>
                 ))}
-              </ul>
-            )}
+              </div>
+            </Reveal>
+          </div>
+
+          <div className="lx-shell">
+            <p className="lx-note">
+              {WORK_STRIP.length} proyectos publicados. Ver el portafolio completo en{" "}
+              <a href="https://www.upzites.com/proyectos" target="_blank" rel="noopener noreferrer">
+                upzites.com/proyectos
+              </a>.
+            </p>
           </div>
         </section>
       )}

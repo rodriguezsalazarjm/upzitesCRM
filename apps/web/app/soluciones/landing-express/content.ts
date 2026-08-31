@@ -205,44 +205,39 @@ export const HERO_GALLERY: HeroShot[] = [
  * completos que hizo UPZITES, NO landings express. La seccion los presenta como
  * "trabajo publicado", nunca como casos de este producto.
  */
-export type CaseStudy = {
+export type WorkItem = {
   slug: string;
-  brand: string;
-  sector: string;
+  name: string;
+  /** "Sitio web" | "Identidad". Se muestra como eyebrow del panel. */
+  kind: string;
+  image: string;
   url: string;
-  /** Portada 900x648; se muestra dentro de un marco de navegador. */
-  shot: string;
-  /** Una linea de resultado verificable. null = no se muestra nada. */
-  result: string | null;
 };
 
 /**
- * Sitios en linea. Se derivan del mismo `WEB_PROJECTS` que alimenta el
- * portafolio de la web principal, en vez de duplicar la lista. Se excluyen los
- * que tienen `status` ("En construcción"): la seccion dice que ya estan en linea.
+ * Portafolio completo para la tira de paneles: los sitios publicados
+ * (`WEB_PROJECTS`, sin los que siguen en construcción) y todas las marcas
+ * (`BRANDING_PROJECTS`, primera lámina de cada una).
+ *
+ * Sale de los mismos arrays que /proyectos en la web principal, así que al
+ * publicar un proyecto nuevo aparece aquí solo, sin tocar esta landing.
  */
-export const CASES: CaseStudy[] = WEB_PROJECTS.filter((p) => !p.status).map((p) => ({
-  slug: p.slug,
-  brand: p.name,
-  sector: p.category,
-  url: p.url,
-  shot: p.cover,
-  result: null, // TODO(upzites): una linea de resultado verificable por caso
-}));
-
-export type WorkItem = { slug: string; name: string; category: string; image: string; url?: string };
-
-/**
- * Marcas creadas, tomadas de `BRANDING_PROJECTS` (la primera lamina de cada
- * proyecto). Mismo origen que /proyectos, asi que el dia que agregues una marca
- * alli aparece aqui sola.
- */
-export const BRAND_WORK: WorkItem[] = BRANDING_PROJECTS.map((p) => ({
-  slug: p.slug,
-  name: p.name,
-  category: p.category,
-  image: p.images[0],
-}));
+export const WORK_STRIP: WorkItem[] = [
+  ...WEB_PROJECTS.filter((p) => !p.status).map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    kind: "Sitio web",
+    image: p.cover,
+    url: p.url,
+  })),
+  ...BRANDING_PROJECTS.map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    kind: "Identidad",
+    image: p.images[0],
+    url: `${SITE_URL}/proyectos`,
+  })),
+];
 
 export type Testimonial = { quote: string; name: string; role: string; brand: string; avatar?: string };
 
@@ -271,16 +266,6 @@ export const TESTIMONIALS: Testimonial[] = [
   { quote: "La página se ve igual de bien en el celular, que es por donde me llega el 90% de la gente.", name: "Francisca Morales", role: "Fundadora", brand: "Estética" },
   { quote: "Partí con el plan más simple para probar. Funcionó, y después escalamos a algo más grande.", name: "Diego Contreras", role: "Dueño", brand: "Taller mecánico" },
 ];
-
-export type ClientLogo = { name: string; src: string };
-
-/**
- * TODO(upzites): confirmar cuales de los 8 archivos de /public/work-brands se
- * pueden publicar como cliente. Vacio = la franja no se renderiza.
- * Disponibles: avacos, dirty-pizza, gloobitos, iron-mallas, reyes-protec,
- * urban-wild, valle-smash, vr-automotriz.
- */
-export const CLIENT_LOGOS: ClientLogo[] = [];
 
 /* ------------------------------------------------------------------ */
 /* Qué necesitamos de ti                                               */

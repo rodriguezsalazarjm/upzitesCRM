@@ -337,36 +337,6 @@
 }
 .lx-svc-body { font-size: 14px; line-height: 1.5; color: var(--lx-ash); margin: 0; flex: 1; }
 
-/* ---------- Portafolio de marcas ---------------------------------------- */
-.lx-work-label {
-  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--lx-ash);
-  margin: 34px 0 16px;
-}
-.lx-work {
-  list-style: none; padding: 0; margin: 0;
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
-}
-.lx-work-item { display: flex; flex-direction: column; gap: 2px; }
-.lx-work-shot {
-  position: relative; aspect-ratio: 4 / 3;
-  border: 1.5px solid var(--lx-carbon); border-radius: var(--lx-r-card);
-  overflow: hidden; margin-bottom: 9px;
-  background: var(--lx-ivory);
-}
-.lx-work-shot img {
-  object-fit: cover;
-  filter: grayscale(1);
-  transition: filter var(--dur-slow) var(--ease-snap), transform var(--dur-slow) var(--ease-snap);
-}
-.lx-work-item:hover .lx-work-shot img { filter: grayscale(0); transform: scale(1.04); }
-.lx-work-name { font-family: var(--lx-body); font-weight: 700; font-size: 14px; color: var(--lx-carbon); }
-.lx-work-cat {
-  font-family: var(--lx-mono); font-size: 10px; font-weight: 600;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-ash);
-}
-
 /* ---------- Split ----------------------------------------------------- */
 .lx-split { display: grid; grid-template-columns: 1fr; gap: 26px; align-items: start; }
 .lx-split p + p { margin-top: 14px; }
@@ -455,56 +425,6 @@
 .lx-compare-col--good li { color: rgba(250, 251, 245, 0.9); }
 .lx-compare-col--good li svg { color: var(--lx-lime); }
 
-/* ---------- Prueba social ---------------------------------------------- */
-.lx-cases { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 36px; }
-.lx-case {
-  background: var(--lx-paper);
-  border: 1.5px solid var(--lx-carbon);
-  border-radius: var(--lx-r-card);
-  padding: 22px;
-  display: flex; flex-direction: column; gap: 18px;
-}
-/* Marco de navegador: los assets son capturas de escritorio, no de movil.
-   Meterlas en un marco de telefono seria mentir sobre el material. */
-.lx-case-frame {
-  border: 1.5px solid var(--lx-carbon); border-radius: 10px;
-  overflow: hidden; background: var(--lx-ivory);
-}
-.lx-case-bar { display: flex; gap: 5px; padding: 9px 11px; border-bottom: 1.5px solid var(--lx-carbon); }
-.lx-case-bar span { width: 8px; height: 8px; border-radius: 999px; border: 1.5px solid var(--lx-carbon); }
-.lx-case-shot { position: relative; aspect-ratio: 900 / 648; }
-.lx-case-shot img { object-fit: cover; object-position: top center; }
-.lx-case-brand { font-family: var(--lx-body); font-weight: 700; font-size: 17px; color: var(--lx-carbon); }
-.lx-case-sector {
-  font-family: var(--lx-mono); font-size: 11px; font-weight: 600;
-  letter-spacing: 0.16em; text-transform: uppercase; color: var(--lx-ash);
-  margin-bottom: 6px;
-}
-.lx-case-result { font-size: 14px; color: var(--lx-ash); margin-top: 8px; }
-.lx-case-link {
-  display: inline-flex; align-items: center; gap: 8px;
-  margin-top: 12px; min-height: 46px;
-  font-family: var(--lx-body); font-weight: 700; font-size: 13.5px;
-  color: var(--lx-electric); text-decoration: none;
-}
-.lx-case-link svg { width: 16px; height: 16px; }
-.lx-case-link:hover { text-decoration: underline; }
-
-
-.lx-logos {
-  display: flex; flex-wrap: wrap; gap: 26px 34px;
-  align-items: center; justify-content: center;
-  margin-top: 40px; padding-top: 30px;
-  border-top: 1.5px solid var(--lx-line);
-}
-.lx-logos img {
-  height: 30px; width: auto;
-  filter: grayscale(1); opacity: 0.6;
-  transition: filter var(--dur-base) var(--ease-snap), opacity var(--dur-base) var(--ease-snap);
-}
-.lx-logos a:hover img, .lx-logos li:hover img { filter: grayscale(0); opacity: 1; }
-.lx-logos ul { list-style: none; margin: 0; padding: 0; display: contents; }
-
 /* ---------- Lista con sello numerado / suma ---------------------------- */
 .lx-diff { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 32px; }
 .lx-diff-item {
@@ -528,6 +448,25 @@
 
 .lx-note { font-size: 13px; color: var(--lx-ash); margin-top: 20px; max-width: 68ch; }
 .lx-section--carbon .lx-note { color: rgba(250, 251, 245, 0.62); }
+
+/* ---------- Tira de portafolio ------------------------------------------
+   Reusa el panel del hero (.lx-gallery-item). Unica diferencia: como son ~20
+   proyectos no caben repartidos en la fila, asi que la tira scrollea en
+   horizontal y cada panel crece al recibir el cursor o el foco. */
+.lx-gallery--strip {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 6px;
+}
+.lx-gallery--strip::-webkit-scrollbar { display: none; }
+.lx-gallery--strip .lx-gallery-item {
+  flex: none;
+  width: 66vw;
+  height: 430px;
+  scroll-snap-align: center;
+  text-decoration: none;
+}
 
 /* ---------- Testimonios -------------------------------------------------- */
 .lx-tst { display: grid; grid-template-columns: 1fr; gap: 34px; margin-top: 38px; align-items: center; }
@@ -656,7 +595,6 @@
 
 @media (min-width: 600px) {
   .lx-cards { grid-template-columns: repeat(2, 1fr); }
-  .lx-work { grid-template-columns: repeat(3, 1fr); }
   .lx-diff { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -668,10 +606,8 @@
   .lx-hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; }
   .lx-split { grid-template-columns: 1fr 1fr; gap: 56px; }
   .lx-cards { grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .lx-work { grid-template-columns: repeat(5, 1fr); gap: 18px; }
   .lx-plans { grid-template-columns: 1fr 1fr; gap: 26px; }
   .lx-compare { grid-template-columns: 1fr 1fr; gap: 22px; }
-  .lx-cases { grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .lx-tst { grid-template-columns: 0.9fr 1.1fr; gap: 56px; }
   .lx-tst-stack { height: 430px; }
     .lx-plan { padding: 36px 30px; }
@@ -687,6 +623,16 @@
   }
   .lx-gallery-item:hover,
   .lx-gallery-item:focus-visible { flex-grow: 3.4; }
+
+  /* La tira no reparte el ancho: fija el panel y anima `width`. */
+  .lx-gallery--strip .lx-gallery-item {
+    flex: none;
+    width: 136px;
+    height: clamp(380px, 52vh, 520px);
+    transition: width var(--dur-slow) var(--ease-snap);
+  }
+  .lx-gallery--strip .lx-gallery-item:hover,
+  .lx-gallery--strip .lx-gallery-item:focus-visible { flex-grow: 0; width: 400px; }
   .lx-gallery-item:focus-visible { outline: 2px solid var(--lx-electric); outline-offset: 2px; }
   .lx-gallery-cap {
     opacity: 0;
@@ -718,10 +664,9 @@
 @media (prefers-reduced-motion: reduce) {
   .lx-btn, .lx-card, .lx-faq summary::after { transition: none; }
   .lx-btn:hover, .lx-card:hover { transform: none; }
-  .lx-logos img { transition: none; }
-  .lx-gallery-item, .lx-gallery-cap { transition: none; }
+    .lx-gallery-item, .lx-gallery-cap { transition: none; }
   .lx-tst-photo, .lx-tst-nav button { transition: none; }
-  .lx-svc, .lx-svc::before, .lx-svc > *, .lx-work-shot img { transition: none; }
+  .lx-svc, .lx-svc::before, .lx-svc > * { transition: none; }
   .lx-svc:hover { transform: none; }
   .lx-gallery-cap { opacity: 1; }
   .lx-sticker, .lx-plan-badge { transform: none; }
