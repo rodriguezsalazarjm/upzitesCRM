@@ -1,0 +1,160 @@
+/* Galeria 3D de marcas y sitios. Estilos en modulo CSS, siguiendo el patron de
+   OurWorkScene.module.css (el componente equivalente del repo). */
+
+.section {
+  position: relative;
+  width: 100%;
+  /* 220vh, no 600vh: lo justo para que el desplegado se lea sin convertir la
+     home en seis pantallas de scroll antes del contenido. */
+  height: 220vh;
+  background: var(--upz-carbon);
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Bloque que se despliega hasta ocupar la pantalla completa. */
+.banner {
+  position: relative;
+  background: var(--upz-carbon);
+  border-style: solid;
+  border-color: var(--upz-off-white);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 1920px;
+}
+
+.perspective {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1100px;
+  pointer-events: none;
+}
+
+/* Viñeta dura en carbon que enmascara los bordes de la matriz. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow:
+    inset 0 90px 120px -60px var(--upz-carbon),
+    inset 0 -90px 120px -60px var(--upz-carbon),
+    inset 130px 0 130px -60px var(--upz-carbon),
+    inset -130px 0 130px -60px var(--upz-carbon);
+}
+
+.matrix {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  align-items: center;
+  width: 128vw;
+  height: 150vh;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 23vw;
+  min-width: 168px;
+  will-change: transform;
+}
+
+/* --- Tarjetas ---------------------------------------------------------- */
+
+.card {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--upz-carbon);
+  border: 1.5px solid rgba(250, 251, 245, 0.16);
+}
+
+/* Capturas de sitio: proporcion de la portada. */
+.cardShot { aspect-ratio: 900 / 648; }
+.cardShot img { object-fit: cover; object-position: top center; }
+
+/* Logos: traen su propia placa de color, asi que van "contain" sobre el carbon
+   en vez de sobre una placa nuestra que competiria con la de la marca. */
+.cardLogo { aspect-ratio: 1 / 1; border-color: rgba(250, 251, 245, 0.1); }
+.cardLogo img { object-fit: contain; }
+
+/* --- Rotulo central ----------------------------------------------------- */
+
+.label {
+  position: absolute;
+  z-index: 3;
+  text-align: center;
+  padding: 0 24px;
+  pointer-events: none;
+}
+.labelEyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--upz-lime);
+  margin: 0 0 14px;
+}
+.labelTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 7vw, 104px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--upz-off-white);
+  margin: 0;
+}
+
+/* =======================================================================
+   Fallback estatico: sin animacion, sin sticky, sin scroll largo.
+   Es lo que ven quienes tienen reduced-motion activo.
+   ======================================================================= */
+
+.static {
+  background: var(--upz-carbon);
+  padding: 72px 0;
+}
+.staticShell {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.staticGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 32px;
+}
+.static .labelTitle { font-size: clamp(34px, 6vw, 64px); }
+.static .label { position: static; padding: 0; text-align: left; }
+
+@media (min-width: 700px) {
+  .staticGrid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
+}
+
+@media (max-width: 700px) {
+  .section { height: 190vh; }
+  .matrix { gap: 12px; width: 150vw; }
+  .col { gap: 12px; width: 34vw; min-width: 128px; }
+}
