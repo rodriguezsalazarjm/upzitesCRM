@@ -271,19 +271,23 @@ export type Testimonial = {
 };
 
 /**
- * ⚠️ TESTIMONIOS DE RELLENO — NO SON REALES.
+ * TESTIMONIOS PUBLICADOS. Vacio = la seccion entera no se renderiza.
  *
- * Estan aqui solo para ver y ajustar el layout. NO deben publicarse: son
- * opiniones inventadas y presentarlas como reales seria falsear reseñas.
- * Reemplazalos por los de verdad antes de subir a produccion; para vaciar la
- * seccion basta con dejar el array en [].
+ * Solo van aqui frases que el cliente dijo de verdad y autorizo a publicar.
+ * La foto (`avatar`) es opcional y tambien necesita su permiso: sin ella se
+ * dibuja una placa de color con la inicial.
  *
- * A proposito no llevan foto: se dibuja una placa con la inicial. Poner
- * retratos de stock haria pasar por clientes a personas que no lo son.
+ * TODO(upzites): pedir su frase a Grafiks y a Profile Empresarial. Con dos
+ * reales basta; pesan mas que diez inventados.
  */
-export const TESTIMONIALS_SON_PLACEHOLDER = true;
+export const TESTIMONIALS: Testimonial[] = [];
 
-export const TESTIMONIALS: Testimonial[] = [
+/**
+ * Borrador de maqueta: NO se renderiza. Son frases inventadas, guardadas solo
+ * para no perder el trabajo de layout. Sirven de plantilla del formato, nunca
+ * para publicar.
+ */
+export const TESTIMONIALS_BORRADOR: Testimonial[] = [
   { quote: "Llevaba dos años mandando fotos por WhatsApp para explicar lo que hacía. Ahora mando un link y se entiende solo.", name: "Camila Fuentes", role: "Dueña", brand: "Estudio de uñas" , accent: "var(--upz-guava)" },
   { quote: "Lo que más me sirvió fue el orden. No era que me faltara trabajo, era que no sabía cómo mostrarlo.", name: "Rodrigo Peña", role: "Fotógrafo", brand: "Marca personal" , accent: "var(--upz-solar)" },
   { quote: "En una semana pasé de no tener nada a tener marca y página. Justo antes de la temporada alta.", name: "Valentina Soto", role: "Fundadora", brand: "Pastelería" , accent: "var(--upz-lime)" },

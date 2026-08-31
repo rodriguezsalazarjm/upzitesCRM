@@ -82,6 +82,12 @@ function Marker({ n, label }: { n: string; label: string }) {
 }
 
 export default function LandingExpressPage() {
+  // Numeracion correlativa de secciones. Se consume en orden de render, asi que
+  // una seccion condicional que no se pinta (testimonios sin datos) no deja un
+  // hueco en la secuencia.
+  let seccion = 0;
+  const num = () => String(++seccion).padStart(2, "0");
+
   return (
     <>
       {/* Pantalla de carga: capa fija que se descubre sola. Va fuera de .lx
@@ -189,7 +195,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell lx-split">
           <Reveal>
             <div>
-              <Marker n="01" label="El problema" />
+              <Marker n={num()} label="El problema" />
               <h2>Tu negocio puede ser bueno, pero si no se ve profesional, pierde confianza</h2>
             </div>
           </Reveal>
@@ -214,7 +220,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="02" label="Qué incluye" />
+              <Marker n={num()} label="Qué incluye" />
               <h2>Qué incluye tu Branding Express</h2>
             </div>
           </Reveal>
@@ -258,7 +264,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="03" label="Cómo funciona" />
+              <Marker n={num()} label="Cómo funciona" />
               <h2>De idea a presencia digital express</h2>
             </div>
           </Reveal>
@@ -279,7 +285,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="04" label="Qué necesitamos de ti" />
+              <Marker n={num()} label="Qué necesitamos de ti" />
               <h2>Lo que tienes que enviarnos para partir</h2>
               <p className="lx-lead" style={{ marginTop: 16 }}>
                 Nada complicado. Con esto en mano armamos todo sin que tengas que estar encima.
@@ -303,7 +309,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="05" label="Planes" />
+              <Marker n={num()} label="Planes" />
               <h2>Dos formas de empezar</h2>
             </div>
           </Reveal>
@@ -351,7 +357,7 @@ export default function LandingExpressPage() {
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="06" label="No es solo una página bonita" />
+              <Marker n={num()} label="No es solo una página bonita" />
               <h2>La diferencia se nota</h2>
             </div>
           </Reveal>
@@ -378,7 +384,7 @@ export default function LandingExpressPage() {
           <div className="lx-shell">
             <Reveal>
               <div>
-                <Marker n="07" label="Lo que dicen" />
+                <Marker n={num()} label="Lo que dicen" />
                 <h2>Quienes ya dieron el paso</h2>
               </div>
             </Reveal>
@@ -395,7 +401,7 @@ export default function LandingExpressPage() {
           <div className="lx-shell">
             <Reveal>
               <div>
-                <Marker n="08" label="Trabajo publicado" />
+                <Marker n={num()} label="Trabajo publicado" />
                 <h2>Marcas y sitios que ya publicamos</h2>
                 <p className="lx-lead" style={{ marginTop: 16 }}>
                   Trabajo real, en línea y con nombre. No todo es una landing express: hay proyectos
@@ -427,7 +433,7 @@ Una selección. Los {WORK_TOTAL} proyectos están en{" "}
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="09" label="Por qué UPZITES" />
+              <Marker n={num()} label="Por qué UPZITES" />
               <h2>Diseño, marca y estrategia en un solo paso</h2>
             </div>
           </Reveal>
@@ -447,7 +453,7 @@ Una selección. Los {WORK_TOTAL} proyectos están en{" "}
         <div className="lx-shell" style={{ maxWidth: 820 }}>
           <Reveal>
             <div>
-              <Marker n="10" label="Preguntas frecuentes" />
+              <Marker n={num()} label="Preguntas frecuentes" />
               <h2>Resolvemos tus dudas</h2>
             </div>
           </Reveal>
@@ -464,7 +470,7 @@ Una selección. Los {WORK_TOTAL} proyectos están en{" "}
         <div className="lx-shell">
           <Reveal>
             <div>
-              <Marker n="11" label="Empieza hoy" />
+              <Marker n={num()} label="Empieza hoy" />
               <h2>Tu negocio ya puede verse como una marca profesional</h2>
               <p className="lx-lead">
                 Creamos tu identidad visual base y una landing page lista para compartir, captar clientes
