@@ -4,7 +4,7 @@ Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 - **Fase actual:** 0 — Proteccion y linea base
-- **Estado:** inspeccion y verificacion completadas; respaldo (commit) PENDIENTE de aprobacion del propietario
+- **Estado:** respaldo commiteado y sincronizado con `origin`; pruebas funcionales bloqueadas por falta de base de datos
 - **Ultima actualizacion:** 2026-09-06
 
 ---
@@ -13,7 +13,7 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 | Fase | Nombre | Estado |
 |---|---|---|
-| 0 | Proteccion y linea base | En curso — falta el commit de respaldo |
+| 0 | Proteccion y linea base | En curso — solo faltan las pruebas funcionales (bloqueadas por B1/B2) |
 | 1 | Dominio comercial y consentimiento | No iniciada |
 | 2 | WhatsApp e Inbox humano | No iniciada |
 | 3 | Cola, scheduler y automatizaciones reales | No iniciada |
@@ -38,11 +38,12 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | Config faltante de Mercado Pago documentada | Hecho | Seccion 5 |
 | `docs/IMPLEMENTATION_STATUS.md` | Hecho | Este archivo |
 | Plan de migraciones | Hecho | Seccion 7 |
-| Commit de respaldo del estado actual | **Pendiente** | Requiere aprobacion del propietario (seccion 8) |
+| Commit de respaldo del estado actual | Hecho | `8d3c790`, `187d3f1`, `303b368` en `origin/master` |
 | Pruebas funcionales (login, CRUD, captura, webhook MP, aislamiento tenant) | **Bloqueado** | Sin base de datos disponible (seccion 5) |
 
 **Criterio de salida de la Fase 0:** el estado actual puede restaurarse y desplegarse de forma reproducible.
-**Aun no se cumple:** falta el commit de respaldo y una base de datos operativa.
+**Parcialmente cumplido:** el estado ya es restaurable desde `origin/master`; falta una base de datos
+operativa para probar que tambien es desplegable.
 
 ---
 
@@ -73,8 +74,8 @@ Despliegue: proyecto Vercel `upzites-crm` (`prj_o89p2u9wo254GTHfkvv8MQmzxedH`).
 20260614182000_auth_workspaces
 20260614190000_web_capture
 20260614200000_integrations_ai_billing_ops
-20260630220000_contact_owner            <- sin commit
-20260630220100_billing_mercadopago      <- sin commit
+20260630220000_contact_owner            <- commiteada en 187d3f1, sin verificar contra produccion
+20260630220100_billing_mercadopago      <- commiteada en 187d3f1, sin verificar contra produccion
 ```
 
 ### Rutas API (26 handlers)
@@ -102,9 +103,10 @@ Opcionales (solo advertencia, el checkout responde 503 sin ellas):
 
 ---
 
-## 3. Trabajo sin commit (riesgo #1)
+## 3. Trabajo que estaba sin commit (riesgo #1 — resuelto)
 
-`git status` reporta **99 entradas** sin proteger sobre `master` (HEAD `418a1c1`).
+Al inspeccionar, `git status` reportaba **99 entradas** sin proteger sobre `master` (HEAD `418a1c1`).
+Todo quedo commiteado el 2026-09-06 (ver B4). Se deja el inventario como registro de la linea base.
 
 ### CRM (`apps/crm`)
 
@@ -125,13 +127,12 @@ Opcionales (solo advertencia, el checkout responde 503 sin ellas):
 - `docs/contexto/`, `scripts/convert-landing.mjs`, `our-work-prototype-v3-bebas/` (3.1 MB),
   `.vercelignore`, cambios en `contexto.md`, `package.json`, `pnpm-lock.yaml`.
 - `Soluciones/` pesa **1.2 GB** (1.2 GB solo en `02reels24h`, videos `.mp4`).
-  **No debe entrar al repositorio.** Ya esta excluido de Vercel via `.vercelignore`,
-  pero NO de git. Ver seccion 8.
+  Excluida de git en `8d3c790` y de Vercel via `.vercelignore`. Sigue intacta en disco.
 
 ### Secretos
 
 `apps/crm/.env` y `apps/crm/.env.production.local` estan correctamente ignorados por
-`apps/crm/.gitignore`. Ningun `.env` real esta trackeado (`git ls-files` solo devuelve `.env.example`).
+`apps/crm/.gitignore`. Ningun `.env` real quedo trackeado (`git ls-files` solo devuelve `.env.example`).
 
 ### Stash existente
 
@@ -189,11 +190,17 @@ ni en `.env.production.local`. El arranque no se bloquea (por diseno), pero
 `POST /api/billing/checkout` responde 503 y el webhook responde 500. El cobro de la
 suscripcion no funciona en ningun entorno hoy.
 
-### B4 — Trabajo sin commit
+### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
-99 entradas sin proteger. Un `git checkout`, `reset` o un cambio de rama accidental
-destruye semanas de trabajo de web y CRM. Es el bloqueador que la especificacion marca
-como riesgo numero uno.
+Las 99 entradas quedaron protegidas en tres commits sobre `master`, ya en `origin`:
+
+| Commit | Contenido |
+|---|---|
+| `8d3c790` | `.gitignore`: excluir `Soluciones/` (1.2 GB de video) |
+| `187d3f1` | Respaldo de 181 archivos de web y CRM, sin cambios funcionales |
+| `303b368` | Este informe |
+
+`Soluciones/` sigue intacta en disco; solo dejo de versionarse. **Falta respaldarla fuera de git.**
 
 ---
 
@@ -237,8 +244,8 @@ verificadas contra produccion** (ver B1).
 
 | # | Tarea | Por que |
 |---|---|---|
-| T1 | Aprobar el commit de respaldo y decidir rama destino | La spec exige commit aprobado antes de tocar codigo |
-| T2 | Decidir el destino de `Soluciones/` (1.2 GB) — recomendado: agregar `/Soluciones/` a `.gitignore` y respaldar aparte | Git no debe versionar 1.2 GB de video |
+| T1 | ~~Aprobar el commit de respaldo~~ — hecho el 2026-09-06 | — |
+| T2 | Respaldar `Soluciones/` (1.2 GB) fuera de git: disco externo o almacenamiento en la nube | Ya no se versiona; hoy existe en una sola copia local |
 | T3 | Restaurar o recrear el proyecto Supabase y entregar `DATABASE_URL` / `DIRECT_URL` validos | Desbloquea B1, B2 y todas las pruebas |
 | T4 | Entregar `MERCADO_PAGO_ACCESS_TOKEN` y `MERCADO_PAGO_WEBHOOK_SECRET` (TEST primero) | Desbloquea B3 |
 | T5 | Confirmar variables de entorno del proyecto Vercel `upzites-crm` | Verificar que el deploy base es reproducible |
@@ -287,5 +294,6 @@ habilitan una integracion (una integracion sin configurar aparece inactiva, no t
 - Confirmado que ningun `.env` con secretos esta trackeado en git.
 - Detectado `Soluciones/` con 1.2 GB sin trackear ni ignorar por git.
 - Creado este archivo.
-- **Pendiente para cerrar la fase:** commit de respaldo aprobado + base de datos operativa
-  para ejecutar las pruebas funcionales.
+- Respaldo aprobado por el propietario y ejecutado: 3 commits (`8d3c790`, `187d3f1`, `303b368`)
+  sobre `master`, sincronizados con `origin` (`rodriguezsalazarjm/upzitesCRM`). Working tree limpio.
+- **Pendiente para cerrar la fase:** base de datos operativa para ejecutar las pruebas funcionales.
