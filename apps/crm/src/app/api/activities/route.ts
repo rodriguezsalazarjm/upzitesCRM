@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ActivityType } from '../../../../generated/prisma/client';
 import { getActivities, getCurrentWorkspaceId } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const activityTypeMap = {
@@ -28,7 +29,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const input = activitySchema.parse(await request.json());
+  const parsed = await parseBody(request, activitySchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
 
   const activity = await prisma.activity.create({

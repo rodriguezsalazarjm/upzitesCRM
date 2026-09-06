@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { OpportunityStage, OpportunityStatus } from '../../../../generated/prisma/client';
 import { getCurrentWorkspaceId, getOpportunities } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const stageMap = {
@@ -36,7 +37,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const input = opportunitySchema.parse(await request.json());
+  const parsed = await parseBody(request, opportunitySchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
   const stageKey = stageMap[input.stage];
   const stage = await prisma.pipelineStage.findUniqueOrThrow({

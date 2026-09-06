@@ -56,7 +56,7 @@ export function ServiceNav({ current }: { current: string }) {
         </button>
       </div>
       <div className="shell service-nav-brochure-wrap">
-        <Link href="/api/brochure/downloadsource=service_nav_card" className="service-nav-brochure">
+        <Link href="/api/brochure/download?source=service_nav_card" className="service-nav-brochure">
           <span>
             <strong>Brochure UPZITES</strong>
             <small>Marca, web, contenido, ads, apps, CRM y automatización en un solo PDF.</small>

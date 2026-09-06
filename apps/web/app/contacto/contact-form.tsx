@@ -78,7 +78,7 @@ export function ContactForm() {
   const [message, setMessage] = useState("");
   const whatsappUrl = useMemo(() => {
     const text = encodeURIComponent(`Hola UPZITES, quiero conversar sobre ${state.service}.`);
-    return `https://wa.me/56973178796text=${text}`;
+    return `https://wa.me/56978167863?text=${text}`;
   }, [state.service]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -125,7 +125,7 @@ export function ContactForm() {
           con foco, próximos pasos claros y una recomendación inicial.
         </p>
         <div className="contact-page-actions">
-          <Link href="/api/brochure/downloadsource=contact_page" className="btn btn-ivory btn-lg">
+          <Link href="/api/brochure/download?source=contact_page" className="btn btn-ivory btn-lg">
             Descargar brochure <span className="arr">&#8599;</span>
           </Link>
           <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn-dark btn-lg">

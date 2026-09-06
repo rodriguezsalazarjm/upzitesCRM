@@ -11,8 +11,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [email, setEmail] = useState('admin@upzites.cl');
-  const [password, setPassword] = useState('demo1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -82,13 +82,13 @@ export default function LoginPage() {
 
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-900">Bienvenido de vuelta</h2>
-            <p className="mt-1.5 text-sm text-slate-500">Ingresa tus credenciales para continuar</p>
+            <p className="mt-1.5 text-sm text-slate-500">Ingresa con el correo y contrasena de tu empresa</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-700">
-                Correo electrónico
+                Correo electronico
               </label>
               <Input
                 type="email"
@@ -102,15 +102,15 @@ export default function LoginPage() {
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium text-slate-700">Contraseña</label>
+                <label className="text-xs font-medium text-slate-700">Contrasena</label>
                 <Link href="#" className="text-xs text-blue-600 hover:underline">
-                  ¿Olvidaste tu contraseña?
+                  Olvidaste tu contrasena?
                 </Link>
               </div>
               <div className="relative">
                 <Input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="********"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-10 pr-10"
@@ -130,7 +130,7 @@ export default function LoginPage() {
               {loading ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : (
-                <>Ingresar <ArrowRight className="h-4 w-4" /></>
+                <>Iniciar sesion <ArrowRight className="h-4 w-4" /></>
               )}
             </Button>
             {error && (
@@ -140,19 +140,15 @@ export default function LoginPage() {
             )}
           </form>
 
-          <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-3">
-            <p className="text-[11px] font-medium text-blue-700">Demo rápida</p>
-            <p className="text-[11px] text-blue-600 mt-0.5">
-              Email: <span className="font-mono">admin@upzites.cl</span> · Pass: <span className="font-mono">demo1234</span>
-            </p>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[11px] uppercase tracking-wide text-slate-400">o</span>
+            <div className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
-            ¿No tienes cuenta?{' '}
-            <Link href="/register" className="font-medium text-blue-600 hover:underline">
-              Crear cuenta gratis
-            </Link>
-          </p>
+          <Button asChild variant="outline" className="mt-4 h-10 w-full">
+            <Link href="/register">Crear una cuenta</Link>
+          </Button>
         </div>
       </div>
     </div>

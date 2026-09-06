@@ -15,7 +15,7 @@ body {
   background: var(--bg-1);
   color: var(--fg-1);
   font-family: var(--font-text);
-  overflow-x: hidden;
+  overflow-x: clip; /* clip (no hidden) para no romper position:sticky */
 }
 
 /* ---------- Selection ----------------------------------------------- */
@@ -699,6 +699,44 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+}
+
+/* Testimonios en columnas con scroll infinito (CSS marquee) */
+.tcols {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 44px;
+  max-height: 720px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+}
+.tcol { width: 340px; flex: none; }
+/* Marquee vertical en CSS — corre siempre (no se desactiva con reduce-motion
+   a propósito: es el efecto solicitado para esta sección). */
+.tcol-track {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  will-change: transform;
+  animation-name: tcol-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.tcol:hover .tcol-track { animation-play-state: paused; }
+@keyframes tcol-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+.testimonial-card--c { min-height: 0; }
+.testimonial-card--c .testimonial-mark { font-size: 64px; }
+.testimonial-card--c .testimonial-quote { font-size: 16px; }
+
+@media (max-width: 1023px) { .tcol--lg { display: none; } }
+@media (max-width: 767px) {
+  .tcol--md { display: none; }
+  .tcol { width: min(360px, 86vw); }
 }
 .testimonial-card {
   background: var(--bg-3);
@@ -1447,6 +1485,31 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 }
 .service-card:hover .service-media img { transform: scale(1.07); }
 .service-card:hover .service-media { border-color: var(--upz-off-white); }
+.express-grid {
+  grid-auto-rows: 1fr;
+}
+.express-grid > .reveal {
+  display: flex;
+  height: 100%;
+}
+.express-grid .express-card {
+  width: 100%;
+  height: 100%;
+}
+.express-card .service-card-title { font-size: clamp(30px, 3.4vw, 40px); }
+.express-card-media {
+  height: 150px;
+  background: var(--upz-carbon);
+}
+.express-card-media::after {
+  background:
+    linear-gradient(135deg, var(--svc-accent, var(--upz-lime)), var(--svc-accent-2, var(--upz-electric)));
+  mix-blend-mode: color;
+  opacity: .78;
+}
+.express-card:hover .express-card-media::after {
+  opacity: .5;
+}
 .service-badge {
   position: absolute; top: 12px; left: 12px; z-index: 3;
   font-family: var(--font-text); font-weight: 800; font-size: 11px;
@@ -1932,6 +1995,19 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 .nav-brand--lg .nav-brand-img { height: 48px; }
 .footer-bigword--logo { display: block; }
 .footer-bigword--logo img { width: 100%; height: auto; display: block; }
+
+/* "Studio Desing" sube desde abajo al hacer scroll a la sección */
+.footer-bigword--rise { overflow: hidden; }
+.footer-bigword--rise img {
+  transform: translateY(108%);
+  opacity: 0;
+  transition: transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
+  will-change: transform;
+}
+.footer-bigword--rise.is-in img { transform: translateY(0); opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .footer-bigword--rise img { transform: none; opacity: 1; transition: none; }
+}
 
 /* ===================================================================
    Header services dropdown
@@ -2505,7 +2581,16 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
   .team-member--rev > .reveal:first-child { order: 2; }
 }
 
-/* Home Quiénes somos · 3 blocks */
+/* Home Quiénes somos · feature card (full-width) + 3 team blocks */
+.qs-feature { flex-direction: row; margin-bottom: 20px; }
+.qs-feature .qs-card-img { aspect-ratio: auto; width: 44%; flex-shrink: 0; border-bottom: 0; border-right: 1.5px solid var(--upz-carbon); }
+.qs-feature .qs-card-body { justify-content: center; }
+.qs-feature h3 { font-size: clamp(24px, 2.8vw, 34px); }
+@media (max-width: 860px) {
+  .qs-feature { flex-direction: column; }
+  .qs-feature .qs-card-img { width: 100%; aspect-ratio: 16 / 10; border-right: 0; border-bottom: 1.5px solid var(--upz-carbon); }
+}
+
 .qs-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px; }
 .qs-card {
   display: flex; flex-direction: column; overflow: hidden;
@@ -2600,15 +2685,24 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 /* ===================================================================
    Projects gallery (Behance-style) + modal
    =================================================================== */
-.pg-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 28px; }
-.pg-filter {
-  font-family: var(--font-text); font-weight: 700; font-size: 13px;
-  padding: 8px 16px; border-radius: 999px; border: 1.5px solid var(--upz-carbon);
-  background: transparent; color: var(--fg-1); cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-snap), color var(--dur-fast), transform var(--dur-fast);
+/* La galería se fusiona con la escena "OUR WORK": sin gap superior, mismo flujo */
+.projects--merged { padding-top: 8px; }
+
+.pg-filters {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center; /* centrados, integrados bajo la escena */
+  margin: 0 auto 30px;
 }
-.pg-filter:hover { transform: translateY(-2px); }
-.pg-filter.is-active { background: var(--upz-carbon); color: var(--upz-off-white); }
+.pg-filter {
+  font-family: var(--font-text); font-weight: 800; font-size: 13px;
+  letter-spacing: 0.02em; text-transform: uppercase;
+  padding: 9px 20px; border-radius: 999px; border: 2px solid var(--upz-carbon);
+  background: var(--upz-off-white); color: var(--upz-carbon); cursor: pointer;
+  box-shadow: 0 3px 0 0 var(--upz-carbon);
+  transition: transform var(--dur-fast) var(--ease-snap), background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.pg-filter:hover { transform: translateY(-2px); box-shadow: 0 5px 0 0 var(--upz-carbon); }
+.pg-filter.is-active { background: var(--upz-carbon); color: var(--upz-off-white); box-shadow: 0 3px 0 0 var(--upz-electric); }
 
 /* Behance-style horizontal grid */
 .pg-grid--behance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -2664,6 +2758,80 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 .pg-webview { padding: 36px clamp(20px, 4vw, 48px) clamp(20px, 4vw, 48px); }
 .pg-webview .pg-case-name { margin: 6px 0 18px; }
 .pg-shot-img { width: 100%; height: auto; display: block; }
+
+/* ===================================================================
+   RiseWords — texto que sube palabra a palabra con blur-in
+   =================================================================== */
+.risewords-w { display: inline-block; overflow: hidden; vertical-align: top; }
+.risewords-i {
+  display: inline-block;
+  transform: translateY(105%);
+  opacity: 0;
+  filter: blur(6px);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.6s ease, filter 0.6s ease;
+  will-change: transform;
+}
+.risewords.is-in .risewords-i { transform: translateY(0); opacity: 1; filter: blur(0); }
+@media (prefers-reduced-motion: reduce) {
+  .risewords-i { transform: none; opacity: 1; filter: none; transition: none; }
+}
+
+/* ===================================================================
+   Marquee de portfolio — una sola fila infinita (efecto WOW)
+   =================================================================== */
+.pg-marquee {
+  position: relative;
+  margin-top: 8px;
+  overflow: hidden;
+  /* full-bleed: rompe el shell para correr de borde a borde */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  /* fade en los bordes */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.pg-marquee-track {
+  display: flex;
+  width: max-content;
+  padding: 22px 0;
+  animation: pg-marquee-scroll 70s linear infinite;
+  will-change: transform;
+}
+.pg-marquee:hover .pg-marquee-track { animation-play-state: paused; }
+/* cada tarjeta: ancho fijo + separación por margin (no gap) para loop exacto */
+.pg-marquee .pg-card,
+.pg-marquee-clone {
+  flex: 0 0 auto;
+  width: clamp(300px, 30vw, 440px);
+  margin-right: 26px;
+}
+.pg-marquee-clone { line-height: 0; }
+.pg-marquee .pg-card {
+  aspect-ratio: 4 / 5; /* más altas que la grilla (4/3) — efecto póster */
+  border-radius: 16px;
+  transition: transform var(--dur-base) var(--ease-snap), box-shadow var(--dur-base);
+}
+.pg-marquee .pg-card-name { font-size: 24px; }
+/* al hacer hover sobre una tarjeta, las demás se atenúan ligeramente */
+.pg-marquee-track:hover .pg-card { opacity: 0.78; }
+.pg-marquee-track:hover .pg-card:hover {
+  opacity: 1;
+  transform: translateY(-8px) scale(1.04);
+  box-shadow: var(--sh-2);
+  z-index: 2;
+}
+@keyframes pg-marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@media (max-width: 700px) {
+  .pg-marquee-track { animation-duration: 48s; padding: 16px 0; }
+  .pg-marquee .pg-card, .pg-marquee-clone { width: 74vw; margin-right: 16px; }
+}
+/* La marquesina de portfolio es pieza de marca: gira siempre, igual que las
+   marquesinas de logos/texto (.marquee-track), aunque el SO pida reduced-motion.
+   Se puede pausar con hover. */
 
 @media (max-width: 980px) {
   .pg-grid--behance { grid-template-columns: repeat(2, 1fr); }
@@ -2958,29 +3126,68 @@ a.service-card { text-decoration: none; color: var(--fg-1); }
 /* ===================================================================
    Legal pages (privacidad / términos / cookies)
    =================================================================== */
-.legal-shell { max-width: 820px; }
+.legal-shell { max-width: 860px; }
+
+/* Header block */
+.legal-head { padding-bottom: 40px; margin-bottom: 8px; border-bottom: 2px solid var(--upz-carbon); }
 .legal-title {
   font-family: var(--font-display); font-weight: 900;
   font-size: clamp(40px, 7vw, 72px); line-height: 0.96;
   letter-spacing: -0.02em; text-transform: uppercase;
-  color: var(--upz-carbon); margin: 0 0 10px;
+  color: var(--upz-carbon); margin: 6px 0 16px;
 }
-.legal-updated { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); margin: 0 0 20px; }
-.legal-intro { font-family: var(--font-text); font-size: 18px; line-height: 1.6; color: var(--fg-2); max-width: 680px; margin: 0 0 36px; }
-.legal-block { margin: 0 0 28px; }
+.legal-updated {
+  display: inline-block; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3);
+  padding: 6px 12px; border: 1.5px solid var(--upz-line); border-radius: 999px;
+  margin: 0 0 24px;
+}
+.legal-intro {
+  font-family: var(--font-text); font-size: clamp(17px, 2.2vw, 20px);
+  line-height: 1.6; color: var(--fg-1); max-width: 700px; margin: 0; font-weight: 500;
+}
+
+/* Numbered sections */
+.legal-blocks { margin-top: 8px; }
+.legal-block {
+  display: grid; grid-template-columns: 64px 1fr; gap: 4px;
+  padding: 30px 0; border-bottom: 1.5px solid var(--upz-line);
+}
+.legal-block:last-child { border-bottom: 0; }
+.legal-num {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.04em; color: var(--upz-electric); padding-top: 4px;
+}
+.legal-block-content { max-width: 640px; }
 .legal-block h2 {
   font-family: var(--font-display); font-weight: 900;
-  font-size: 22px; letter-spacing: -0.01em; text-transform: uppercase;
-  color: var(--upz-carbon); margin: 0 0 10px;
+  font-size: clamp(19px, 2.6vw, 24px); line-height: 1.1; letter-spacing: -0.01em;
+  text-transform: uppercase; color: var(--upz-carbon); margin: 0 0 14px;
 }
-.legal-body, .legal-body p { font-family: var(--font-text); font-size: 16px; line-height: 1.65; color: var(--fg-2); margin: 0 0 10px; }
-.legal-body ul { margin: 0; padding-left: 20px; }
-.legal-body li { font-family: var(--font-text); font-size: 16px; line-height: 1.6; color: var(--fg-2); margin: 0 0 8px; }
+.legal-body, .legal-body p { font-family: var(--font-text); font-size: 16px; line-height: 1.7; color: var(--fg-2); margin: 0 0 12px; }
+.legal-body > :last-child { margin-bottom: 0; }
+.legal-body ul { margin: 4px 0 0; padding: 0; list-style: none; }
+.legal-body li {
+  position: relative; font-family: var(--font-text); font-size: 16px;
+  line-height: 1.6; color: var(--fg-2); margin: 0 0 10px; padding-left: 22px;
+}
+.legal-body li::before {
+  content: ""; position: absolute; left: 2px; top: 10px;
+  width: 7px; height: 7px; background: var(--upz-electric); border-radius: 2px;
+}
+.legal-body a { color: var(--upz-electric); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
 .legal-contact {
-  margin-top: 36px; padding-top: 24px; border-top: 1.5px solid var(--upz-line);
-  font-family: var(--font-text); font-size: 16px; color: var(--fg-2);
+  margin-top: 8px; padding: 26px 28px; background: var(--upz-carbon);
+  border-radius: 14px; font-family: var(--font-text); font-size: 16px;
+  line-height: 1.6; color: rgba(255,255,255,0.82);
 }
 .legal-contact a { color: var(--upz-electric); font-weight: 700; }
+
+@media (max-width: 560px) {
+  .legal-block { grid-template-columns: 1fr; gap: 0; }
+  .legal-num { padding-top: 0; margin-bottom: 6px; }
+}
 
 /* ===================================================================
    Mobile navigation menu
@@ -3155,4 +3362,59 @@ h1, h2,
 @media (max-width: 980px) {
   .home-contact-cta .shell { grid-template-columns: 1fr; }
   .home-contact-cta .bigcta-title-col { position: static; }
+}
+
+/* ===================================================================
+   04 · Selected work — sticky scroll parallax (FloatingProjectsSection)
+   =================================================================== */
+.fps { position: relative; height: 260svh; background: var(--bg-1); }
+.fps-sticky {
+  position: sticky; top: 0; height: 100svh; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.fps-grid {
+  position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background-image:
+    linear-gradient(var(--upz-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--upz-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+.fps-head { position: absolute; top: 28px; left: 0; right: 0; text-align: center; z-index: 1; }
+.fps-eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--upz-ash);
+}
+.fps-title {
+  position: relative; z-index: 1; margin: 0; text-align: center;
+  font-family: var(--font-display); font-weight: 900;
+  font-size: clamp(72px, 18vw, 260px); line-height: .82;
+  letter-spacing: -0.03em; text-transform: uppercase;
+  color: var(--upz-carbon); user-select: none;
+}
+.fps-card {
+  position: absolute; width: 230px;
+  background: var(--bg-3); border: 1.5px solid var(--upz-carbon);
+  box-shadow: 0 6px 0 0 var(--upz-carbon);
+  padding: 10px; will-change: transform;
+}
+.fps-card-link { display: block; text-decoration: none; }
+.fps-card-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--bg-2); }
+.fps-card-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 4px 4px; }
+.fps-card-title { font-family: var(--font-text); font-weight: 800; font-size: 13px; letter-spacing: .02em; text-transform: uppercase; color: var(--upz-carbon); }
+.fps-card-cat { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--upz-ash); }
+.fps-hint { position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; font-family: var(--font-mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--upz-ash); z-index: 1; }
+
+@media (max-width: 760px) {
+  .fps { height: 220svh; }
+  .fps-card { width: 150px; }
+  .fps-card--hide-m { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* version estatica, ordenada: las cards no se solapan sobre el titulo */
+  .fps { height: auto; }
+  .fps-sticky { position: static; height: auto; flex-direction: column; gap: 28px; padding: 80px 24px; }
+  .fps-card { position: static !important; transform: none !important; opacity: 1 !important; width: 230px; }
+  .fps-title { position: static; }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { setSessionCookie } from '@/lib/auth';
 import { DEV_DEMO_USER, isDatabaseUnavailable, isDemoCredential, isDevDemoEnabled } from '@/lib/dev-demo';
 import { verifyPassword } from '@/lib/password';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const loginSchema = z.object({
@@ -11,7 +12,9 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const input = loginSchema.parse(await request.json());
+  const parsed = await parseBody(request, loginSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   let user;
 
   try {

@@ -49,6 +49,7 @@ export function TopNav() {
           <Link href="/#ia">IA</Link>
           <Link href="/nosotros">Nosotros</Link>
           <Link href="/#projects">Proyectos</Link>
+          <Link href="/blog">Noticias</Link>
           <Link href="/contacto">Contacto</Link>
         </nav>
         <div className="nav-spacer"></div>
@@ -81,6 +82,7 @@ export function TopNav() {
             <Link href="/nosotros" onClick={close}>Nosotros</Link>
             <Link href="/#ia" onClick={close}>IA</Link>
             <Link href="/#projects" onClick={close}>Proyectos</Link>
+            <Link href="/blog" onClick={close}>Noticias</Link>
             <Link href="/contacto" onClick={close}>Contacto</Link>
           </div>
           <span className="nav-mobile-label">Servicios</span>
@@ -115,7 +117,7 @@ export function Hero() {
       <div className="shell" style={{ position: "relative" }}>
         <div className="hero-runner">
           <span>UPZ · 0001 · TROPICAL UNDERGROUND<span className="dot"></span>SANTIAGO DE CHILE</span>
-          <span>+56 9 7317 8796 <span className="dot"></span> CONTACTO@UPZITES.COM</span>
+          <span>+56 9 7816 7863 <span className="dot"></span> CONTACTO@UPZITES.COM</span>
         </div>
 
         <Stamp text="UPZITES · TROPICAL UNDERGROUND · STUDIO · " bg="var(--upz-electric)" color="var(--upz-off-white)" />
@@ -310,18 +312,23 @@ export function ExpressSolutions() {
           </Reveal>
         </div>
 
-        <div className="services-grid">
+        <div className="services-grid express-grid">
           {EXPRESS_SOLUTIONS.map((solution, i) => {
             const href = solution.href.startsWith("#") ? `/${solution.href}` : solution.href;
             return (
               <Reveal key={solution.slug} delay={i * 60}>
                 <Link
                   href={href}
-                  className="service-card"
-                  style={{ opacity: 1, "--svc-accent": "var(--upz-lime)" } as React.CSSProperties}
+                  className="service-card express-card"
+                  target={solution.newTab ? "_blank" : undefined}
+                  rel={solution.newTab ? "noopener noreferrer" : undefined}
+                  style={{ opacity: 1, "--svc-accent": solution.accent, "--svc-accent-2": solution.accent2 } as React.CSSProperties}
                 >
+                  <div className="service-media express-card-media">
+                    <img src={solution.image} alt={solution.title} loading="lazy" />
+                  </div>
                   <div className="service-num">
-                    <span>{String(i + 1).padStart(2, "0")} / 05</span>
+                    <span>{String(i + 1).padStart(2, "0")} / {String(EXPRESS_SOLUTIONS.length).padStart(2, "0")}</span>
                     <span>Express</span>
                   </div>
                   <h3 className="service-card-title">{solution.title}</h3>
@@ -422,25 +429,8 @@ export function Showcase() {
 // ---------- 04 PROJECTS --------------------------------------------
 export function Projects() {
   return (
-    <section id="projects" className="section section--ivory" data-screen-label="04 Projects">
+    <section id="projects" className="section section--ivory projects--merged" data-screen-label="04 Projects">
       <div className="shell">
-        <Eyebrow num="04">Proyectos · Selected work</Eyebrow>
-        <div className="projects-head">
-          <Reveal variant="left">
-            <h2>
-              Marcas que ya<br />
-              no se ven<br />
-              <span className="em">como antes</span><span style={{ color: "var(--upz-electric)" }}>.</span>
-            </h2>
-          </Reveal>
-          <Reveal delay={100}>
-            <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 440, margin: 0 }}>
-              Branding e identidad, y las webs que hemos construido. Abre cada
-              proyecto para ver la galería o una vista previa en vivo del sitio.
-            </p>
-          </Reveal>
-        </div>
-
         <ProjectsGallery />
       </div>
     </section>
@@ -603,9 +593,49 @@ const TESTIMONIALS = [
     name: "Luis Vargas", role: "Founder · Nomada",
     init: "LV", color: "#FFBA00",
   },
+  {
+    quote: <>Pasamos de improvisar en redes a tener un sistema. <span className="hl">Cada lead llega ordenado</span> y con seguimiento real.</>,
+    name: "Valentina Ortiz", role: "CMO · Lumen Estudio",
+    init: "VO", color: "#A6FF00",
+  },
+  {
+    quote: <>Entienden de negocio, no solo de diseño. Cada decisión visual tenía una razón comercial detrás.</>,
+    name: "Tomás Herrera", role: "Founder · Raíz Café",
+    init: "TH", color: "#0057FF",
+  },
+  {
+    quote: <>Rápidos, claros y con criterio. En semanas teníamos marca, web y <span className="hl">un flujo que vende</span>.</>,
+    name: "Javiera Núñez", role: "Directora · Atelier MM",
+    init: "JN", color: "#FF5CAB",
+  },
 ];
 
+function TestimonialColumn({ items, duration, className }: { items: typeof TESTIMONIALS; duration: number; className?: string }) {
+  return (
+    <div className={`tcol${className ? " " + className : ""}`}>
+      <div className="tcol-track" style={{ animationDuration: `${duration}s` }}>
+        {[...items, ...items].map((t, i) => (
+          <figure className="testimonial-card testimonial-card--c" key={i} aria-hidden={i >= items.length}>
+            <span className="testimonial-mark">&ldquo;</span>
+            <blockquote className="testimonial-quote">{t.quote}</blockquote>
+            <div className="testimonial-foot">
+              <span className="testimonial-avatar" style={{ background: t.color, color: "var(--upz-carbon)" }}>{t.init}</span>
+              <div className="testimonial-meta">
+                <div className="testimonial-name">{t.name}</div>
+                <div className="testimonial-role">{t.role}</div>
+              </div>
+            </div>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Testimonials() {
+  const col1 = TESTIMONIALS.slice(0, 3);
+  const col2 = TESTIMONIALS.slice(3, 6);
+  const col3 = TESTIMONIALS.slice(6, 9);
   return (
     <section id="testimonios" className="section section--ivory" data-screen-label="06 Testimonials">
       <div className="shell">
@@ -625,23 +655,10 @@ export function Testimonials() {
           </Reveal>
         </div>
 
-        <div className="testimonial-grid">
-          {TESTIMONIALS.map((t, i) => (
-            <Reveal key={i} delay={i * 60}>
-              <figure className={`testimonial-card${t.featured ? " is-featured" : ""}`}>
-                <span className="testimonial-mark">&ldquo;</span>
-                <blockquote className="testimonial-quote">{t.quote}</blockquote>
-                <div className="testimonial-foot">
-                  <span className="testimonial-avatar" style={{ background: t.color, color: "var(--upz-carbon)" }}>{t.init}</span>
-                  <div className="testimonial-meta">
-                    <div className="testimonial-name">{t.name}</div>
-                    <div className="testimonial-role">{t.role}</div>
-                  </div>
-                  <span className="testimonial-stars">★★★★★</span>
-                </div>
-              </figure>
-            </Reveal>
-          ))}
+        <div className="tcols">
+          <TestimonialColumn items={col1} duration={26} />
+          <TestimonialColumn items={col2} duration={32} className="tcol--md" />
+          <TestimonialColumn items={col3} duration={28} className="tcol--lg" />
         </div>
       </div>
     </section>
@@ -650,17 +667,40 @@ export function Testimonials() {
 
 // ---------- 07 BIG CTA ---------------------------------------------
 export function BigCTA() {
-  const [state, setState] = useState({ name: "", email: "", brand: "", scope: "Branding estratégico", brief: "" });
+  const [state, setState] = useState({ name: "", email: "", brand: "", scope: "Branding estratégico", brief: "", consent: false });
   const [sent, setSent] = useState(false);
-  function update(k: string, v: string) { setState((s) => ({ ...s, [k]: v })); }
-  function submit(e: React.FormEvent) {
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  function update(k: string, v: string | boolean) { setState((s) => ({ ...s, [k]: v })); }
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const subject = encodeURIComponent(`Brief UPZITES · ${state.brand || state.name || "Nuevo proyecto"}`);
-    const body = encodeURIComponent(
-      `Nombre: ${state.name}\nEmail: ${state.email}\nMarca / proyecto: ${state.brand}\nQué necesita: ${state.scope}\n\n${state.brief}`
-    );
+    setSending(true);
+    setError("");
+
+    const response = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: state.name,
+        email: state.email,
+        company: state.brand,
+        service: state.scope,
+        message: state.brief || `Solicitud de ${state.scope} desde la home.`,
+        consent: state.consent,
+        pageUrl: window.location.href,
+        referrer: document.referrer,
+      }),
+    });
+    const result = await response.json().catch(() => null);
+    setSending(false);
+
+    if (!response.ok) {
+      setError(result?.message ?? "No pudimos enviar tu brief. Inténtalo nuevamente.");
+      return;
+    }
+
     trackLead({ currency: "CLP" });
-    window.location.href = `mailto:contacto@upzites.comsubject=${subject}&body=${body}`;
     setSent(true);
   }
 
@@ -745,11 +785,15 @@ export function BigCTA() {
                   <label htmlFor="cta-brief">Cuéntanos del proyecto</label>
                   <textarea id="cta-brief" value={state.brief} onChange={(e) => update("brief", e.target.value)} rows={3} placeholder="Contexto, objetivos, fechas, presupuesto aproximado..." />
                 </div>
+                <label className="contact-page-consent field-full">
+                  <input type="checkbox" checked={state.consent} onChange={(e) => update("consent", e.target.checked)} required />
+                  <span>Acepto que UPZITES use estos datos para responder mi solicitud.</span>
+                </label>
                 <div className="bigcta-form-submit">
-                  <button type="submit" className="btn btn-lime btn-lg">
-                    Enviar brief a contacto@upzites.com <span className="arr">&#8599;</span>
+                  <button type="submit" className="btn btn-lime btn-lg" disabled={sending}>
+                    {sending ? "Enviando..." : "Enviar brief a contacto@upzites.com"} <span className="arr">&#8599;</span>
                   </button>
-                  <small>Al enviar aceptas que respondamos por correo. Cero spam.</small>
+                  <small role="status">{error || "Al enviar aceptas que respondamos por correo. Cero spam."}</small>
                 </div>
               </form>
             )}
@@ -768,6 +812,45 @@ export function BigCTA() {
 export function Footer() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
+  const bigwordRef = useRef<HTMLDivElement>(null);
+
+  // "Studio Desing" sube desde abajo al entrar en viewport (one-shot reveal).
+  useEffect(() => {
+    const el = bigwordRef.current;
+    if (!el) return;
+    const reveal = () => el.classList.add("is-in");
+    if (
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      reveal();
+      return;
+    }
+    // Si ya está dentro/cerca del viewport al montar, revela enseguida.
+    if (el.getBoundingClientRect().top < (window.innerHeight || 0) * 1.1) {
+      const raf = requestAnimationFrame(reveal);
+      return () => cancelAnimationFrame(raf);
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            reveal();
+            io.disconnect();
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -5% 0px" }
+    );
+    io.observe(el);
+    // Seguridad: nunca dejarlo invisible aunque el observer no dispare.
+    const safety = window.setTimeout(reveal, 2500);
+    return () => {
+      io.disconnect();
+      window.clearTimeout(safety);
+    };
+  }, []);
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (email) {
@@ -794,7 +877,7 @@ export function Footer() {
             <a href="#">Sobre UPZITES</a>
             <a href="#process">Proceso</a>
             <a href="#projects">Clientes</a>
-            <a href="#">Prensa</a>
+            <Link href="/blog">Noticias</Link>
             <a href="#">Manifiesto</a>
           </div>
 
@@ -835,7 +918,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="footer-bigword footer-bigword--logo">
+        <div className="footer-bigword footer-bigword--logo footer-bigword--rise" ref={bigwordRef}>
           <img src="/images/studio-desing@4x.png" alt="Studio Desing" width={720} height={115} loading="lazy" />
         </div>
 

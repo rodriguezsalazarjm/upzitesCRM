@@ -5,7 +5,7 @@ import Link from "next/link";
 import { trackContact } from "@/lib/meta-pixel";
 
 const KEY = "upz-cyberweek-seen";
-const WA_NUMBER = "56973178796";
+const WA_NUMBER = "56978167863";
 const WA_MSG = encodeURIComponent(
   "Hola UPZITES 👋, vengo por la promo de CyberWeek. Quiero más info."
 );

@@ -52,6 +52,173 @@ este protocolo de relevo.
 
 ### Bitacora de relevo
 
+### [2026-06-22 23:30] - claude
+- Foco: deploy productivo de `apps/web` (version final) a www.upzites.com.
+- Cambios: desplegada la version final (working tree, incluye las 6 landings
+  /soluciones) al proyecto Vercel existente `upzites` que ya tenia el dominio.
+  Se ejecuto via `vercel deploy --prod` (no por git). Config del proyecto:
+  rootDirectory=`apps/web`; installCommand override
+  `pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true`
+  (pnpm 11 en CI salia exit 1 por sharp/unrs-resolver). Agregado `.vercelignore`
+  y `pnpm.onlyBuiltDependencies` al package.json raiz. Gotcha: `.vercelignore`
+  matchea case-insensitive en Windows -> `Soluciones` excluia
+  `apps/web/app/soluciones` (404); anclado con `/Soluciones`.
+- Verificado: www.upzites.com 200, las 6 /soluciones/* 200 con contenido real,
+  /contacto 200, apex 307->www, headers CSP/HSTS activos.
+- Archivos: `.vercelignore` (nuevo), `package.json` (campo pnpm). (Ambos sin
+  commitear, igual que el resto de la version final.)
+- Estado: terminado. Deploy live.
+- Siguiente: commitear la version final + archivos de config; reconectar el Git
+  del proyecto Vercel del repo viejo `upzites` al monorepo `upzitesCRM` (root
+  apps/web) para recuperar auto-deploy. Setear env vars reales (Meta Pixel,
+  CRM_*) cuando el CRM este online.
+- Bloqueos: ninguno para la web. CRM sigue sin desplegar (necesita Supabase).
+
+### [2026-06-22 22:50] - codex
+- Foco: preparar relevo para deploy UpzitesCRM.
+- Cambios: retirada temporalmente de home la seccion sticky `OUR WORK`
+  (`FloatingProjectsSection`) dejando `Projects` directo; ampliada guia
+  `docs/deploy-vercel-supabase.md`; agregado plan especifico "Deploy UpzitesCRM"
+  en este contexto para que Claude lo ejecute.
+- Archivos: `apps/web/app/page.tsx`, `apps/web/eslint.config.mjs`,
+  `docs/deploy-vercel-supabase.md`, `contexto.md`.
+- Estado: terminado, sin commitear.
+- Siguiente: Claude debe ejecutar Bloque A / Deploy UpzitesCRM cuando existan
+  accesos a Vercel, Supabase y dominio; crear/validar proyectos, variables,
+  migraciones, seed, DNS y QA productivo.
+- Bloqueos: faltan credenciales/accesos reales de Vercel, Supabase y proveedor
+  DNS; faltan valores productivos de `DATABASE_URL`, `DIRECT_URL`, dominio final
+  y secretos.
+
+### [2026-06-17 11:30] - claude
+- Foco: corregir la FIDELIDAD visual de las landings convertidas (fuentes,
+  colores, detalles estaban mal por filtrado del CSS del sitio y bugs de scoping).
+- Causa raiz: (1) `scopeCss` duplicaba el scope y rompia las reglas base del
+  diseño (font/color/bg); (2) el `globals.css` del sitio se filtraba (h1/h2
+  uppercase + Bebas, p en navy, `a` con border-bottom 2px) sobre el diseño;
+  (3) faltaba manejar `<sc-if>` (el modal de video de reels salia abierto);
+  (4) variables CSS en `:root{}` no aplican dentro de Shadow DOM.
+- Solucion: el conversor ahora inyecta cada diseño dentro de un SHADOW DOM via
+  `DcRuntime` (aislamiento total del CSS del sitio). `prepareShadowCss` mapea
+  `:root`/`body`/`html` -> `:host`. Fuentes cargadas como `<link>` en el
+  documento (disponibles en el shadow). Agregado soporte `<sc-if>` (condicionales
+  -> el modal/overlays ocultos por defecto). Suprimido el chrome del sitio
+  (PromoPopup, CookieConsent, FloatingActions, ScrollProgress y Preloader) en
+  rutas `/soluciones/*` via guard de pathname. `design.css` reemplazado por
+  `design.data.ts` (exporta css+html como strings para el shadow).
+- Verificado en navegador: invitaciones (Playfair, marfil, sin uppercase, links
+  sin border, popup del sitio fuera), reels (Bebas, oscuro, sin modal abierto),
+  crm (--acc y Bebas aplicados, crema), carta-qr (Bebas, oscuro, 6 CTAs wa). tsc
+  0 errores; 4 rutas HTTP 200. WEB :3000, CRM :3001 levantados.
+- Archivos: contexto.md, scripts/convert-landing.mjs, components/DcRuntime.tsx,
+  components/DeferredUI.tsx, components/Preloader.tsx, apps/web/app/soluciones/
+  {invitaciones,reels,crm,carta-qr}/{page.tsx,design.data.ts}.
+- Estado: terminado, sin commitear.
+- Siguiente: revisar fino cada landing; si se ajusta un .dc.html, re-correr el
+  conversor; enlazar /soluciones/crm; commitear el lote. (La interactividad
+  compleja —filtros/carrito de reels/QR— sigue en render inicial estatico.)
+- Bloqueos: ninguno.
+
+### [2026-06-17 10:20] - claude
+- Foco: sustituir las landings hechas desde .md por los DISEÑOS reales de Claude
+  Design (.dc.html en Soluciones/0X*) convertidos al stack Next.js, y levantar
+  web + CRM.
+- Cambios: creado conversor `scripts/convert-landing.mjs` que resuelve el
+  runtime propio de los .dc.html (bindings `{{ }}`, loops `<sc-for>` anidados,
+  estado inicial via vm/Proxy) a HTML estatico, scopea el CSS y genera por
+  landing: `design.html.ts` + `design.css` + `page.tsx`. Nuevo runtime cliente
+  compartido `components/DcRuntime.tsx` (reveal, hover via style-hover,
+  nav-scroll, FAQ acordeon, y tracking Meta Pixel en CTAs wa.me). Convertidas 4:
+  invitaciones, reels, crm (NUEVA) y carta-qr — reemplazan mis versiones from-md
+  de invitaciones/reels/carta-qr (borradas). landing-express y catalogo-web
+  siguen siendo las versiones from-md (no tenian diseño .dc.html). Assets svg/png
+  copiados a `public/soluciones/<route>/assets`. Importante: hubo que limpiar
+  `apps/web/.next` (cache stale de Turbopack dejaba el segmento /soluciones en
+  404). Verificado: tsc 0 errores; las 6 rutas /soluciones/* dan HTTP 200 con
+  contenido de diseño real (Playfair/Amor Eterno en invita, etc.), CTAs wa.me y
+  sin errores. WEB corriendo en :3000, CRM en :3001 (/login 200, dashboard
+  protegido).
+- Archivos: contexto.md, scripts/convert-landing.mjs, components/DcRuntime.tsx,
+  apps/web/app/soluciones/{invitaciones,reels,crm,carta-qr}/{page.tsx,design.css,
+  design.html.ts}, apps/web/public/soluciones/*/assets/*.
+- Estado: terminado, sin commitear. Servidores levantados.
+- Siguiente: revisar las landings 1 a 1; reconvertir si el usuario ajusta los
+  .dc.html (basta re-correr el conversor); enlazar /soluciones/crm donde
+  corresponda; commitear el lote.
+- Bloqueos: el preview MCP no persiste en este entorno (verificacion por HTTP).
+  Interactividad compleja (filtros/carrito de reels/QR) queda en render inicial
+  estatico; FAQ/nav/hover/reveal si funcionan via DcRuntime.
+
+### [2026-06-16 15:10] - claude
+- Foco: completar las 3 landings low-ticket restantes (Landing+Branding Express,
+  Catalogo Web Express, Carta QR Interactiva).
+- Cambios: componente compartido `components/SolucionWa.tsx` (CTA WhatsApp con
+  tracking Contact/Lead) usado por las 3 nuevas landings. (1) `/soluciones/
+  landing-express` (.lx): clara/estrategica, claro con bloques oscuros, mockup
+  laptop + brand cards, 2 planes ($89.990 Starter / $149.990 Express Pro),
+  comparacion, ejemplos, addons, FAQ, CTA fijo movil. (2) `/soluciones/
+  catalogo-web` (.cw): ecommerce comercial, acento verde WhatsApp, mockup catalogo
+  movil + demo de productos con filtros, plan unico $249.990 con alcance cerrado,
+  comparacion, addons, FAQ, sticky CTA. (3) `/soluciones/carta-qr` (.qr): SaaS
+  gastronomico oscuro premium, hero cliente+alertas garzon, comparacion vs carta
+  comun, flujo cliente (4 pasos), app garzon con tickets de prioridad, tabla de
+  estados de mesa, anti-spam + seguridad por mesa, MVP incluye/no, 2 planes
+  (Start impl $149.000 + $19.990-24.990/mes; Pro $249.000-349.000 +
+  $39.990-49.990/mes), stack tecnico, FAQ. Las 3 enlazadas en EXPRESS_SOLUTIONS
+  (services.ts) con newTab. Verificado: tsc 0 errores; las 3 rutas HTTP 200 con
+  pixel, CTAs WhatsApp y sin errores de runtime.
+- Archivos: contexto.md, components/SolucionWa.tsx, apps/web/app/soluciones/
+  {landing-express,catalogo-web,carta-qr}/{page.tsx,*.css}, lib/services.ts.
+- Estado: terminado. Las 5 landings low-ticket COMPLETAS (invitaciones, reels,
+  landing-express, catalogo-web, carta-qr), sin commitear.
+- Siguiente: revisar las 5 una por una con el usuario; luego commitear el lote.
+  Pendiente: landing del CRM (landingCRM.md, track aparte) y estrategia dominios.
+- Bloqueos: ninguno.
+
+### [2026-06-16 14:35] - claude
+- Foco: segunda landing low-ticket, Reel Express 24H, desde
+  `Soluciones/ladingreels24h.md`.
+- Cambios: nueva landing en `apps/web/app/soluciones/reels/` (page.tsx server +
+  reels.css scopeado bajo `.rx` + wa-button.tsx). Estetica submarca audiovisual/
+  nocturna (fondo negro #050505, display Bebas en mayusculas, acentos azul
+  electrico->violeta->magenta con glow). Secciones: hero con 3 mockups de reel +
+  tags, ticker de impacto animado, portafolio (8 cards verticales data-driven,
+  listas para enchufar videos reales luego), problema, que incluye (6), tipos de
+  contenido (6), como funciona (4 pasos), planes (4), UGC + Video Ads, 6
+  diferenciadores, FAQ, cierre, footer y CTA fijo en movil. CTAs a WhatsApp con
+  tracking. Enlazada desde EXPRESS_SOLUTIONS (reel-express-24h -> /soluciones/
+  reels, newTab). Verificado: tsc 0 errores; render OK (fondo negro, 8 cards, 4
+  planes, 21 links WA, sin errores de consola).
+- Archivos: contexto.md, apps/web/app/soluciones/reels/{page.tsx, reels.css,
+  wa-button.tsx}, apps/web/lib/services.ts.
+- Estado: terminado (sin commitear; junto con invitaciones y FASE OPERATIVA).
+- Siguiente: landings restantes (landing-express, catalogo-web-express,
+  carta-qr-restaurante). Considerar extraer un WaButton compartido si se repite.
+- Bloqueos: ninguno. Pendiente confirmar estrategia de dominios (ver entrada
+  14:10) y commitear el lote.
+
+### [2026-06-16 14:10] - claude
+- Foco: registrar FASE OPERATIVA (7 pendientes) y construir la primera landing
+  low-ticket (Invitaciones Digitales) desde `Soluciones/landingInvitaciones.md`.
+- Cambios: agregada seccion "FASE OPERATIVA" a contexto.md. Nueva landing en
+  `apps/web/app/soluciones/invitaciones/` (page.tsx server + invitaciones.css
+  scopeado bajo `.inv` + wa-button.tsx client con tracking Contact/Lead). Estilo
+  submarca romantica (serif Cormorant via next/font, paleta marfil/esmeralda/
+  oro/blush), mobile-first, 10 secciones segun el brief, 6 estilos, 3 planes +
+  custom, 3 upsells, FAQ, CTAs a WhatsApp (56973178796) con mensajes prellenados
+  y ViewContent. Enlazada desde EXPRESS_SOLUTIONS (services.ts) con `newTab`
+  para abrir en pestana nueva desde Soluciones Express. Verificado: tsc 0
+  errores; la ruta responde HTTP 200 con todo el contenido y sin errores.
+- Archivos: contexto.md, apps/web/app/soluciones/invitaciones/{page.tsx,
+  invitaciones.css, wa-button.tsx}, apps/web/lib/services.ts,
+  apps/web/components/Sections.tsx.
+- Estado: terminado (sin commitear).
+- Siguiente: decidir hosting de landings (recomendado: rutas en apps/web bajo
+  /soluciones/* servidas desde upzites.com; invita.live como dominio/rewrite en
+  Vercel, no proyecto aparte). Luego construir las otras 4 landings
+  (reels-express, landing-express, catalogo-web, carta-qr) con el mismo patron.
+- Bloqueos: ninguno para invitaciones; falta confirmar estrategia de dominios.
+
 ### [2026-06-16 13:35] - claude
 - Foco: portar la integracion del Meta Pixel desde `upzites-vercel-pixel` a
   `apps/web` (version pro, reemplazando la version simple previa).
@@ -90,6 +257,81 @@ este protocolo de relevo.
 - Siguiente: definir con el usuario el primer bloque a ejecutar (deploy o
   `/contacto`) y/o portar el Meta Pixel a `apps/web`.
 - Bloqueos: faltan insumos del usuario (API keys, Supabase prod, accesos Meta).
+
+---
+
+## FASE OPERATIVA (pendientes priorizados)
+
+Gap analysis del 2026-06-16 sobre el estado real del codigo (no solo lo que el
+plan marca como "Hecho"). El usuario preguntara por estos puntos como "FASE
+OPERATIVA". Orden por desbloqueo:
+
+1. **Deploy productivo (Bloque A).** Supabase prod + Vercel + variables de
+   entorno. Bloqueador #1: hoy nada esta live y la conexion Web->CRM solo
+   funciona con env vars + CRM desplegado.
+2. **Email con Resend.** No existe NINGUN envio de email. Falta: auto-respuesta
+   al lead de `/contacto`, alerta interna a Upzites, y entrega real del token de
+   recuperacion de contrasena (el endpoint crea el token pero no lo envia).
+3. **Anti-spam en `/contacto`.** Turnstile, reCAPTCHA o honeypot. No existe.
+4. **WhatsApp Business Cloud API.** Webhook + ingesta de mensajes entrantes +
+   conversacion guardada en CRM. Hoy solo se trackea el click, no el mensaje.
+5. **Hub de integraciones real.** Hoy `integrations` es solo registros en DB
+   (estado conectado/desconectado). Falta arquitectura de conectores: OAuth/API
+   key, test de conexion, credenciales cifradas, last sync, logs por conector.
+   Es la base para Meta Ads, Google Ads, Shopify, etc.
+6. **Bot IA vendedor (OpenAI) + Cal.com.** El "AI insights" actual es una
+   heuristica (formula de score), no IA real. Falta el bot conversacional y la
+   agenda automatica.
+7. **Pagos y conectores de ads/ecommerce.** Stripe/MercadoPago/Khipu/Transbank,
+   Meta Ads, Google Ads, Shopify, WooCommerce. Hoy todo inexistente o solo
+   registro en DB. Tambien: Meta Conversions API (server-side) para atribucion.
+
+---
+
+## Receta: integrar componente externo (shadcn/21st) + animacion (OPTIMIZADO)
+
+Aprendido al integrar el bloque de testimonios en columnas. Seguir esto evita
+gastar tokens repitiendo errores.
+
+**Contexto del proyecto (no re-descubrir):**
+- NO es shadcn con `/components/ui`. Componentes en `apps/web/components/`,
+  Tailwind 4, TS, y sistema de diseño propio en `apps/web/app/styles/site.css`
+  + `colors_and_type.css` (tokens `--upz-*`, clases `.section`, `.shell`,
+  `.eyebrow`, `.reveal`). Marca: off-white, display Bebas, sombras duras.
+- El proyecto YA DESCARTO framer-motion (usa CSS + anime.js). NO instalar
+  `motion`/`framer-motion` para animaciones: **usar CSS** (`@keyframes`) o, si se
+  necesita garantizado, `requestAnimationFrame`.
+
+**Pasos para un componente con animacion tipo marquee/scroll:**
+1. NO copiar el componente tal cual ni instalar deps. Extraer solo la idea
+   (markup + animacion) y reescribir con clases del sistema de diseño UPZITES.
+   Reusar datos/clases existentes (p.ej. `.testimonial-card`).
+2. Animacion con CSS: `@keyframes` + `animation:` en la clase. Duracion por
+   inline `style={{ animationDuration }}`. Para loop vertical: duplicar items x2
+   y `translateY(0 -> -50%)`.
+3. **GOTCHA reduce-motion:** NO envolver una animacion *decorativa requerida* en
+   `@media (prefers-reduced-motion: reduce){ animation:none }`. Si el usuario
+   tiene "reducir movimiento" en el SO, eso la apaga y se ve un bloque estatico.
+   framer-motion TAMBIEN respeta reduce-motion -> tampoco anima. Si el efecto es
+   obligatorio, dejar el CSS sin guard (los navegadores NO desactivan animaciones
+   CSS por si solos) o usar rAF (ignora el ajuste del SO por completo).
+4. **GOTCHA Turbopack CSS stale:** tras editar `site.css` varias veces, el CSS
+   compilado queda viejo (HMR). Si una regla "no aplica": matar dev en :3000 +
+   `rm -rf apps/web/.next` + reiniciar. Confirmar con:
+   `curl -s $(css_url) | grep -c <keyframe>`.
+5. **Verificacion sin screenshot:** el navegador headless del preview MCP
+   CONGELA el reloj de animaciones (`getAnimations()[0].currentTime` queda en 0)
+   y suele tener reduce-motion=true; ademas el home hace timeout la captura por
+   tener muchas animaciones. NO perder tokens intentando screenshot del
+   movimiento. Verificar por estilos computados via `preview_eval`:
+   `animationName` y `playState:"running"` = OK. Y `tsc --noEmit` = 0.
+6. Estructura de archivos: componente nuevo en `apps/web/components/` (o inline
+   en la seccion que lo usa, p.ej. `Sections.tsx`); estilos en `site.css`.
+
+**Comandos clave:**
+- Levantar web: `pnpm --filter @upzites/web dev` (puerto 3000 hardcodeado).
+- Typecheck: `pnpm --filter @upzites/web exec tsc --noEmit`.
+- Limpiar cache: `rm -rf apps/web/.next` antes de reiniciar.
 
 ---
 
@@ -222,6 +464,108 @@ pnpm --filter @upzites/crm db:seed
 ```
 
 Docker queda solo como alternativa local opcional.
+
+## Deploy UpzitesCRM - instrucciones para Claude
+
+Objetivo inmediato: dejar online el monorepo `upzitesCRM` con sitio publico,
+CRM y base de datos productiva en Supabase.
+
+Fuente operativa principal: `docs/deploy-vercel-supabase.md`. Este bloque resume
+lo que Claude debe ejecutar al retomar, sin volver a redisenar la estrategia.
+
+Alcance del deploy:
+
+- `apps/web` -> proyecto Vercel `upzites-web`.
+- `apps/crm` -> proyecto Vercel `upzites-crm`.
+- Base de datos -> Supabase Postgres productivo.
+- ORM/migraciones -> Prisma en `apps/crm`.
+- Dominio publico -> dominio final del sitio, por definir.
+- Dominio CRM -> subdominio tipo `crm.<dominio>` o `app.<dominio>`.
+
+Preflight obligatorio antes de tocar produccion:
+
+```bash
+pnpm install
+pnpm --filter @upzites/web lint
+pnpm --filter @upzites/web build
+pnpm --filter @upzites/crm build
+```
+
+Nota de estado: el 2026-06-22 `apps/web` ya paso `lint` y `build`. El lint quedo
+sin errores al ignorar `apps/web/public/**`, porque contiene JS generado. Aun
+existen warnings de optimizacion (`<img>` y fuentes por pagina), no bloqueantes.
+
+Pasos para Claude:
+
+1. Confirmar con el usuario dominio definitivo, acceso a Vercel, acceso a
+   Supabase y proveedor DNS.
+2. Crear proyecto Supabase productivo y copiar URLs:
+   - `DATABASE_URL`: pooler Supabase con `pgbouncer=true` para runtime.
+   - `DIRECT_URL`: conexion directa para migraciones y seed.
+3. Configurar variables productivas de `apps/crm` en Vercel:
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+   - `CRM_SESSION_SECRET`
+   - `NEXT_PUBLIC_CRM_BASE_URL`
+4. Ejecutar migraciones/seed contra Supabase:
+
+```bash
+pnpm --filter @upzites/crm db:generate
+pnpm --filter @upzites/crm db:deploy
+pnpm --filter @upzites/crm db:seed
+```
+
+5. Crear proyecto Vercel para `apps/crm`:
+   - Root directory: `apps/crm`
+   - Install: `pnpm install --frozen-lockfile`
+   - Build: `pnpm build`
+   - Dev: `pnpm dev`
+6. Crear proyecto Vercel para `apps/web`:
+   - Root directory: `apps/web`
+   - Install: `pnpm install --frozen-lockfile`
+   - Build: `pnpm build`
+   - Dev: `pnpm dev`
+7. Configurar variables productivas de `apps/web`:
+   - `NEXT_PUBLIC_CRM_BASE_URL`
+   - `CRM_CAPTURE_FORM_PUBLIC_ID`
+   - `CRM_PUBLIC_KEY`
+   - `NEXT_PUBLIC_META_PIXEL_ID`
+   - `NEXT_PUBLIC_META_PIXEL_IDS`
+   - `NEXT_PUBLIC_META_PIXEL_REQUIRE_CONSENT`
+   - `NEXT_PUBLIC_PAGESPEED_KEY` si se usara PageSpeed.
+8. Apuntar dominios/DNS:
+   - dominio principal y `www` -> `upzites-web`.
+   - `crm` o `app` -> `upzites-crm`.
+9. Validar SSL y redeploy si cambian env vars.
+
+QA productivo minimo:
+
+- Sitio publico abre desde dominio final.
+- CRM abre desde subdominio final.
+- `https://<crm-domain>/api/system/health` responde correctamente.
+- Login/logout funcionan en produccion.
+- Contactos/oportunidades/actividades leen y escriben en Supabase.
+- Formulario publico de `apps/web` crea lead o submission en el CRM.
+- Eventos de tracking web llegan a la tabla correspondiente (`WebEvent`).
+- No hay errores criticos en Vercel Runtime Logs.
+- Supabase muestra conexiones sanas.
+
+Decisiones ya tomadas:
+
+- No usar Docker en produccion.
+- No usar Supabase Auth por ahora; el CRM mantiene auth propia con cookies
+  HTTP-only y usuarios en Postgres.
+- Mantener `apps/web` y `apps/crm` como proyectos Vercel separados.
+- Usar `prisma migrate deploy` en produccion, nunca `prisma migrate dev`.
+
+Bloqueos actuales:
+
+- Falta dominio final.
+- Falta acceso o creacion de proyecto Supabase productivo.
+- Falta acceso a Vercel.
+- Falta proveedor DNS.
+- Falta definir valores reales de `CRM_CAPTURE_FORM_PUBLIC_ID` y
+  `CRM_PUBLIC_KEY` para conectar formularios web -> CRM.
 
 ## Nuevo objetivo producto: web + CRM + automatizaciones comerciales
 
@@ -2233,4 +2577,3 @@ La actualización debe comunicar esta idea:
 Y las Soluciones Express deben funcionar como la entrada accesible:
 
 > ¿No necesitas un proyecto completo todavía? Empieza con una solución express.
-

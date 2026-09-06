@@ -10,72 +10,89 @@ export default function PrivacidadPage() {
     <LegalPage
       eyebrow="Legal · Privacidad"
       title="Política de privacidad"
-      updated="21 de mayo de 2026"
-      intro="En UPZITES respetamos tu privacidad. Esta política explica qué datos recogemos, para qué los usamos y qué derechos tienes sobre ellos."
+      updated="junio de 2026"
+      intro="En UPZITES respetamos la privacidad de las personas que visitan nuestro sitio web, completan formularios o se comunican con nosotros mediante redes sociales, correo electrónico, WhatsApp u otros canales."
       sections={[
         {
-          heading: "1. Quiénes somos",
+          heading: "Información que recopilamos",
           body: (
             <p>
-              UPZITES es un estudio de diseño y estrategia digital con base en
-              Santiago de Chile. Responsable del tratamiento de datos:
-              UPZITES — contacto@upzites.com.
+              Podemos recopilar información como nombre, correo electrónico,
+              número de teléfono, empresa, rubro, necesidades de proyecto,
+              presupuesto estimado y cualquier información que la persona entregue
+              voluntariamente mediante formularios, mensajes o solicitudes de
+              contacto.
             </p>
           ),
         },
         {
-          heading: "2. Qué datos recogemos",
+          heading: "Para qué usamos la información",
           body: (
-            <ul>
-              <li>Datos que nos envías por formularios o correo: nombre, email, marca o proyecto y el mensaje del brief.</li>
-              <li>Datos de navegación y uso del sitio recogidos mediante cookies y herramientas de analítica.</li>
-            </ul>
+            <>
+              <p>Usamos estos datos para:</p>
+              <ul>
+                <li>Responder solicitudes de información, cotización o diagnóstico.</li>
+                <li>
+                  Contactar a potenciales clientes sobre servicios de branding,
+                  diseño web, ecommerce, automatización, marketing u otras
+                  soluciones digitales.
+                </li>
+                <li>Preparar propuestas comerciales y orientar proyectos.</li>
+                <li>Mejorar nuestros servicios, procesos y comunicación.</li>
+                <li>
+                  Enviar información comercial relacionada con UPZITES cuando
+                  exista autorización o una relación previa.
+                </li>
+              </ul>
+            </>
           ),
         },
         {
-          heading: "3. Para qué los usamos",
+          heading: "Protección y tratamiento de datos",
           body: (
-            <ul>
-              <li>Responder tus consultas y elaborar propuestas de trabajo.</li>
-              <li>Enviar nuestra newsletter, solo si te suscribes voluntariamente.</li>
-              <li>Mejorar el sitio, su rendimiento y la experiencia de uso.</li>
-            </ul>
+            <>
+              <p>
+                UPZITES no vende, arrienda ni comparte datos personales con
+                terceros para fines comerciales ajenos a nuestros servicios.
+              </p>
+              <p>
+                La información puede ser tratada mediante herramientas
+                tecnológicas utilizadas para operar nuestro negocio, gestionar
+                formularios, comunicaciones, CRM, analítica o campañas
+                publicitarias, siempre bajo medidas razonables de seguridad.
+              </p>
+            </>
           ),
         },
         {
-          heading: "4. Base legal",
+          heading: "Formularios de Meta",
           body: (
             <p>
-              Tratamos tus datos sobre la base de tu consentimiento y de nuestro
-              interés legítimo en responder solicitudes y operar el sitio.
+              Cuando una persona completa un formulario instantáneo de Facebook o
+              Instagram, sus datos pueden ser recopilados mediante las
+              herramientas de Meta y enviados a UPZITES para responder su
+              solicitud. Meta también puede tratar información conforme a sus
+              propias políticas de privacidad.
             </p>
           ),
         },
         {
-          heading: "5. Con quién los compartimos",
+          heading: "Derechos de las personas",
           body: (
             <p>
-              No vendemos tus datos. Solo los compartimos con proveedores que nos
-              ayudan a operar (por ejemplo, alojamiento web y analítica), bajo
-              acuerdos de confidencialidad.
+              Puedes solicitar acceso, corrección, actualización o eliminación de
+              tus datos personales escribiendo a{" "}
+              <a href="mailto:contacto@upzites.com">contacto@upzites.com</a>.
             </p>
           ),
         },
         {
-          heading: "6. Tus derechos",
+          heading: "Cambios a esta política",
           body: (
             <p>
-              Puedes solicitar acceso, rectificación o eliminación de tus datos, así
-              como revocar tu consentimiento, escribiendo a contacto@upzites.com.
-            </p>
-          ),
-        },
-        {
-          heading: "7. Conservación",
-          body: (
-            <p>
-              Conservamos tus datos solo el tiempo necesario para las finalidades
-              descritas o mientras exista una relación contigo.
+              UPZITES puede actualizar esta Política de Privacidad cuando sea
+              necesario. La versión vigente estará siempre disponible en esta
+              página.
             </p>
           ),
         },

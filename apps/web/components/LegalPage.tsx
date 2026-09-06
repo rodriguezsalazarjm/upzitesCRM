@@ -22,20 +22,27 @@ export function LegalPage({
       <TopNav />
       <section className="section legal" style={{ paddingTop: 132 }} data-screen-label="Legal">
         <div className="shell legal-shell">
-          <Eyebrow num="·">{eyebrow}</Eyebrow>
-          <h1 className="legal-title">{title}</h1>
-          <p className="legal-updated">Última actualización: {updated}</p>
-          <p className="legal-intro">{intro}</p>
+          <header className="legal-head">
+            <Eyebrow num="·">{eyebrow}</Eyebrow>
+            <h1 className="legal-title">{title}</h1>
+            <span className="legal-updated">Última actualización: {updated}</span>
+            <p className="legal-intro">{intro}</p>
+          </header>
 
-          {sections.map((s, i) => (
-            <div key={i} className="legal-block">
-              <h2>{s.heading}</h2>
-              <div className="legal-body">{s.body}</div>
-            </div>
-          ))}
+          <div className="legal-blocks">
+            {sections.map((s, i) => (
+              <article key={i} className="legal-block">
+                <span className="legal-num">{String(i + 1).padStart(2, "0")}</span>
+                <div className="legal-block-content">
+                  <h2>{s.heading}</h2>
+                  <div className="legal-body">{s.body}</div>
+                </div>
+              </article>
+            ))}
+          </div>
 
           <p className="legal-contact">
-            ¿Dudas sobre este documento Escríbenos a{" "}
+            ¿Dudas sobre este documento? Escríbenos a{" "}
             <a href="mailto:contacto@upzites.com">contacto@upzites.com</a>.
           </p>
         </div>

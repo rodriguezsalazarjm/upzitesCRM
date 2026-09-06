@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ContactStatus } from '../../../../generated/prisma/client';
 import { getContacts, getCurrentWorkspaceId } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const statusMap = {
@@ -29,7 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const input = contactSchema.parse(await request.json());
+  const parsed = await parseBody(request, contactSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
   const company = input.company
     ? await prisma.company.upsert({

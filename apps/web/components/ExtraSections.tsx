@@ -71,7 +71,7 @@ export function ScheduleMeeting() {
             <aside className="agenda-cal" style={{ padding: 0, overflow: "hidden", background: "#fff", minHeight: 580 }}>
               {calOpen ? (
                 <iframe
-                  src="https://cal.com/jose-manuel-rodriguez-z9ee2y/60minembed=1"
+                  src="https://cal.com/jose-manuel-rodriguez-z9ee2y/60min?embed=1"
                   title="Agenda con UPZITES"
                   loading="lazy"
                   style={{ width: "100%", height: "100%", minHeight: "580px", border: "none" }}

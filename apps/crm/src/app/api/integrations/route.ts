@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { IntegrationProvider, IntegrationStatus } from '../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
 import { getIntegrations } from '@/lib/ops-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const integrationSchema = z.object({
@@ -17,7 +18,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const input = integrationSchema.parse(await request.json());
+  const parsed = await parseBody(request, integrationSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
   const integration = await prisma.integration.upsert({
     where: {

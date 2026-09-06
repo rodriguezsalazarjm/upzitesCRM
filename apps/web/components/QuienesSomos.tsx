@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Eyebrow, Reveal } from "./Atoms";
-import { SocialLinks, UPZITES_SOCIALS, JOSE_SOCIALS, JILLY_SOCIALS } from "./SocialIcons";
+import { SocialLinks, UPZITES_SOCIALS, JOSE_SOCIALS, JILLY_SOCIALS, type SocialLink } from "./SocialIcons";
 
 const TRUST = [
   "Estrategia 360°",
@@ -15,9 +15,12 @@ const TRUST = [
 ];
 
 const SLIDES: Record<string, string[]> = {
+  "Quién es UPZITES": ["/images/nosotros/santiago.webp", "/images/home-1.webp", "/images/home-2.webp"],
   "José Rodríguez": ["/images/founder-1.webp", "/images/founder-2.webp", "/images/founder-3.webp", "/images/founder-4.webp"],
   "Jilly Moreno": ["/images/jilly-1.webp", "/images/jilly-2.webp", "/images/jilly-3.webp", "/images/jilly-4.webp"],
+  "Elio Rincón": ["/images/nosotros/elio-main.webp", "/images/nosotros/elio-2.webp"],
 };
+const ELIO_SOCIALS: SocialLink[] = [];
 
 function Slideshow({ images, alt }: { images: string[]; alt: string }) {
   const [i, setI] = useState(0);
@@ -66,15 +69,17 @@ function Slideshow({ images, alt }: { images: string[]; alt: string }) {
   );
 }
 
-const BLOCKS = [
-  {
-    kicker: "El estudio",
-    name: "Quién es UPZITES",
-    role: "",
-    img: "/images/nosotros/santiago.webp",
-    text: "Estudio de diseño fundado en Santiago de Chile, especializado en estrategia digital, branding y UX/UI. No diseñamos para decorar: diseñamos para posicionar. Mezclamos estrategia, diseño bold y cultura visual tropical underground —con raíces caraqueñas y la mira en LATAM, EE.UU. y Europa.",
-    socials: UPZITES_SOCIALS,
-  },
+const UPZITES_FEATURE = {
+  kicker: "El estudio",
+  name: "Quién es UPZITES",
+  role: "",
+  img: "",
+  images: SLIDES["Quién es UPZITES"],
+  text: "Estudio de diseño fundado en Santiago de Chile, especializado en estrategia digital, branding y UX/UI. No diseñamos para decorar: diseñamos para posicionar. Mezclamos estrategia, diseño bold y cultura visual tropical underground —con raíces caraqueñas y la mira en LATAM, EE.UU. y Europa.",
+  socials: UPZITES_SOCIALS,
+};
+
+const TEAM = [
   {
     kicker: "Founder",
     name: "José Rodríguez",
@@ -92,6 +97,15 @@ const BLOCKS = [
     images: SLIDES["Jilly Moreno"],
     text: "Licenciada en Administración con +7 años en gestión, RR.HH. y operaciones. Mantiene el ritmo de UPZITES: organiza procesos, cuida los detalles y conecta la marca con los trends de Instagram y TikTok.",
     socials: JILLY_SOCIALS,
+  },
+  {
+    kicker: "Equipo",
+    name: "Elio Rincón",
+    role: "Director Audiovisual · Contenido & Producción Visual",
+    img: "",
+    images: SLIDES["Elio Rincón"],
+    text: "Lidera el área audiovisual de UPZITES: video, fotografía, edición y creativos para campañas. Transforma ideas y marcas en contenido que conecta, comunica y genera impacto en redes y anuncios.",
+    socials: ELIO_SOCIALS,
   },
 ];
 
@@ -115,8 +129,22 @@ export function QuienesSomos() {
           </Reveal>
         </div>
 
+        <Reveal variant="scale">
+          <article className="qs-card qs-feature">
+            <div className="qs-card-img">
+              <Slideshow images={UPZITES_FEATURE.images} alt={UPZITES_FEATURE.name} />
+            </div>
+            <div className="qs-card-body">
+              <span className="qs-card-kicker">{UPZITES_FEATURE.kicker}</span>
+              <h3>{UPZITES_FEATURE.name}</h3>
+              <p>{UPZITES_FEATURE.text}</p>
+              <SocialLinks links={UPZITES_FEATURE.socials} className="qs-card-socials" />
+            </div>
+          </article>
+        </Reveal>
+
         <div className="qs-cards">
-          {BLOCKS.map((b, i) => (
+          {TEAM.map((b, i) => (
             <Reveal key={b.name} delay={i * 80} variant="scale">
               <article className="qs-card">
                 <div className="qs-card-img">

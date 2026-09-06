@@ -19,5 +19,14 @@
   },
   "devDependencies": {
     "turbo": "^2.5.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "sharp",
+      "unrs-resolver",
+      "esbuild"
+    ]
   }
 }

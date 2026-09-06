@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendContactNotification, sendContactConfirmation } from "@/lib/resend";
 
 type ContactPayload = Record<string, string | boolean | null>;
 
@@ -72,11 +73,24 @@ export async function POST(request: Request) {
     );
   }
 
+  const [emailResult, confirmationResult] = await Promise.all([
+    sendContactNotification(payload).catch((error) => {
+      console.error("contact_form_email_error", error);
+      return { sent: false, reason: "send_failed" };
+    }),
+    sendContactConfirmation(payload).catch((error) => {
+      console.error("contact_form_confirmation_error", error);
+      return { sent: false, reason: "send_failed" };
+    }),
+  ]);
+
   try {
     const crm = await forwardToCrm(payload);
     return NextResponse.json({
       ok: true,
       crm,
+      email: emailResult,
+      confirmation: confirmationResult,
       message: "Solicitud recibida con exito.",
     });
   } catch (error) {
@@ -85,6 +99,8 @@ export async function POST(request: Request) {
       {
         ok: true,
         crm: { synced: false, reason: "CRM capture failed" },
+        email: emailResult,
+      confirmation: confirmationResult,
         message: "Solicitud recibida. Revisaremos el mensaje y te contactaremos pronto.",
       },
     );

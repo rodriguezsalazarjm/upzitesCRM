@@ -64,6 +64,10 @@ const JILLY_PHOTOS = [
   "/images/jilly-3.webp",
   "/images/jilly-4.webp",
 ];
+const ELIO_PHOTOS = [
+  "/images/nosotros/elio-main.webp",
+  "/images/nosotros/elio-2.webp",
+];
 
 export default function NosotrosPage() {
   return (
@@ -282,10 +286,10 @@ export default function NosotrosPage() {
             </Reveal>
             <Reveal delay={120}>
               <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 460, margin: 0 }}>
-                UPZITES se construye desde dos fuerzas que se complementan: la
-                estructura visual y técnica de José, y la energía organizada y
-                social de Jilly. Uno construye la experiencia; la otra mantiene el
-                flow.
+                UPZITES se construye desde fuerzas que se complementan: la
+                estructura visual y técnica de José, la energía organizada y
+                social de Jilly, y la mirada audiovisual de Elio. Diseño, ritmo e
+                imagen en un mismo equipo.
               </p>
             </Reveal>
           </div>
@@ -358,9 +362,43 @@ export default function NosotrosPage() {
             </Reveal>
           </div>
 
+          {/* Elio */}
+          <div className="nos-founder team-member">
+            <div className="nos-founder-photos nos-founder-photos--in">
+              {ELIO_PHOTOS.map((src, i) => (
+                <img key={i} src={src} alt={`Elio Rincón — foto ${i + 1}`} loading="lazy" />
+              ))}
+            </div>
+            <Reveal delay={120}>
+              <div className="nos-founder-bio">
+                <p className="elio-label">Audiovisual / Content / Ads</p>
+                <h3 className="team-name">Elio Rincón</h3>
+                <p className="qs-bio-role">Director Audiovisual · Contenido &amp; Producción Visual</p>
+                <p className="brand-body">
+                  Lidera el área audiovisual de UPZITES, transformando ideas, marcas y
+                  servicios en contenido visual que conecta, comunica y genera impacto.
+                </p>
+                <p className="brand-body" style={{ marginTop: 12 }}>
+                  Combina dirección creativa, fotografía, video, edición y producción de
+                  piezas para redes, campañas y anuncios —desde reels de alto rendimiento
+                  hasta fotografía de producto, cobertura de proyectos y creativos
+                  publicitarios— con una mirada dinámica y orientada a resultados.
+                </p>
+                <div className="intro-tags" style={{ marginTop: 20 }}>
+                  <Pill dot>Dirección creativa</Pill>
+                  <Pill dot>Video</Pill>
+                  <Pill dot>Fotografía</Pill>
+                  <Pill dot>Edición</Pill>
+                  <Pill dot>Reels &amp; UGC</Pill>
+                  <Pill dot>Creativos para ads</Pill>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+
           <Reveal delay={80}>
             <p className="team-closing">
-              José construye la experiencia. <span className="mark">Jilly mantiene el ritmo</span>.
+              José construye la experiencia. <span className="mark">Jilly mantiene el ritmo</span>. Elio le pone <span className="mark">imagen y movimiento</span>.
             </p>
           </Reveal>
         </div>

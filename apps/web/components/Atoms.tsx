@@ -160,3 +160,55 @@ export function Reveal({
     </Tag>
   );
 }
+
+// ---------- RiseWords: texto que sube palabra a palabra (blur-in) --------
+// Inspirado en los "text reveal" del MCP de Magic, pero nativo (CSS, sin libs).
+export function RiseWords({
+  text,
+  as,
+  className,
+  stagger = 70,
+}: {
+  text: string;
+  as?: React.ElementType;
+  className?: string;
+  stagger?: number;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            setSeen(true);
+            io.disconnect();
+          }
+        });
+      },
+      { threshold: 0.2, rootMargin: "0px 0px -8% 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const Tag = as || "span";
+  const words = text.split(" ");
+  return (
+    <Tag ref={ref} className={`risewords${seen ? " is-in" : ""}${className ? ` ${className}` : ""}`}>
+      {words.map((w, i) => (
+        <span className="risewords-w" key={i}>
+          <span className="risewords-i" style={{ transitionDelay: `${i * stagger}ms` }}>
+            {w}
+          </span>
+          {i < words.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </Tag>
+  );
+}

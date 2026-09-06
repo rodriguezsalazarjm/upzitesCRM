@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { trackContact } from "@/lib/meta-pixel";
 
-const WA_NUMBER = "56973178796";
+const WA_NUMBER = "56978167863";
 const WA_MSG = encodeURIComponent("Hola UPZITES 👋, quiero información sobre sus servicios.");
 
 export function FloatingActions() {

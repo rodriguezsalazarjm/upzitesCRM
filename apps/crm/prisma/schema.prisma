@@ -46,6 +46,7 @@ model User {
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
+  ownedContacts       Contact[]            @relation("ContactOwner")
   createdActivities   Activity[]           @relation("ActivityCreator")
   passwordResetTokens PasswordResetToken[]
 
@@ -91,6 +92,7 @@ model Contact {
   id             String        @id @default(cuid())
   workspaceId    String        @map("workspace_id")
   companyId      String?       @map("company_id")
+  ownerId        String?       @map("owner_id")
   firstName      String        @map("first_name")
   lastName       String        @map("last_name")
   email          String?
@@ -108,6 +110,7 @@ model Contact {
 
   workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner           User?            @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   opportunities   Opportunity[]
   activities      Activity[]
   formSubmissions FormSubmission[]
@@ -116,6 +119,7 @@ model Contact {
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
   @@index([workspaceId, source])
+  @@index([workspaceId, ownerId])
   @@map("contacts")
 }
 
@@ -344,14 +348,16 @@ model SubscriptionPlan {
 }
 
 model WorkspaceSubscription {
-  id          String             @id @default(cuid())
-  workspaceId String             @map("workspace_id")
-  planId      String             @map("plan_id")
-  status      SubscriptionStatus @default(TRIAL)
-  trialEndsAt DateTime?          @map("trial_ends_at")
-  renewsAt    DateTime?          @map("renews_at")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+  id             String             @id @default(cuid())
+  workspaceId    String             @map("workspace_id")
+  planId         String             @map("plan_id")
+  status         SubscriptionStatus @default(TRIAL)
+  trialEndsAt    DateTime?          @map("trial_ends_at")
+  renewsAt       DateTime?          @map("renews_at")
+  mpPreferenceId String?            @map("mp_preference_id")
+  mpPaymentId    String?            @unique @map("mp_payment_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   plan      SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)

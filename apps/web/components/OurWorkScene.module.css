@@ -1,0 +1,175 @@
+.section {
+  position: relative;
+  height: 140svh;
+  overflow: clip;
+  background: var(--bg-2, #f4f2eb);
+  color: var(--upz-carbon, #141414);
+}
+
+.scene {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  pointer-events: none;
+  opacity: 0.06;
+}
+
+.grid span {
+  border-right: 1px solid currentColor;
+}
+
+/* ---- Título OUR WORK: estático, con entrada "forming" una sola vez ---- */
+.titleWrap {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  pointer-events: none;
+  padding: 20px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-bebas), var(--font-display), sans-serif;
+  color: var(--upz-carbon, #151515);
+  font-size: clamp(78px, 15vw, 300px);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.74;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.titleForm {
+  display: inline-block;
+  animation: owForm 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes owForm {
+  from {
+    opacity: 0;
+    transform: translateY(38%) scale(0.97);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(11px, 1.4vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--upz-electric, #0057ff);
+  animation: owForm 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+/* ---- Píldoras de marca con parallax vertical ---- */
+.pillsLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+}
+
+.pill {
+  position: absolute;
+  display: inline-block;
+  white-space: nowrap;
+  padding: 13px 28px;
+  border-radius: 999px;
+  border: 2px solid var(--upz-carbon, #111);
+  box-shadow: 0 6px 0 0 var(--upz-carbon, #111);
+  font-family: var(--font-text), sans-serif;
+  font-weight: 800;
+  font-size: clamp(14px, 1.6vw, 22px);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-decoration: none;
+  user-select: none;
+  will-change: transform, opacity;
+  transition: box-shadow 200ms ease;
+}
+
+.pill:hover {
+  box-shadow: 0 3px 0 0 var(--upz-carbon, #111);
+}
+
+/* ---- Pista de scroll ---- */
+.scrollHint {
+  position: absolute;
+  bottom: 29px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--upz-carbon, #141414);
+}
+
+.scrollHint i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (min-width: 768px) {
+  .scrollHint {
+    bottom: 38px;
+  }
+}
+
+@media (max-width: 767px) {
+  .hideOnMobile {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollHint i {
+    animation: none;
+  }
+  .titleForm,
+  .subtitle {
+    animation: none;
+  }
+}

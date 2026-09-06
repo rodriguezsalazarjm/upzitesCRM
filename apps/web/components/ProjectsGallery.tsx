@@ -13,6 +13,10 @@ type Selected =
   | { kind: "web"; p: WebProject }
   | null;
 
+type Card =
+  | { kind: "branding"; p: BrandingProject }
+  | { kind: "web"; p: WebProject };
+
 const FILTERS = [
   { key: "all", label: "Todos" },
   { key: "Empresarial", label: "Empresariales" },
@@ -21,13 +25,54 @@ const FILTERS = [
   { key: "web", label: "Webs" },
 ];
 
+// Carril de una sola fila: branding + webs, filtrable.
+function cardsFor(filter: string): Card[] {
+  const branding: Card[] =
+    filter === "web"
+      ? []
+      : BRANDING_PROJECTS
+          .filter((p) => filter === "all" || p.category === filter)
+          .map((p) => ({ kind: "branding", p }));
+  const webs: Card[] =
+    filter === "all" || filter === "web"
+      ? WEB_PROJECTS.map((p) => ({ kind: "web", p }))
+      : [];
+  return [...branding, ...webs];
+}
+
 function clean(url: string) {
   return url.replace(/^https:\/\//, "").replace(/\/$/, "");
+}
+
+function CardFace({ c, onOpen }: { c: Card; onOpen: () => void }) {
+  if (c.kind === "branding") {
+    return (
+      <button type="button" className="pg-card" onClick={onOpen}>
+        <img src={c.p.images[0]} alt={c.p.name} loading="lazy" />
+        <span className="pg-card-cap">
+          <span className="pg-card-name">{c.p.name}</span>
+          <span className="pg-card-cat">{c.p.category}</span>
+        </span>
+        <span className="pg-card-hover"><span>Ver caso</span> <span className="arr">&#8599;</span></span>
+      </button>
+    );
+  }
+  return (
+    <button type="button" className="pg-card" onClick={onOpen}>
+      <img src={c.p.cover} alt={c.p.name} loading="lazy" />
+      <span className="pg-card-cap">
+        <span className="pg-card-name">{c.p.name}</span>
+        <span className="pg-card-cat">Sitio web{c.p.status ? ` · ${c.p.status}` : ""}</span>
+      </span>
+      <span className="pg-card-hover"><span>Ver sitio</span> <span className="arr">&#8599;</span></span>
+    </button>
+  );
 }
 
 export function ProjectsGallery() {
   const [filter, setFilter] = useState("all");
   const [sel, setSel] = useState<Selected>(null);
+  const cards = cardsFor(filter);
 
   useEffect(() => {
     if (!sel) return;
@@ -41,10 +86,8 @@ export function ProjectsGallery() {
     };
   }, [sel]);
 
-  const showBranding = filter === "all" || ["Empresarial", "Foodie", "Ropa"].includes(filter);
-  const brandingItems = BRANDING_PROJECTS.filter((p) => filter === "all" || p.category === filter);
-  const showWebs = filter === "all" || filter === "web";
-  const webItems = WEB_PROJECTS;
+  const open = (c: Card) => () =>
+    setSel(c.kind === "branding" ? { kind: "branding", p: c.p } : { kind: "web", p: c.p });
 
   return (
     <>
@@ -61,30 +104,19 @@ export function ProjectsGallery() {
         ))}
       </div>
 
-      <div className="pg-grid pg-grid--behance">
-        {showBranding &&
-          brandingItems.map((p) => (
-            <button key={p.slug} type="button" className="pg-card" onClick={() => setSel({ kind: "branding", p })}>
-              <img src={p.images[0]} alt={p.name} loading="lazy" />
-              <span className="pg-card-cap">
-                <span className="pg-card-name">{p.name}</span>
-                <span className="pg-card-cat">{p.category}</span>
-              </span>
-              <span className="pg-card-hover"><span>Ver caso</span> <span className="arr">&#8599;</span></span>
-            </button>
+      <div className="pg-marquee" aria-label="Proyectos seleccionados">
+        {/* Carril duplicado x2 para loop sin costuras. La 2ª copia es decorativa.
+            key incluye el filtro para reiniciar la animación al cambiar. */}
+        <div className="pg-marquee-track" key={filter}>
+          {cards.map((c, i) => (
+            <CardFace key={`a-${c.p.slug}-${i}`} c={c} onOpen={open(c)} />
           ))}
-
-        {showWebs &&
-          webItems.map((p) => (
-            <button key={p.slug} type="button" className="pg-card" onClick={() => setSel({ kind: "web", p })}>
-              <img src={p.cover} alt={p.name} loading="lazy" />
-              <span className="pg-card-cap">
-                <span className="pg-card-name">{p.name}</span>
-                <span className="pg-card-cat">Sitio web{p.status ? ` · ${p.status}` : ""}</span>
-              </span>
-              <span className="pg-card-hover"><span>Ver sitio</span> <span className="arr">&#8599;</span></span>
-            </button>
+          {cards.map((c, i) => (
+            <div key={`b-${c.p.slug}-${i}`} aria-hidden="true" className="pg-marquee-clone">
+              <CardFace c={c} onOpen={open(c)} />
+            </div>
           ))}
+        </div>
       </div>
 
       {sel && (

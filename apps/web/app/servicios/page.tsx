@@ -152,7 +152,7 @@ export default function ServiciosPage() {
             <div className="hero-actions" style={{ justifyContent: "center" }}>
               <Link href="/contacto" className="btn btn-lime btn-lg">Hablemos <span className="arr">↗</span></Link>
               <Link href="/#agenda" className="btn btn-light btn-lg">Agendar reunión <span className="arr">↗</span></Link>
-              <Link href="/api/brochure/downloadsource=services_page" className="btn btn-light btn-lg">Brochure <span className="arr">↗</span></Link>
+              <Link href="/api/brochure/download?source=services_page" className="btn btn-light btn-lg">Brochure <span className="arr">↗</span></Link>
             </div>
           </Reveal>
         </div>

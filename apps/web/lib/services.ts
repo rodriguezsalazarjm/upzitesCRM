@@ -123,7 +123,7 @@ const LEGACY_SERVICES: Service[] = [
     tagline: "Las campañas deben ser una inversión, no un gasto.",
     card: "Servicio integral: contenido, grabación de reels y TikTok, community manager y campañas en Meta y Google Ads. Estrategia y data para escalar tus ingresos.",
     tags: ["Contenido", "Community manager", "Meta & Google Ads"],
-    image: "/images/marketing-cover.webp",
+    image: "/images/marketing-process.webp",
     accent: "var(--upz-guava)",
     detail: {
       headline: "Marketing digital integral",
@@ -302,7 +302,11 @@ export type ExpressSolution = {
   benefit: string;
   cta: string;
   href: string;
+  image: string;
+  accent: string;
+  accent2: string;
   addOn?: string;
+  newTab?: boolean;
 };
 
 export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
@@ -313,8 +317,12 @@ export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
     idealFor: "bodas, cumpleanos, baby showers y eventos corporativos",
     benefit: "Una experiencia digital elegante antes, durante y despues del evento.",
     cta: "Ver invitaciones",
-    href: "/contacto",
+    href: "/soluciones/invitaciones",
+    image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-tomato)",
+    accent2: "var(--upz-solar)",
     addOn: "Album QR en Vivo",
+    newTab: true,
   },
   {
     slug: "reel-express-24h",
@@ -323,7 +331,11 @@ export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
     idealFor: "emprendedores, marcas personales, restaurantes y negocios locales",
     benefit: "Contenido rapido sin perder direccion visual.",
     cta: "Crear mi reel",
-    href: "/contacto",
+    href: "/soluciones/reels",
+    image: "https://images.unsplash.com/photo-1611224923853-80b023f02d71?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-electric)",
+    accent2: "var(--upz-guava)",
+    newTab: true,
   },
   {
     slug: "landing-express",
@@ -332,7 +344,11 @@ export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
     idealFor: "servicios, lanzamientos, eventos y campañas",
     benefit: "Una pagina enfocada en conversion sin esperar semanas.",
     cta: "Lanzar mi pagina",
-    href: "/contacto",
+    href: "/soluciones/landing-express",
+    image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-lime)",
+    accent2: "var(--upz-electric)",
+    newTab: true,
   },
   {
     slug: "catalogo-web-express",
@@ -341,7 +357,11 @@ export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
     idealFor: "tiendas pequenas, mayoristas y marcas con venta consultiva",
     benefit: "Digitaliza tu oferta sin construir una tienda completa.",
     cta: "Crear catalogo",
-    href: "/contacto",
+    href: "/soluciones/catalogo-web",
+    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-solar)",
+    accent2: "var(--upz-tangerine)",
+    newTab: true,
   },
   {
     slug: "carta-qr-restaurante",
@@ -350,7 +370,25 @@ export const EXPRESS_SOLUTIONS: ExpressSolution[] = [
     idealFor: "restaurantes, cafeterias, bares, food trucks y dark kitchens",
     benefit: "Una carta facil de actualizar y mejor presentada para tus clientes.",
     cta: "Crear carta QR",
-    href: "/contacto",
+    href: "/soluciones/carta-qr",
+    image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-guava)",
+    accent2: "var(--upz-tomato)",
+    newTab: true,
+  },
+  {
+    slug: "crm-upzites",
+    title: "CRM Upzites",
+    description: "Sistema comercial para capturar leads desde tu web, ordenar contactos, medir fuentes y dar seguimiento a oportunidades.",
+    idealFor: "servicios, marcas personales, equipos comerciales y negocios locales",
+    benefit: "Convierte tu web y WhatsApp en un flujo de ventas organizado.",
+    cta: "Ver CRM",
+    href: "/soluciones/crm",
+    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+    accent: "var(--upz-carbon)",
+    accent2: "var(--upz-electric)",
+    addOn: "Web + CRM",
+    newTab: true,
   },
 ];
 

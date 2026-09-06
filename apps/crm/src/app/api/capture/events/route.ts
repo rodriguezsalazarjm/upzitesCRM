@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getWorkspaceByPublicKey, publicCorsHeaders, webEventTypeMap } from '@/lib/capture';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const eventSchema = z.object({
@@ -24,7 +25,9 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
-  const input = eventSchema.parse(await request.json());
+  const parsed = await parseBody(request, eventSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspace = await getWorkspaceByPublicKey(input.publicKey);
 
   if (!workspace) {

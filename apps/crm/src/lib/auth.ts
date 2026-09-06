@@ -27,8 +27,24 @@ export type CurrentUser = {
   };
 };
 
+const MIN_SECRET_LENGTH = 16;
+
 function getSessionSecret() {
-  return process.env.CRM_SESSION_SECRET ?? process.env.DATABASE_URL ?? 'upzites-crm-dev-secret';
+  const secret = process.env.CRM_SESSION_SECRET;
+
+  if (secret && secret.length >= MIN_SECRET_LENGTH) {
+    return secret;
+  }
+
+  // En produccion nunca degradamos a un secreto debil: firmar sesiones con la
+  // URL de la BD o con un default hardcodeado las hace falsificables.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      `CRM_SESSION_SECRET es obligatorio en produccion y debe tener al menos ${MIN_SECRET_LENGTH} caracteres.`,
+    );
+  }
+
+  return secret ?? 'upzites-crm-dev-secret';
 }
 
 function base64UrlEncode(value: string) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { OpportunityStage, OpportunityStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const stageMap = {
@@ -32,7 +33,9 @@ function statusForStage(stage: OpportunityStage) {
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const input = updateOpportunitySchema.parse(await request.json());
+  const parsed = await parseBody(request, updateOpportunitySchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
   const stageKey = input.stage ? stageMap[input.stage] : undefined;
   const stage = stageKey

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateResetToken, hashResetToken } from '@/lib/auth';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const requestResetSchema = z.object({
@@ -8,7 +9,9 @@ const requestResetSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const input = requestResetSchema.parse(await request.json());
+  const parsed = await parseBody(request, requestResetSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const user = await prisma.user.findFirst({
     where: { email: input.email.toLowerCase() },
   });

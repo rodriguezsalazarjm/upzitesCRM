@@ -36,7 +36,7 @@ export default function ContactoPage() {
                 <a href="#formulario" className="btn btn-dark btn-lg">
                   Completar formulario <span className="arr">&rarr;</span>
                 </a>
-                <Link href="/api/brochure/downloadsource=contact_hero" className="btn btn-ivory btn-lg">
+                <Link href="/api/brochure/download?source=contact_hero" className="btn btn-ivory btn-lg">
                   Descargar brochure <span className="arr">&rarr;</span>
                 </Link>
               </div>

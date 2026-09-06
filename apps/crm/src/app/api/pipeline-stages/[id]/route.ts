@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const updateStageSchema = z.object({
@@ -13,7 +14,9 @@ const updateStageSchema = z.object({
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const input = updateStageSchema.parse(await request.json());
+  const parsed = await parseBody(request, updateStageSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
 
   const stage = await prisma.pipelineStage.update({

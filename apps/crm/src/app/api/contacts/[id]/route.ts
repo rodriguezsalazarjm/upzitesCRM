@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ContactStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
+import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const statusMap = {
@@ -25,7 +26,9 @@ const updateContactSchema = z.object({
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const input = updateContactSchema.parse(await request.json());
+  const parsed = await parseBody(request, updateContactSchema);
+  if (!parsed.ok) return parsed.response;
+  const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
   const company =
     input.company === undefined
