@@ -35,3 +35,8 @@ next-env.d.ts
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+.vercel
+
+# assets pesados de trabajo (videos, mockups de clientes) - se respaldan fuera de git
+/Soluciones/
