@@ -4,8 +4,8 @@ Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 - **Fase actual:** 0 — Proteccion y linea base
-- **Estado:** respaldo commiteado y sincronizado con `origin`; pruebas funcionales bloqueadas por falta de base de datos
-- **Ultima actualizacion:** 2026-09-06
+- **Estado:** COMPLETADA. Esperando aprobacion del propietario para iniciar la Fase 1.
+- **Ultima actualizacion:** 2026-09-07
 
 ---
 
@@ -13,8 +13,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 | Fase | Nombre | Estado |
 |---|---|---|
-| 0 | Proteccion y linea base | En curso — solo faltan las pruebas funcionales (bloqueadas por B1/B2) |
-| 1 | Dominio comercial y consentimiento | No iniciada |
+| 0 | Proteccion y linea base | **Completada** (2026-09-07) |
+| 1 | Dominio comercial y consentimiento | No iniciada — requiere aprobacion |
 | 2 | WhatsApp e Inbox humano | No iniciada |
 | 3 | Cola, scheduler y automatizaciones reales | No iniciada |
 | 4 | Agentes IA y herramientas | No iniciada |
@@ -29,21 +29,23 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 | Entregable | Estado | Evidencia |
 |---|---|---|
-| Inspeccion del monorepo, `apps/crm`, Prisma, migraciones, env, Vercel | Hecho | Seccion 2 y 3 |
+| Inspeccion del monorepo, `apps/crm`, Prisma, migraciones, env, Vercel | Hecho | Seccion 2 |
 | `git status` y clasificacion de cambios sin commit | Hecho | Seccion 3 |
 | Lectura de instrucciones locales (`AGENTS.md`, `CLAUDE.md`, README) | Hecho | No existen `AGENTS.md` ni `CLAUDE.md`; solo `README.md` y `contexto.md` |
 | Build de produccion registrado | Hecho | Seccion 4 |
 | Lint y typecheck base registrados | Hecho | Seccion 4 |
 | Inventario de rutas, tablas, migraciones y variables | Hecho | Seccion 2 |
-| Config faltante de Mercado Pago documentada | Hecho | Seccion 5 |
+| Config faltante de Mercado Pago documentada | Hecho | B3 |
 | `docs/IMPLEMENTATION_STATUS.md` | Hecho | Este archivo |
 | Plan de migraciones | Hecho | Seccion 7 |
 | Commit de respaldo del estado actual | Hecho | `8d3c790`, `187d3f1`, `303b368` en `origin/master` |
-| Pruebas funcionales (login, CRUD, captura, webhook MP, aislamiento tenant) | **Bloqueado** | Sin base de datos disponible (seccion 5) |
+| Base de datos operativa | Hecho | Proyecto Supabase nuevo, 6 migraciones aplicadas (seccion 5) |
+| Pruebas funcionales | Hecho | 24/25 (seccion 6) |
 
-**Criterio de salida de la Fase 0:** el estado actual puede restaurarse y desplegarse de forma reproducible.
-**Parcialmente cumplido:** el estado ya es restaurable desde `origin/master`; falta una base de datos
-operativa para probar que tambien es desplegable.
+**Criterio de salida:** el estado actual puede restaurarse y desplegarse de forma reproducible.
+**Cumplido:** el codigo esta en `origin/master`, la base tiene el esquema completo y las pruebas
+de aceptacion pasan contra una instancia real. Queda **un defecto conocido** (D13) y el
+despliegue en Vercel pendiente de actualizar variables (T3).
 
 ---
 
@@ -54,6 +56,17 @@ operativa para probar que tambien es desplegable.
 Next.js 16.0 (App Router, React 19), Prisma 7.8 + `@prisma/adapter-pg`, PostgreSQL/Supabase,
 Tailwind 4, Radix, Zod 3, TanStack Query, Zustand. Node v25.9.0, pnpm 11.3.0.
 Despliegue: proyecto Vercel `upzites-crm` (`prj_o89p2u9wo254GTHfkvv8MQmzxedH`).
+
+### Base de datos
+
+Proyecto Supabase **`mtdtccnchxpwnjllpsog`**, region `us-east-2`
+(pooler `aws-0-us-east-2.pooler.supabase.com`). Creado el 2026-09-07 para reemplazar al
+anterior, que fue eliminado. Region elegida para quedar junto a las funciones de Vercel,
+que corren en `iad1` al no declararse `regions` en `vercel.json`.
+
+- `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
+- `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
+- 19 tablas creadas (18 modelos + `_prisma_migrations`). Sin datos.
 
 ### Modelos Prisma (18)
 
@@ -67,16 +80,18 @@ Despliegue: proyecto Vercel `upzites-crm` (`prj_o89p2u9wo254GTHfkvv8MQmzxedH`).
 `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`, `AutomationAction`, `AiInsightType`,
 `InsightStatus`, `SubscriptionStatus`.
 
-### Migraciones (6)
+### Migraciones (6, todas aplicadas)
 
 ```
 20260614171000_init_crm
 20260614182000_auth_workspaces
 20260614190000_web_capture
 20260614200000_integrations_ai_billing_ops
-20260630220000_contact_owner            <- commiteada en 187d3f1, sin verificar contra produccion
-20260630220100_billing_mercadopago      <- commiteada en 187d3f1, sin verificar contra produccion
+20260630220000_contact_owner
+20260630220100_billing_mercadopago
 ```
+
+`prisma migrate status` responde `Database schema is up to date!`.
 
 ### Rutas API (26 handlers)
 
@@ -88,7 +103,7 @@ Captura publica: `capture/events`, `capture/forms/[publicId]`, `capture/forms/[p
 Comercial/ops: `billing/checkout`, `billing/webhook`, `ai/insights/generate`, `automations/run`,
 `system/health`.
 
-### Paginas (11 secciones)
+### Paginas (13)
 
 `dashboard`, `contactos` (+ficha +nuevo), `oportunidades` (+nueva), `actividades`, `fuentes`,
 `integraciones`, `automatizaciones`, `insights`, `billing`, `ops`, `configuracion`,
@@ -101,49 +116,40 @@ Obligatorias en produccion (validadas en `src/lib/env.ts` via `instrumentation.t
 Opcionales (solo advertencia, el checkout responde 503 sin ellas):
 `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`.
 
+### Scripts de apoyo creados
+
+- `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
+  string de Supabase, URL-encodea la password y **verifica la conexion antes de escribir**.
+- `scripts/smoke-fase0.mjs`: pruebas de aceptacion de la Fase 0 (seccion 6).
+
 ---
 
 ## 3. Trabajo que estaba sin commit (riesgo #1 — resuelto)
 
 Al inspeccionar, `git status` reportaba **99 entradas** sin proteger sobre `master` (HEAD `418a1c1`).
-Todo quedo commiteado el 2026-09-06 (ver B4). Se deja el inventario como registro de la linea base.
+Todo quedo commiteado el 2026-09-06 en tres commits sobre `origin/master`:
 
-### CRM (`apps/crm`)
+| Commit | Contenido |
+|---|---|
+| `8d3c790` | `.gitignore`: excluir `Soluciones/` (1.2 GB de video) |
+| `187d3f1` | Respaldo de 181 archivos de web y CRM, sin cambios funcionales |
+| `303b368` | Primera version de este informe |
 
-- 22 archivos modificados: `schema.prisma`, `lib/auth.ts`, layout del dashboard, pagina de billing y
-  login, y 14 rutas API.
-- 15 rutas/archivos sin trackear: registro (`(auth)/register`, `api/auth/register`),
-  `api/billing/webhook`, `components/billing/`, `lib/env.ts`, `lib/http.ts`, `lib/mercado-pago.ts`,
-  `lib/subscription.ts`, `instrumentation.ts`, `vercel.json`, `prisma/seed-alvaro.ts`
-  y las 2 migraciones nuevas.
+Detalle de lo respaldado: en `apps/crm`, 22 archivos modificados y 15 sin trackear (registro,
+webhook de Mercado Pago, `lib/env.ts`, `lib/http.ts`, `lib/mercado-pago.ts`, `lib/subscription.ts`,
+`instrumentation.ts`, `vercel.json`, `seed-alvaro.ts` y 2 migraciones). En `apps/web`, la seccion
+`/blog`, las landings de `/soluciones`, `robots.ts`, `sitemap.ts`, `lib/resend.ts` y assets.
 
-### Web (`apps/web`)
-
-- 20 archivos modificados y ~20 sin trackear: seccion `/blog` completa, `/soluciones/*`,
-  `robots.ts`, `sitemap.ts`, `lib/resend.ts`, `lib/blog.ts`, `proxy.ts`, componentes nuevos y assets.
-
-### Otros
-
-- `docs/contexto/`, `scripts/convert-landing.mjs`, `our-work-prototype-v3-bebas/` (3.1 MB),
-  `.vercelignore`, cambios en `contexto.md`, `package.json`, `pnpm-lock.yaml`.
-- `Soluciones/` pesa **1.2 GB** (1.2 GB solo en `02reels24h`, videos `.mp4`).
-  Excluida de git en `8d3c790` y de Vercel via `.vercelignore`. Sigue intacta en disco.
+`Soluciones/` (1.2 GB) sigue intacta en disco, excluida de git y de Vercel.
+**Pendiente: respaldarla fuera de git — hoy existe en una sola copia local (T2).**
 
 ### Secretos
 
-`apps/crm/.env` y `apps/crm/.env.production.local` estan correctamente ignorados por
-`apps/crm/.gitignore`. Ningun `.env` real quedo trackeado (`git ls-files` solo devuelve `.env.example`).
-
-### Stash existente
-
-`stash@{0}: On master: PROYECTOS effect + reorder + remove audit (revertido a peticion del usuario)`.
-No se toca.
+Ningun `.env` real quedo trackeado; `git ls-files` solo devuelve archivos `.env.example`.
 
 ---
 
 ## 4. Verificacion de la linea base
-
-Ejecutado el 2026-09-06 sobre el working tree actual (sin modificar nada):
 
 | Comando | Resultado |
 |---|---|
@@ -157,106 +163,121 @@ Ejecutado el 2026-09-06 sobre el working tree actual (sin modificar nada):
 1. `postcss.config.js:1` — warning `import/no-anonymous-default-export`.
 2. `tailwind.config.js:2` — warning `import/no-anonymous-default-export`.
 
-No hay errores de compilacion ni de tipos preexistentes. No hay suite de tests en el repositorio.
+No hay errores de compilacion ni de tipos preexistentes.
 
 ---
 
-## 5. Bloqueadores abiertos
+## 5. Bloqueadores
 
-### B1 — Base de datos de produccion inalcanzable (critico)
+### B1 — Base de datos de produccion inalcanzable — RESUELTO (2026-09-07)
 
-`apps/crm/.env.production.local` apunta al proyecto Supabase `qvuneqedhhnkfgvdzmjj`
-(`aws-1-us-west-2.pooler.supabase.com`). `prisma migrate status` falla en ambos puertos:
+El proyecto `qvuneqedhhnkfgvdzmjj` estaba **eliminado** (su DNS no resolvia). Un segundo intento
+con `ulagrcyczvmoslngmigl` llegaba al servidor pero rechazaba las credenciales. Se decidio crear
+un proyecto nuevo y limpio: `mtdtccnchxpwnjllpsog`, con las 6 migraciones aplicadas.
 
-```
-FATAL: (ENOTFOUND) tenant/user postgres.qvuneqedhhnkfgvdzmjj not found
-```
+### B2 — Sin base de datos local — RESUELTO con salvedad
 
-El DNS del pooler resuelve correctamente, por lo que no es un problema de red: el proyecto
-esta eliminado, pausado o el ref/credenciales cambiaron. **No se puede confirmar que las 6
-migraciones esten aplicadas en produccion ni que el CRM este desplegable hoy.**
+No hay Docker en la maquina, asi que `apps/crm/.env` apunta al **mismo** proyecto Supabase que
+produccion. Sirve para desarrollar hoy, pero no es sostenible: ver D14.
 
-### B2 — Sin base de datos local
+### B3 — Mercado Pago sin configurar (abierto)
 
-`apps/crm/.env` apunta a `localhost:5433` (el `docker-compose.yml` del repo) y no responde.
-Docker no esta disponible en el PATH de esta maquina. Esto bloquea todas las pruebas
-funcionales de la Fase 0 (login, registro, CRUD de contacto, captura de formulario,
-webhook de Mercado Pago con fixtures, aislamiento entre dos workspaces).
-
-### B3 — Mercado Pago sin configurar
-
-`MERCADO_PAGO_ACCESS_TOKEN` y `MERCADO_PAGO_WEBHOOK_SECRET` no estan en `apps/crm/.env`
-ni en `.env.production.local`. El arranque no se bloquea (por diseno), pero
-`POST /api/billing/checkout` responde 503 y el webhook responde 500. El cobro de la
-suscripcion no funciona en ningun entorno hoy.
+`MERCADO_PAGO_ACCESS_TOKEN` y `MERCADO_PAGO_WEBHOOK_SECRET` siguen vacios. El arranque no se
+bloquea (por diseno), pero `POST /api/billing/checkout` responde 503. Las pruebas del webhook
+se ejecutaron con fixtures de firma invalida, que es lo que la Fase 0 exige; el flujo de pago
+completo se valida en la Fase 5.
 
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
-Las 99 entradas quedaron protegidas en tres commits sobre `master`, ya en `origin`:
+Ver seccion 3.
 
-| Commit | Contenido |
-|---|---|
-| `8d3c790` | `.gitignore`: excluir `Soluciones/` (1.2 GB de video) |
-| `187d3f1` | Respaldo de 181 archivos de web y CRM, sin cambios funcionales |
-| `303b368` | Este informe |
+### B5 — TLS interceptado en la maquina de desarrollo (abierto, solo local)
 
-`Soluciones/` sigue intacta en disco; solo dejo de versionarse. **Falta respaldarla fuera de git.**
+El runtime usa `@prisma/adapter-pg` (node-postgres), que valida la cadena de certificados con
+Node. En esta maquina hay un root CA autofirmado interceptando TLS (antivirus o proxy), y la
+conexion falla con `P1011 TlsConnectionError: self-signed certificate in certificate chain`.
+La CLI de Prisma no se ve afectada porque usa su propio motor.
+
+**Workaround local:** `apps/crm/.env` usa `sslmode=no-verify` en `DATABASE_URL`.
+**En Vercel debe ir `sslmode=require`.** No copiar el `.env` local a produccion.
 
 ---
 
-## 6. Deuda tecnica identificada en la linea base
+## 6. Pruebas de aceptacion de la Fase 0
+
+`node scripts/smoke-fase0.mjs`, ejecutado el 2026-09-07 contra el CRM en `localhost:3001`
+conectado al Supabase real. Crea dos workspaces desechables y los elimina al terminar
+(verificado: la base queda en cero).
+
+**Resultado: 24/25.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Auth | Registro de 2 workspaces, login de ambos, password incorrecta devuelve 401 | 5/5 |
+| CRUD contacto | Crear, listar, actualizar, verificar persistencia del cambio | 4/4 |
+| Aislamiento tenant | B no ve el contacto de A; B no altera el dato de A; sin sesion no se lista | 3/3 |
+| Aislamiento tenant (codigo HTTP) | ID ajeno devuelve 404/403 | **0/1 — D13** |
+| Captura web | Formulario por defecto creado, render publico, submit, contacto creado en el workspace correcto, UTM conservada, submission registrada | 6/6 |
+| Eventos web | Ingesta, persistencia en el workspace correcto, `publicKey` invalida rechazada | 3/3 |
+| Webhook Mercado Pago | Sin firma rechazado (401), firma invalida rechazada (401) | 2/2 |
+| Health | Reporta base OK | 1/1 |
+
+La unica falla es de codigo de estado, no de seguridad: se comprobo por consulta directa a la
+base que el contacto de A conserva su valor tras el intento de escritura desde B.
+
+---
+
+## 7. Deuda tecnica
 
 | # | Item | Impacto |
 |---|---|---|
 | D1 | Sin rate limiting en `/api/auth/login` ni en la captura publica (CORS `*`) | Seccion 15 de la spec lo exige antes de beta publica |
-| D2 | Sin suite de tests (unitarios, integracion o E2E) | Toda fase exige pruebas |
-| D3 | Sin pruebas de aislamiento entre workspaces | Exigido por la spec (seccion 15) |
-| D4 | Sin cifrado de tokens de integracion (`Integration.config` es JSON plano) | Requerido para WhatsApp/Shopify (Fase 2 y 6) |
-| D5 | Sin cola durable ni scheduler; `automations/run` e `insights/generate` son endpoints manuales | Fase 3 los reemplaza |
+| D2 | Sin suite de tests unitarios/integracion (solo el smoke de Fase 0) | Toda fase exige pruebas |
+| D3 | ~~Sin pruebas de aislamiento entre workspaces~~ — cubierto por `smoke-fase0.mjs` | — |
+| D4 | Sin cifrado de tokens de integracion (`Integration.config` es JSON plano) | Requerido para WhatsApp/Shopify (Fases 2 y 6) |
+| D5 | Sin cola durable ni scheduler; `automations/run` e `insights/generate` son endpoints manuales | Fase 3 |
 | D6 | La regla de automatizacion esta hardcodeada; `trigger`/`action`/`conditions` no se ejecutan | Fase 3 |
 | D7 | "Insights IA" es scoring heuristico determinista, sin LLM | Fase 4 |
 | D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
 | D9 | `ContactStatus` mezcla ciclo de vida con intencion; la spec exige dimensiones separadas | Fase 1 |
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
-| D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 (onboarding) |
-| D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos al cerrar Fase 0 |
+| D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 |
+| D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos |
+| **D13** | **Un ID de otro workspace en `PATCH`/`DELETE /api/contacts/[id]` devuelve 500 en vez de 404.** El dato esta protegido (`where: { id, workspaceId }`), pero el `P2025` de Prisma no se captura | Exigido por la matriz de pruebas (seccion 18 de la spec). Revisar tambien `opportunities`, `activities` y `pipeline-stages`, que siguen el mismo patron |
+| **D14** | Desarrollo local apunta al **mismo** proyecto Supabase que produccion | Un error en dev afecta datos reales. Crear un segundo proyecto Supabase para dev |
 
 ---
 
-## 7. Plan de migraciones
-
-Principios acordados con la especificacion:
+## 8. Plan de migraciones
 
 1. Una migracion por fase, nunca una migracion monolitica.
 2. Toda columna nueva sobre tablas con datos entra como nullable o con default.
-3. Renombres se hacen en dos pasos (agregar + backfill + dejar de leer, luego eliminar en
-   una migracion posterior), nunca destructivos en el mismo despliegue.
+3. Renombres en dos pasos (agregar + backfill + dejar de leer, luego eliminar en una migracion
+   posterior), nunca destructivos en el mismo despliegue.
 4. Antes de cada `migrate deploy` se verifica `migrate status` y se toma respaldo Supabase.
 5. Cada migracion documenta aqui su procedimiento de reversion.
 
-Estado de partida: las migraciones `20260630220000_contact_owner` y
-`20260630220100_billing_mercadopago` existen en disco pero **no estan commiteadas ni
-verificadas contra produccion** (ver B1).
+Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sobre
+`mtdtccnchxpwnjllpsog`.
 
 ---
 
-## 8. Tareas manuales del propietario
+## 9. Tareas manuales del propietario
 
 | # | Tarea | Por que |
 |---|---|---|
 | T1 | ~~Aprobar el commit de respaldo~~ — hecho el 2026-09-06 | — |
-| T2 | Respaldar `Soluciones/` (1.2 GB) fuera de git: disco externo o almacenamiento en la nube | Ya no se versiona; hoy existe en una sola copia local |
-| T3 | Restaurar o recrear el proyecto Supabase y entregar `DATABASE_URL` / `DIRECT_URL` validos | Desbloquea B1, B2 y todas las pruebas |
-| T4 | Entregar `MERCADO_PAGO_ACCESS_TOKEN` y `MERCADO_PAGO_WEBHOOK_SECRET` (TEST primero) | Desbloquea B3 |
-| T5 | Confirmar variables de entorno del proyecto Vercel `upzites-crm` | Verificar que el deploy base es reproducible |
-| T6 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
+| T2 | Respaldar `Soluciones/` (1.2 GB) fuera de git: disco externo o nube | Ya no se versiona; hoy existe en una sola copia local |
+| T3 | Actualizar las variables del proyecto Vercel `upzites-crm` con las URLs del proyecto Supabase nuevo (con `sslmode=require`, no `no-verify`) y `CRM_SESSION_SECRET` | El CRM desplegado apunta a una base eliminada: esta caido |
+| T4 | Entregar `MERCADO_PAGO_ACCESS_TOKEN` y `MERCADO_PAGO_WEBHOOK_SECRET` (TEST primero) | Desbloquea B3 y la Fase 5 |
+| T5 | **Rotar la password de Postgres de `mtdtccnchxpwnjllpsog`** | Se compartio por chat durante el setup |
+| T6 | Crear un segundo proyecto Supabase para desarrollo | D14 |
+| T7 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
+| T8 | Aprobar el inicio de la Fase 1 | La spec exige aprobacion explicita por fase |
 
 ---
 
-## 9. Variables de entorno pendientes
-
-Ninguna variable nueva se ha introducido todavia. Las siguientes se necesitaran en fases
-posteriores (nombres tentativos, se fijaran al implementar cada fase):
+## 10. Variables de entorno pendientes por fase
 
 | Variable | Fase | Obligatoria para |
 |---|---|---|
@@ -269,31 +290,68 @@ posteriores (nombres tentativos, se fijaran al implementar cada fase):
 | `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_WEBHOOK_SECRET` | 8 | Email marketing |
 
 `src/lib/env.ts` debera distinguir variables obligatorias para arrancar de variables que solo
-habilitan una integracion (una integracion sin configurar aparece inactiva, no tumba el CRM).
+habilitan una integracion: una integracion sin configurar aparece inactiva, no tumba el CRM.
 
 ---
 
-## 10. Decisiones registradas
+## 11. Diferencias entre el repositorio y la especificacion
+
+Resumen del informe de la Fase 0. Detalle por fase en la spec.
+
+**Modelo de datos:** existen 18 tablas; la beta necesita ~33 nuevas. Mensajeria 0/5, agentes IA
+0/4, comercio 0/7, cotizaciones 0/4, marketing y seguimiento 0/12, uso y costos 0/1.
+
+**Enums:** existen 13; la spec exige 8 nuevos. `ContactStatus` (LEAD/ACTIVE/CUSTOMER/INACTIVE)
+choca con `LifecycleStatus` (LEAD/QUALIFIED/CUSTOMER/REPEAT_CUSTOMER/LOST): la Fase 1 debe
+migrar con backfill, no renombrar.
+
+**Infraestructura ausente:** cola durable, scheduler, patron outbox, locks por conversacion,
+debounce, dead-letter y reintentos.
+
+**Seguridad:** falta rate limiting, cifrado de tokens y CSRF. Lo que ya cumple el estandar de la
+spec es el webhook de Mercado Pago (firma validada, re-consulta server-to-server, idempotencia
+por `mpPaymentId`, validacion de monto): sirve de plantilla para los webhooks de Meta y Shopify.
+
+**Se preserva y reutiliza:** auth y roles, multi-tenancy por `workspaceId`, captura web,
+pipeline, actividades, atribucion UTM, billing de suscripcion y audit log.
+
+**Correccion a la spec:** la Fase 5 pide "extender el webhook existente sin romper billing de
+suscripcion". El webhook actual asume que *todo* pago aprobado es una suscripcion y activa el
+workspace. Extenderlo exige discriminar por `metadata`/`external_reference` antes de tocarlo, o
+el primer infoproducto vendido regalara suscripciones.
+
+---
+
+## 12. Decisiones registradas
 
 | Fecha | Decision |
 |---|---|
-| 2026-09-06 | Se adopta `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` v1.0 como fuente de verdad funcional y tecnica de la beta |
+| 2026-09-06 | Se adopta `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` v1.0 como fuente de verdad de la beta |
 | 2026-09-06 | El CRM existente se evoluciona, no se reescribe. Auth, multi-tenancy, captura web, pipeline y Mercado Pago se preservan |
-| 2026-09-06 | Fase 0 no avanza a Fase 1 sin aprobacion explicita del propietario |
+| 2026-09-06 | `Soluciones/` (1.2 GB de video) se excluye del control de versiones y se respalda aparte |
+| 2026-09-07 | Base de datos nueva en region `us-east-2`, junto a las funciones de Vercel (`iad1`), en vez de Sudamerica: pesa mas la latencia funciones-base que navegador-base |
+| 2026-09-07 | D13 no se corrige en la Fase 0: es un cambio de codigo fuera del alcance de la fase. Queda registrado con prueba que lo cubre |
 
 ---
 
-## 11. Bitacora
+## 13. Bitacora
 
-### 2026-09-06 — Fase 0
+### 2026-09-06 — Fase 0, inspeccion y respaldo
 
-- Inspeccion completa del monorepo y de `apps/crm` (18 modelos, 6 migraciones, 26 rutas API, 13 paginas).
-- Verificacion de linea base: build CRM OK, build web OK, lint 0 errores / 2 warnings, `tsc` 0 errores.
-- Detectado B1: el proyecto Supabase de produccion no responde (`tenant/user not found`).
+- Inspeccion completa del monorepo y de `apps/crm`.
+- Verificacion de linea base: build CRM y web OK, lint 0 errores, `tsc` 0 errores.
+- Detectado B1: el proyecto Supabase de produccion no existia.
 - Detectado B2: sin base de datos local (Docker no disponible).
-- Confirmado que ningun `.env` con secretos esta trackeado en git.
-- Detectado `Soluciones/` con 1.2 GB sin trackear ni ignorar por git.
-- Creado este archivo.
-- Respaldo aprobado por el propietario y ejecutado: 3 commits (`8d3c790`, `187d3f1`, `303b368`)
-  sobre `master`, sincronizados con `origin` (`rodriguezsalazarjm/upzitesCRM`). Working tree limpio.
-- **Pendiente para cerrar la fase:** base de datos operativa para ejecutar las pruebas funcionales.
+- Detectado `Soluciones/` con 1.2 GB sin trackear ni ignorar.
+- Respaldo aprobado y ejecutado: 3 commits en `origin/master`.
+
+### 2026-09-07 — Fase 0, base de datos y pruebas
+
+- Descartados dos proyectos Supabase (uno eliminado, otro con credenciales invalidas).
+  Creado `mtdtccnchxpwnjllpsog` en `us-east-2`.
+- `prisma migrate deploy`: 6 migraciones aplicadas sobre base vacia. 19 tablas verificadas.
+- Detectado B5: TLS interceptado en la maquina; `sslmode=no-verify` como workaround **solo local**.
+- Creados `scripts/set-crm-db.mjs` y `scripts/smoke-fase0.mjs`.
+- Pruebas de aceptacion: **24/25**. Unica falla D13 (codigo de estado, sin fuga de datos).
+- Base verificada en cero tras la limpieza de los workspaces de prueba.
+- **Fase 0 cerrada. No se inicia la Fase 1 sin aprobacion del propietario (T8).**
