@@ -193,6 +193,7 @@ const [A, B] = tenants;
         message: 'Prueba de captura',
         pageUrl: 'https://upzites.com/contacto',
         utmSource: 'smoke',
+        consent: true,
       }),
     });
     check('Submit del formulario acepta el lead', submit.status < 400, `HTTP ${submit.status}`);
@@ -206,6 +207,15 @@ const [A, B] = tenants;
 
     const sub = await client.query('select count(*)::int n from form_submissions where workspace_id = $1', [A.workspaceId]);
     check('Se registro la submission', sub.rows[0].n >= 1);
+
+    // Cableado de Fase 1: el formulario con consentimiento marcado lo registra
+    // por canal (email y whatsapp, segun los datos entregados).
+    const consents = await client.query(
+      'select channel, status from contact_channel_consents where contact_id = $1 order by channel',
+      [lead.rows[0]?.id],
+    );
+    const granted = consents.rows.filter((r) => r.status === 'GRANTED').map((r) => r.channel);
+    check('El formulario registra consentimiento por canal', granted.includes('EMAIL') && granted.includes('WHATSAPP'), granted.join('+') || 'ninguno');
   }
 
   // --- 7. Captura de eventos web --------------------------------------------

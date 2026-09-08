@@ -3,8 +3,8 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 0 — Proteccion y linea base
-- **Estado:** COMPLETADA. Esperando aprobacion del propietario para iniciar la Fase 1.
+- **Fase actual:** 1 — Dominio comercial y consentimiento
+- **Estado:** COMPLETADA. Esperando aprobacion del propietario para iniciar la Fase 2.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -14,8 +14,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | Fase | Nombre | Estado |
 |---|---|---|
 | 0 | Proteccion y linea base | **Completada** (2026-09-07) |
-| 1 | Dominio comercial y consentimiento | No iniciada — requiere aprobacion |
-| 2 | WhatsApp e Inbox humano | No iniciada |
+| 1 | Dominio comercial y consentimiento | **Completada** (2026-09-07) |
+| 2 | WhatsApp e Inbox humano | No iniciada — requiere aprobacion |
 | 3 | Cola, scheduler y automatizaciones reales | No iniciada |
 | 4 | Agentes IA y herramientas | No iniciada |
 | 5 | Infoproductos, Mercado Pago y entrega | No iniciada |
@@ -49,6 +49,24 @@ despliegue en Vercel pendiente de actualizar variables (T3).
 
 ---
 
+### Fase 1 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Enums de ciclo de vida, temperatura, intencion, orden, pago, cotizacion y consentimiento | Hecho | 12 enums nuevos (seccion 2) |
+| Entidades de consentimiento, scoring, scheduled actions, uso y supresion | Hecho | 6 tablas nuevas |
+| Migracion compatible con contactos actuales | Hecho | `20260907120000_fase1_dominio_comercial` con backfill |
+| Servicios de transicion de estado | Hecho | `src/lib/domain/` |
+| Audit log de cambios | Hecho | `recordAudit` en toda transicion y cambio de consentimiento |
+| Pruebas | Hecho | 41/41 (seccion 6) |
+
+**Criterio de salida:** el CRM representa contacto, intencion, oportunidad, orden y pago sin
+mezclar conceptos. **Cumplido:** el ciclo de vida, la temperatura y la intencion de compra son
+ahora dimensiones independientes; el consentimiento es por canal y la supresion sobrevive al
+contacto.
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -66,21 +84,34 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 19 tablas creadas (18 modelos + `_prisma_migrations`). Sin datos.
+- 25 tablas (24 modelos + `_prisma_migrations`) tras la Fase 1. Sin datos.
 
-### Modelos Prisma (18)
+### Modelos Prisma (24)
 
-`Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`, `Opportunity`,
-`Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`, `AutomationRule`,
-`AiInsight`, `SubscriptionPlan`, `WorkspaceSubscription`, `AuditLog`.
+Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
+`Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
+`AutomationRule`, `AiInsight`, `SubscriptionPlan`, `WorkspaceSubscription`, `AuditLog`.
 
-### Enums existentes (13)
+Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadScoreSnapshot`,
+`ScheduledAction`, `UsageRecord`.
 
-`UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`, `WebEventType`,
-`IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`, `AutomationAction`, `AiInsightType`,
-`InsightStatus`, `SubscriptionStatus`.
+`Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
+`scoreUpdatedAt`.
 
-### Migraciones (6, todas aplicadas)
+### Enums (25)
+
+Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
+`WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
+`AutomationAction`, `AiInsightType`, `InsightStatus`, `SubscriptionStatus`.
+
+Fase 1 (12): `LifecycleStatus`, `LeadTemperature`, `BuyingIntent`, `ConversationMode`,
+`OrderStatus`, `PaymentStatus`, `QuoteStatus`, `ConsentStatus`, `ConsentChannel`,
+`SuppressionReason`, `ScheduledActionType`, `ScheduledActionStatus`.
+
+`ConversationMode`, `OrderStatus`, `PaymentStatus` y `QuoteStatus` se crean aqui por exigencia de
+la spec, pero ninguna entidad los usa todavia: llegan con las Fases 2, 5, 6 y 7.
+
+### Migraciones (7, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -89,7 +120,18 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 20260614200000_integrations_ai_billing_ops
 20260630220000_contact_owner
 20260630220100_billing_mercadopago
+20260907120000_fase1_dominio_comercial
 ```
+
+La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
+backfill de `lifecycle_status` desde el `status` existente (LEAD->LEAD, ACTIVE->QUALIFIED,
+CUSTOMER->CUSTOMER, INACTIVE->LOST). **No elimina `status`**, que la UI y las rutas siguen
+leyendo. De paso corrige un drift preexistente: `users.password_hash` tenia un DEFAULT que el
+esquema no declaraba.
+
+**Reversion:** `DROP TABLE` de las 6 tablas nuevas, `ALTER TABLE contacts DROP COLUMN` de las 5
+columnas y `DROP TYPE` de los 12 enums. No hay perdida de datos preexistentes porque nada se
+reescribio salvo el backfill, que es derivable de `status`.
 
 `prisma migrate status` responde `Database schema is up to date!`.
 
@@ -116,11 +158,39 @@ Obligatorias en produccion (validadas en `src/lib/env.ts` via `instrumentation.t
 Opcionales (solo advertencia, el checkout responde 503 sin ellas):
 `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`.
 
+### Capa de dominio (Fase 1)
+
+`apps/crm/src/lib/domain/` concentra las reglas comerciales. Ninguna ruta ni agente debe escribir
+estados comerciales con un `prisma.update` directo.
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lifecycle.ts` | Transiciones validas del ciclo de vida, espejo del `status` legado y `applyApprovedPayment` |
+| `consent.ts` | Consentimiento por canal, supresion normalizada y `canContact` |
+| `scheduled-actions.ts` | Programar y cancelar acciones diferidas, quiet hours |
+| `scoring.ts` | Score determinista y explicable, temperatura y snapshots |
+| `audit.ts` | `recordAudit`, compartido por todos los servicios |
+
+Reglas implementadas segun la spec:
+
+- A `CUSTOMER` solo se llega con `PAYMENT_APPROVED` o `HUMAN_CONFIRMED`. Cualquier otra razon
+  lanza `LifecycleTransitionError`.
+- `canContact` exige consentimiento explicito: la ausencia de registro **no** habilita el envio.
+- La supresion manda sobre el consentimiento y sobrevive al contacto, por lo que una
+  reimportacion CSV no puede resucitar a alguien que pidio no ser contactado.
+- Revocar consentimiento cancela en la misma transaccion las acciones pendientes del contacto.
+- Un pago aprobado convierte a cliente, cancela la recuperacion y marca las oportunidades ganadas.
+
+Cableado inicial: el submit de formulario registra consentimiento por canal cuando el formulario
+trae el campo `consent`, y el registro de workspace siembra las reglas de scoring por defecto.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
   string de Supabase, URL-encodea la password y **verifica la conexion antes de escribir**.
-- `scripts/smoke-fase0.mjs`: pruebas de aceptacion de la Fase 0 (seccion 6).
+- `scripts/smoke-fase0.mjs`: pruebas de aceptacion de la Fase 0 (por HTTP).
+- `apps/crm/scripts/smoke-fase1.ts`: pruebas de aceptacion de la Fase 1 (capa de dominio).
+  Correr desde `apps/crm` con `pnpm exec tsx scripts/smoke-fase1.ts`.
 
 ---
 
@@ -225,6 +295,30 @@ conectado al Supabase real. Crea dos workspaces desechables y los elimina al ter
 La unica falla es de codigo de estado, no de seguridad: se comprobo por consulta directa a la
 base que el contacto de A conserva su valor tras el intento de escritura desde B.
 
+### Fase 1
+
+`pnpm exec tsx scripts/smoke-fase1.ts` desde `apps/crm`, ejecutado el 2026-09-07 contra la base
+real. Ejercita los servicios de dominio directamente. Crea dos workspaces `fase1-*` y los
+elimina al terminar.
+
+**Resultado: 41/41.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Reglas de scoring por defecto al crear workspace | 1 | 1/1 |
+| Transiciones de ciclo de vida (validas, invalidas, razon obligatoria, auditoria) | 9 | 9/9 |
+| Aislamiento tenant en los servicios de dominio | 2 | 2/2 |
+| Consentimiento por canal, revocacion y no-resurreccion por reimportacion | 7 | 7/7 |
+| Supresion por identidad normalizada (rebote duro) | 3 | 3/3 |
+| Pago aprobado: cliente, cancelacion de recovery, oportunidad ganada, recompra | 6 | 6/6 |
+| Cancelacion por `cancelKey` | 1 | 1/1 |
+| Quiet hours (funcion pura) | 6 | 6/6 |
+| Scoring determinista y explicable | 6 | 6/6 |
+
+La suite de la Fase 0 se reejecuto tras la Fase 1: **25/26**, sin regresiones (la unica falla
+sigue siendo D13). Incluye una prueba nueva del cableado: el formulario web con consentimiento
+marcado lo registra en los canales EMAIL y WHATSAPP.
+
 ---
 
 ## 7. Deuda tecnica
@@ -232,14 +326,14 @@ base que el contacto de A conserva su valor tras el intento de escritura desde B
 | # | Item | Impacto |
 |---|---|---|
 | D1 | Sin rate limiting en `/api/auth/login` ni en la captura publica (CORS `*`) | Seccion 15 de la spec lo exige antes de beta publica |
-| D2 | Sin suite de tests unitarios/integracion (solo el smoke de Fase 0) | Toda fase exige pruebas |
+| D2 | Sin runner de tests formal (Vitest/Jest): las suites son scripts ejecutables por fase | Conviene consolidarlas antes de la Fase 10 |
 | D3 | ~~Sin pruebas de aislamiento entre workspaces~~ — cubierto por `smoke-fase0.mjs` | — |
 | D4 | Sin cifrado de tokens de integracion (`Integration.config` es JSON plano) | Requerido para WhatsApp/Shopify (Fases 2 y 6) |
-| D5 | Sin cola durable ni scheduler; `automations/run` e `insights/generate` son endpoints manuales | Fase 3 |
+| D5 | `ScheduledAction` ya existe pero **nadie la ejecuta**: falta la cola durable y el worker | Fase 3 |
 | D6 | La regla de automatizacion esta hardcodeada; `trigger`/`action`/`conditions` no se ejecutan | Fase 3 |
 | D7 | "Insights IA" es scoring heuristico determinista, sin LLM | Fase 4 |
 | D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
-| D9 | `ContactStatus` mezcla ciclo de vida con intencion; la spec exige dimensiones separadas | Fase 1 |
+| D9 | ~~`ContactStatus` mezcla ciclo de vida con intencion~~ — resuelto en la Fase 1. Queda la deuda menor de **retirar `status`** una vez que la UI consuma `lifecycleStatus` | Fase 9 o antes |
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
 | D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 |
 | D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos |
@@ -273,7 +367,7 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T5 | **Rotar la password de Postgres de `mtdtccnchxpwnjllpsog`** | Se compartio por chat durante el setup |
 | T6 | Crear un segundo proyecto Supabase para desarrollo | D14 |
 | T7 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
-| T8 | Aprobar el inicio de la Fase 1 | La spec exige aprobacion explicita por fase |
+| T8 | Aprobar el inicio de la Fase 2 (WhatsApp e Inbox) | La spec exige aprobacion explicita por fase |
 
 ---
 
@@ -298,12 +392,13 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** existen 18 tablas; la beta necesita ~33 nuevas. Mensajeria 0/5, agentes IA
-0/4, comercio 0/7, cotizaciones 0/4, marketing y seguimiento 0/12, uso y costos 0/1.
+**Modelo de datos:** tras la Fase 1 existen 24 tablas. Faltan las de mensajeria (0/5), agentes
+IA (0/4), comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan consentimiento,
+scoring, supresion y scheduled actions; faltan segmentos, journeys y campanas. Uso y costos: hecho.
 
-**Enums:** existen 13; la spec exige 8 nuevos. `ContactStatus` (LEAD/ACTIVE/CUSTOMER/INACTIVE)
-choca con `LifecycleStatus` (LEAD/QUALIFIED/CUSTOMER/REPEAT_CUSTOMER/LOST): la Fase 1 debe
-migrar con backfill, no renombrar.
+**Enums:** completos. Los 8 que exige la spec estan creados, mas 4 de apoyo. `ContactStatus`
+convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
+consuma el campo nuevo.
 
 **Infraestructura ausente:** cola durable, scheduler, patron outbox, locks por conversacion,
 debounce, dead-letter y reintentos.
@@ -331,6 +426,9 @@ el primer infoproducto vendido regalara suscripciones.
 | 2026-09-06 | `Soluciones/` (1.2 GB de video) se excluye del control de versiones y se respalda aparte |
 | 2026-09-07 | Base de datos nueva en region `us-east-2`, junto a las funciones de Vercel (`iad1`), en vez de Sudamerica: pesa mas la latencia funciones-base que navegador-base |
 | 2026-09-07 | D13 no se corrige en la Fase 0: es un cambio de codigo fuera del alcance de la fase. Queda registrado con prueba que lo cubre |
+| 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
+| 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
+| 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
 
 ---
 
@@ -354,4 +452,19 @@ el primer infoproducto vendido regalara suscripciones.
 - Creados `scripts/set-crm-db.mjs` y `scripts/smoke-fase0.mjs`.
 - Pruebas de aceptacion: **24/25**. Unica falla D13 (codigo de estado, sin fuga de datos).
 - Base verificada en cero tras la limpieza de los workspaces de prueba.
-- **Fase 0 cerrada. No se inicia la Fase 1 sin aprobacion del propietario (T8).**
+- **Fase 0 cerrada.**
+
+### 2026-09-07 — Fase 1, dominio comercial y consentimiento
+
+- 12 enums y 6 tablas nuevas; `Contact` sumo 5 columnas.
+- Migracion `20260907120000_fase1_dominio_comercial` generada con `prisma migrate diff`
+  (sin shadow database) y ampliada a mano con el backfill. Aplicada sobre la base real.
+- Capa de dominio en `src/lib/domain/`: ciclo de vida, consentimiento, acciones programadas,
+  scoring y auditoria.
+- Cableado inicial: consentimiento desde el formulario web y reglas de scoring al registrar.
+- Pruebas: **41/41** en Fase 1 y **25/26** en Fase 0 (sin regresiones).
+- Build, lint y `tsc` limpios. Base verificada sin datos residuales.
+- Incidente durante las pruebas: el servidor de desarrollo mantenia el cliente Prisma anterior
+  a `prisma generate` y fallaba con `tx.leadScoreRule undefined`. **Tras cambiar el esquema hay
+  que reiniciar el dev server**, el HMR no basta.
+- **Fase 1 cerrada. No se inicia la Fase 2 sin aprobacion del propietario.**

@@ -6,6 +6,7 @@ import {
   UserRole,
 } from '../../generated/prisma/client';
 import { isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
+import { DEFAULT_SCORE_RULES } from './domain';
 import { hashPassword } from './password';
 import { prisma } from './prisma';
 
@@ -187,6 +188,18 @@ export async function createCustomerWorkspace(input: {
         status: SubscriptionStatus.TRIAL,
         trialEndsAt,
       },
+    });
+
+    // Reglas de scoring por defecto del workspace (Fase 1). Se crean aqui para
+    // que el score sea explicable desde el primer lead, sin depender de un job.
+    await tx.leadScoreRule.createMany({
+      data: DEFAULT_SCORE_RULES.map((rule) => ({
+        workspaceId: workspace.id,
+        key: rule.key,
+        label: rule.label,
+        points: rule.points,
+      })),
+      skipDuplicates: true,
     });
 
     await tx.integration.createMany({

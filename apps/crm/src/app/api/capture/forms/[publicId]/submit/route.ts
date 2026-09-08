@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
-import { ActivityType, WebEventType } from '../../../../../../../generated/prisma/client';
+import { ActivityType, ConsentChannel, WebEventType } from '../../../../../../../generated/prisma/client';
 import { publicCorsHeaders, upsertLeadContact } from '@/lib/capture';
+import { grantConsent } from '@/lib/domain';
 import { prisma } from '@/lib/prisma';
+
+/** El formulario publico manda el checkbox como boolean o como string. */
+function isConsentGiven(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  const text = String(value ?? '').toLowerCase();
+  return text === 'true' || text === 'on' || text === '1' || text === 'si' || text === 'yes';
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: publicCorsHeaders() });
@@ -73,6 +81,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
       description: message || `Formulario: ${form.name}`,
     },
   });
+
+  // Consentimiento por canal. Solo se registra si el formulario lo pidio
+  // explicitamente: si el campo no viene, no se asume nada. `grantConsent`
+  // rechaza por si mismo a las identidades ya suprimidas.
+  if (isConsentGiven(rawData.consent)) {
+    const evidence = { formId: form.id, formName: form.name, pageUrl: pageUrl || null };
+
+    if (email) {
+      await grantConsent({
+        workspaceId: form.workspaceId,
+        contactId: contact.id,
+        channel: ConsentChannel.EMAIL,
+        source: `form:${form.publicId}`,
+        evidence,
+      });
+    }
+
+    if (phone) {
+      await grantConsent({
+        workspaceId: form.workspaceId,
+        contactId: contact.id,
+        channel: ConsentChannel.WHATSAPP,
+        source: `form:${form.publicId}`,
+        evidence,
+      });
+    }
+  }
 
   await prisma.webEvent.create({
     data: {

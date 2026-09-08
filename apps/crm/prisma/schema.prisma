@@ -31,6 +31,13 @@ model Workspace {
   auditLogs       AuditLog[]
   subscriptions   WorkspaceSubscription[]
 
+  contactConsents    ContactChannelConsent[]
+  suppressionEntries SuppressionEntry[]
+  leadScoreRules     LeadScoreRule[]
+  leadScoreSnapshots LeadScoreSnapshot[]
+  scheduledActions   ScheduledAction[]
+  usageRecords       UsageRecord[]
+
   @@map("workspaces")
 }
 
@@ -108,18 +115,32 @@ model Contact {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  owner           User?            @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  opportunities   Opportunity[]
-  activities      Activity[]
-  formSubmissions FormSubmission[]
-  aiInsights      AiInsight[]
+  // Dimensiones independientes del estado comercial. `status` (ContactStatus)
+  // se mantiene por compatibilidad con la UI y las rutas actuales; la fuente de
+  // verdad del ciclo de vida es `lifecycleStatus`. Ver src/lib/domain/lifecycle.ts.
+  lifecycleStatus LifecycleStatus @default(LEAD) @map("lifecycle_status")
+  temperature     LeadTemperature @default(COLD)
+  buyingIntent    BuyingIntent    @default(UNKNOWN) @map("buying_intent")
+  leadScore       Int             @default(0) @map("lead_score")
+  scoreUpdatedAt  DateTime?       @map("score_updated_at")
+
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company          Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner            User?                  @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  opportunities    Opportunity[]
+  activities       Activity[]
+  formSubmissions  FormSubmission[]
+  aiInsights       AiInsight[]
+  consents         ContactChannelConsent[]
+  scoreSnapshots   LeadScoreSnapshot[]
+  scheduledActions ScheduledAction[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
   @@index([workspaceId, source])
   @@index([workspaceId, ownerId])
+  @@index([workspaceId, lifecycleStatus])
+  @@index([workspaceId, temperature])
   @@map("contacts")
 }
 
@@ -382,6 +403,133 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Consentimiento por canal. Es independiente para WhatsApp, email y publicidad:
+/// aceptar recibir la confirmacion de una compra no habilita marketing.
+model ContactChannelConsent {
+  id          String        @id @default(cuid())
+  workspaceId String        @map("workspace_id")
+  contactId   String        @map("contact_id")
+  channel     ConsentChannel
+  status      ConsentStatus @default(UNKNOWN)
+  source      String?
+  evidence    Json?
+  grantedAt   DateTime?     @map("granted_at")
+  revokedAt   DateTime?     @map("revoked_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, channel])
+  @@index([workspaceId, channel, status])
+  @@map("contact_channel_consents")
+}
+
+/// Lista de supresion a nivel de workspace. Sobrevive al borrado del contacto y
+/// a una reimportacion por CSV: la identidad es el email o telefono normalizado.
+model SuppressionEntry {
+  id          String            @id @default(cuid())
+  workspaceId String            @map("workspace_id")
+  channel     ConsentChannel
+  identifier  String
+  reason      SuppressionReason @default(USER_REQUEST)
+  notes       String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, channel, identifier])
+  @@index([workspaceId, channel])
+  @@map("suppression_entries")
+}
+
+/// Reglas de scoring versionadas por workspace. El score es calculado y
+/// explicable: nunca reemplaza la etapa del pipeline.
+model LeadScoreRule {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  key         String
+  label       String
+  points      Int
+  isActive    Boolean  @default(true) @map("is_active")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, isActive])
+  @@map("lead_score_rules")
+}
+
+/// Foto del score en un momento dado, con las razones que lo produjeron.
+model LeadScoreSnapshot {
+  id          String          @id @default(cuid())
+  workspaceId String          @map("workspace_id")
+  contactId   String          @map("contact_id")
+  score       Int
+  temperature LeadTemperature
+  reasons     Json
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, contactId, createdAt])
+  @@map("lead_score_snapshots")
+}
+
+/// Accion diferida (seguimiento, recordatorio, recuperacion). `cancelKey` agrupa
+/// las acciones de un mismo motivo para poder cancelarlas de una sola vez cuando
+/// el contacto responde, paga o revoca el consentimiento.
+model ScheduledAction {
+  id          String                @id @default(cuid())
+  workspaceId String                @map("workspace_id")
+  contactId   String?               @map("contact_id")
+  type        ScheduledActionType
+  status      ScheduledActionStatus @default(PENDING)
+  payload     Json?
+  cancelKey   String?               @map("cancel_key")
+  runAt       DateTime              @map("run_at")
+  attempts    Int                   @default(0)
+  lastError   String?               @map("last_error")
+  processedAt DateTime?             @map("processed_at")
+  canceledAt  DateTime?             @map("canceled_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([workspaceId, cancelKey])
+  @@index([workspaceId, contactId])
+  @@map("scheduled_actions")
+}
+
+/// Consumo medido por workspace (mensajes, tokens de IA, emails). Base para los
+/// limites de plan y los excedentes.
+model UsageRecord {
+  id            String   @id @default(cuid())
+  workspaceId   String   @map("workspace_id")
+  provider      String
+  metric        String
+  quantity      Int
+  costEstimate  Int      @default(0) @map("cost_estimate")
+  currency      String   @default("CLP")
+  referenceType String?  @map("reference_type")
+  referenceId   String?  @map("reference_id")
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, metric, occurredAt])
+  @@index([workspaceId, provider])
+  @@map("usage_records")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -475,4 +623,113 @@ enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+}
+
+// --- Fase 1: dominio comercial y consentimiento ------------------------------
+// Son dimensiones independientes: una sola columna no puede representar a la vez
+// "caliente", "compro", "pago" y "perdido".
+
+/// Ciclo de vida comercial del contacto.
+enum LifecycleStatus {
+  LEAD
+  QUALIFIED
+  CUSTOMER
+  REPEAT_CUSTOMER
+  LOST
+}
+
+/// Temperatura calculada por el scoring. No reemplaza la etapa del pipeline.
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+}
+
+/// Intencion de compra detectada en la conversacion.
+enum BuyingIntent {
+  UNKNOWN
+  INTERESTED
+  QUOTE_REQUESTED
+  CHECKOUT_STARTED
+  NO_INTENT
+}
+
+/// Modo de atencion de una conversacion. Se usa desde la Fase 2.
+enum ConversationMode {
+  AI_ACTIVE
+  HUMAN_ACTIVE
+  WAITING
+  PAUSED
+  CLOSED
+}
+
+/// Estado de un pedido. Las entidades de comercio llegan en las Fases 5 y 6.
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  CONFIRMED
+  PROCESSING
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+/// Estado de un pago. Solo lo mueve un webhook verificado, nunca la IA.
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
+}
+
+/// Estado de una cotizacion. El cotizador llega en la Fase 7.
+enum QuoteStatus {
+  DRAFT
+  CALCULATED
+  PENDING_HUMAN_REVIEW
+  APPROVED
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+/// Consentimiento por canal.
+enum ConsentStatus {
+  UNKNOWN
+  GRANTED
+  REVOKED
+  SUPPRESSED
+}
+
+/// Canales sobre los que se pide consentimiento de forma independiente.
+enum ConsentChannel {
+  WHATSAPP
+  EMAIL
+  ADS
+}
+
+/// Motivo por el que una identidad entra a la lista de supresion.
+enum SuppressionReason {
+  USER_REQUEST
+  HARD_BOUNCE
+  SPAM_COMPLAINT
+  MANUAL
+}
+
+enum ScheduledActionType {
+  FOLLOW_UP
+  CHECKOUT_RECOVERY
+  QUOTE_REMINDER
+  REPURCHASE_REMINDER
+  CUSTOM
+}
+
+enum ScheduledActionStatus {
+  PENDING
+  PROCESSING
+  DONE
+  CANCELED
+  FAILED
 }
