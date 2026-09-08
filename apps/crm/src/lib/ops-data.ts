@@ -255,7 +255,7 @@ export async function getBillingSummary() {
 export async function getOpsSummary() {
   const workspaceId = await getCurrentWorkspaceId();
   try {
-    const [auditLogs, openInsights, disconnectedIntegrations] = await Promise.all([
+    const [auditLogs, openInsights, disconnectedIntegrations, queue, deadJobs, failedOutbox] = await Promise.all([
       prisma.auditLog.findMany({
         where: { workspaceId },
         orderBy: { createdAt: 'desc' },
@@ -263,9 +263,33 @@ export async function getOpsSummary() {
       }),
       prisma.aiInsight.count({ where: { workspaceId, status: InsightStatus.OPEN } }),
       prisma.integration.count({ where: { workspaceId, status: IntegrationStatus.DISCONNECTED } }),
+      // La cola es global, no por workspace: los trabajos recurrentes no
+      // pertenecen a ningun tenant. Se muestra el estado del sistema.
+      prisma.job.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.job.findMany({
+        where: { status: 'DEAD' },
+        orderBy: { updatedAt: 'desc' },
+        take: 5,
+        select: { id: true, type: true, lastError: true, updatedAt: true },
+      }),
+      prisma.outboxEvent.count({ where: { status: 'FAILED' } }),
     ]);
 
-    return { auditLogs, openInsights, disconnectedIntegrations };
+    const queueByStatus = Object.fromEntries(queue.map((row) => [row.status, row._count._all]));
+
+    return {
+      auditLogs,
+      openInsights,
+      disconnectedIntegrations,
+      queue: {
+        pending: queueByStatus.PENDING ?? 0,
+        processing: queueByStatus.PROCESSING ?? 0,
+        done: queueByStatus.DONE ?? 0,
+        dead: queueByStatus.DEAD ?? 0,
+      },
+      deadJobs,
+      failedOutbox,
+    };
   } catch (error) {
     if (shouldUseDemo(error)) {
       return {
@@ -274,6 +298,9 @@ export async function getOpsSummary() {
         disconnectedIntegrations: demoIntegrations.filter(
           (integration) => integration.status === IntegrationStatus.DISCONNECTED,
         ).length,
+        queue: { pending: 0, processing: 0, done: 0, dead: 0 },
+        deadJobs: [],
+        failedOutbox: 0,
       };
     }
     throw error;

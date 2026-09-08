@@ -1,9 +1,11 @@
 import {
+  AutomationTrigger,
   ContactStatus,
   LifecycleStatus,
   OpportunityStatus,
   ScheduledActionStatus,
 } from '../../../generated/prisma/client';
+import { emitDomainEvent } from '../automation/emit';
 import { prisma } from '../prisma';
 import { recordAudit, type Db } from './audit';
 
@@ -148,7 +150,7 @@ export type ApprovedPaymentInput = {
  * contra el proveedor. Nunca desde la IA ni desde una afirmacion del usuario.
  */
 export async function applyApprovedPayment(input: ApprovedPaymentInput) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const contact = await tx.contact.findFirst({
       where: { id: input.contactId, workspaceId: input.workspaceId },
       select: { id: true, lifecycleStatus: true },
@@ -231,4 +233,16 @@ export async function applyApprovedPayment(input: ApprovedPaymentInput) {
 
     return { lifecycleStatus: target, canceledActions: canceled.count, opportunitiesWon };
   });
+
+  // El anuncio va fuera de la transaccion: las automatizaciones no deben poder
+  // revertir un pago ya aplicado.
+  await emitDomainEvent({
+    workspaceId: input.workspaceId,
+    trigger: AutomationTrigger.PAYMENT_CONFIRMED,
+    dedupeKey: `payment:${input.paymentId}`,
+    contactId: input.contactId,
+    context: { payment: { id: input.paymentId, amount: input.amount ?? null } },
+  });
+
+  return result;
 }

@@ -1,25 +1,15 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { isInternalRequest } from '@/lib/internal-auth';
 import { processOutbox } from '@/lib/whatsapp/outbound';
 
+export const dynamic = 'force-dynamic';
+
 /**
- * Worker del outbox. NO es publico: requiere INTERNAL_WORKER_SECRET.
- *
- * Provisional hasta la Fase 3, que lo reemplaza por un consumidor de cola.
+ * Procesa solo el outbox. Se mantiene aparte de /run-jobs para poder despachar
+ * mensajes sin tocar el resto de la cola cuando se esta depurando un envio.
  */
-function isAuthorized(request: Request) {
-  const secret = process.env.INTERNAL_WORKER_SECRET;
-  if (!secret) return false;
-
-  const header = request.headers.get('x-internal-secret') ?? '';
-  const a = Buffer.from(header);
-  const b = Buffer.from(secret);
-
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalRequest(request)) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 

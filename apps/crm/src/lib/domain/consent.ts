@@ -1,10 +1,12 @@
 import {
+  AutomationTrigger,
   ConsentChannel,
   ConsentStatus,
   ScheduledActionStatus,
   SuppressionReason,
   type Prisma,
 } from '../../../generated/prisma/client';
+import { emitDomainEvent } from '../automation/emit';
 import { prisma } from '../prisma';
 import { recordAudit, type Db } from './audit';
 
@@ -186,7 +188,7 @@ export type RevokeInput = {
  * y cancela las acciones programadas pendientes de ese contacto.
  */
 export async function revokeConsent(input: RevokeInput) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const contact = await tx.contact.findFirst({
       where: { id: input.contactId, workspaceId: input.workspaceId },
       select: { id: true, email: true, phone: true },
@@ -264,6 +266,18 @@ export async function revokeConsent(input: RevokeInput) {
 
     return { revoked: true, suppressed, canceledActions: canceled.count };
   });
+
+  if (result.revoked) {
+    await emitDomainEvent({
+      workspaceId: input.workspaceId,
+      trigger: AutomationTrigger.CONSENT_REVOKED,
+      dedupeKey: `consent-revoked:${input.contactId}:${input.channel}`,
+      contactId: input.contactId,
+      context: { consent: { channel: input.channel } },
+    });
+  }
+
+  return result;
 }
 
 export type SuppressInput = {

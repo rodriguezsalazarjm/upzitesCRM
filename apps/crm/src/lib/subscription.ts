@@ -7,6 +7,7 @@ import {
 } from '../../generated/prisma/client';
 import { isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { DEFAULT_SCORE_RULES } from './domain';
+import { AUTOMATION_PRESETS } from './automation/presets';
 import { hashPassword } from './password';
 import { prisma } from './prisma';
 
@@ -201,6 +202,22 @@ export async function createCustomerWorkspace(input: {
       })),
       skipDuplicates: true,
     });
+
+    // Automatizaciones basicas activas desde el primer dia (Fase 3). Son
+    // genericas a proposito: la beta es multivertical.
+    for (const preset of AUTOMATION_PRESETS.filter((item) => item.enabledByDefault)) {
+      await tx.automationRule.create({
+        data: {
+          workspaceId: workspace.id,
+          name: preset.name,
+          description: preset.description,
+          trigger: preset.trigger,
+          conditions: preset.conditions as never,
+          actions: preset.actions as never,
+          dedupeMinutes: preset.dedupeMinutes,
+        },
+      });
+    }
 
     await tx.integration.createMany({
       data: defaultIntegrations.map((integration) => ({

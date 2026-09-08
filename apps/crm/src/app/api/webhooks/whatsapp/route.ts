@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { ingestWebhookEvent, processWebhookEvent } from '@/lib/whatsapp/inbound';
+import { JobType } from '../../../../../generated/prisma/client';
+import { enqueue } from '@/lib/jobs/queue';
+import { ingestWebhookEvent } from '@/lib/whatsapp/inbound';
 import { resolveVerification, verifyMetaSignature } from '@/lib/whatsapp/signature';
 
 /**
@@ -54,17 +56,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  // Procesamiento en linea de forma provisional: la Fase 3 lo mueve a la cola
-  // durable. El resultado no condiciona la respuesta — el evento ya esta a
-  // salvo en la base y puede reprocesarse.
-  try {
-    await processWebhookEvent(ingest.eventId);
-  } catch (error) {
-    console.error('whatsapp_webhook_processing_failed', {
-      eventId: ingest.eventId,
-      error: error instanceof Error ? error.message : error,
-    });
-  }
+  // El evento ya esta a salvo en la base. El procesamiento va a la cola: el
+  // webhook responde 200 sin esperar a que corran las automatizaciones.
+  await enqueue({
+    type: JobType.PROCESS_WEBHOOK_EVENT,
+    payload: { eventId: ingest.eventId },
+    dedupeKey: `webhook-event:${ingest.eventId}`,
+    priority: 10,
+  });
 
-  return NextResponse.json({ ok: true, events: ingest.events });
+  return NextResponse.json({ ok: true, events: ingest.events, queued: true });
 }

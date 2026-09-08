@@ -8,9 +8,11 @@ import {
   MessageSenderType,
   MessageStatus,
   WebhookEventStatus,
+  AutomationTrigger,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { cancelForContact } from '../domain';
+import { emitDomainEvent } from '../automation/emit';
 import { recordAudit } from '../domain/audit';
 import {
   dedupeKeyFor,
@@ -78,9 +80,8 @@ export async function ingestWebhookEvent(rawBody: string, parsed: unknown): Prom
 /**
  * Paso 2: procesar un evento ya persistido.
  *
- * En la Fase 3 lo llamara un consumidor de cola. Por ahora se invoca justo
- * despues de guardar, pero la separacion ya esta hecha: el webhook nunca
- * depende de que esto termine.
+ * Lo invoca el consumidor de la cola (JobType.PROCESS_WEBHOOK_EVENT), no el
+ * webhook: la respuesta 200 a Meta no depende de que esto termine.
  */
 export async function processWebhookEvent(eventId: string) {
   const event = await prisma.webhookEvent.findUnique({ where: { id: eventId } });
@@ -152,12 +153,16 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
 
   const phone = toE164(event.from);
 
+  let isNewContact = false;
+
   const contactId = await prisma.$transaction(async (tx) => {
+    const before = await tx.contact.count({ where: { workspaceId: channel.workspaceId, phone } });
     const contact = await upsertContactByPhone(tx, {
       workspaceId: channel.workspaceId,
       phone,
       profileName: event.profileName,
     });
+    isNewContact = before === 0;
 
     const now = event.timestamp;
     const conversation = await tx.conversation.upsert({
@@ -216,6 +221,32 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     contactId,
     reason: 'el contacto respondio',
     types: ['FOLLOW_UP', 'CHECKOUT_RECOVERY'],
+  });
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { channelId_contactId: { channelId: channel.id, contactId } },
+    select: { id: true },
+  });
+
+  // Si el contacto es nuevo, tambien es un lead nuevo.
+  if (isNewContact) {
+    await emitDomainEvent({
+      workspaceId: channel.workspaceId,
+      trigger: AutomationTrigger.LEAD_CREATED,
+      dedupeKey: `contact:${contactId}`,
+      contactId,
+      conversationId: conversation?.id,
+      context: { source: 'whatsapp' },
+    });
+  }
+
+  await emitDomainEvent({
+    workspaceId: channel.workspaceId,
+    trigger: AutomationTrigger.MESSAGE_RECEIVED,
+    dedupeKey: `message:${event.externalMessageId}`,
+    contactId,
+    conversationId: conversation?.id,
+    context: { message: { text: event.text ?? '', type: event.type } },
   });
 
   return true;
@@ -322,6 +353,13 @@ async function applyStatusUpdate(event: NormalizedStatusUpdate) {
       entity: 'Message',
       entityId: message.id,
       metadata: { errorCode: event.errorCode ?? null, errorMessage: event.errorMessage ?? null },
+    });
+
+    await emitDomainEvent({
+      workspaceId: channel.workspaceId,
+      trigger: AutomationTrigger.MESSAGE_FAILED,
+      dedupeKey: `message-failed:${event.externalMessageId}`,
+      context: { message: { errorCode: event.errorCode ?? null } },
     });
   }
 

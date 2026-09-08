@@ -43,6 +43,9 @@ model Workspace {
   messages         Message[]
   outboxEvents     OutboxEvent[]
 
+  jobs                 Job[]
+  automationExecutions AutomationExecution[]
+
   @@map("workspaces")
 }
 
@@ -320,22 +323,38 @@ model Integration {
 }
 
 model AutomationRule {
-  id           String            @id @default(cuid())
-  workspaceId  String            @map("workspace_id")
-  name         String
-  description  String?
-  trigger      AutomationTrigger
-  action       AutomationAction
-  isActive     Boolean           @default(true) @map("is_active")
-  conditions   Json?
-  actionConfig Json?             @map("action_config")
-  lastRunAt    DateTime?         @map("last_run_at")
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  id          String            @id @default(cuid())
+  workspaceId String            @map("workspace_id")
+  name        String
+  description String?
+  trigger     AutomationTrigger
+  isActive    Boolean           @default(true) @map("is_active")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Grupo de condiciones validado con Zod: { match: "ALL" | "ANY", rules: [...] }.
+  /// Null significa "sin condiciones": la regla corre en cada disparo.
+  conditions Json?
+
+  /// Lista de acciones a ejecutar en orden, validada con Zod.
+  /// Reemplaza al par action/actionConfig, que queda solo por compatibilidad.
+  actions Json?
+
+  /// Deprecados: los conserva una regla creada antes de la Fase 3.
+  action       AutomationAction?
+  actionConfig Json?             @map("action_config")
+
+  /// Ventana de deduplicacion por contacto, en minutos. Evita que un mismo
+  /// contacto dispare la misma regla dos veces seguidas.
+  dedupeMinutes Int       @default(0) @map("dedupe_minutes")
+  lastRunAt     DateTime? @map("last_run_at")
+  runCount      Int       @default(0) @map("run_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  workspace  Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  executions AutomationExecution[]
 
   @@index([workspaceId, isActive])
+  @@index([workspaceId, trigger, isActive])
   @@map("automation_rules")
 }
 
@@ -677,6 +696,65 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
+// --- Fase 3: cola durable, scheduler y motor de automatizaciones -------------
+
+/// Trabajo de la cola durable.
+///
+/// Se implementa como tabla en vez de pgmq para que Prisma la tipe, las pruebas
+/// la consulten y la pagina de Ops muestre profundidad y antiguedad por
+/// workspace sin SQL crudo. El reclamo usa `FOR UPDATE SKIP LOCKED`, que da la
+/// misma garantia de "un solo consumidor por trabajo".
+model Job {
+  id          String    @id @default(cuid())
+  workspaceId String?   @map("workspace_id")
+  type        JobType
+  payload     Json
+  status      JobStatus @default(PENDING)
+  priority    Int       @default(100)
+  runAt       DateTime  @default(now()) @map("run_at")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5) @map("max_attempts")
+  lastError   String?   @map("last_error")
+  lockedAt    DateTime? @map("locked_at")
+  lockedBy    String?   @map("locked_by")
+
+  /// Idempotencia al encolar: dos disparos del mismo hecho no crean dos trabajos.
+  dedupeKey   String?   @unique @map("dedupe_key")
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt, priority])
+  @@index([workspaceId, status])
+  @@map("jobs")
+}
+
+/// Ejecucion de una regla sobre un hecho concreto.
+///
+/// El unique (ruleId, dedupeKey) es lo que garantiza "una ejecucion por evento":
+/// aunque el trabajo se reintente, la regla no vuelve a actuar.
+model AutomationExecution {
+  id          String                    @id @default(cuid())
+  workspaceId String                    @map("workspace_id")
+  ruleId      String                    @map("rule_id")
+  dedupeKey   String                    @map("dedupe_key")
+  contactId   String?                   @map("contact_id")
+  status      AutomationExecutionStatus @default(MATCHED)
+  actionsRun  Int                       @default(0) @map("actions_run")
+  result      Json?
+  error       String?
+  createdAt   DateTime                  @default(now()) @map("created_at")
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rule      AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, dedupeKey])
+  @@index([workspaceId, createdAt])
+  @@map("automation_executions")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -743,6 +821,17 @@ enum AutomationTrigger {
   OPPORTUNITY_STAGE_CHANGED
   NO_ACTIVITY
   PAYMENT_CONFIRMED
+  // Fase 3
+  MESSAGE_RECEIVED
+  MESSAGE_FAILED
+  CONVERSATION_ASSIGNED
+  CONTACT_SCORE_CHANGED
+  CONSENT_REVOKED
+  // Disparadores de fases posteriores: el motor ya los acepta.
+  CHECKOUT_STARTED
+  QUOTE_CREATED
+  QUOTE_ACCEPTED
+  ORDER_FULFILLED
 }
 
 enum AutomationAction {
@@ -750,6 +839,17 @@ enum AutomationAction {
   MOVE_OPPORTUNITY
   CREATE_INSIGHT
   SEND_NOTIFICATION
+  // Fase 3
+  SEND_MESSAGE
+  SCHEDULE_ACTION
+  CANCEL_ACTIONS
+  ADD_TAG
+  REMOVE_TAG
+  ASSIGN_CONVERSATION
+  SET_LIFECYCLE
+  RECALCULATE_SCORE
+  // Fase 4: el motor lo acepta y por ahora lo registra sin ejecutar.
+  RUN_AGENT
 }
 
 enum AiInsightType {
@@ -948,5 +1048,35 @@ enum OutboxStatus {
   PENDING
   PROCESSING
   SENT
+  FAILED
+}
+
+
+// --- Fase 3: enums de cola y automatizaciones --------------------------------
+
+enum JobType {
+  PROCESS_WEBHOOK_EVENT
+  PROCESS_OUTBOX
+  EVALUATE_TRIGGER
+  RUN_AUTOMATION_RULE
+  RUN_SCHEDULED_ACTION
+  SCAN_SCHEDULED_ACTIONS
+  SCAN_SILENCE
+  RECALCULATE_SCORE
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  /// Agoto los reintentos. No se vuelve a tomar solo: requiere revision.
+  DEAD
+}
+
+enum AutomationExecutionStatus {
+  MATCHED
+  SKIPPED
+  COMPLETED
   FAILED
 }

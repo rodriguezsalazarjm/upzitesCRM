@@ -3,8 +3,8 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 2 — WhatsApp e Inbox humano
-- **Estado:** COMPLETADA con fixtures. Esperando credenciales de Meta y aprobacion para la Fase 3.
+- **Fase actual:** 3 — Cola, scheduler y automatizaciones reales
+- **Estado:** COMPLETADA. Esperando aprobacion del propietario para la Fase 4.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -16,8 +16,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 0 | Proteccion y linea base | **Completada** (2026-09-07) |
 | 1 | Dominio comercial y consentimiento | **Completada** (2026-09-07) |
 | 2 | WhatsApp e Inbox humano | **Completada** (2026-09-07), probada con fixtures |
-| 3 | Cola, scheduler y automatizaciones reales | No iniciada — requiere aprobacion |
-| 4 | Agentes IA y herramientas | No iniciada |
+| 3 | Cola, scheduler y automatizaciones reales | **Completada** (2026-09-07) |
+| 4 | Agentes IA y herramientas | No iniciada — requiere aprobacion |
 | 5 | Infoproductos, Mercado Pago y entrega | No iniciada |
 | 6 | Shopify | No iniciada |
 | 7 | Cotizador y aprobaciones | No iniciada |
@@ -92,6 +92,24 @@ llega junto con las credenciales.
 
 ---
 
+### Fase 3 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Cola y consumidores | Hecho | `lib/jobs/` con reclamo `FOR UPDATE SKIP LOCKED` |
+| Motor `trigger -> conditions -> actions` | Hecho | `lib/automation/` |
+| `ScheduledAction` y cancelacion por clave | Hecho | Scheduler que promueve las vencidas |
+| Reintentos y dead-letter | Hecho | Espera creciente 30 s / 2 / 5 / 15 min / 1 h, luego DEAD |
+| Triggers minimos | Hecho | 13 disparadores; 9 activos, 4 reservados para fases posteriores |
+| Acciones minimas | Hecho | 12 acciones tipadas y validadas con Zod |
+| UI de reglas predefinidas | Hecho | Catalogo de 7 reglas activables desde `/automatizaciones` |
+
+**Criterio de salida:** los seguimientos funcionan sin intervencion manual y son auditables.
+**Cumplido:** el cron encola, el worker procesa, las reglas se ejecutan una sola vez por evento y
+cada ejecucion queda en `AutomationExecution` y en el audit log.
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -109,9 +127,9 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 30 tablas (29 modelos + `_prisma_migrations`) tras la Fase 2. Sin datos.
+- 32 tablas (31 modelos + `_prisma_migrations`) tras la Fase 3. Sin datos.
 
-### Modelos Prisma (29)
+### Modelos Prisma (31)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -122,10 +140,13 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
 
+Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedupeMinutes` y
+`runCount`; su `action` singular quedo opcional y solo se lee para reglas antiguas.
+
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (34)
+### Enums (37)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
@@ -139,10 +160,13 @@ Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
 `MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
 `OutboxStatus`.
 
+Fase 3 (3): `JobType`, `JobStatus`, `AutomationExecutionStatus`. Ademas `AutomationTrigger` paso
+de 4 a 13 valores y `AutomationAction` de 4 a 13.
+
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (8, todas aplicadas)
+### Migraciones (9, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -153,6 +177,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260630220100_billing_mercadopago
 20260907120000_fase1_dominio_comercial
 20260907140000_fase2_mensajeria_whatsapp
+20260907160000_fase3_cola_automatizaciones
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -248,6 +273,50 @@ Decisiones de diseno:
 - **Escribir primero otorga consentimiento de WhatsApp**, pero solo para responder: el marketing
   requiere un opt-in explicito aparte.
 
+### Cola y automatizaciones (Fase 3)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/jobs/queue.ts` | Encolar, reclamar, completar, reintentar y rescatar trabajos colgados |
+| `lib/jobs/handlers.ts` | Un handler por tipo de trabajo, mas los recurrentes del cron |
+| `lib/jobs/runner.ts` | Consumidor: procesa un lote con presupuesto de tiempo |
+| `lib/automation/schema.ts` | Condiciones y acciones validadas con Zod |
+| `lib/automation/conditions.ts` | Evaluador puro con AND/OR y un nivel de anidamiento |
+| `lib/automation/engine.ts` | Evalua reglas y ejecuta acciones |
+| `lib/automation/emit.ts` | Unico punto para anunciar un hecho del dominio |
+| `lib/automation/presets.ts` | Catalogo de 7 reglas predefinidas, genericas por diseno |
+
+**Decision de arquitectura: cola en tabla propia, no pgmq.** La spec pone a Supabase Queues/pgmq
+como primera preferencia. Se verifico que `pgmq` 1.5.1 y `pg_cron` 1.6.4 estan **disponibles pero
+no instaladas** en el proyecto, y se opto por una tabla `Job` con `FOR UPDATE SKIP LOCKED`:
+
+1. El repositorio ya usa ese patron dos veces (`WebhookEvent`, `OutboxEvent`); una tercera cola
+   con la misma forma no agrega conceptos nuevos.
+2. Ops debe mostrar profundidad y antiguedad de cola **por workspace**. Con pgmq los mensajes
+   viven en otro schema como JSONB opaco y cruzarlos con datos del tenant exige SQL crudo.
+3. Prisma la tipa, las pruebas la consultan y la migracion viaja con el resto del esquema, sin
+   depender de una extension habilitada a mano.
+
+La garantia que importa —un solo consumidor por trabajo— la da `SKIP LOCKED`, no la extension.
+Si el volumen lo justifica mas adelante, migrar a pgmq solo toca `lib/jobs/queue.ts`.
+
+**Como corre el cron:** `vercel.json` declara un cron cada minuto sobre `/api/internal/run-jobs`.
+En el plan Hobby de Vercel los crons corren una vez al dia, asi que para la beta hay que estar en
+Pro **o** activar `pg_cron` + `pg_net` en Supabase y golpear el mismo endpoint. El endpoint acepta
+el secreto por `x-internal-secret` o por `Authorization: Bearer`, que es lo que manda Vercel Cron.
+
+Otras decisiones:
+
+- **Una ejecucion por evento** la garantiza el unique `(ruleId, dedupeKey)` de
+  `AutomationExecution`, no un chequeo en memoria: sobrevive a reintentos y a workers paralelos.
+- **`SET_LIFECYCLE` no permite CUSTOMER.** Una automatizacion no puede convertir a cliente:
+  eso exige pago aprobado o confirmacion humana (regla de la Fase 1).
+- **Las acciones pasan por los servicios de dominio**, no escriben estados a mano, asi que no
+  pueden saltarse validaciones ni auditoria.
+- **Un evento que referencia datos de otro workspace se descarta entero** y se audita.
+- Las reglas del catalogo son **genericas**: ninguna asume un rubro, porque la beta es
+  multivertical.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -257,6 +326,8 @@ Decisiones de diseno:
   Correr desde `apps/crm` con `pnpm exec tsx scripts/smoke-fase1.ts`.
 - `apps/crm/scripts/smoke-fase2.ts` y `scripts/fixtures/whatsapp.ts`: pruebas de la Fase 2 con
   payloads que imitan los de Meta. No requieren credenciales.
+- `apps/crm/scripts/smoke-fase3.ts`: pruebas de la Fase 3 (cola, condiciones, scheduler,
+  idempotencia y aislamiento).
 
 ---
 
@@ -326,6 +397,22 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B6 — Fuga entre workspaces en las acciones de automatizacion — CORREGIDO (2026-09-07)
+
+Lo detecto la propia suite de la Fase 3. La accion `CREATE_TASK` escribia
+`activity.create({ workspaceId, contactId })` sin comprobar que el contacto perteneciera a ese
+workspace. Prisma lo permite porque la clave foranea de `Activity.contactId` apunta a
+`contacts(id)` y **no ata el par `(workspaceId, contactId)`**. Un evento que llegara con el
+`contactId` de otro tenant creaba actividades en el workspace A referenciando un contacto de B.
+
+**Correccion:** `buildContext` ahora devuelve `null` si el evento referencia un contacto,
+conversacion u oportunidad que no es del workspace, y el motor descarta el evento entero y lo
+audita como `automation.event_rejected_cross_tenant`. Se corrige en la raiz, no accion por accion.
+
+**Leccion para las fases siguientes:** ninguna FK del esquema ata el tenant. Toda escritura que
+reciba un id desde afuera debe validar pertenencia antes, aunque el `workspaceId` propio sea el
+correcto.
 
 ### B5 — TLS interceptado en la maquina de desarrollo (abierto, solo local)
 
@@ -415,6 +502,40 @@ workspace de demostracion se elimino despues (base verificada en cero).
 Tras la Fase 2 se reejecutaron las suites anteriores: **Fase 1 en 41/41** y **Fase 0 en 25/26**,
 sin regresiones.
 
+### Fase 3
+
+`pnpm exec tsx scripts/smoke-fase3.ts` desde `apps/crm`, ejecutado el 2026-09-07.
+
+**Resultado: 46/46.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Reglas por defecto al crear workspace (y que ninguna asuma un rubro) | 3 | 3/3 |
+| Cola: encolar, dedupe, reclamar, no doble reclamo, completar | 5 | 5/5 |
+| Reintentos con espera creciente y dead letter | 4 | 4/4 |
+| Rescate de trabajos colgados por un worker caido | 2 | 2/2 |
+| Condiciones AND, OR, anidadas, `in`, `contains`, campo inexistente | 9 | 9/9 |
+| Ejecucion unica: seis corridas del mismo evento, sin duplicar tareas ni acciones | 4 | 4/4 |
+| Aislamiento: evento que apunta a otro workspace | 5 | 5/5 |
+| Horario valido para acciones futuras (quiet hours) | 2 | 2/2 |
+| Scheduler: promueve y ejecuta vencidas, respeta las futuras | 2 | 2/2 |
+| Cancelacion por opt-out y emision del evento | 3 | 3/3 |
+| Runner de lote y metricas de cola | 3 | 3/3 |
+| Emitir encola en vez de ejecutar en linea | 2 | 2/2 |
+| Regla con acciones invalidas: se marca fallida sin romper el motor | 2 | 2/2 |
+
+**Verificacion por HTTP** (con el CRM corriendo): activar una regla del catalogo devuelve 201,
+pausarla 200, un preset inexistente 404, acciones invalidas 400, el worker sin secreto 401 y con
+secreto correcto procesa el lote (`SCAN_SCHEDULED_ACTIONS`, `PROCESS_OUTBOX`, `SCAN_SILENCE`).
+El health endpoint devuelve profundidad de cola y que integraciones estan configuradas, **sin
+exponer ningun valor**.
+
+**Verificacion en la interfaz:** `/automatizaciones` lista las reglas con su disparador, sus
+acciones y su contador de ejecuciones, y ofrece el catalogo para activar mas.
+
+Tras la Fase 3 se reejecutaron las suites anteriores: **Fase 2 en 46/46**, **Fase 1 en 41/41** y
+**Fase 0 en 25/26**, sin regresiones.
+
 ---
 
 ## 7. Deuda tecnica
@@ -425,8 +546,8 @@ sin regresiones.
 | D2 | Sin runner de tests formal (Vitest/Jest): las suites son scripts ejecutables por fase | Conviene consolidarlas antes de la Fase 10 |
 | D3 | ~~Sin pruebas de aislamiento entre workspaces~~ — cubierto por `smoke-fase0.mjs` | — |
 | D4 | ~~Sin cifrado de tokens de integracion~~ — resuelto en la Fase 2 con `lib/crypto.ts` (AES-256-GCM). Queda migrar `Integration.config`, que sigue en JSON plano | Fase 6 |
-| D5 | `ScheduledAction` existe pero **nadie la ejecuta**. El outbox si se procesa, pero solo en linea o por `/api/internal/process-outbox`: falta la cola durable y el cron | Fase 3 |
-| D6 | La regla de automatizacion esta hardcodeada; `trigger`/`action`/`conditions` no se ejecutan | Fase 3 |
+| D5 | ~~Sin cola durable ni scheduler~~ — resuelto en la Fase 3 |
+| D6 | ~~Regla de automatizacion hardcodeada~~ — resuelta en la Fase 3 con el motor `trigger -> conditions -> actions` |
 | D7 | "Insights IA" es scoring heuristico determinista, sin LLM | Fase 4 |
 | D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
 | D9 | ~~`ContactStatus` mezcla ciclo de vida con intencion~~ — resuelto en la Fase 1. Queda la deuda menor de **retirar `status`** una vez que la UI consuma `lifecycleStatus` | Fase 9 o antes |
@@ -435,10 +556,13 @@ sin regresiones.
 | D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos |
 | **D13** | **Un ID de otro workspace en `PATCH`/`DELETE /api/contacts/[id]` devuelve 500 en vez de 404.** El dato esta protegido (`where: { id, workspaceId }`), pero el `P2025` de Prisma no se captura | Exigido por la matriz de pruebas (seccion 18 de la spec). Revisar tambien `opportunities`, `activities` y `pipeline-stages`, que siguen el mismo patron |
 | **D14** | Desarrollo local apunta al **mismo** proyecto Supabase que produccion | Un error en dev afecta datos reales. Crear un segundo proyecto Supabase para dev |
-| **D15** | El procesamiento del webhook corre **en linea** dentro del request. Funciona, pero un pico de mensajes lo hace lento | Fase 3 lo mueve a la cola durable |
+| ~~D15~~ | ~~El webhook procesa en linea~~ — resuelto: ahora encola `PROCESS_WEBHOOK_EVENT` y responde 200 sin esperar |
 | **D16** | Sin descarga de media (imagenes, audio, documentos): se guarda el payload con el id de Meta, no el archivo | La spec pide almacenamiento privado con URLs firmadas. Fase 3 o 10 |
 | **D17** | Sin envio de plantillas aprobadas: fuera de la ventana de 24h la bandeja avisa pero no permite responder | Requiere dar de alta las plantillas en Meta (T9) |
 | **D18** | Sin debounce de mensajes entrantes (la spec pide agrupar 2-4 s) ni lock por conversacion | Recien importan cuando responde la IA: Fase 4 |
+| **D19** | El cron de Vercel corre **una vez al dia en plan Hobby**. Con ese plan los seguimientos no corren solos | Requiere Vercel Pro o `pg_cron` + `pg_net` en Supabase (T11) |
+| **D20** | El endpoint `/api/internal/run-jobs` no tiene rate limiting propio; depende solo del secreto | Junto con D1, antes de la beta publica |
+| **D21** | `pruneFinishedJobs` existe pero no lo llama ningun recurrente: la tabla `jobs` crece | Agregar al cron o a un barrido diario |
 
 ---
 
@@ -469,7 +593,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T7 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
 | T8 | Aprobar el inicio de la Fase 3 (cola y scheduler) | La spec exige aprobacion explicita por fase |
 | T9 | **Credenciales de Meta**: `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` y un numero de prueba | Valida la Fase 2 contra la API real; hoy solo esta probada con fixtures |
-| T10 | Generar `INTEGRATION_ENCRYPTION_KEY` e `INTERNAL_WORKER_SECRET` para Vercel | Sin la primera no se pueden guardar tokens; sin la segunda el worker del outbox responde 401 |
+| T10 | Generar `INTEGRATION_ENCRYPTION_KEY` e `INTERNAL_WORKER_SECRET` para Vercel | Sin la primera no se pueden guardar tokens; sin la segunda el cron responde 401 y **nada se procesa** |
+| T11 | Decidir como corre el cron: Vercel Pro (cron por minuto) o `pg_cron` + `pg_net` en Supabase | En plan Hobby el cron corre 1 vez al dia y los seguimientos no funcionan (D19) |
 
 ---
 
@@ -479,7 +604,7 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 |---|---|---|
 | `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` | 0 / 5 | Cobro de suscripcion y de productos |
 | `INTEGRATION_ENCRYPTION_KEY` | 2 | Cifrado de tokens de integracion. **Ya implementada**; generar con `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-| `INTERNAL_WORKER_SECRET` | 2 | Protege `/api/internal/*`. **Ya implementada** |
+| `INTERNAL_WORKER_SECRET` | 2 y 3 | Protege `/api/internal/*` y autentica al cron. **Ya implementada**: sin ella la cola no se procesa |
 | `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | 2 | WhatsApp Cloud API. **Ya implementadas**: sin ellas el webhook rechaza todo |
 | `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_SYSTEM_ACCESS_TOKEN` | 2 | Opcionales: version de Graph API (por defecto v21.0) y token de sistema para pilotos |
 | `META_APP_ID`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | 9 | Embedded Signup; hasta entonces el numero se conecta a mano |
@@ -496,16 +621,18 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** tras la Fase 2 existen 29 tablas. Mensajeria: hecha (5/5). Faltan agentes
+**Modelo de datos:** tras la Fase 3 existen 31 tablas. Mensajeria: hecha (5/5). Faltan agentes
 IA (0/4), comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan consentimiento,
-scoring, supresion y scheduled actions; faltan segmentos, journeys y campanas. Uso y costos: hecho.
+scoring, supresion, scheduled actions y el motor de automatizaciones; faltan segmentos, journeys y
+campanas. Uso y costos: hecho.
 
 **Enums:** completos. Los 8 que exige la spec estan creados, mas 4 de apoyo. `ContactStatus`
 convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
 consuma el campo nuevo.
 
-**Infraestructura:** el patron outbox, los reintentos y el dead-letter estan implementados en la
-Fase 2. Faltan la cola durable, el scheduler, los locks por conversacion y el debounce (Fases 3 y 4).
+**Infraestructura:** outbox, reintentos, dead-letter, cola durable y scheduler estan
+implementados. Faltan los locks por conversacion y el debounce, que recien importan cuando
+responde la IA (Fase 4).
 
 **Seguridad:** el cifrado de tokens quedo resuelto en la Fase 2. Faltan rate limiting y CSRF.
 Los webhooks de Mercado Pago y de Meta ya cumplen el estandar de la spec (firma validada e
@@ -533,6 +660,9 @@ el primer infoproducto vendido regalara suscripciones.
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-07 | **Cola en tabla propia en vez de pgmq**, pese a ser la primera preferencia de la spec. Razones en la seccion 2: coherencia con las dos colas que ya existen, observabilidad por workspace sin SQL crudo, y no depender de una extension. Migrar a pgmq mas adelante solo toca `lib/jobs/queue.ts` |
+| 2026-09-07 | Una automatizacion NO puede convertir a alguien en cliente: `SET_LIFECYCLE` excluye CUSTOMER y REPEAT_CUSTOMER. Solo un pago aprobado o una confirmacion humana lo hacen |
+| 2026-09-07 | El motor descarta el evento completo si referencia datos de otro workspace, en vez de ejecutar las reglas con contexto parcial. Un contexto incompleto haria que las condiciones evaluaran contra `undefined` y las acciones escribieran igual |
 | 2026-09-07 | Una conversacion por (canal, contacto). Un mensaje sobre una conversacion cerrada la reabre en vez de crear otra: fragmentar el historial hace inutil el contexto para el agente de la Fase 4 |
 | 2026-09-07 | El webhook procesa en linea de forma provisional. La separacion ingesta/procesamiento ya esta hecha, asi que la Fase 3 solo cambia quien llama a `processWebhookEvent` |
 | 2026-09-07 | Escribir primero otorga consentimiento de WhatsApp solo para responder. El marketing sigue requiriendo opt-in explicito: responderle a quien te escribio no es lo mismo que agregarlo a una campana |
@@ -595,4 +725,21 @@ el primer infoproducto vendido regalara suscripciones.
   codigo: el servidor dev reescribia ese archivo mientras el build lo leia. **Hay que parar el
   dev server antes de `pnpm build`.**
 - **Fase 2 cerrada a nivel de codigo. Falta validarla contra la API real de Meta (T9).**
-  No se inicia la Fase 3 sin aprobacion del propietario.
+
+### 2026-09-07 — Fase 3, cola, scheduler y automatizaciones reales
+
+- Verificado que `pgmq` y `pg_cron` estan disponibles pero no instalados; se opto por una cola en
+  tabla propia con `FOR UPDATE SKIP LOCKED` y se documento por que.
+- 2 tablas y 3 enums nuevos; `AutomationTrigger` paso de 4 a 13 valores y `AutomationAction` de 4
+  a 13. Migracion `20260907160000_fase3_cola_automatizaciones`, aditiva.
+- Motor `trigger -> conditions -> actions` con condiciones AND/OR anidadas y 12 acciones tipadas.
+- Catalogo de 7 reglas predefinidas, genericas; 4 se activan al crear el workspace.
+- El webhook de WhatsApp dejo de procesar en linea: ahora encola (cierra D15).
+- Eventos del dominio conectados: lead nuevo, mensaje recibido, mensaje fallido, pago confirmado y
+  consentimiento revocado.
+- Observabilidad: health con profundidad de cola y estado de configuracion, Ops con trabajos
+  muertos y envios fallidos.
+- **Hallazgo de seguridad corregido (B6):** las acciones escribian `contactId` sin validar
+  pertenencia al workspace. Lo encontro la propia suite de la fase.
+- Pruebas: **46/46**. Fases 2, 1 y 0 sin regresiones. Build, lint y tsc limpios.
+- **Fase 3 cerrada. No se inicia la Fase 4 sin aprobacion del propietario.**
