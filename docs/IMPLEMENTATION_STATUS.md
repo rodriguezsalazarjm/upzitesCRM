@@ -3,8 +3,8 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 1 — Dominio comercial y consentimiento
-- **Estado:** COMPLETADA. Esperando aprobacion del propietario para iniciar la Fase 2.
+- **Fase actual:** 2 — WhatsApp e Inbox humano
+- **Estado:** COMPLETADA con fixtures. Esperando credenciales de Meta y aprobacion para la Fase 3.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -15,8 +15,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 |---|---|---|
 | 0 | Proteccion y linea base | **Completada** (2026-09-07) |
 | 1 | Dominio comercial y consentimiento | **Completada** (2026-09-07) |
-| 2 | WhatsApp e Inbox humano | No iniciada — requiere aprobacion |
-| 3 | Cola, scheduler y automatizaciones reales | No iniciada |
+| 2 | WhatsApp e Inbox humano | **Completada** (2026-09-07), probada con fixtures |
+| 3 | Cola, scheduler y automatizaciones reales | No iniciada — requiere aprobacion |
 | 4 | Agentes IA y herramientas | No iniciada |
 | 5 | Infoproductos, Mercado Pago y entrega | No iniciada |
 | 6 | Shopify | No iniciada |
@@ -67,6 +67,31 @@ contacto.
 
 ---
 
+### Fase 2 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent` | Hecho | 5 tablas nuevas |
+| Verificacion GET y recepcion POST del webhook | Hecho | `/api/webhooks/whatsapp` |
+| Validacion de firma | Hecho | `x-hub-signature-256` sobre el cuerpo crudo |
+| Resolucion de workspace por `phoneNumberId` | Hecho | Nunca se lee el workspace del payload |
+| Normalizacion de texto y estados | Hecho | `lib/whatsapp/normalize.ts`, 10 tipos de mensaje |
+| Envio de mensajes | Hecho | Patron outbox con reintentos y dead letter |
+| Estados sent/delivered/read/failed | Hecho | Solo avanzan, nunca retroceden |
+| Inbox con toma, asignacion y devolucion | Hecho | `/inbox` y `/inbox/[id]` |
+| Creacion de contacto desde mensaje | Hecho | Con consentimiento de WhatsApp automatico |
+| Pruebas | Hecho | 46/46 con fixtures (seccion 6) |
+
+**Criterio de salida:** un cliente piloto puede conectar un numero, recibir y responder desde el
+CRM sin IA. **Cumplido a nivel de codigo y probado con fixtures.** Falta la validacion contra la
+API real de Meta, que requiere credenciales (T9).
+
+**Templates fuera de alcance por ahora:** enviar plantillas aprobadas requiere darlas de alta en
+Meta. La bandeja ya detecta y avisa cuando la ventana de 24 horas se cerro; el envio de plantilla
+llega junto con las credenciales.
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -84,9 +109,9 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 25 tablas (24 modelos + `_prisma_migrations`) tras la Fase 1. Sin datos.
+- 30 tablas (29 modelos + `_prisma_migrations`) tras la Fase 2. Sin datos.
 
-### Modelos Prisma (24)
+### Modelos Prisma (29)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -95,10 +120,12 @@ Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `Pip
 Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadScoreSnapshot`,
 `ScheduledAction`, `UsageRecord`.
 
+Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
+
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (25)
+### Enums (34)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
@@ -108,10 +135,14 @@ Fase 1 (12): `LifecycleStatus`, `LeadTemperature`, `BuyingIntent`, `Conversation
 `OrderStatus`, `PaymentStatus`, `QuoteStatus`, `ConsentStatus`, `ConsentChannel`,
 `SuppressionReason`, `ScheduledActionType`, `ScheduledActionStatus`.
 
-`ConversationMode`, `OrderStatus`, `PaymentStatus` y `QuoteStatus` se crean aqui por exigencia de
-la spec, pero ninguna entidad los usa todavia: llegan con las Fases 2, 5, 6 y 7.
+Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
+`MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
+`OutboxStatus`.
 
-### Migraciones (7, todas aplicadas)
+`ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
+siguen sin entidad: llegan con las Fases 5, 6 y 7.
+
+### Migraciones (8, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -121,6 +152,7 @@ la spec, pero ninguna entidad los usa todavia: llegan con las Fases 2, 5, 6 y 7.
 20260630220000_contact_owner
 20260630220100_billing_mercadopago
 20260907120000_fase1_dominio_comercial
+20260907140000_fase2_mensajeria_whatsapp
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -184,6 +216,38 @@ Reglas implementadas segun la spec:
 Cableado inicial: el submit de formulario registra consentimiento por canal cuando el formulario
 trae el campo `consent`, y el registro de workspace siembra las reglas de scoring por defecto.
 
+### Capa de mensajeria (Fase 2)
+
+`apps/crm/src/lib/whatsapp/` aisla todo lo que conoce el formato de Meta. Cambiar de proveedor
+deberia tocar solo `normalize.ts` y `client.ts`.
+
+| Archivo | Responsabilidad |
+|---|---|
+| `signature.ts` | Firma `x-hub-signature-256` y handshake GET del webhook |
+| `normalize.ts` | Aplana el payload de Meta a eventos propios; tolera formas desconocidas |
+| `inbound.ts` | Ingesta idempotente, resolucion de workspace y aplicacion de eventos |
+| `client.ts` | Llamadas a Graph API; distingue errores reintentables de definitivos |
+| `outbound.ts` | Outbox, reintentos con espera creciente y dead letter |
+| `../crypto.ts` | AES-256-GCM para los tokens de integracion |
+
+Decisiones de diseno:
+
+- **El webhook no procesa nada pesado.** Valida firma, persiste el evento y responde 200. El
+  procesamiento corre despues y puede reintentarse; la Fase 3 lo mueve a una cola durable.
+- **La firma se valida sobre el cuerpo crudo.** Parsear antes de verificar cambia los bytes y la
+  firma nunca coincidiria.
+- **El workspace se resuelve por `phoneNumberId`**, que es unico global. Un payload jamas elige su
+  propio tenant. Un numero desconocido no crea nada.
+- **Doble idempotencia**: por evento (`WebhookEvent.dedupeKey`) y por mensaje
+  (`Message.externalMessageId`, unico). Diez reentregas producen un solo mensaje.
+- **Una conversacion por (canal, contacto).** Un mensaje sobre una conversacion cerrada la reabre
+  en vez de fragmentar el historial.
+- **El outbox persiste antes de llamar a Meta.** Un envio fallido deja el mensaje visible como
+  FAILED con boton de reintento, en vez de desaparecer.
+- **Los estados solo avanzan.** Un `sent` que llega tarde no pisa un `read` ya registrado.
+- **Escribir primero otorga consentimiento de WhatsApp**, pero solo para responder: el marketing
+  requiere un opt-in explicito aparte.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -191,6 +255,8 @@ trae el campo `consent`, y el registro de workspace siembra las reglas de scorin
 - `scripts/smoke-fase0.mjs`: pruebas de aceptacion de la Fase 0 (por HTTP).
 - `apps/crm/scripts/smoke-fase1.ts`: pruebas de aceptacion de la Fase 1 (capa de dominio).
   Correr desde `apps/crm` con `pnpm exec tsx scripts/smoke-fase1.ts`.
+- `apps/crm/scripts/smoke-fase2.ts` y `scripts/fixtures/whatsapp.ts`: pruebas de la Fase 2 con
+  payloads que imitan los de Meta. No requieren credenciales.
 
 ---
 
@@ -319,17 +385,47 @@ La suite de la Fase 0 se reejecuto tras la Fase 1: **25/26**, sin regresiones (l
 sigue siendo D13). Incluye una prueba nueva del cableado: el formulario web con consentimiento
 marcado lo registra en los canales EMAIL y WHATSAPP.
 
+### Fase 2
+
+`pnpm exec tsx scripts/smoke-fase2.ts` desde `apps/crm`, ejecutado el 2026-09-07. Usa fixtures
+que imitan los payloads de Meta, por lo que **no requiere credenciales**. Crea dos workspaces
+`fase2-*` con numeros distintos y los elimina al terminar.
+
+**Resultado: 46/46.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Cifrado de tokens (ida y vuelta, IV aleatorio, no filtra el texto plano) | 4 | 4/4 |
+| Firma del webhook (valida, invalida, ausente, cuerpo alterado) | 4 | 4/4 |
+| Normalizacion (mensaje, evento no soportado, payload desconocido) | 3 | 3/3 |
+| Mensaje entrante (contacto, nombre, fuente, consentimiento, conversacion, no leidos, ventana 24h) | 10 | 10/10 |
+| Idempotencia: 10 reentregas del mismo evento | 3 | 3/3 |
+| Aislamiento entre workspaces y numero desconocido | 4 | 4/4 |
+| Envio humano, outbox, fallo visible y reproceso sin duplicar | 7 | 7/7 |
+| Takeover: la IA no responde con humano activo | 3 | 3/3 |
+| Un workspace no escribe en la conversacion de otro | 1 | 1/1 |
+| Estados por webhook (avance, no retroceso, canal ajeno ignorado) | 4 | 4/4 |
+| Reapertura de conversacion cerrada sin duplicar | 3 | 3/3 |
+
+**Verificacion en la interfaz:** con un workspace de demostracion se comprobo en el navegador que
+la bandeja lista las conversaciones con su preview y contador de no leidos, que el detalle muestra
+el hilo, y que "Tomar conversacion" cambia el modo a humano y el boton pasa a "Devolver a IA". El
+workspace de demostracion se elimino despues (base verificada en cero).
+
+Tras la Fase 2 se reejecutaron las suites anteriores: **Fase 1 en 41/41** y **Fase 0 en 25/26**,
+sin regresiones.
+
 ---
 
 ## 7. Deuda tecnica
 
 | # | Item | Impacto |
 |---|---|---|
-| D1 | Sin rate limiting en `/api/auth/login` ni en la captura publica (CORS `*`) | Seccion 15 de la spec lo exige antes de beta publica |
+| D1 | Sin rate limiting en `/api/auth/login`, la captura publica (CORS `*`) ni el webhook de WhatsApp | Seccion 15 de la spec lo exige antes de beta publica |
 | D2 | Sin runner de tests formal (Vitest/Jest): las suites son scripts ejecutables por fase | Conviene consolidarlas antes de la Fase 10 |
 | D3 | ~~Sin pruebas de aislamiento entre workspaces~~ — cubierto por `smoke-fase0.mjs` | — |
-| D4 | Sin cifrado de tokens de integracion (`Integration.config` es JSON plano) | Requerido para WhatsApp/Shopify (Fases 2 y 6) |
-| D5 | `ScheduledAction` ya existe pero **nadie la ejecuta**: falta la cola durable y el worker | Fase 3 |
+| D4 | ~~Sin cifrado de tokens de integracion~~ — resuelto en la Fase 2 con `lib/crypto.ts` (AES-256-GCM). Queda migrar `Integration.config`, que sigue en JSON plano | Fase 6 |
+| D5 | `ScheduledAction` existe pero **nadie la ejecuta**. El outbox si se procesa, pero solo en linea o por `/api/internal/process-outbox`: falta la cola durable y el cron | Fase 3 |
 | D6 | La regla de automatizacion esta hardcodeada; `trigger`/`action`/`conditions` no se ejecutan | Fase 3 |
 | D7 | "Insights IA" es scoring heuristico determinista, sin LLM | Fase 4 |
 | D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
@@ -339,6 +435,10 @@ marcado lo registra en los canales EMAIL y WHATSAPP.
 | D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos |
 | **D13** | **Un ID de otro workspace en `PATCH`/`DELETE /api/contacts/[id]` devuelve 500 en vez de 404.** El dato esta protegido (`where: { id, workspaceId }`), pero el `P2025` de Prisma no se captura | Exigido por la matriz de pruebas (seccion 18 de la spec). Revisar tambien `opportunities`, `activities` y `pipeline-stages`, que siguen el mismo patron |
 | **D14** | Desarrollo local apunta al **mismo** proyecto Supabase que produccion | Un error en dev afecta datos reales. Crear un segundo proyecto Supabase para dev |
+| **D15** | El procesamiento del webhook corre **en linea** dentro del request. Funciona, pero un pico de mensajes lo hace lento | Fase 3 lo mueve a la cola durable |
+| **D16** | Sin descarga de media (imagenes, audio, documentos): se guarda el payload con el id de Meta, no el archivo | La spec pide almacenamiento privado con URLs firmadas. Fase 3 o 10 |
+| **D17** | Sin envio de plantillas aprobadas: fuera de la ventana de 24h la bandeja avisa pero no permite responder | Requiere dar de alta las plantillas en Meta (T9) |
+| **D18** | Sin debounce de mensajes entrantes (la spec pide agrupar 2-4 s) ni lock por conversacion | Recien importan cuando responde la IA: Fase 4 |
 
 ---
 
@@ -367,7 +467,9 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T5 | **Rotar la password de Postgres de `mtdtccnchxpwnjllpsog`** | Se compartio por chat durante el setup |
 | T6 | Crear un segundo proyecto Supabase para desarrollo | D14 |
 | T7 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
-| T8 | Aprobar el inicio de la Fase 2 (WhatsApp e Inbox) | La spec exige aprobacion explicita por fase |
+| T8 | Aprobar el inicio de la Fase 3 (cola y scheduler) | La spec exige aprobacion explicita por fase |
+| T9 | **Credenciales de Meta**: `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` y un numero de prueba | Valida la Fase 2 contra la API real; hoy solo esta probada con fixtures |
+| T10 | Generar `INTEGRATION_ENCRYPTION_KEY` e `INTERNAL_WORKER_SECRET` para Vercel | Sin la primera no se pueden guardar tokens; sin la segunda el worker del outbox responde 401 |
 
 ---
 
@@ -376,9 +478,11 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | Variable | Fase | Obligatoria para |
 |---|---|---|
 | `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` | 0 / 5 | Cobro de suscripcion y de productos |
-| `INTEGRATION_ENCRYPTION_KEY` | 1 | Cifrado de tokens de integracion |
-| `INTERNAL_WORKER_SECRET` | 3 | Proteger los endpoints `/api/internal/*` |
-| `META_APP_ID`, `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | 2 | WhatsApp Cloud API |
+| `INTEGRATION_ENCRYPTION_KEY` | 2 | Cifrado de tokens de integracion. **Ya implementada**; generar con `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
+| `INTERNAL_WORKER_SECRET` | 2 | Protege `/api/internal/*`. **Ya implementada** |
+| `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | 2 | WhatsApp Cloud API. **Ya implementadas**: sin ellas el webhook rechaza todo |
+| `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_SYSTEM_ACCESS_TOKEN` | 2 | Opcionales: version de Graph API (por defecto v21.0) y token de sistema para pilotos |
+| `META_APP_ID`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | 9 | Embedded Signup; hasta entonces el numero se conecta a mano |
 | `OPENAI_API_KEY`, `OPENAI_PROJECT_ID`, `OPENAI_DEFAULT_MODEL` | 4 | Agentes IA |
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SHOPIFY_SCOPES` | 6 | Shopify |
 | `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_WEBHOOK_SECRET` | 8 | Email marketing |
@@ -392,7 +496,7 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** tras la Fase 1 existen 24 tablas. Faltan las de mensajeria (0/5), agentes
+**Modelo de datos:** tras la Fase 2 existen 29 tablas. Mensajeria: hecha (5/5). Faltan agentes
 IA (0/4), comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan consentimiento,
 scoring, supresion y scheduled actions; faltan segmentos, journeys y campanas. Uso y costos: hecho.
 
@@ -400,12 +504,12 @@ scoring, supresion y scheduled actions; faltan segmentos, journeys y campanas. U
 convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
 consuma el campo nuevo.
 
-**Infraestructura ausente:** cola durable, scheduler, patron outbox, locks por conversacion,
-debounce, dead-letter y reintentos.
+**Infraestructura:** el patron outbox, los reintentos y el dead-letter estan implementados en la
+Fase 2. Faltan la cola durable, el scheduler, los locks por conversacion y el debounce (Fases 3 y 4).
 
-**Seguridad:** falta rate limiting, cifrado de tokens y CSRF. Lo que ya cumple el estandar de la
-spec es el webhook de Mercado Pago (firma validada, re-consulta server-to-server, idempotencia
-por `mpPaymentId`, validacion de monto): sirve de plantilla para los webhooks de Meta y Shopify.
+**Seguridad:** el cifrado de tokens quedo resuelto en la Fase 2. Faltan rate limiting y CSRF.
+Los webhooks de Mercado Pago y de Meta ya cumplen el estandar de la spec (firma validada e
+idempotencia); sirven de plantilla para el de Shopify.
 
 **Se preserva y reutiliza:** auth y roles, multi-tenancy por `workspaceId`, captura web,
 pipeline, actividades, atribucion UTM, billing de suscripcion y audit log.
@@ -429,6 +533,10 @@ el primer infoproducto vendido regalara suscripciones.
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-07 | Una conversacion por (canal, contacto). Un mensaje sobre una conversacion cerrada la reabre en vez de crear otra: fragmentar el historial hace inutil el contexto para el agente de la Fase 4 |
+| 2026-09-07 | El webhook procesa en linea de forma provisional. La separacion ingesta/procesamiento ya esta hecha, asi que la Fase 3 solo cambia quien llama a `processWebhookEvent` |
+| 2026-09-07 | Escribir primero otorga consentimiento de WhatsApp solo para responder. El marketing sigue requiriendo opt-in explicito: responderle a quien te escribio no es lo mismo que agregarlo a una campana |
+| 2026-09-07 | **La beta es multivertical, no un producto para mallas de seguridad.** Iron Mallas / Alvaro Quintero es UN piloto entre varios (infoproductos, ecommerce, servicios). Ninguna regla de negocio, etiqueta, etapa de pipeline, campo de intake ni prompt puede quedar hardcodeado a ese rubro: todo lo especifico de un vertical vive como configuracion por workspace. Los ejemplos de la spec referidos a mallas se leen como datos de piloto, no como requisitos del producto |
 
 ---
 
@@ -467,4 +575,24 @@ el primer infoproducto vendido regalara suscripciones.
 - Incidente durante las pruebas: el servidor de desarrollo mantenia el cliente Prisma anterior
   a `prisma generate` y fallaba con `tx.leadScoreRule undefined`. **Tras cambiar el esquema hay
   que reiniciar el dev server**, el HMR no basta.
-- **Fase 1 cerrada. No se inicia la Fase 2 sin aprobacion del propietario.**
+- **Fase 1 cerrada.**
+
+### 2026-09-07 — Fase 2, WhatsApp e Inbox humano
+
+- Restriccion de producto registrada: **la beta es multivertical**, mallas de seguridad es un
+  piloto. Nada de un rubro se hardcodea.
+- 5 tablas y 9 enums nuevos; migracion `20260907140000_fase2_mensajeria_whatsapp`, aditiva.
+- Cifrado de secretos de integracion con AES-256-GCM (`lib/crypto.ts`).
+- Webhook de Meta con verificacion GET, firma sobre el cuerpo crudo e ingesta idempotente.
+- Bandeja `/inbox` con lista, hilo, compositor, estados de entrega, reintento de fallidos,
+  toma y devolucion a la IA.
+- Rutas: webhook, conversaciones (listar, ver, enviar, tomar, devolver, asignar, reintentar),
+  conexion y desconexion de canal, y worker interno del outbox.
+- `lib/env.ts` ahora distingue lo que bloquea el arranque de lo que solo desactiva una integracion.
+- Pruebas: **46/46** con fixtures. Fase 1 en 41/41 y Fase 0 en 25/26, sin regresiones.
+- Verificado en el navegador: bandeja, hilo y takeover funcionando.
+- Incidente: el build fallo con un error de tipos en `.next/dev/types/routes.d.ts`. No era del
+  codigo: el servidor dev reescribia ese archivo mientras el build lo leia. **Hay que parar el
+  dev server antes de `pnpm build`.**
+- **Fase 2 cerrada a nivel de codigo. Falta validarla contra la API real de Meta (T9).**
+  No se inicia la Fase 3 sin aprobacion del propietario.

@@ -38,6 +38,11 @@ model Workspace {
   scheduledActions   ScheduledAction[]
   usageRecords       UsageRecord[]
 
+  whatsappChannels WhatsAppChannel[]
+  conversations    Conversation[]
+  messages         Message[]
+  outboxEvents     OutboxEvent[]
+
   @@map("workspaces")
 }
 
@@ -56,6 +61,8 @@ model User {
   ownedContacts       Contact[]            @relation("ContactOwner")
   createdActivities   Activity[]           @relation("ActivityCreator")
   passwordResetTokens PasswordResetToken[]
+  assignedConversations Conversation[]     @relation("ConversationAssignee")
+  sentMessages          Message[]          @relation("MessageSender")
 
   @@unique([workspaceId, email])
   @@index([workspaceId])
@@ -134,6 +141,7 @@ model Contact {
   consents         ContactChannelConsent[]
   scoreSnapshots   LeadScoreSnapshot[]
   scheduledActions ScheduledAction[]
+  conversations    Conversation[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -530,6 +538,145 @@ model UsageRecord {
   @@map("usage_records")
 }
 
+// --- Fase 2: mensajeria WhatsApp --------------------------------------------
+
+/// Numero de WhatsApp de un workspace. El token nunca se guarda en claro ni se
+/// expone al cliente: se cifra con INTEGRATION_ENCRYPTION_KEY (ver lib/crypto).
+/// `phoneNumberId` es unico global: es la llave con la que el webhook resuelve
+/// a que workspace pertenece un evento entrante.
+model WhatsAppChannel {
+  id                   String                @id @default(cuid())
+  workspaceId          String                @map("workspace_id")
+  integrationId        String?               @map("integration_id")
+  wabaId               String                @map("waba_id")
+  phoneNumberId        String                @unique @map("phone_number_id")
+  displayPhoneNumber   String                @map("display_phone_number")
+  businessName         String?               @map("business_name")
+  accessTokenEncrypted String?               @map("access_token_encrypted")
+  tokenExpiresAt       DateTime?             @map("token_expires_at")
+  status               WhatsAppChannelStatus @default(PENDING)
+  qualityRating        String?               @map("quality_rating")
+  messagingLimit       String?               @map("messaging_limit")
+  webhookSubscribedAt  DateTime?             @map("webhook_subscribed_at")
+  lastHealthCheckAt    DateTime?             @map("last_health_check_at")
+  metadata             Json?
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([workspaceId, status])
+  @@map("whatsapp_channels")
+}
+
+/// Hilo con un contacto en un canal. Estrategia de reapertura elegida: UNA
+/// conversacion por (canal, contacto). Un mensaje entrante sobre una cerrada la
+/// reabre en vez de crear otra, para no fragmentar el historial.
+model Conversation {
+  id                          String             @id @default(cuid())
+  workspaceId                 String             @map("workspace_id")
+  channelId                   String             @map("channel_id")
+  contactId                   String             @map("contact_id")
+  assignedUserId              String?            @map("assigned_user_id")
+  mode                        ConversationMode   @default(WAITING)
+  status                      ConversationStatus @default(OPEN)
+  currentAgentId              String?            @map("current_agent_id")
+  lastInboundAt               DateTime?          @map("last_inbound_at")
+  lastOutboundAt              DateTime?          @map("last_outbound_at")
+  lastMessageAt               DateTime           @default(now()) @map("last_message_at")
+  customerServiceWindowEndsAt DateTime?          @map("customer_service_window_ends_at")
+  unreadCount                 Int                @default(0) @map("unread_count")
+  summary                     String?
+  lockVersion                 Int                @default(0) @map("lock_version")
+  closedAt                    DateTime?          @map("closed_at")
+  createdAt                   DateTime           @default(now()) @map("created_at")
+  updatedAt                   DateTime           @updatedAt @map("updated_at")
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   WhatsAppChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignee  User?           @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages  Message[]
+
+  @@unique([channelId, contactId])
+  @@index([workspaceId, status, lastMessageAt])
+  @@index([workspaceId, assignedUserId])
+  @@map("conversations")
+}
+
+model Message {
+  id                String            @id @default(cuid())
+  workspaceId       String            @map("workspace_id")
+  conversationId    String            @map("conversation_id")
+  externalMessageId String?           @unique @map("external_message_id")
+  direction         MessageDirection
+  senderType        MessageSenderType
+  senderUserId      String?           @map("sender_user_id")
+  agentRunId        String?           @map("agent_run_id")
+  type              MessageType       @default(TEXT)
+  text              String?
+  payload           Json?
+  status            MessageStatus     @default(QUEUED)
+  errorCode         String?           @map("error_code")
+  errorMessage      String?           @map("error_message")
+  sentAt            DateTime?         @map("sent_at")
+  deliveredAt       DateTime?         @map("delivered_at")
+  readAt            DateTime?         @map("read_at")
+  failedAt          DateTime?         @map("failed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([workspaceId, status])
+  @@map("messages")
+}
+
+/// Evento crudo recibido de un proveedor. El webhook solo persiste y encola;
+/// el procesamiento ocurre despues. `dedupeKey` da idempotencia: una reentrega
+/// del mismo evento no produce un segundo mensaje.
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  provider    String
+  dedupeKey   String             @map("dedupe_key")
+  externalId  String?            @map("external_id")
+  payload     Json
+  status      WebhookEventStatus @default(PENDING)
+  attempts    Int                @default(0)
+  error       String?
+  processedAt DateTime?          @map("processed_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@unique([provider, dedupeKey])
+  @@index([status, createdAt])
+  @@map("webhook_events")
+}
+
+/// Patron outbox: toda accion externa se persiste antes de intentarse, para que
+/// una llamada fallida no deje la base y el proveedor en estados distintos.
+model OutboxEvent {
+  id             String       @id @default(cuid())
+  workspaceId    String?      @map("workspace_id")
+  type           OutboxType
+  payload        Json
+  idempotencyKey String       @unique @map("idempotency_key")
+  status         OutboxStatus @default(PENDING)
+  attempts       Int          @default(0)
+  availableAt    DateTime     @default(now()) @map("available_at")
+  processedAt    DateTime?    @map("processed_at")
+  error          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@map("outbox_events")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -731,5 +878,75 @@ enum ScheduledActionStatus {
   PROCESSING
   DONE
   CANCELED
+  FAILED
+}
+
+
+// --- Fase 2: enums de mensajeria ---------------------------------------------
+
+enum WhatsAppChannelStatus {
+  PENDING
+  CONNECTED
+  DISCONNECTED
+  NEEDS_ATTENTION
+}
+
+enum ConversationStatus {
+  OPEN
+  SNOOZED
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSenderType {
+  CONTACT
+  USER
+  AI
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  LOCATION
+  CONTACT
+  INTERACTIVE
+  TEMPLATE
+  SYSTEM
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WebhookEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum OutboxType {
+  WHATSAPP_MESSAGE
+  WHATSAPP_TEMPLATE
+  WHATSAPP_READ_RECEIPT
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
   FAILED
 }

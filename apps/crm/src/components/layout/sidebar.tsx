@@ -9,6 +9,7 @@ import {
   CreditCard,
   Globe2,
   LayoutDashboard,
+  MessageSquare,
   PlugZap,
   ShieldCheck,
   Settings,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/contactos', label: 'Contactos', icon: Users },
   { href: '/oportunidades', label: 'Pipeline', icon: TrendingUp },
   { href: '/actividades', label: 'Actividades', icon: Activity },
@@ -65,7 +67,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Principal
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(0, 10).map((item) => {
+          {navItems.slice(0, 11).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -92,7 +94,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Sistema
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(10).map((item) => {
+          {navItems.slice(11).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (
