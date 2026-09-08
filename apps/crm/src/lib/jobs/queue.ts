@@ -32,6 +32,12 @@ export type EnqueueInput = {
   maxAttempts?: number;
   /** Si se repite, no se encola un segundo trabajo. */
   dedupeKey?: string | null;
+  /**
+   * Debounce: si ya hay un trabajo PENDING con esta dedupeKey, en vez de
+   * ignorarlo se corre su `runAt` hacia adelante. Sirve para agrupar mensajes
+   * seguidos del cliente en una sola ejecucion del agente.
+   */
+  extendIfPending?: boolean;
 };
 
 /**
@@ -56,7 +62,17 @@ export async function enqueue(input: EnqueueInput) {
     select: { id: true, status: true },
   });
 
-  if (existing) return existing;
+  if (existing) {
+    if (input.extendIfPending && existing.status === JobStatus.PENDING) {
+      const extended = await prisma.job.update({
+        where: { id: existing.id },
+        data: { runAt: data.runAt, payload: data.payload },
+        select: { id: true, status: true },
+      });
+      return extended;
+    }
+    return existing;
+  }
 
   try {
     return await prisma.job.create({ data });

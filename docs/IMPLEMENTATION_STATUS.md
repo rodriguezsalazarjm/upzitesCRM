@@ -3,8 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 3 — Cola, scheduler y automatizaciones reales
-- **Estado:** COMPLETADA. Esperando aprobacion del propietario para la Fase 4.
+- **Fase actual:** 4 — Agentes IA y herramientas
+- **Estado:** COMPLETADA con proveedor guionado. Falta validar contra OpenAI: **la cuenta no
+  tiene creditos**. Esperando aprobacion para la Fase 5.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -17,8 +18,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 1 | Dominio comercial y consentimiento | **Completada** (2026-09-07) |
 | 2 | WhatsApp e Inbox humano | **Completada** (2026-09-07), probada con fixtures |
 | 3 | Cola, scheduler y automatizaciones reales | **Completada** (2026-09-07) |
-| 4 | Agentes IA y herramientas | No iniciada — requiere aprobacion |
-| 5 | Infoproductos, Mercado Pago y entrega | No iniciada |
+| 4 | Agentes IA y herramientas | **Completada** (2026-09-07), probada con proveedor guionado |
+| 5 | Infoproductos, Mercado Pago y entrega | No iniciada — requiere aprobacion |
 | 6 | Shopify | No iniciada |
 | 7 | Cotizador y aprobaciones | No iniciada |
 | 8 | Recuperacion, email y campanas | No iniciada |
@@ -110,6 +111,31 @@ cada ejecucion queda en `AutomationExecution` y en el audit log.
 
 ---
 
+### Fase 4 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| OpenAI Responses API desde backend | Hecho | `lib/agents/provider.ts`, token central en el servidor |
+| Agente de ventas inicial | Hecho | Preset generico, sin rubro asumido |
+| Versionado de agentes | Hecho | `AgentVersion` con DRAFT / PUBLISHED / ARCHIVED |
+| Registro de runs, tokens y costos | Hecho | `AgentRun` + `UsageRecord` por workspace |
+| Tool calling tipado | Hecho | 9 herramientas con Zod y lista blanca por version |
+| Lock por conversacion y debounce | Hecho | Lock atomico en SQL; ventana de 3 s |
+| Resumen de contexto | Hecho | Resumen + ultimos 12 mensajes, no la conversacion entera |
+| Handoff humano | Hecho | `assign_to_human` y escalamiento automatico |
+| Simulador y publicacion | Hecho | `POST /api/agents/[id]/test` sin enviar nada al cliente |
+| Guardrails | Hecho | En prompt y en codigo (seccion 2) |
+
+**Criterio de salida:** el agente atiende un lead de principio a fin en ambiente de prueba, con
+toda accion critica validada por backend. **Cumplido contra el proveedor guionado.** La validacion
+contra el modelo real queda pendiente de creditos (T12).
+
+**Router:** la spec pide un agente ROUTER ademas del comercial. El enum `AgentKind` ya lo
+contempla, pero con un solo agente publicado no hay nada que rutear: se implementa cuando existan
+los agentes de cotizacion y postventa (Fases 5 y 7).
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -127,9 +153,9 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 32 tablas (31 modelos + `_prisma_migrations`) tras la Fase 3. Sin datos.
+- 36 tablas (35 modelos + `_prisma_migrations`) tras la Fase 4. Sin datos.
 
-### Modelos Prisma (31)
+### Modelos Prisma (35)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -140,13 +166,15 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
 
+Fase 4 (4): `AgentDefinition`, `AgentVersion`, `AgentRun`, `ConversationAgentState`.
+
 Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedupeMinutes` y
 `runCount`; su `action` singular quedo opcional y solo se lee para reglas antiguas.
 
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (37)
+### Enums (40)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
@@ -160,13 +188,15 @@ Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
 `MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
 `OutboxStatus`.
 
+Fase 4 (3): `AgentKind`, `AgentVersionStatus`, `AgentRunStatus`.
+
 Fase 3 (3): `JobType`, `JobStatus`, `AutomationExecutionStatus`. Ademas `AutomationTrigger` paso
 de 4 a 13 valores y `AutomationAction` de 4 a 13.
 
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (9, todas aplicadas)
+### Migraciones (11, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -178,6 +208,8 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260907120000_fase1_dominio_comercial
 20260907140000_fase2_mensajeria_whatsapp
 20260907160000_fase3_cola_automatizaciones
+20260907180000_fase4_agentes_ia
+20260907190000_fase4_job_run_agent
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -317,6 +349,42 @@ Otras decisiones:
 - Las reglas del catalogo son **genericas**: ninguna asume un rubro, porque la beta es
   multivertical.
 
+### Agentes IA (Fase 4)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/agents/provider.ts` | Interfaz de modelo, cliente OpenAI y proveedor guionado para pruebas |
+| `lib/agents/tools.ts` | 9 herramientas tipadas con Zod, auditadas, con workspace del servidor |
+| `lib/agents/guardrails.ts` | Reglas en el prompt + deteccion de escalamiento y de invenciones |
+| `lib/agents/runner.ts` | Bucle del agente: lock, pasos, tool calls, costo y escalamiento |
+| `lib/agents/dispatch.ts` | Encolado con debounce |
+| `lib/agents/presets.ts` | Agente comercial por defecto, generico |
+
+**Los guardrails viven en dos capas, y esto es lo importante de la fase.** El prompt pide
+colaboracion al modelo; el codigo la impone:
+
+| Regla de la spec | Como se aplica en codigo |
+|---|---|
+| No inventa precios ni stock | Una respuesta que afirma precio, stock o entrega **no se envia**: se escala y se audita |
+| No confirma pagos | Misma deteccion; ademas a CUSTOMER solo se llega por pago verificado (Fase 1) |
+| No responde en modo humano | El runner aborta antes de llamar al modelo |
+| No ejecuta herramienta no autorizada | Lista blanca por version; el rechazo se le devuelve al modelo como resultado |
+| No accede a otro workspace | El `workspaceId` lo pone el servidor y no es argumento de ninguna herramienta |
+| Escala correctamente | Patrones de escalamiento se detectan **antes** de llamar al modelo: no cuesta tokens |
+| Maximo de pasos por ejecucion | `maxSteps` corta el bucle; un run abortado no manda mensajes a medias |
+
+Otras decisiones:
+
+- **El agente nace en borrador.** Publicar es una accion separada y solo del OWNER: nadie deja una
+  IA hablando con sus clientes sin haberla leido antes.
+- **Solo una version publicada por agente**, garantizado por transaccion al publicar.
+- **Un fallo del proveedor escala a humano.** Que OpenAI se caiga no puede dejar a un cliente
+  esperando en silencio.
+- **El contexto es resumen + ultimos 12 mensajes**, no la conversacion entera: mandarla completa
+  es caro y casi nunca mejora la respuesta.
+- **El costo se mide por workspace** en `UsageRecord`, que es la base de los limites de plan.
+- Las instrucciones por defecto son **genericas**: no asumen rubro. Hay una prueba que lo verifica.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -328,6 +396,8 @@ Otras decisiones:
   payloads que imitan los de Meta. No requieren credenciales.
 - `apps/crm/scripts/smoke-fase3.ts`: pruebas de la Fase 3 (cola, condiciones, scheduler,
   idempotencia y aislamiento).
+- `apps/crm/scripts/smoke-fase4.ts`: evals de la Fase 4 contra un proveedor guionado. No consume
+  tokens ni requiere creditos.
 
 ---
 
@@ -397,6 +467,31 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B7 — La cuenta de OpenAI no tiene creditos (abierto)
+
+La API key entregada es valida —lista modelos correctamente y la cuenta tiene acceso a la familia
+GPT-5— pero toda llamada de inferencia responde:
+
+```
+429 You have no credits remaining
+```
+
+La Fase 4 quedo completa y probada contra el proveedor guionado. Para validarla contra el modelo
+real hay que cargar saldo (T12).
+
+### B8 — Race en el lock de conversacion — CORREGIDO (2026-09-07)
+
+Lo detecto la prueba de concurrencia de la Fase 4. `acquireLock` usaba un `upsert` de Prisma: dos
+ejecuciones simultaneas sobre una conversacion sin estado previo intentaban insertar las dos y una
+reventaba con `P2002` en vez de perder el lock limpiamente.
+
+**Correccion:** una sola sentencia `INSERT ... ON CONFLICT DO UPDATE ... WHERE locked_until IS NULL
+OR locked_until <= now()`. Si el lock vigente es de otro, no actualiza ninguna fila y no devuelve
+nada, que es exactamente "no lo obtuve".
+
+**Leccion:** el `upsert` de Prisma no es atomico frente a inserciones concurrentes. Para locks y
+reservas hay que bajar a SQL.
 
 ### B6 — Fuga entre workspaces en las acciones de automatizacion — CORREGIDO (2026-09-07)
 
@@ -536,6 +631,41 @@ acciones y su contador de ejecuciones, y ofrece el catalogo para activar mas.
 Tras la Fase 3 se reejecutaron las suites anteriores: **Fase 2 en 46/46**, **Fase 1 en 41/41** y
 **Fase 0 en 25/26**, sin regresiones.
 
+### Fase 4
+
+`pnpm exec tsx scripts/smoke-fase4.ts` desde `apps/crm`, ejecutado el 2026-09-07. Corre contra el
+proveedor guionado: **no consume tokens ni requiere creditos**.
+
+**Resultado: 70/70.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Agente por defecto: existe, nace en borrador, es generico, sin herramientas de fases futuras | 5 | 5/5 |
+| Guardrails puros: escalamiento, deteccion de invenciones, armado de instrucciones | 10 | 10/10 |
+| No responde en modo humano (sin llamar al modelo) | 3 | 3/3 |
+| Respuesta normal: mensaje, run, tokens, costo, latencia, consumo | 7 | 7/7 |
+| **No inventa precio**: la respuesta se bloquea, escala y se audita | 5 | 5/5 |
+| **No confirma pagos** ni convierte en cliente | 2 | 2/2 |
+| Escalamiento inmediato sin gastar tokens | 3 | 3/3 |
+| Herramienta no autorizada: no se ejecuta, se audita, el modelo recibe el rechazo | 4 | 4/4 |
+| Herramientas autorizadas: se ejecutan y quedan registradas | 6 | 6/6 |
+| Limite de pasos corta el bucle sin mandar mensajes a medias | 3 | 3/3 |
+| Aislamiento: no corre sobre conversaciones de otro workspace | 3 | 3/3 |
+| **Inyeccion de `workspaceId` en los argumentos**: el servidor manda | 2 | 2/2 |
+| Lock: dos ejecuciones simultaneas, una sola respuesta | 2 | 2/2 |
+| Debounce: tres mensajes seguidos, un solo trabajo | 3 | 3/3 |
+| Sin version publicada no corre nada | 2 | 2/2 |
+| Fallo del proveedor escala a humano y se audita | 3 | 3/3 |
+| Configuracion, costos y specs de herramientas | 7 | 7/7 |
+
+**Por que guionado y no contra OpenAI:** un guardrail probado contra un modelo real produce una
+prueba que "a veces pasa". Contra un guion, cada fallo significa exactamente una cosa. Ademas la
+cuenta no tiene creditos (T12). Cuando los tenga, el simulador (`POST /api/agents/[id]/test`)
+permite la prueba manual contra el modelo real sin tocar a ningun cliente.
+
+Tras la Fase 4 se reejecutaron las suites anteriores: **Fase 3 en 46/46**, **Fase 2 en 46/46** y
+**Fase 1 en 41/41**, sin regresiones.
+
 ---
 
 ## 7. Deuda tecnica
@@ -548,7 +678,7 @@ Tras la Fase 3 se reejecutaron las suites anteriores: **Fase 2 en 46/46**, **Fas
 | D4 | ~~Sin cifrado de tokens de integracion~~ — resuelto en la Fase 2 con `lib/crypto.ts` (AES-256-GCM). Queda migrar `Integration.config`, que sigue en JSON plano | Fase 6 |
 | D5 | ~~Sin cola durable ni scheduler~~ — resuelto en la Fase 3 |
 | D6 | ~~Regla de automatizacion hardcodeada~~ — resuelta en la Fase 3 con el motor `trigger -> conditions -> actions` |
-| D7 | "Insights IA" es scoring heuristico determinista, sin LLM | Fase 4 |
+| D7 | "Insights IA" sigue siendo scoring heuristico. El agente de la Fase 4 es otra cosa: no genera insights | Conectar el agente a los insights, o retirar la pagina |
 | D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
 | D9 | ~~`ContactStatus` mezcla ciclo de vida con intencion~~ — resuelto en la Fase 1. Queda la deuda menor de **retirar `status`** una vez que la UI consuma `lifecycleStatus` | Fase 9 o antes |
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
@@ -559,10 +689,14 @@ Tras la Fase 3 se reejecutaron las suites anteriores: **Fase 2 en 46/46**, **Fas
 | ~~D15~~ | ~~El webhook procesa en linea~~ — resuelto: ahora encola `PROCESS_WEBHOOK_EVENT` y responde 200 sin esperar |
 | **D16** | Sin descarga de media (imagenes, audio, documentos): se guarda el payload con el id de Meta, no el archivo | La spec pide almacenamiento privado con URLs firmadas. Fase 3 o 10 |
 | **D17** | Sin envio de plantillas aprobadas: fuera de la ventana de 24h la bandeja avisa pero no permite responder | Requiere dar de alta las plantillas en Meta (T9) |
-| **D18** | Sin debounce de mensajes entrantes (la spec pide agrupar 2-4 s) ni lock por conversacion | Recien importan cuando responde la IA: Fase 4 |
+| ~~D18~~ | ~~Sin debounce ni lock por conversacion~~ — resueltos en la Fase 4 |
 | **D19** | El cron de Vercel corre **una vez al dia en plan Hobby**. Con ese plan los seguimientos no corren solos | Requiere Vercel Pro o `pg_cron` + `pg_net` en Supabase (T11) |
 | **D20** | El endpoint `/api/internal/run-jobs` no tiene rate limiting propio; depende solo del secreto | Junto con D1, antes de la beta publica |
 | **D21** | `pruneFinishedJobs` existe pero no lo llama ningun recurrente: la tabla `jobs` crece | Agregar al cron o a un barrido diario |
+| **D22** | El agente no genera ni actualiza el `summary` de la conversacion: se manda resumen + 12 mensajes, pero nadie escribe el resumen | Conversaciones largas van a perder contexto. Fase 10 o antes |
+| **D23** | Sin agente ROUTER: hay un solo agente publicado por workspace | Llega cuando existan los agentes de cotizacion y postventa (Fases 5 y 7) |
+| **D24** | Los costos por token estan hardcodeados en `provider.ts` con una tarifa unica | Al fijar precios de plan hay que tarifar por modelo |
+| **D25** | La deteccion de invenciones es por patrones de texto en español. Un modelo que diga "sale cuarenta mil" la esquiva | Es una red de seguridad, no la unica: el limite real es que el agente no tiene herramientas de precio |
 
 ---
 
@@ -595,6 +729,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T9 | **Credenciales de Meta**: `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` y un numero de prueba | Valida la Fase 2 contra la API real; hoy solo esta probada con fixtures |
 | T10 | Generar `INTEGRATION_ENCRYPTION_KEY` e `INTERNAL_WORKER_SECRET` para Vercel | Sin la primera no se pueden guardar tokens; sin la segunda el cron responde 401 y **nada se procesa** |
 | T11 | Decidir como corre el cron: Vercel Pro (cron por minuto) o `pg_cron` + `pg_net` en Supabase | En plan Hobby el cron corre 1 vez al dia y los seguimientos no funcionan (D19) |
+| T12 | **Cargar creditos en OpenAI** y definir un limite de gasto del proyecto | Sin creditos el agente no puede responder en produccion (B7) |
+| T13 | **Rotar la API key de OpenAI**: circulo por el chat | Igual que la password de Postgres (T5) |
 
 ---
 
@@ -608,7 +744,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | 2 | WhatsApp Cloud API. **Ya implementadas**: sin ellas el webhook rechaza todo |
 | `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_SYSTEM_ACCESS_TOKEN` | 2 | Opcionales: version de Graph API (por defecto v21.0) y token de sistema para pilotos |
 | `META_APP_ID`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | 9 | Embedded Signup; hasta entonces el numero se conecta a mano |
-| `OPENAI_API_KEY`, `OPENAI_PROJECT_ID`, `OPENAI_DEFAULT_MODEL` | 4 | Agentes IA |
+| `OPENAI_API_KEY` | 4 | Agentes IA. **Ya implementada**; sin ella el agente no corre |
+| `OPENAI_PROJECT_ID`, `OPENAI_DEFAULT_MODEL` | 4 | Opcionales: proyecto para atribuir gasto y modelo por defecto (hoy `gpt-5-mini`) |
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SHOPIFY_SCOPES` | 6 | Shopify |
 | `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_WEBHOOK_SECRET` | 8 | Email marketing |
 
@@ -621,10 +758,14 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** tras la Fase 3 existen 31 tablas. Mensajeria: hecha (5/5). Faltan agentes
-IA (0/4), comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan consentimiento,
-scoring, supresion, scheduled actions y el motor de automatizaciones; faltan segmentos, journeys y
-campanas. Uso y costos: hecho.
+**Modelo de datos:** tras la Fase 4 existen 35 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha
+(4/4). Faltan comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan
+consentimiento, scoring, supresion, scheduled actions y el motor de automatizaciones; faltan
+segmentos, journeys y campanas. Uso y costos: hecho.
+
+**Herramientas del agente:** 9 de las 21 que lista la spec. Las 11 restantes dependen de catalogo,
+pagos y cotizaciones (Fases 5 a 7) y estan declaradas como pendientes, de modo que el agente sabe
+que no las tiene y deriva en vez de inventar.
 
 **Enums:** completos. Los 8 que exige la spec estan creados, mas 4 de apoyo. `ContactStatus`
 convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
@@ -660,6 +801,9 @@ el primer infoproducto vendido regalara suscripciones.
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-07 | Los evals de la Fase 4 corren contra un proveedor guionado, no contra OpenAI. Un guardrail probado contra un modelo real da una prueba no determinista; ademas la cuenta no tiene creditos. El simulador cubre la prueba manual contra el modelo real |
+| 2026-09-07 | Los guardrails se aplican en el codigo, no solo en el prompt. Un prompt es una peticion al modelo, no un control de seguridad: la lista blanca de herramientas, el bloqueo de respuestas con precios y el corte por modo humano ocurren en el runner |
+| 2026-09-07 | El agente nace en borrador y solo el OWNER publica. Dejar una IA hablando con los clientes es una decision del dueno del negocio, no un efecto secundario de crear la cuenta |
 | 2026-09-07 | **Cola en tabla propia en vez de pgmq**, pese a ser la primera preferencia de la spec. Razones en la seccion 2: coherencia con las dos colas que ya existen, observabilidad por workspace sin SQL crudo, y no depender de una extension. Migrar a pgmq mas adelante solo toca `lib/jobs/queue.ts` |
 | 2026-09-07 | Una automatizacion NO puede convertir a alguien en cliente: `SET_LIFECYCLE` excluye CUSTOMER y REPEAT_CUSTOMER. Solo un pago aprobado o una confirmacion humana lo hacen |
 | 2026-09-07 | El motor descarta el evento completo si referencia datos de otro workspace, en vez de ejecutar las reglas con contexto parcial. Un contexto incompleto haria que las condiciones evaluaran contra `undefined` y las acciones escribieran igual |
@@ -742,4 +886,21 @@ el primer infoproducto vendido regalara suscripciones.
 - **Hallazgo de seguridad corregido (B6):** las acciones escribian `contactId` sin validar
   pertenencia al workspace. Lo encontro la propia suite de la fase.
 - Pruebas: **46/46**. Fases 2, 1 y 0 sin regresiones. Build, lint y tsc limpios.
-- **Fase 3 cerrada. No se inicia la Fase 4 sin aprobacion del propietario.**
+- **Fase 3 cerrada.**
+
+### 2026-09-07 — Fase 4, agentes IA y herramientas
+
+- Verificados los modelos disponibles en la cuenta antes de fijar el default (`gpt-5-mini`).
+- Detectado B7: la cuenta de OpenAI **no tiene creditos**; toda inferencia responde 429.
+- 4 tablas y 3 enums nuevos; dos migraciones aditivas.
+- Capa de agentes: proveedor intercambiable, 9 herramientas tipadas, guardrails en dos capas,
+  runner con lock y limite de pasos, debounce de 3 s, simulador y publicacion versionada.
+- El agente se conecta al mensaje entrante y a la accion `RUN_AGENT` del motor de la Fase 3.
+- **Hallazgo corregido (B8):** el `upsert` de Prisma no es atomico frente a inserciones
+  concurrentes; el lock de conversacion fallaba con P2002 en vez de perderse limpiamente. Lo
+  encontro la prueba de concurrencia.
+- Corregida una prueba propia mal escrita: decia "nace en borrador" pero verificaba el estado
+  despues de que el helper publicaba, asi que no probaba nada.
+- Pruebas: **70/70**. Fases 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
+- **Fase 4 cerrada contra el proveedor guionado. Falta validarla contra OpenAI (T12).**
+  No se inicia la Fase 5 sin aprobacion del propietario.

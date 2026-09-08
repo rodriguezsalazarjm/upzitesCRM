@@ -23,6 +23,7 @@ import {
   transitionLifecycle,
 } from '../domain';
 import { queueOutboundMessage } from '../whatsapp/outbound';
+import { scheduleAgentRun } from '../agents/dispatch';
 import { evaluateGroup, type EventContext } from './conditions';
 import type { DomainEvent } from './types';
 import { parseActions, parseConditions, type AutomationActionConfig } from './schema';
@@ -444,14 +445,16 @@ async function executeAction(action: AutomationActionConfig, event: DomainEvent)
     }
 
     case 'RUN_AGENT': {
-      // La Fase 4 trae los agentes. Se registra la intencion para no perderla,
-      // en vez de fallar la regla completa.
-      await recordAudit({
+      if (!event.conversationId) {
+        // Un agente necesita una conversacion. Sin ella no es un error de la
+        // regla: simplemente no aplica.
+        return;
+      }
+
+      await scheduleAgentRun({
         workspaceId,
-        action: 'automation.run_agent_pending',
-        entity: 'Contact',
-        entityId: contactId ?? null,
-        metadata: { agentKey: action.agentKey, note: 'Los agentes llegan en la Fase 4.' },
+        conversationId: event.conversationId,
+        trigger: `automation:${action.agentKey}`,
       });
       return;
     }

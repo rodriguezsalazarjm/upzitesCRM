@@ -10,6 +10,7 @@ import { recalculateContactScore } from '../domain';
 import { processWebhookEvent } from '../whatsapp/inbound';
 import { processOutbox } from '../whatsapp/outbound';
 import { runAutomationsForEvent } from '../automation/engine';
+import { runAgent } from '../agents/runner';
 import { emitDomainEvent } from '../automation/emit';
 import type { DomainEvent } from '../automation/types';
 import { enqueue } from './queue';
@@ -144,6 +145,25 @@ const handlers: Record<JobType, JobHandler> = {
     }
 
     return { scanned: contacts.length };
+  },
+
+  /**
+   * Ejecuta el agente sobre una conversacion.
+   *
+   * Se encola con debounce: si el cliente manda tres mensajes seguidos, la
+   * ventana se corre y el agente responde una sola vez viendo los tres.
+   */
+  [JobType.RUN_AGENT]: async (payload, workspaceId) => {
+    const conversationId = String(payload.conversationId ?? '');
+    if (!conversationId || !workspaceId) {
+      throw new Error('RUN_AGENT requiere conversationId y workspaceId.');
+    }
+
+    return runAgent({
+      workspaceId,
+      conversationId,
+      trigger: typeof payload.trigger === 'string' ? payload.trigger : undefined,
+    });
   },
 
   [JobType.RECALCULATE_SCORE]: async (payload, workspaceId) => {

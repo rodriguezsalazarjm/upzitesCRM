@@ -8,6 +8,7 @@ import {
 import { isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { DEFAULT_SCORE_RULES } from './domain';
 import { AUTOMATION_PRESETS } from './automation/presets';
+import { DEFAULT_SALES_AGENT } from './agents/presets';
 import { hashPassword } from './password';
 import { prisma } from './prisma';
 
@@ -218,6 +219,30 @@ export async function createCustomerWorkspace(input: {
         },
       });
     }
+
+    // Agente comercial por defecto, en borrador. Publicar es una decision
+    // explicita del cliente: nadie deja una IA hablando con sus clientes sin
+    // haberla leido primero.
+    const agent = await tx.agentDefinition.create({
+      data: {
+        workspaceId: workspace.id,
+        key: DEFAULT_SALES_AGENT.key,
+        name: DEFAULT_SALES_AGENT.name,
+        purpose: DEFAULT_SALES_AGENT.purpose,
+      },
+    });
+
+    await tx.agentVersion.create({
+      data: {
+        agentDefinitionId: agent.id,
+        version: 1,
+        instructions: DEFAULT_SALES_AGENT.instructions,
+        model: DEFAULT_SALES_AGENT.model,
+        allowedTools: [...DEFAULT_SALES_AGENT.allowedTools],
+        maxSteps: DEFAULT_SALES_AGENT.maxSteps,
+        escalationPolicy: DEFAULT_SALES_AGENT.escalationPolicy as never,
+      },
+    });
 
     await tx.integration.createMany({
       data: defaultIntegrations.map((integration) => ({

@@ -13,6 +13,7 @@ import {
 import { prisma } from '../prisma';
 import { cancelForContact } from '../domain';
 import { emitDomainEvent } from '../automation/emit';
+import { scheduleAgentRun } from '../agents/dispatch';
 import { recordAudit } from '../domain/audit';
 import {
   dedupeKeyFor,
@@ -248,6 +249,16 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     conversationId: conversation?.id,
     context: { message: { text: event.text ?? '', type: event.type } },
   });
+
+  // El agente responde con retraso deliberado: si el cliente escribe tres
+  // mensajes seguidos, la ventana se corre y contesta una vez viendo los tres.
+  if (conversation) {
+    await scheduleAgentRun({
+      workspaceId: channel.workspaceId,
+      conversationId: conversation.id,
+      trigger: 'inbound_message',
+    });
+  }
 
   return true;
 }

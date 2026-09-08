@@ -46,6 +46,9 @@ model Workspace {
   jobs                 Job[]
   automationExecutions AutomationExecution[]
 
+  agentDefinitions AgentDefinition[]
+  agentRuns        AgentRun[]
+
   @@map("workspaces")
 }
 
@@ -615,8 +618,10 @@ model Conversation {
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   channel   WhatsAppChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  assignee  User?           @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages  Message[]
+  assignee   User?                    @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages   Message[]
+  agentRuns  AgentRun[]
+  agentState ConversationAgentState?
 
   @@unique([channelId, contactId])
   @@index([workspaceId, status, lastMessageAt])
@@ -753,6 +758,114 @@ model AutomationExecution {
   @@unique([ruleId, dedupeKey])
   @@index([workspaceId, createdAt])
   @@map("automation_executions")
+}
+
+// --- Fase 4: agentes IA ------------------------------------------------------
+
+/// Agente de un workspace. La definicion es estable; lo que cambia son sus
+/// versiones, para poder editar sin afectar lo que ya esta en produccion.
+model AgentDefinition {
+  id          String    @id @default(cuid())
+  workspaceId String    @map("workspace_id")
+  key         AgentKind
+  name        String
+  purpose     String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions  AgentVersion[]
+  runs      AgentRun[]
+
+  @@unique([workspaceId, key])
+  @@map("agent_definitions")
+}
+
+/// Version de un agente: instrucciones, modelo, herramientas permitidas y
+/// limites. Solo una puede estar PUBLISHED por agente; el resto queda como
+/// historial o borrador. Publicar es una accion auditada, no un guardado.
+model AgentVersion {
+  id                String             @id @default(cuid())
+  agentDefinitionId String             @map("agent_definition_id")
+  version           Int
+  instructions      String
+  model             String
+  /// temperature y demas opciones del proveedor.
+  options           Json?
+  /// Lista blanca de herramientas. Lo que no este aqui, el agente no puede usar.
+  allowedTools      String[]           @default([]) @map("allowed_tools")
+  maxSteps          Int                @default(6) @map("max_steps")
+  /// Cuando debe escalar a un humano.
+  escalationPolicy  Json?              @map("escalation_policy")
+  status            AgentVersionStatus @default(DRAFT)
+  createdById       String?            @map("created_by")
+  publishedAt       DateTime?          @map("published_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  definition AgentDefinition @relation(fields: [agentDefinitionId], references: [id], onDelete: Cascade)
+  runs       AgentRun[]
+
+  @@unique([agentDefinitionId, version])
+  @@index([agentDefinitionId, status])
+  @@map("agent_versions")
+}
+
+/// Ejecucion de un agente. Guarda tokens, costo y latencia para poder medir el
+/// gasto por workspace, que es la base del modelo comercial.
+model AgentRun {
+  id                String         @id @default(cuid())
+  workspaceId       String         @map("workspace_id")
+  conversationId    String?        @map("conversation_id")
+  agentDefinitionId String         @map("agent_definition_id")
+  agentVersionId    String         @map("agent_version_id")
+  status            AgentRunStatus @default(RUNNING)
+  trigger           String?
+  inputSummary      String?        @map("input_summary")
+  output            String?
+  /// Cada tool call con sus argumentos y su resultado, para poder auditar que
+  /// hizo el agente sin volver a llamarlo.
+  toolCalls         Json?          @map("tool_calls")
+  steps             Int            @default(0)
+  inputTokens       Int            @default(0) @map("input_tokens")
+  outputTokens      Int            @default(0) @map("output_tokens")
+  costEstimate      Int            @default(0) @map("cost_estimate")
+  latencyMs         Int            @default(0) @map("latency_ms")
+  escalated         Boolean        @default(false)
+  error             String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  definition   AgentDefinition @relation(fields: [agentDefinitionId], references: [id], onDelete: Cascade)
+  agentVersion AgentVersion    @relation(fields: [agentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("agent_runs")
+}
+
+/// Estado del agente en una conversacion.
+///
+/// La base local es la fuente de verdad; `externalConversationId` es auxiliar y
+/// puede perderse sin consecuencias. `lockedUntil` impide dos ejecuciones
+/// simultaneas sobre la misma conversacion.
+model ConversationAgentState {
+  id                     String    @id @default(cuid())
+  conversationId         String    @unique @map("conversation_id")
+  currentAgentId         String?   @map("current_agent_id")
+  externalConversationId String?   @map("external_conversation_id")
+  state                  Json?
+  summary                String?
+  lastRunId              String?   @map("last_run_id")
+  lockedUntil            DateTime? @map("locked_until")
+  lockedBy               String?   @map("locked_by")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_agent_states")
 }
 
 enum UserRole {
@@ -1063,6 +1176,8 @@ enum JobType {
   SCAN_SCHEDULED_ACTIONS
   SCAN_SILENCE
   RECALCULATE_SCORE
+  // Fase 4
+  RUN_AGENT
 }
 
 enum JobStatus {
@@ -1079,4 +1194,31 @@ enum AutomationExecutionStatus {
   SKIPPED
   COMPLETED
   FAILED
+}
+
+
+// --- Fase 4: enums de agentes -------------------------------------------------
+
+enum AgentKind {
+  ROUTER
+  SALES
+  QUOTING
+  CHECKOUT_RECOVERY
+  FULFILLMENT_SUPPORT
+}
+
+enum AgentVersionStatus {
+  DRAFT
+  TESTING
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AgentRunStatus {
+  RUNNING
+  COMPLETED
+  ESCALATED
+  FAILED
+  /// Corto por limite de pasos o de tokens.
+  ABORTED
 }
