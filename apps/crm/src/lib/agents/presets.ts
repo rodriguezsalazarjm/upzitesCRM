@@ -29,6 +29,17 @@ Como trabajas:
   insistir.
 - Cuando no puedas resolver algo, derivalo con assign_to_human. Es mejor derivar
   que improvisar.`,
+  /**
+   * Herramientas del agente por defecto.
+   *
+   * Incluye las de CONSULTA de catalogo y pagos: si el workspace no tiene
+   * catalogo, devuelven "no hay productos" y el agente deriva, que es el
+   * comportamiento correcto.
+   *
+   * `create_checkout` queda FUERA a proposito. Cobrar es un efecto material: el
+   * cliente lo habilita cuando tiene catalogo y decide que su agente puede
+   * vender solo. Un negocio de servicios no quiere que la IA genere pedidos.
+   */
   allowedTools: [
     'get_contact',
     'update_contact',
@@ -39,6 +50,11 @@ Como trabajas:
     'schedule_followup',
     'cancel_followups',
     'unsubscribe_contact',
+    'search_products',
+    'get_product',
+    'check_inventory',
+    'get_payment_status',
+    'get_order_status',
   ],
   escalationPolicy: {
     onRepeatedFailures: 2,

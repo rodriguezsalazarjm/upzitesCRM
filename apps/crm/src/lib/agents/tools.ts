@@ -12,6 +12,8 @@ import {
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { cancelForContact, revokeConsent, scheduleAction } from '../domain';
+import { createOrder, listCatalog, OrderError } from '../commerce/orders';
+import { CheckoutError, createOrderCheckout } from '../commerce/checkout';
 import type { ToolSpec } from './provider';
 
 /**
@@ -367,6 +369,223 @@ export const AGENT_TOOLS: AgentTool[] = [
       return { ok: true, data: { unsubscribed: result.revoked, canceledActions: result.canceledActions } };
     },
   },
+  // --- Fase 5: comercio -------------------------------------------------------
+  // El precio SIEMPRE lo pone el servidor. El agente no lo propone ni lo
+  // confirma: consulta el catalogo, arma el pedido con ids y el backend calcula.
+
+  {
+    name: 'search_products',
+    description:
+      'Busca productos del catalogo. Devuelve nombre, descripcion y precio real. Usala antes de hablar de precios.',
+    schema: z.object({
+      query: z.string().optional().describe('Texto a buscar. Omitir para ver todo el catalogo.'),
+    }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z.object({ query: z.string().optional() }).safeParse(args);
+      const products = await listCatalog(context.workspaceId, parsed.success ? parsed.data.query : undefined);
+
+      if (products.length === 0) {
+        return { ok: false, error: 'No hay productos en el catalogo.' };
+      }
+
+      return {
+        ok: true,
+        data: products.map((product) => ({
+          productId: product.id,
+          name: product.name,
+          description: product.description,
+          type: product.type,
+          variants: product.variants.map((variant) => ({
+            variantId: variant.id,
+            name: variant.name,
+            priceClp: variant.priceClp,
+            available: variant.inventory === null || variant.inventory > 0,
+          })),
+        })),
+      };
+    },
+  },
+
+  {
+    name: 'get_product',
+    description: 'Detalle de un producto por su id.',
+    schema: z.object({ productId: z.string().min(1).describe('Id devuelto por search_products') }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z.object({ productId: z.string().min(1) }).safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Falta el productId.' };
+
+      const product = await prisma.product.findFirst({
+        where: { id: parsed.data.productId, workspaceId: context.workspaceId, status: 'ACTIVE' },
+        include: { variants: { where: { isActive: true } } },
+      });
+
+      if (!product) return { ok: false, error: 'Ese producto no existe o no esta disponible.' };
+
+      return {
+        ok: true,
+        data: {
+          name: product.name,
+          description: product.description,
+          type: product.type,
+          variants: product.variants.map((v) => ({
+            variantId: v.id,
+            name: v.name,
+            priceClp: v.priceClp,
+            available: v.inventory === null || v.inventory > 0,
+          })),
+        },
+      };
+    },
+  },
+
+  {
+    name: 'check_inventory',
+    description: 'Consulta si una variante tiene stock disponible.',
+    schema: z.object({ variantId: z.string().min(1), quantity: z.number().int().min(1).default(1) }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z
+        .object({ variantId: z.string().min(1), quantity: z.number().int().min(1).default(1) })
+        .safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Datos invalidos.' };
+
+      const variant = await prisma.productVariant.findFirst({
+        where: {
+          id: parsed.data.variantId,
+          isActive: true,
+          product: { workspaceId: context.workspaceId, status: 'ACTIVE' },
+        },
+        select: { inventory: true, priceClp: true },
+      });
+
+      if (!variant) return { ok: false, error: 'Esa variante no existe o no esta disponible.' };
+
+      const unlimited = variant.inventory === null;
+      return {
+        ok: true,
+        data: {
+          available: unlimited || variant.inventory! >= parsed.data.quantity,
+          unlimited,
+          priceClp: variant.priceClp,
+        },
+      };
+    },
+  },
+
+  {
+    name: 'create_checkout',
+    description:
+      'Crea el pedido y devuelve el enlace de pago. Confirma con el cliente producto, cantidad y precio ANTES de usarla.',
+    schema: z.object({
+      variantId: z.string().min(1).describe('Id de la variante a comprar'),
+      quantity: z.number().int().min(1).max(20).default(1),
+      email: z.string().email().optional().describe('Email para enviar el acceso'),
+    }),
+    hasSideEffects: true,
+    execute: async (args, context) => {
+      if (!context.contactId) return { ok: false, error: 'No hay contacto asociado.' };
+
+      const parsed = z
+        .object({
+          variantId: z.string().min(1),
+          quantity: z.number().int().min(1).max(20).default(1),
+          email: z.string().email().optional(),
+        })
+        .safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Datos invalidos para el checkout.' };
+
+      try {
+        const order = await createOrder({
+          workspaceId: context.workspaceId,
+          contactId: context.contactId,
+          conversationId: context.conversationId,
+          customerEmail: parsed.data.email,
+          items: [{ variantId: parsed.data.variantId, quantity: parsed.data.quantity }],
+        });
+
+        const checkout = await createOrderCheckout({
+          workspaceId: context.workspaceId,
+          orderId: order.id,
+        });
+
+        await audit(context, 'create_checkout', { orderId: order.id, total: order.total });
+
+        // Se devuelve el total calculado por el servidor: el agente lo repite,
+        // no lo inventa.
+        return {
+          ok: true,
+          data: { checkoutUrl: checkout.checkoutUrl, totalClp: order.total, orderId: order.id },
+        };
+      } catch (error) {
+        if (error instanceof OrderError) return { ok: false, error: error.message };
+        if (error instanceof CheckoutError) {
+          return { ok: false, error: 'No pude generar el enlace de pago en este momento.' };
+        }
+        throw error;
+      }
+    },
+  },
+
+  {
+    name: 'get_payment_status',
+    description:
+      'Estado real del pago de un pedido. Usala cuando el cliente diga que ya pago: nunca aceptes su palabra ni una captura.',
+    schema: z.object({ orderId: z.string().min(1) }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z.object({ orderId: z.string().min(1) }).safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Falta el orderId.' };
+
+      const order = await prisma.customerOrder.findFirst({
+        where: { id: parsed.data.orderId, workspaceId: context.workspaceId },
+        include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      });
+
+      if (!order) return { ok: false, error: 'Ese pedido no existe.' };
+
+      const payment = order.payments[0];
+      return {
+        ok: true,
+        data: {
+          orderStatus: order.status,
+          paymentStatus: payment?.status ?? 'SIN_PAGO',
+          paid: order.status === 'CONFIRMED' || order.status === 'FULFILLED',
+        },
+      };
+    },
+  },
+
+  {
+    name: 'get_order_status',
+    description: 'Estado de un pedido y si su entrega ya se realizo.',
+    schema: z.object({ orderId: z.string().min(1) }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z.object({ orderId: z.string().min(1) }).safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Falta el orderId.' };
+
+      const order = await prisma.customerOrder.findFirst({
+        where: { id: parsed.data.orderId, workspaceId: context.workspaceId },
+        include: { lines: true, fulfillments: true, deliveries: true },
+      });
+
+      if (!order) return { ok: false, error: 'Ese pedido no existe.' };
+
+      return {
+        ok: true,
+        data: {
+          status: order.status,
+          totalClp: order.total,
+          items: order.lines.map((line) => ({ name: line.name, quantity: line.quantity })),
+          delivered: order.deliveries.length > 0,
+          // El enlace de entrega NUNCA se devuelve al agente: si el cliente lo
+          // perdio, lo reenvia una persona desde el CRM.
+        },
+      };
+    },
+  },
 ];
 
 /**
@@ -377,18 +596,20 @@ export const AGENT_TOOLS: AgentTool[] = [
  * correcta es derivar a un humano, no inventar.
  */
 export const PENDING_TOOLS = [
-  'search_products',
-  'get_product',
-  'check_inventory',
-  'create_checkout',
-  'get_payment_status',
-  'get_order_status',
-  'create_digital_delivery',
   'collect_quote_inputs',
   'calculate_quote',
   'request_quote_review',
   'get_quote_status',
 ] as const;
+
+/**
+ * `create_digital_delivery` NO existe como herramienta del agente, a proposito.
+ *
+ * La spec la lista, pero la entrega la dispara el webhook de pago verificado:
+ * darle al agente la capacidad de conceder accesos seria darle la capacidad de
+ * regalarlos si alguien lo convence. Reenviar un acceso perdido es una accion
+ * humana (`POST /api/orders/[id]/resend`).
+ */
 
 const BY_NAME = new Map(AGENT_TOOLS.map((tool) => [tool.name, tool]));
 

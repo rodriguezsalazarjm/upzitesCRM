@@ -152,8 +152,10 @@ const B = await makeWorkspace('b');
   const instructions = DEFAULT_SALES_AGENT.instructions;
   check('Las instrucciones por defecto no asumen un rubro',
     !/malla|reja|cerco|inmobiliaria|restaurante|clinica/i.test(instructions));
-  check('El agente por defecto NO tiene herramientas de catalogo ni pago',
+  check('El agente por defecto NO tiene herramientas de fases futuras',
     !DEFAULT_SALES_AGENT.allowedTools.some((t) => (PENDING_TOOLS as readonly string[]).includes(t)));
+  check('El agente por defecto NO puede cobrar sin que el cliente lo habilite',
+    !(DEFAULT_SALES_AGENT.allowedTools as readonly string[]).includes('create_checkout'));
 }
 
 // --- 2. Guardrails puros ----------------------------------------------------
@@ -285,15 +287,17 @@ const B = await makeWorkspace('b');
 
 // --- 8. Herramienta no autorizada -------------------------------------------
 {
-  const { conversationId } = await makeConversation(A, 'que productos tienen?');
+  const { conversationId } = await makeConversation(A, 'quiero comprar ya');
+  // `create_checkout` existe, pero NO esta en la lista blanca del agente por
+  // defecto: cobrar es algo que el cliente habilita a proposito.
   const provider = new ScriptedProvider([
-    { toolCalls: [{ id: 'c1', name: 'search_products', arguments: { query: 'todo' } }] },
-    { text: 'No tengo el catalogo a mano, te derivo con el equipo.' },
+    { toolCalls: [{ id: 'c1', name: 'create_checkout', arguments: { variantId: 'x', quantity: 1 } }] },
+    { text: 'Te derivo con el equipo para cerrar la compra.' },
   ]);
 
   const result = await runAgent({ workspaceId: A.workspaceId, conversationId, provider });
 
-  const denied = result.toolCalls?.find((c) => c.name === 'search_products');
+  const denied = result.toolCalls?.find((c) => c.name === 'create_checkout');
   check('Una herramienta fuera de la lista blanca NO se ejecuta', denied?.ok === false);
 
   const audit = await prisma.auditLog.findFirst({
@@ -516,8 +520,8 @@ const B = await makeWorkspace('b');
   check('Los argumentos requeridos se declaran',
     params.required.includes('intent') && params.required.includes('reason'));
 
-  check('Hay 9 herramientas disponibles hoy', AGENT_TOOLS.length === 9, `${AGENT_TOOLS.length}`);
-  check('Las herramientas de fases futuras estan declaradas como pendientes', PENDING_TOOLS.length === 11);
+  check('El catalogo de herramientas crece con las fases', AGENT_TOOLS.length >= 15, `${AGENT_TOOLS.length} herramientas`);
+  check('Las herramientas de fases futuras siguen declaradas como pendientes', PENDING_TOOLS.length === 4);
 }
 
 // --- Limpieza ---------------------------------------------------------------

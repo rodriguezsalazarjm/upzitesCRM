@@ -10,6 +10,8 @@ import {
   Globe2,
   LayoutDashboard,
   MessageSquare,
+  Package,
+  Receipt,
   PlugZap,
   ShieldCheck,
   Settings,
@@ -28,6 +30,8 @@ const navItems = [
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/contactos', label: 'Contactos', icon: Users },
   { href: '/oportunidades', label: 'Pipeline', icon: TrendingUp },
+  { href: '/productos', label: 'Productos', icon: Package },
+  { href: '/pedidos', label: 'Pedidos', icon: Receipt },
   { href: '/actividades', label: 'Actividades', icon: Activity },
   { href: '/fuentes', label: 'Fuentes', icon: Globe2 },
   { href: '/integraciones', label: 'Integraciones', icon: PlugZap },
@@ -67,7 +71,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Principal
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(0, 11).map((item) => {
+          {navItems.slice(0, 13).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -94,7 +98,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Sistema
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(11).map((item) => {
+          {navItems.slice(13).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (

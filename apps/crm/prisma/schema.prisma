@@ -49,6 +49,13 @@ model Workspace {
   agentDefinitions AgentDefinition[]
   agentRuns        AgentRun[]
 
+  commerceConnections CommerceConnection[]
+  products            Product[]
+  orders              CustomerOrder[]
+  payments            Payment[]
+  digitalAssets       DigitalAsset[]
+  digitalDeliveries   DigitalDelivery[]
+
   @@map("workspaces")
 }
 
@@ -148,6 +155,8 @@ model Contact {
   scoreSnapshots   LeadScoreSnapshot[]
   scheduledActions ScheduledAction[]
   conversations    Conversation[]
+  orders           CustomerOrder[]
+  deliveries       DigitalDelivery[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -868,6 +877,220 @@ model ConversationAgentState {
   @@map("conversation_agent_states")
 }
 
+// --- Fase 5: catalogo, ordenes y entrega digital -----------------------------
+
+/// Conexion a un origen de catalogo. INTERNAL es el catalogo propio del CRM;
+/// SHOPIFY llega en la Fase 6 y reusa esta misma tabla.
+model CommerceConnection {
+  id                   String           @id @default(cuid())
+  workspaceId          String           @map("workspace_id")
+  provider             CommerceProvider @default(INTERNAL)
+  shopDomain           String?          @map("shop_domain")
+  scopes               String[]         @default([])
+  accessTokenEncrypted String?          @map("access_token_encrypted")
+  status               String           @default("CONNECTED")
+  lastSyncAt           DateTime?        @map("last_sync_at")
+  metadata             Json?
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([workspaceId, provider])
+  @@map("commerce_connections")
+}
+
+model Product {
+  id           String        @id @default(cuid())
+  workspaceId  String        @map("workspace_id")
+  connectionId String?       @map("connection_id")
+  externalId   String?       @map("external_id")
+  name         String
+  description  String?
+  type         ProductType   @default(DIGITAL)
+  status       ProductStatus @default(DRAFT)
+  currency     String        @default("CLP")
+  metadata     Json?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection CommerceConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  variants   ProductVariant[]
+  assets     DigitalAsset[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, type])
+  @@map("products")
+}
+
+/// Variante vendible. Un producto simple tiene una sola, marcada `isDefault`.
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  externalId String?  @map("external_id")
+  name       String
+  sku        String?
+  priceClp   Int      @map("price_clp")
+  /// Null significa "sin control de stock" (tipico de un digital).
+  inventory  Int?
+  isDefault  Boolean  @default(false) @map("is_default")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lines   OrderLine[]
+
+  @@index([productId, isActive])
+  @@map("product_variants")
+}
+
+/// Lo que se entrega al comprar un digital: un archivo, un enlace o un codigo.
+model DigitalAsset {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  productId   String           @map("product_id")
+  kind        DigitalAssetKind @default(LINK)
+  name        String
+  /// Para LINK: la URL de destino. Para FILE: la clave en el almacenamiento.
+  target      String
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  deliveries DigitalDelivery[]
+
+  @@index([workspaceId, productId])
+  @@map("digital_assets")
+}
+
+/// Pedido de un cliente. Guarda snapshot de cada linea: el precio de hoy no
+/// puede depender de que el producto siga existiendo manana con ese valor.
+model CustomerOrder {
+  id             String           @id @default(cuid())
+  workspaceId    String           @map("workspace_id")
+  provider       CommerceProvider @default(INTERNAL)
+  externalId     String?          @map("external_id")
+  contactId      String?          @map("contact_id")
+  conversationId String?          @map("conversation_id")
+  status         OrderStatus      @default(DRAFT)
+  currency       String           @default("CLP")
+  subtotal       Int              @default(0)
+  discount       Int              @default(0)
+  total          Int              @default(0)
+  customerEmail  String?          @map("customer_email")
+  customerName   String?          @map("customer_name")
+  notes          String?
+  metadata       Json?
+  confirmedAt    DateTime?        @map("confirmed_at")
+  cancelledAt    DateTime?        @map("cancelled_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lines        OrderLine[]
+  payments     Payment[]
+  fulfillments FulfillmentOrder[]
+  deliveries   DigitalDelivery[]
+
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, contactId])
+  @@map("customer_orders")
+}
+
+model OrderLine {
+  id        String  @id @default(cuid())
+  orderId   String  @map("order_id")
+  variantId String? @map("variant_id")
+  /// Snapshot: nombre, sku y precio unitario al momento de la compra.
+  name      String
+  sku       String?
+  unitPrice Int     @map("unit_price")
+  quantity  Int     @default(1)
+  total     Int
+
+  order   CustomerOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_lines")
+}
+
+/// Pago recibido. `externalId` unico global: es lo que hace idempotente el
+/// webhook, aunque Mercado Pago reintente diez veces.
+model Payment {
+  id          String          @id @default(cuid())
+  workspaceId String          @map("workspace_id")
+  orderId     String?         @map("order_id")
+  provider    PaymentProvider @default(MERCADO_PAGO)
+  externalId  String          @unique @map("external_id")
+  status      PaymentStatus   @default(PENDING)
+  rawStatus   String?         @map("raw_status")
+  amount      Int
+  currency    String          @default("CLP")
+  payerEmail  String?         @map("payer_email")
+  metadata    Json?
+  approvedAt  DateTime?       @map("approved_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order     CustomerOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@map("payments")
+}
+
+model FulfillmentOrder {
+  id          String            @id @default(cuid())
+  orderId     String            @map("order_id")
+  type        FulfillmentType   @default(DIGITAL)
+  status      FulfillmentStatus @default(PENDING)
+  trackingUrl String?           @map("tracking_url")
+  metadata    Json?
+  deliveredAt DateTime?         @map("delivered_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  order CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+  @@map("fulfillment_orders")
+}
+
+/// Acceso concedido a un asset digital.
+///
+/// El token se guarda hasheado, igual que las contrasenas: quien lea la base no
+/// obtiene accesos utilizables. El unique (orderId, assetId) es lo que hace
+/// idempotente la entrega: un pago reintentado no genera un segundo acceso.
+model DigitalDelivery {
+  id            String         @id @default(cuid())
+  workspaceId   String         @map("workspace_id")
+  orderId       String         @map("order_id")
+  assetId       String         @map("asset_id")
+  contactId     String?        @map("contact_id")
+  tokenHash     String         @unique @map("token_hash")
+  status        DeliveryStatus @default(GRANTED)
+  expiresAt     DateTime?      @map("expires_at")
+  maxDownloads  Int            @default(20) @map("max_downloads")
+  downloadCount Int            @default(0) @map("download_count")
+  lastAccessAt  DateTime?      @map("last_access_at")
+  sentAt        DateTime?      @map("sent_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  asset     DigitalAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  contact   Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, assetId])
+  @@index([workspaceId, createdAt])
+  @@map("digital_deliveries")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -1221,4 +1444,57 @@ enum AgentRunStatus {
   FAILED
   /// Corto por limite de pasos o de tokens.
   ABORTED
+}
+
+
+// --- Fase 5: enums de comercio ------------------------------------------------
+
+enum CommerceProvider {
+  INTERNAL
+  SHOPIFY
+}
+
+enum ProductType {
+  DIGITAL
+  PHYSICAL
+  SERVICE
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum DigitalAssetKind {
+  FILE
+  LINK
+  CODE
+}
+
+enum PaymentProvider {
+  MERCADO_PAGO
+  SHOPIFY
+  MANUAL
+}
+
+enum FulfillmentType {
+  DIGITAL
+  SHIPPING
+  PICKUP
+}
+
+enum FulfillmentStatus {
+  PENDING
+  IN_PROGRESS
+  FULFILLED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  GRANTED
+  SENT
+  ACCESSED
+  REVOKED
+  EXPIRED
 }

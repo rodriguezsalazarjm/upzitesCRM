@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { SubscriptionStatus } from '../../../../../generated/prisma/client';
+import { PaymentStatus, SubscriptionStatus } from '../../../../../generated/prisma/client';
+import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-webhook';
 import { prisma } from '@/lib/prisma';
 import { nextMonthlyRenewal, MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
 import { getPaymentClient, verifyWebhookSignature } from '@/lib/mercado-pago';
@@ -40,7 +41,54 @@ export async function POST(request: Request) {
   }
 
   const payment = await paymentClient.get({ id: dataId });
+  const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
 
+  // Bifurcacion critica (Fase 5): este webhook atiende DOS cosas distintas —
+  // la suscripcion al CRM y la compra de un producto. Sin distinguirlas, el
+  // primer infoproducto vendido regalaria una suscripcion mensual.
+  //
+  // Solo se trata como pedido lo que viene marcado explicitamente: las
+  // preferencias creadas antes de la Fase 5 no llevan `kind` y son de
+  // suscripcion, asi que un pago en vuelo no cambia de significado.
+  if (classifyPayment(metadata) === 'order') {
+    const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
+
+    if (!orderId) {
+      console.error('order_webhook_missing_order_id', { paymentId: dataId });
+      return NextResponse.json({ message: 'orderId ausente' }, { status: 400 });
+    }
+
+    const statusMap: Record<string, PaymentStatus> = {
+      approved: PaymentStatus.APPROVED,
+      pending: PaymentStatus.PENDING,
+      in_process: PaymentStatus.PENDING,
+      authorized: PaymentStatus.PENDING,
+      rejected: PaymentStatus.REJECTED,
+      cancelled: PaymentStatus.CANCELLED,
+      refunded: PaymentStatus.REFUNDED,
+      charged_back: PaymentStatus.REFUNDED,
+    };
+
+    const result = await processOrderPayment({
+      orderId,
+      externalPaymentId: String(dataId),
+      status: statusMap[String(payment.status)] ?? PaymentStatus.PENDING,
+      rawStatus: String(payment.status ?? 'unknown'),
+      amount: Number(payment.transaction_amount ?? 0),
+      currency: String(payment.currency_id ?? 'CLP'),
+      payerEmail: payment.payer?.email ?? null,
+      baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
+    });
+
+    if (!result.handled) {
+      console.error('order_webhook_rejected', { paymentId: dataId, orderId, reason: result.reason });
+      return NextResponse.json({ message: result.reason ?? 'no procesado' }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true, kind: 'order', ...result });
+  }
+
+  // --- A partir de aqui: pago de SUSCRIPCION, el flujo original ---
   if (payment.status !== 'approved') {
     return NextResponse.json({ ok: true, status: payment.status ?? 'unknown' });
   }
@@ -65,7 +113,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, alreadyProcessed: true });
   }
 
-  const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
   const planKey = typeof metadata.planKey === 'string' ? metadata.planKey : MONTHLY_PLAN_KEY;
   const plan = planKey === MONTHLY_PLAN_KEY
     ? await ensureMonthlyPlan()

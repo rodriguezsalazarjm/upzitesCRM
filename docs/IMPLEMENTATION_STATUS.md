@@ -3,9 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 4 — Agentes IA y herramientas
-- **Estado:** COMPLETADA con proveedor guionado. Falta validar contra OpenAI: **la cuenta no
-  tiene creditos**. Esperando aprobacion para la Fase 5.
+- **Fase actual:** 5 — Infoproductos, Mercado Pago y entrega digital
+- **Estado:** COMPLETADA. Falta la prueba end-to-end contra Mercado Pago real (faltan
+  credenciales). Esperando aprobacion para la Fase 6.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -19,8 +19,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 2 | WhatsApp e Inbox humano | **Completada** (2026-09-07), probada con fixtures |
 | 3 | Cola, scheduler y automatizaciones reales | **Completada** (2026-09-07) |
 | 4 | Agentes IA y herramientas | **Completada** (2026-09-07), probada con proveedor guionado |
-| 5 | Infoproductos, Mercado Pago y entrega | No iniciada — requiere aprobacion |
-| 6 | Shopify | No iniciada |
+| 5 | Infoproductos, Mercado Pago y entrega | **Completada** (2026-09-08) |
+| 6 | Shopify | No iniciada — requiere aprobacion |
 | 7 | Cotizador y aprobaciones | No iniciada |
 | 8 | Recuperacion, email y campanas | No iniciada |
 | 9 | Onboarding SaaS, planes y consumo | No iniciada |
@@ -136,6 +136,31 @@ los agentes de cotizacion y postventa (Fases 5 y 7).
 
 ---
 
+### Fase 5 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Catalogo interno digital | Hecho | `Product` + `ProductVariant` + `DigitalAsset` |
+| Orden y lineas | Hecho | `CustomerOrder` + `OrderLine` con snapshot de precio |
+| Checkout MP vinculado a orden/contacto/workspace | Hecho | `lib/commerce/checkout.ts` |
+| Webhook extendido sin romper billing de suscripcion | Hecho | Bifurcacion por `metadata.kind` |
+| Distincion estricta suscripcion vs producto | Hecho | Probado: comprar NO activa la suscripcion |
+| Entrega digital segura e idempotente | Hecho | Token hasheado + unique `(orderId, assetId)` |
+| Recovery de checkout | Hecho | 1 h / 24 h / 72 h con `cancelKey` comun |
+| Postventa | Hecho | Cliente, oportunidad ganada y actividad al confirmarse el pago |
+| Reenvio manual de acceso | Hecho | `POST /api/orders/[id]/resend`, solo owner/admin |
+
+**Criterio de salida:** un lead puede comprar y recibir el producto sin intervencion humana.
+**Cumplido a nivel de codigo y probado end-to-end sobre la base real**, incluyendo idempotencia,
+adulteracion de monto y pago pendiente. Falta la vuelta completa contra la API de Mercado Pago,
+que requiere credenciales (T4).
+
+**Producto piloto:** la spec nombra "5 Minutos con Dios" y BIENESTAR. No se hardcodearon: son
+**datos de un workspace**, no del producto. El catalogo se carga por API o por la pagina de
+Productos.
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -153,9 +178,9 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 36 tablas (35 modelos + `_prisma_migrations`) tras la Fase 4. Sin datos.
+- 45 tablas (44 modelos + `_prisma_migrations`) tras la Fase 5. Sin datos.
 
-### Modelos Prisma (35)
+### Modelos Prisma (44)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -166,6 +191,9 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
 
+Fase 5 (9): `CommerceConnection`, `Product`, `ProductVariant`, `DigitalAsset`, `CustomerOrder`,
+`OrderLine`, `Payment`, `FulfillmentOrder`, `DigitalDelivery`.
+
 Fase 4 (4): `AgentDefinition`, `AgentVersion`, `AgentRun`, `ConversationAgentState`.
 
 Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedupeMinutes` y
@@ -174,7 +202,7 @@ Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedu
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (40)
+### Enums (48)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
@@ -188,6 +216,10 @@ Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
 `MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
 `OutboxStatus`.
 
+Fase 5 (8): `CommerceProvider`, `ProductType`, `ProductStatus`, `DigitalAssetKind`,
+`PaymentProvider`, `FulfillmentType`, `FulfillmentStatus`, `DeliveryStatus`. `OrderStatus` y
+`PaymentStatus`, creados vacios en la Fase 1, por fin tienen entidades que los usan.
+
 Fase 4 (3): `AgentKind`, `AgentVersionStatus`, `AgentRunStatus`.
 
 Fase 3 (3): `JobType`, `JobStatus`, `AutomationExecutionStatus`. Ademas `AutomationTrigger` paso
@@ -196,7 +228,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (11, todas aplicadas)
+### Migraciones (12, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -210,6 +242,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260907160000_fase3_cola_automatizaciones
 20260907180000_fase4_agentes_ia
 20260907190000_fase4_job_run_agent
+20260908120000_fase5_comercio_entrega
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -385,6 +418,50 @@ Otras decisiones:
 - **El costo se mide por workspace** en `UsageRecord`, que es la base de los limites de plan.
 - Las instrucciones por defecto son **genericas**: no asumen rubro. Hay una prueba que lo verifica.
 
+### Comercio y entrega digital (Fase 5)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/commerce/orders.ts` | Catalogo y creacion de pedidos. **El precio lo pone el servidor** |
+| `lib/commerce/checkout.ts` | Preferencia de Mercado Pago, recovery y registro idempotente de pagos |
+| `lib/commerce/payment-webhook.ts` | Efectos de un pago de pedido, con validacion de monto y moneda |
+| `lib/commerce/delivery.ts` | Concesion, resolucion, limites y reenvio de accesos digitales |
+
+**La bifurcacion del webhook** era el riesgo anotado desde la Fase 0: el mismo endpoint atiende
+la suscripcion al CRM y la compra de un producto. Sin distinguirlas, el primer infoproducto
+vendido habria activado una suscripcion mensual gratis.
+
+La discriminacion usa `metadata.kind`:
+
+| Origen | `external_reference` | `metadata.kind` |
+|---|---|---|
+| Suscripcion al CRM | `workspaceId` | `subscription` |
+| Compra de producto | `orderId` | `order` |
+
+**Solo se trata como pedido lo que viene marcado explicitamente.** Las preferencias creadas antes
+de la Fase 5 no llevan `kind` y son de suscripcion, asi que un pago en vuelo no cambia de
+significado a mitad de camino. Hay una prueba que verifica que comprar un producto deja la
+suscripcion del workspace intacta.
+
+Otras decisiones:
+
+- **El precio lo pone el servidor, siempre.** Ni el agente ni el cliente lo proponen: se manda el
+  id de la variante y el backend calcula. Cada linea guarda snapshot de nombre, sku y precio, asi
+  que cambiar el catalogo manana no reescribe lo que alguien ya pago. Probado.
+- **Monto y moneda se validan contra el pedido.** Un pago aprobado por un monto distinto se
+  rechaza y se audita, aunque la firma del webhook sea valida.
+- **Un pago pendiente no entrega nada.** Se registra y se espera.
+- **La entrega es idempotente por esquema**, no por cuidado del codigo: el unique
+  `(orderId, assetId)` hace que diez reentregas del mismo pago dejen un solo acceso.
+- **El token de entrega se guarda hasheado**, igual que una contrasena. Quien lea la base no
+  obtiene accesos utilizables.
+- **El agente NO tiene `create_digital_delivery`.** La spec la lista, pero conceder accesos a
+  pedido del cliente es exactamente lo que no debe poder hacer una IA: la entrega la dispara el
+  webhook verificado, y reenviar un acceso perdido es una accion humana.
+- **`create_checkout` no viene habilitada por defecto.** Cobrar es un efecto material: el cliente
+  lo activa cuando tiene catalogo y decide que su agente puede vender solo. Un negocio de
+  servicios no quiere que la IA genere pedidos.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -398,6 +475,8 @@ Otras decisiones:
   idempotencia y aislamiento).
 - `apps/crm/scripts/smoke-fase4.ts`: evals de la Fase 4 contra un proveedor guionado. No consume
   tokens ni requiere creditos.
+- `apps/crm/scripts/smoke-fase5.ts`: pruebas de la Fase 5 (catalogo, pedidos, pagos, entrega e
+  idempotencia). No requiere credenciales de Mercado Pago.
 
 ---
 
@@ -666,6 +745,43 @@ permite la prueba manual contra el modelo real sin tocar a ningun cliente.
 Tras la Fase 4 se reejecutaron las suites anteriores: **Fase 3 en 46/46**, **Fase 2 en 46/46** y
 **Fase 1 en 41/41**, sin regresiones.
 
+### Fase 5
+
+`pnpm exec tsx scripts/smoke-fase5.ts` desde `apps/crm`, ejecutado el 2026-09-08 contra la base
+real. No requiere credenciales de Mercado Pago: se inyectan los estados de pago que entregaria el
+proveedor tras la re-consulta.
+
+**Resultado: 70/70.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Catalogo: activos visibles, borradores ocultos, aislamiento entre workspaces | 4 | 4/4 |
+| Pedidos: el total lo calcula el servidor, snapshot de precio inmune a cambios de catalogo | 5 | 5/5 |
+| Validaciones: sin lineas, producto de otro workspace, producto agotado | 3 | 3/3 |
+| **Discriminacion suscripcion vs pedido**, incluida la compatibilidad hacia atras | 4 | 4/4 |
+| **Pago pendiente no entrega** ni convierte en cliente | 5 | 5/5 |
+| **Monto y moneda adulterados son rechazados** y auditados | 5 | 5/5 |
+| Pago aprobado: pedido, pago, fulfillment, acceso, cliente, oportunidad, actividad, recovery | 9 | 9/9 |
+| **Pago duplicado (10 reentregas) no duplica entrega** ni pagos ni fulfillments | 4 | 4/4 |
+| Acceso digital: token hasheado, reenvio, limite de descargas, vencimiento, revocacion | 9 | 9/9 |
+| Aislamiento en pedidos, pagos y entregas | 4 | 4/4 |
+| Idempotencia de `upsertPayment` | 4 | 4/4 |
+| Herramientas del agente y no filtracion del enlace de entrega | 8 | 8/8 |
+
+**Prueba clave de la fase:** comprar un producto deja la suscripcion del workspace en `TRIAL` y
+sin `mpPaymentId`. Es exactamente el riesgo que la Fase 0 dejo anotado.
+
+**Verificacion en la interfaz:** `/pedidos` muestra los pedidos con su estado (Esperando pago /
+Entregado), total y contador de accesos. La pagina publica `/d/[token]` redirige al destino con un
+token valido y devuelve 404 con uno inventado.
+
+Tras la Fase 5 se reejecutaron las suites anteriores: **Fase 4 en 71/71**, **Fase 3 en 46/46**,
+**Fase 2 en 46/46** y **Fase 1 en 41/41**, sin regresiones.
+
+La suite de la Fase 4 requirio un ajuste, no una correccion: usaba `search_products` como ejemplo
+de herramienta no autorizada, y el agente por defecto ahora la tiene. Se cambio por
+`create_checkout`, que sigue fuera del default a proposito.
+
 ---
 
 ## 7. Deuda tecnica
@@ -679,7 +795,7 @@ Tras la Fase 4 se reejecutaron las suites anteriores: **Fase 3 en 46/46**, **Fas
 | D5 | ~~Sin cola durable ni scheduler~~ — resuelto en la Fase 3 |
 | D6 | ~~Regla de automatizacion hardcodeada~~ — resuelta en la Fase 3 con el motor `trigger -> conditions -> actions` |
 | D7 | "Insights IA" sigue siendo scoring heuristico. El agente de la Fase 4 es otra cosa: no genera insights | Conectar el agente a los insights, o retirar la pagina |
-| D8 | 7 de 9 proveedores de `Integration` son solo estado en BD, sin OAuth ni sync | Fases 2, 6 y 8 |
+| D8 | 6 de 9 proveedores de `Integration` siguen siendo solo estado en BD. WhatsApp (F2) y Mercado Pago (F5) ya operan de verdad | Fases 6 y 8 |
 | D9 | ~~`ContactStatus` mezcla ciclo de vida con intencion~~ — resuelto en la Fase 1. Queda la deuda menor de **retirar `status`** una vez que la UI consuma `lifecycleStatus` | Fase 9 o antes |
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
 | D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 |
@@ -696,7 +812,11 @@ Tras la Fase 4 se reejecutaron las suites anteriores: **Fase 3 en 46/46**, **Fas
 | **D22** | El agente no genera ni actualiza el `summary` de la conversacion: se manda resumen + 12 mensajes, pero nadie escribe el resumen | Conversaciones largas van a perder contexto. Fase 10 o antes |
 | **D23** | Sin agente ROUTER: hay un solo agente publicado por workspace | Llega cuando existan los agentes de cotizacion y postventa (Fases 5 y 7) |
 | **D24** | Los costos por token estan hardcodeados en `provider.ts` con una tarifa unica | Al fijar precios de plan hay que tarifar por modelo |
-| **D25** | La deteccion de invenciones es por patrones de texto en español. Un modelo que diga "sale cuarenta mil" la esquiva | Es una red de seguridad, no la unica: el limite real es que el agente no tiene herramientas de precio |
+| **D25** | La deteccion de invenciones es por patrones de texto en español. Un modelo que diga "sale cuarenta mil" la esquiva | Es una red de seguridad, no la unica: el precio real solo sale de `search_products` |
+| **D26** | Los assets digitales tipo FILE guardan una ruta, pero **no hay almacenamiento de archivos**: hoy solo funcionan LINK y CODE | La spec pide almacenamiento privado con URLs firmadas. Fase 10 o antes |
+| **D27** | Sin devoluciones ni reembolsos: un pago `REFUNDED` se registra pero no revoca el acceso ni revierte el estado del contacto | Necesario antes de vender en volumen |
+| **D28** | El upsell y la recompra postventa no estan: el pago crea la actividad pero no programa nada | La spec los pide en la seccion 9.7. Fase 8 |
+| **D29** | La entrega digital no se ENVIA: se genera el acceso, pero nadie manda el enlace por WhatsApp o email | Falta conectar la entrega al outbox. Bloquea el criterio "sin intervencion humana" (T14) |
 
 ---
 
@@ -731,6 +851,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T11 | Decidir como corre el cron: Vercel Pro (cron por minuto) o `pg_cron` + `pg_net` en Supabase | En plan Hobby el cron corre 1 vez al dia y los seguimientos no funcionan (D19) |
 | T12 | **Cargar creditos en OpenAI** y definir un limite de gasto del proyecto | Sin creditos el agente no puede responder en produccion (B7) |
 | T13 | **Rotar la API key de OpenAI**: circulo por el chat | Igual que la password de Postgres (T5) |
+| T14 | Definir como llega el enlace de entrega al cliente: mensaje de WhatsApp, email, o ambos | Hoy el acceso se genera pero no se envia solo (D29) |
+| T15 | Cargar el catalogo del piloto de infoproductos y habilitar `create_checkout` en su agente | Sin catalogo el agente deriva; sin la herramienta no puede cerrar la venta |
 
 ---
 
@@ -758,14 +880,16 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** tras la Fase 4 existen 35 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha
-(4/4). Faltan comercio (0/7) y cotizaciones (0/4). De marketing y seguimiento ya estan
+**Modelo de datos:** tras la Fase 5 existen 44 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha
+(4/4). Comercio: hecho (7/7, mas `DigitalAsset` y `DigitalDelivery` que la spec no listaba y que
+la entrega digital necesita). Faltan cotizaciones (0/4). De marketing y seguimiento ya estan
 consentimiento, scoring, supresion, scheduled actions y el motor de automatizaciones; faltan
 segmentos, journeys y campanas. Uso y costos: hecho.
 
-**Herramientas del agente:** 9 de las 21 que lista la spec. Las 11 restantes dependen de catalogo,
-pagos y cotizaciones (Fases 5 a 7) y estan declaradas como pendientes, de modo que el agente sabe
-que no las tiene y deriva en vez de inventar.
+**Herramientas del agente:** 15 de las 21 que lista la spec. Quedan 4 pendientes, todas de
+cotizacion (Fase 7). `create_digital_delivery` **no se implementara como herramienta**: la entrega
+la dispara el webhook verificado, no el agente. Y `create_checkout` existe pero no viene habilitada
+por defecto.
 
 **Enums:** completos. Los 8 que exige la spec estan creados, mas 4 de apoyo. `ContactStatus`
 convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
@@ -776,16 +900,16 @@ implementados. Faltan los locks por conversacion y el debounce, que recien impor
 responde la IA (Fase 4).
 
 **Seguridad:** el cifrado de tokens quedo resuelto en la Fase 2. Faltan rate limiting y CSRF.
-Los webhooks de Mercado Pago y de Meta ya cumplen el estandar de la spec (firma validada e
-idempotencia); sirven de plantilla para el de Shopify.
+Los webhooks de Mercado Pago y de Meta ya cumplen el estandar de la spec (firma validada,
+re-consulta al proveedor, idempotencia y validacion de monto); sirven de plantilla para el de
+Shopify.
 
 **Se preserva y reutiliza:** auth y roles, multi-tenancy por `workspaceId`, captura web,
 pipeline, actividades, atribucion UTM, billing de suscripcion y audit log.
 
-**Correccion a la spec:** la Fase 5 pide "extender el webhook existente sin romper billing de
-suscripcion". El webhook actual asume que *todo* pago aprobado es una suscripcion y activa el
-workspace. Extenderlo exige discriminar por `metadata`/`external_reference` antes de tocarlo, o
-el primer infoproducto vendido regalara suscripciones.
+**Correccion a la spec — resuelta en la Fase 5.** El webhook asumia que *todo* pago aprobado era
+una suscripcion. Se bifurco por `metadata.kind`, tratando como pedido solo lo marcado
+explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prueba dedicada.
 
 ---
 
@@ -801,6 +925,10 @@ el primer infoproducto vendido regalara suscripciones.
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-08 | La discriminacion del webhook trata como pedido SOLO lo marcado con `metadata.kind = order`. Lo no marcado se asume suscripcion, que es el comportamiento anterior: asi un pago creado antes de la Fase 5 no cambia de significado a mitad de camino |
+| 2026-09-08 | `create_digital_delivery` NO se implementa como herramienta del agente pese a estar en la spec. Conceder accesos a pedido del cliente es precisamente lo que una IA no debe poder hacer: la entrega la dispara el webhook verificado y el reenvio es una accion humana |
+| 2026-09-08 | `create_checkout` no viene en la lista blanca del agente por defecto. Cobrar es un efecto material que el cliente habilita a proposito; un negocio de servicios no quiere que la IA genere pedidos |
+| 2026-09-08 | Los productos del piloto de infoproductos son datos de un workspace, no codigo. La spec los nombra, pero hardcodearlos romperia la regla multivertical |
 | 2026-09-07 | Los evals de la Fase 4 corren contra un proveedor guionado, no contra OpenAI. Un guardrail probado contra un modelo real da una prueba no determinista; ademas la cuenta no tiene creditos. El simulador cubre la prueba manual contra el modelo real |
 | 2026-09-07 | Los guardrails se aplican en el codigo, no solo en el prompt. Un prompt es una peticion al modelo, no un control de seguridad: la lista blanca de herramientas, el bloqueo de respuestas con precios y el corte por modo humano ocurren en el runner |
 | 2026-09-07 | El agente nace en borrador y solo el OWNER publica. Dejar una IA hablando con los clientes es una decision del dueno del negocio, no un efecto secundario de crear la cuenta |
@@ -903,4 +1031,20 @@ el primer infoproducto vendido regalara suscripciones.
   despues de que el helper publicaba, asi que no probaba nada.
 - Pruebas: **70/70**. Fases 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
 - **Fase 4 cerrada contra el proveedor guionado. Falta validarla contra OpenAI (T12).**
-  No se inicia la Fase 5 sin aprobacion del propietario.
+
+### 2026-09-08 — Fase 5, infoproductos, Mercado Pago y entrega digital
+
+- 9 tablas y 8 enums nuevos; migracion `20260908120000_fase5_comercio_entrega`, aditiva.
+- Bifurcado el webhook de Mercado Pago por `metadata.kind`: cierra el riesgo anotado en la Fase 0.
+  Probado que comprar un producto deja la suscripcion intacta.
+- Catalogo, pedidos con snapshot de precio, checkout, recovery a 1/24/72 h y entrega digital
+  idempotente con token hasheado.
+- 6 herramientas de comercio para el agente. `create_checkout` queda fuera del default y
+  `create_digital_delivery` no se implementa.
+- Paginas `/productos` y `/pedidos`, y pagina publica `/d/[token]`.
+- Pruebas: **70/70**. Fases 4, 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
+- La suite de la Fase 4 necesito un ajuste porque el agente por defecto gano herramientas: la
+  prueba de "herramienta no autorizada" ahora usa `create_checkout`.
+- **Pendiente para que el criterio de salida se cumpla de verdad:** el acceso se genera pero
+  **no se envia solo** al cliente (D29/T14), y falta la vuelta contra Mercado Pago real (T4).
+- **Fase 5 cerrada. No se inicia la Fase 6 sin aprobacion del propietario.**

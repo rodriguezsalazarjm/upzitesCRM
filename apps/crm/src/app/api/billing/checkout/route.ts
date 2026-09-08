@@ -61,7 +61,8 @@ export async function POST(request: Request) {
         },
       ],
       external_reference: user.workspace.id,
-      metadata: { planKey: plan.key, workspaceId: user.workspace.id },
+      // `kind` explicito: el webhook distingue suscripcion de compra de producto.
+      metadata: { kind: 'subscription', planKey: plan.key, workspaceId: user.workspace.id },
       back_urls: {
         success: `${baseUrl}/billing?status=success`,
         pending: `${baseUrl}/billing?status=pending`,
