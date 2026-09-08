@@ -14,6 +14,9 @@ import { recordAudit } from '../domain/audit';
 import { cancelForContact, revokeConsent, scheduleAction } from '../domain';
 import { createOrder, listCatalog, OrderError } from '../commerce/orders';
 import { CheckoutError, createOrderCheckout } from '../commerce/checkout';
+import { createShopifyClient } from '../shopify/client';
+import { createShopifyCheckout, ShopifyOrderError } from '../shopify/orders';
+import { fetchLiveVariant, getShopifyConnection } from '../shopify/sync';
 import type { ToolSpec } from './provider';
 
 /**
@@ -457,10 +460,43 @@ export const AGENT_TOOLS: AgentTool[] = [
           isActive: true,
           product: { workspaceId: context.workspaceId, status: 'ACTIVE' },
         },
-        select: { inventory: true, priceClp: true },
+        select: {
+          inventory: true,
+          priceClp: true,
+          externalId: true,
+          product: { select: { connectionId: true } },
+        },
       });
 
       if (!variant) return { ok: false, error: 'Esa variante no existe o no esta disponible.' };
+
+      // Para Shopify se consulta en vivo: la copia local puede tener horas.
+      if (variant.product.connectionId && variant.externalId) {
+        const connection = await getShopifyConnection(context.workspaceId);
+
+        if (connection?.status === 'CONNECTED') {
+          try {
+            const live = await fetchLiveVariant(createShopifyClient(connection), variant.externalId);
+            if (!live) return { ok: false, error: 'Ese producto ya no esta en la tienda.' };
+
+            return {
+              ok: true,
+              data: {
+                available:
+                  live.availableForSale &&
+                  (live.inventory === null || live.inventory >= parsed.data.quantity),
+                unlimited: live.inventory === null,
+                priceClp: live.priceClp,
+                source: 'shopify',
+              },
+            };
+          } catch {
+            // Si la tienda no responde, se dice que no se pudo confirmar en vez
+            // de afirmar disponibilidad con datos viejos.
+            return { ok: false, error: 'No pude confirmar el stock con la tienda en este momento.' };
+          }
+        }
+      }
 
       const unlimited = variant.inventory === null;
       return {
@@ -469,6 +505,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           available: unlimited || variant.inventory! >= parsed.data.quantity,
           unlimited,
           priceClp: variant.priceClp,
+          source: 'internal',
         },
       };
     },
@@ -496,7 +533,55 @@ export const AGENT_TOOLS: AgentTool[] = [
         .safeParse(args);
       if (!parsed.success) return { ok: false, error: 'Datos invalidos para el checkout.' };
 
+      // El producto puede venir del catalogo interno o de Shopify. La variante
+      // dice de cual, y cada origen cobra distinto.
+      const variant = await prisma.productVariant.findFirst({
+        where: { id: parsed.data.variantId, product: { workspaceId: context.workspaceId } },
+        include: { product: { select: { connectionId: true } } },
+      });
+
+      if (!variant) return { ok: false, error: 'Esa variante no existe.' };
+
       try {
+        // --- Shopify: la tienda es la fuente de verdad ---
+        if (variant.product.connectionId && variant.externalId) {
+          const connection = await getShopifyConnection(context.workspaceId);
+
+          if (!connection || connection.status !== 'CONNECTED') {
+            return { ok: false, error: 'La tienda no esta conectada en este momento.' };
+          }
+
+          const checkout = await createShopifyCheckout({
+            workspaceId: context.workspaceId,
+            connectionId: connection.id,
+            fetcher: createShopifyClient(connection),
+            externalVariantId: variant.externalId,
+            quantity: parsed.data.quantity,
+            contactId: context.contactId,
+            conversationId: context.conversationId,
+            email: parsed.data.email,
+            // Precio de la copia local: si la tienda dice otro, se aborta en
+            // vez de cobrar distinto de lo que se converso.
+            quotedPriceClp: variant.priceClp,
+          });
+
+          await audit(context, 'create_checkout', {
+            orderId: checkout.orderId,
+            total: checkout.totalClp,
+            provider: 'SHOPIFY',
+          });
+
+          return {
+            ok: true,
+            data: {
+              checkoutUrl: checkout.checkoutUrl,
+              totalClp: checkout.totalClp,
+              orderId: checkout.orderId,
+            },
+          };
+        }
+
+        // --- Catalogo interno: Mercado Pago ---
         const order = await createOrder({
           workspaceId: context.workspaceId,
           contactId: context.contactId,
@@ -510,7 +595,11 @@ export const AGENT_TOOLS: AgentTool[] = [
           orderId: order.id,
         });
 
-        await audit(context, 'create_checkout', { orderId: order.id, total: order.total });
+        await audit(context, 'create_checkout', {
+          orderId: order.id,
+          total: order.total,
+          provider: 'INTERNAL',
+        });
 
         // Se devuelve el total calculado por el servidor: el agente lo repite,
         // no lo inventa.
@@ -520,6 +609,9 @@ export const AGENT_TOOLS: AgentTool[] = [
         };
       } catch (error) {
         if (error instanceof OrderError) return { ok: false, error: error.message };
+        // El cambio de precio se le dice al agente tal cual, para que lo
+        // reconfirme con el cliente en vez de cobrar de mas.
+        if (error instanceof ShopifyOrderError) return { ok: false, error: error.message };
         if (error instanceof CheckoutError) {
           return { ok: false, error: 'No pude generar el enlace de pago en este momento.' };
         }

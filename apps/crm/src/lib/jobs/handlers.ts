@@ -11,6 +11,9 @@ import { processWebhookEvent } from '../whatsapp/inbound';
 import { processOutbox } from '../whatsapp/outbound';
 import { runAutomationsForEvent } from '../automation/engine';
 import { runAgent } from '../agents/runner';
+import { processShopifyEvent } from '../shopify/webhooks';
+import { syncShopifyCatalog, getShopifyConnection } from '../shopify/sync';
+import { createShopifyClient } from '../shopify/client';
 import { emitDomainEvent } from '../automation/emit';
 import type { DomainEvent } from '../automation/types';
 import { enqueue } from './queue';
@@ -163,6 +166,28 @@ const handlers: Record<JobType, JobHandler> = {
       workspaceId,
       conversationId,
       trigger: typeof payload.trigger === 'string' ? payload.trigger : undefined,
+    });
+  },
+
+  [JobType.PROCESS_SHOPIFY_EVENT]: async (payload) => {
+    const eventId = String(payload.eventId ?? '');
+    if (!eventId) throw new Error('PROCESS_SHOPIFY_EVENT requiere eventId.');
+    return processShopifyEvent(eventId);
+  },
+
+  /** Sincroniza el catalogo de una tienda. Lo dispara el cron o el usuario. */
+  [JobType.SYNC_SHOPIFY_CATALOG]: async (_payload, workspaceId) => {
+    if (!workspaceId) throw new Error('SYNC_SHOPIFY_CATALOG requiere workspaceId.');
+
+    const connection = await getShopifyConnection(workspaceId);
+    if (!connection || connection.status !== 'CONNECTED') {
+      return { skipped: true, reason: 'sin conexion Shopify activa' };
+    }
+
+    return syncShopifyCatalog({
+      workspaceId,
+      connectionId: connection.id,
+      fetcher: createShopifyClient(connection),
     });
   },
 

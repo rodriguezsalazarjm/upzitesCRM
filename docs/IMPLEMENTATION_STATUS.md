@@ -3,9 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 5 — Infoproductos, Mercado Pago y entrega digital
-- **Estado:** COMPLETADA. Falta la prueba end-to-end contra Mercado Pago real (faltan
-  credenciales). Esperando aprobacion para la Fase 6.
+- **Fase actual:** 6 — Shopify
+- **Estado:** COMPLETADA con fixtures. Falta validarla contra una tienda real (faltan
+  credenciales de la app). Esperando aprobacion para la Fase 7.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -20,8 +20,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 3 | Cola, scheduler y automatizaciones reales | **Completada** (2026-09-07) |
 | 4 | Agentes IA y herramientas | **Completada** (2026-09-07), probada con proveedor guionado |
 | 5 | Infoproductos, Mercado Pago y entrega | **Completada** (2026-09-08) |
-| 6 | Shopify | No iniciada — requiere aprobacion |
-| 7 | Cotizador y aprobaciones | No iniciada |
+| 6 | Shopify | **Completada** (2026-09-08), probada con fixtures |
+| 7 | Cotizador y aprobaciones | No iniciada — requiere aprobacion |
 | 8 | Recuperacion, email y campanas | No iniciada |
 | 9 | Onboarding SaaS, planes y consumo | No iniciada |
 | 10 | Hardening y lanzamiento beta | No iniciada |
@@ -161,6 +161,26 @@ Productos.
 
 ---
 
+### Fase 6 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| App/configuracion Shopify | Hecho | Variables en `.env.example`, estado en `/api/integrations/shopify/status` |
+| OAuth, token offline cifrado y desconexion | Hecho | `lib/shopify/oauth.ts` + AES-256-GCM |
+| Sincronizacion de productos y variantes | Hecho | Idempotente por `(connectionId, externalId)` |
+| Consulta viva de precio e inventario | Hecho | `fetchLiveVariant` antes de cada checkout |
+| Draft Order y enlace de pago | Hecho | Admin GraphQL API |
+| Webhooks verificados | Hecho | HMAC base64 sobre el cuerpo crudo |
+| Sincronizacion de orden, pago y fulfillment | Hecho | 5 topics |
+| Herramientas de agente Shopify | Hecho | `create_checkout` y `check_inventory` bifurcan por proveedor |
+| Vista de integracion y salud | Hecho | Sin exponer el token |
+
+**Criterio de salida:** una tienda piloto completa una venta iniciada por WhatsApp y recibe la
+orden en Shopify. **Cumplido a nivel de codigo y probado con fixtures.** Falta la vuelta contra
+una tienda real, que requiere crear la app en Shopify Partners (T16).
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -178,7 +198,8 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 45 tablas (44 modelos + `_prisma_migrations`) tras la Fase 5. Sin datos.
+- 45 tablas tras la Fase 6: no agrego modelos, solo constraints de unicidad y valores de enum.
+  Sin datos.
 
 ### Modelos Prisma (44)
 
@@ -216,6 +237,9 @@ Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
 `MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
 `OutboxStatus`.
 
+Fase 6: sin enums nuevos. Se agrego `SHOPIFY` a `IntegrationProvider` y
+`PROCESS_SHOPIFY_EVENT` / `SYNC_SHOPIFY_CATALOG` a `JobType`.
+
 Fase 5 (8): `CommerceProvider`, `ProductType`, `ProductStatus`, `DigitalAssetKind`,
 `PaymentProvider`, `FulfillmentType`, `FulfillmentStatus`, `DeliveryStatus`. `OrderStatus` y
 `PaymentStatus`, creados vacios en la Fase 1, por fin tienen entidades que los usan.
@@ -228,7 +252,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (12, todas aplicadas)
+### Migraciones (15, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -243,6 +267,9 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260907180000_fase4_agentes_ia
 20260907190000_fase4_job_run_agent
 20260908120000_fase5_comercio_entrega
+20260908140000_fase6_shopify_sync
+20260908150000_fase6_integration_shopify
+20260908160000_fase6_job_shopify
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -462,6 +489,48 @@ Otras decisiones:
   lo activa cuando tiene catalogo y decide que su agente puede vender solo. Un negocio de
   servicios no quiere que la IA genere pedidos.
 
+### Shopify (Fase 6)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/shopify/oauth.ts` | State firmado, HMAC de callback y de webhooks, canje de token |
+| `lib/shopify/client.ts` | Cliente de la Admin **GraphQL** API y consultas |
+| `lib/shopify/sync.ts` | Sincronizacion de catalogo y consulta viva de variante |
+| `lib/shopify/orders.ts` | Draft orders con verificacion de precio y stock |
+| `lib/shopify/webhooks.ts` | Ingesta idempotente y aplicacion de 5 topics |
+
+**Controles de seguridad del OAuth**, que hay que tener los tres juntos:
+
+1. **`state` firmado** con nonce y vencimiento de 10 minutos. El nonce viaja ademas en una cookie
+   httpOnly y el callback exige que coincidan: alguien con un state valido no puede completar el
+   flujo desde otro navegador.
+2. **HMAC de la query del callback**, sobre los parametros ordenados sin `hmac`. Agregar un
+   parametro invalida la firma; hay una prueba que lo verifica.
+3. **Validacion del dominio** contra `<tienda>.myshopify.com`. Sin esto, un `shop` arbitrario haria
+   que el servidor negocie tokens contra un host cualquiera. La validacion se repite dentro de
+   `exchangeCodeForToken`, que es quien hace la peticion saliente: hay una prueba que comprueba que
+   con un dominio invalido **no se llega a llamar a `fetch`**.
+
+Otras decisiones:
+
+- **Se usa GraphQL, no REST.** La spec pide no depender de APIs obsoletas y Shopify viene
+  retirando endpoints REST de productos y pedidos.
+- **La tienda es la fuente de verdad.** La copia local sirve para listar y buscar rapido, pero
+  antes de cada checkout se re-consulta precio e inventario. Una prueba verifica el ORDEN: la
+  consulta viva ocurre antes del draft order.
+- **Si el precio cambio entre la conversacion y el checkout, se aborta** y se le dice el precio
+  nuevo al agente, en vez de cobrar distinto de lo conversado.
+- **El HMAC de los webhooks va en base64**, no en hex como el de Meta. Es un detalle facil de
+  equivocar; hay una prueba que rechaza la firma en hex.
+- **La deduplicacion no usa `X-Shopify-Webhook-Id`**, que es unico por ENTREGA y no por evento: dos
+  entregas del mismo pedido traen ids distintos. Se combina topic + shop + id del recurso.
+- **La desinstalacion borra el token** en el acto. Los pedidos historicos se conservan: desconectar
+  no es borrar los datos del cliente.
+- **Un producto retirado de la tienda se archiva, no se borra**, porque puede estar referenciado
+  por pedidos ya cobrados.
+- Los productos sincronizados se marcan `PHYSICAL`: Shopify no distingue digital de fisico de
+  forma fiable, y asumirlo mal romperia la entrega automatica.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -477,6 +546,8 @@ Otras decisiones:
   tokens ni requiere creditos.
 - `apps/crm/scripts/smoke-fase5.ts`: pruebas de la Fase 5 (catalogo, pedidos, pagos, entrega e
   idempotencia). No requiere credenciales de Mercado Pago.
+- `apps/crm/scripts/smoke-fase6.ts` y `scripts/fixtures/shopify.ts`: pruebas de la Fase 6 (OAuth,
+  sincronizacion, draft orders y webhooks). No requiere tienda ni credenciales.
 
 ---
 
@@ -546,6 +617,18 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B9 — Cast a `never` que habria fallado en produccion — CORREGIDO (2026-09-08)
+
+Al escribir el handler de desinstalacion de Shopify, `IntegrationProvider` no tenia el valor
+`SHOPIFY`. Se uso `provider: 'SHOPIFY' as never` para que compilara: TypeScript quedaba contento y
+**Prisma habria fallado en ejecucion** al recibir un valor que el enum de Postgres no acepta.
+
+**Correccion:** se agrego `SHOPIFY` al enum (migracion `20260908150000`) y se reemplazo el cast por
+`IntegrationProvider.SHOPIFY`.
+
+**Leccion:** un `as never` o un `as any` para "que compile" en un valor de enum es un error en
+diferido. Si el tipo no acepta el valor, casi siempre es porque el esquema tampoco.
 
 ### B7 — La cuenta de OpenAI no tiene creditos (abierto)
 
@@ -782,6 +865,42 @@ La suite de la Fase 4 requirio un ajuste, no una correccion: usaba `search_produ
 de herramienta no autorizada, y el agente por defecto ahora la tiene. Se cambio por
 `create_checkout`, que sigue fuera del default a proposito.
 
+### Fase 6
+
+`pnpm exec tsx scripts/smoke-fase6.ts` desde `apps/crm`, ejecutado el 2026-09-08. Usa fixtures de
+la Admin API: **no requiere tienda de desarrollo ni credenciales**.
+
+**Resultado: 74/74.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Validacion de dominio (defensa contra SSRF): 6 formas de burlarla | 6 | 6/6 |
+| `state` del OAuth: firma, workspace, nonce, secreto ajeno, manipulacion, vencimiento, URL | 10 | 10/10 |
+| HMAC del callback: valido, invalido, ausente, parametro inyectado | 4 | 4/4 |
+| **El canje de token no sale a la red con un dominio invalido** | 1 | 1/1 |
+| HMAC de webhooks: base64 valido, hex rechazado, cuerpo alterado, sin cabecera | 4 | 4/4 |
+| **El token nunca sale en claro** ni llega al objeto que va al navegador | 3 | 3/3 |
+| Sincronizacion: productos, variantes, precio, inventario, no duplica al repetir, archiva retirados | 9 | 9/9 |
+| Consulta viva y **producto agotado no se vende** | 5 | 5/5 |
+| **Cambio de precio entre conversacion y checkout**: aborta y audita | 3 | 3/3 |
+| Draft order: total del precio vivo, orden de las llamadas, no duplica | 7 | 7/7 |
+| **Webhook duplicado**: 6 entregas, un pedido, un pago; aislamiento; tienda desconocida | 12 | 12/12 |
+| Pedido pendiente no confirma ni registra pago | 2 | 2/2 |
+| Fulfillment: estado y seguimiento | 3 | 3/3 |
+| **Desinstalacion**: revoca, borra el token, no toca la otra tienda | 5 | 5/5 |
+
+Dos pruebas que vale la pena destacar por lo que verifican:
+
+- **El orden de las llamadas.** No basta con que se consulte el precio: se comprueba que la
+  consulta viva ocurre ANTES de crear el draft order. Si alguien invierte el orden mas adelante,
+  la prueba falla.
+- **El canje de token con dominio invalido.** Se inyecta un `fetch` falso y se verifica que **no
+  llega a llamarse**. Comprobar el resultado no bastaria: lo que importa es que el servidor no
+  haga la peticion saliente.
+
+Tras la Fase 6 se reejecutaron las suites anteriores: **Fase 5 en 70/70**, **Fase 4 en 71/71**,
+**Fase 3 en 46/46**, **Fase 2 en 46/46** y **Fase 1 en 41/41**, sin regresiones.
+
 ---
 
 ## 7. Deuda tecnica
@@ -795,7 +914,7 @@ de herramienta no autorizada, y el agente por defecto ahora la tiene. Se cambio 
 | D5 | ~~Sin cola durable ni scheduler~~ — resuelto en la Fase 3 |
 | D6 | ~~Regla de automatizacion hardcodeada~~ — resuelta en la Fase 3 con el motor `trigger -> conditions -> actions` |
 | D7 | "Insights IA" sigue siendo scoring heuristico. El agente de la Fase 4 es otra cosa: no genera insights | Conectar el agente a los insights, o retirar la pagina |
-| D8 | 6 de 9 proveedores de `Integration` siguen siendo solo estado en BD. WhatsApp (F2) y Mercado Pago (F5) ya operan de verdad | Fases 6 y 8 |
+| D8 | 6 de 10 proveedores de `Integration` siguen siendo solo estado en BD. WhatsApp (F2), Mercado Pago (F5) y Shopify (F6) ya operan de verdad | Fase 8 |
 | D9 | ~~`ContactStatus` mezcla ciclo de vida con intencion~~ — resuelto en la Fase 1. Queda la deuda menor de **retirar `status`** una vez que la UI consuma `lifecycleStatus` | Fase 9 o antes |
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
 | D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 |
@@ -817,6 +936,10 @@ de herramienta no autorizada, y el agente por defecto ahora la tiene. Se cambio 
 | **D27** | Sin devoluciones ni reembolsos: un pago `REFUNDED` se registra pero no revoca el acceso ni revierte el estado del contacto | Necesario antes de vender en volumen |
 | **D28** | El upsell y la recompra postventa no estan: el pago crea la actividad pero no programa nada | La spec los pide en la seccion 9.7. Fase 8 |
 | **D29** | La entrega digital no se ENVIA: se genera el acceso, pero nadie manda el enlace por WhatsApp o email | Falta conectar la entrega al outbox. Bloquea el criterio "sin intervencion humana" (T14) |
+| **D30** | La sincronizacion de Shopify no se agenda sola: hay que dispararla desde la UI o por API | Agregar `SYNC_SHOPIFY_CATALOG` a los recurrentes del cron |
+| **D31** | Los webhooks de Shopify no se registran automaticamente al conectar: hay que darlos de alta en la app | Se puede automatizar con `webhookSubscriptionCreate` en el callback |
+| **D32** | Los productos de Shopify se marcan `PHYSICAL` siempre: un infoproducto vendido por Shopify no dispararia entrega digital | Requiere mapear por tipo de producto o etiqueta. Fase 9 (onboarding) |
+| **D33** | Sin manejo de rate limit de Shopify (cost-based): una tienda grande puede toparse con el limite durante la sincronizacion | La cola reintenta, pero conviene respetar `throttleStatus` |
 
 ---
 
@@ -853,6 +976,7 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T13 | **Rotar la API key de OpenAI**: circulo por el chat | Igual que la password de Postgres (T5) |
 | T14 | Definir como llega el enlace de entrega al cliente: mensaje de WhatsApp, email, o ambos | Hoy el acceso se genera pero no se envia solo (D29) |
 | T15 | Cargar el catalogo del piloto de infoproductos y habilitar `create_checkout` en su agente | Sin catalogo el agente deriva; sin la herramienta no puede cerrar la venta |
+| T16 | **Crear la app en Shopify Partners** y entregar `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` | Valida la Fase 6 contra una tienda real; hoy solo esta probada con fixtures |
 
 ---
 
@@ -868,7 +992,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | `META_APP_ID`, `WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID` | 9 | Embedded Signup; hasta entonces el numero se conecta a mano |
 | `OPENAI_API_KEY` | 4 | Agentes IA. **Ya implementada**; sin ella el agente no corre |
 | `OPENAI_PROJECT_ID`, `OPENAI_DEFAULT_MODEL` | 4 | Opcionales: proyecto para atribuir gasto y modelo por defecto (hoy `gpt-5-mini`) |
-| `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SHOPIFY_SCOPES` | 6 | Shopify |
+| `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET` | 6 | Shopify. **Ya implementadas**: sin ellas la conexion devuelve 503 |
+| `SHOPIFY_APP_URL`, `SHOPIFY_SCOPES`, `SHOPIFY_API_VERSION` | 6 | Opcionales: URL publica, scopes minimos y version de la Admin API (2025-01) |
 | `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_WEBHOOK_SECRET` | 8 | Email marketing |
 
 `src/lib/env.ts` debera distinguir variables obligatorias para arrancar de variables que solo
@@ -880,10 +1005,10 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** tras la Fase 5 existen 44 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha
-(4/4). Comercio: hecho (7/7, mas `DigitalAsset` y `DigitalDelivery` que la spec no listaba y que
-la entrega digital necesita). Faltan cotizaciones (0/4). De marketing y seguimiento ya estan
-consentimiento, scoring, supresion, scheduled actions y el motor de automatizaciones; faltan
+**Modelo de datos:** 44 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
+(7/7, mas `DigitalAsset` y `DigitalDelivery` que la spec no listaba y que la entrega digital
+necesita), ahora con los dos proveedores. Faltan cotizaciones (0/4). De marketing y seguimiento ya
+estan consentimiento, scoring, supresion, scheduled actions y el motor de automatizaciones; faltan
 segmentos, journeys y campanas. Uso y costos: hecho.
 
 **Herramientas del agente:** 15 de las 21 que lista la spec. Quedan 4 pendientes, todas de
@@ -899,10 +1024,10 @@ consuma el campo nuevo.
 implementados. Faltan los locks por conversacion y el debounce, que recien importan cuando
 responde la IA (Fase 4).
 
-**Seguridad:** el cifrado de tokens quedo resuelto en la Fase 2. Faltan rate limiting y CSRF.
-Los webhooks de Mercado Pago y de Meta ya cumplen el estandar de la spec (firma validada,
-re-consulta al proveedor, idempotencia y validacion de monto); sirven de plantilla para el de
-Shopify.
+**Seguridad:** el cifrado de tokens quedo resuelto en la Fase 2. Faltan rate limiting y CSRF
+general. Los tres webhooks —Meta, Mercado Pago y Shopify— cumplen el estandar de la spec: firma
+validada sobre el cuerpo crudo, idempotencia y validacion de monto donde aplica. El OAuth de
+Shopify agrega state firmado con nonce en cookie, que es CSRF especifico de ese flujo.
 
 **Se preserva y reutiliza:** auth y roles, multi-tenancy por `workspaceId`, captura web,
 pipeline, actividades, atribucion UTM, billing de suscripcion y audit log.
@@ -925,6 +1050,10 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-08 | Para Shopify se usa la Admin **GraphQL** API, no REST: la spec pide no depender de APIs obsoletas y Shopify viene retirando los endpoints REST de productos y pedidos |
+| 2026-09-08 | La copia local del catalogo Shopify sirve para listar, pero **antes de cada checkout se re-consulta precio y stock**. Una prueba verifica el orden de las llamadas, no solo que se consulte |
+| 2026-09-08 | Si el precio cambio entre la conversacion y el checkout, se aborta y se le informa al agente el precio nuevo. Cobrar distinto de lo conversado es peor que perder la venta |
+| 2026-09-08 | Los productos sincronizados de Shopify se marcan PHYSICAL. Shopify no distingue digital de fisico de forma fiable, y asumirlo mal dispararia entregas que no corresponden |
 | 2026-09-08 | La discriminacion del webhook trata como pedido SOLO lo marcado con `metadata.kind = order`. Lo no marcado se asume suscripcion, que es el comportamiento anterior: asi un pago creado antes de la Fase 5 no cambia de significado a mitad de camino |
 | 2026-09-08 | `create_digital_delivery` NO se implementa como herramienta del agente pese a estar en la spec. Conceder accesos a pedido del cliente es precisamente lo que una IA no debe poder hacer: la entrega la dispara el webhook verificado y el reenvio es una accion humana |
 | 2026-09-08 | `create_checkout` no viene en la lista blanca del agente por defecto. Cobrar es un efecto material que el cliente habilita a proposito; un negocio de servicios no quiere que la IA genere pedidos |
@@ -1047,4 +1176,17 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
   prueba de "herramienta no autorizada" ahora usa `create_checkout`.
 - **Pendiente para que el criterio de salida se cumpla de verdad:** el acceso se genera pero
   **no se envia solo** al cliente (D29/T14), y falta la vuelta contra Mercado Pago real (T4).
-- **Fase 5 cerrada. No se inicia la Fase 6 sin aprobacion del propietario.**
+- **Fase 5 cerrada.**
+
+### 2026-09-08 — Fase 6, Shopify
+
+- Sin modelos nuevos: solo constraints de unicidad para sincronizar sin duplicar, `SHOPIFY` en
+  `IntegrationProvider` y dos tipos de trabajo. Tres migraciones aditivas.
+- OAuth completo con state firmado + nonce en cookie, HMAC de callback y validacion de dominio.
+- Cliente GraphQL, sincronizacion de catalogo, consulta viva, draft orders y 5 webhooks.
+- `create_checkout` y `check_inventory` del agente bifurcan por proveedor.
+- **Hallazgo corregido (B9):** un `as never` usado para que compilara un valor de enum inexistente
+  habria fallado en produccion. Se agrego el valor al enum de verdad.
+- Pruebas: **74/74** con fixtures. Fases 5, 4, 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
+- **Fase 6 cerrada a nivel de codigo. Falta validarla contra una tienda real (T16).**
+  No se inicia la Fase 7 sin aprobacion del propietario.
