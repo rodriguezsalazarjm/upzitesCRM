@@ -32,7 +32,7 @@ import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { runAgent } from '../src/lib/agents/runner';
 import { ScriptedProvider, estimateCostClp, OpenAIProvider } from '../src/lib/agents/provider';
-import { toolSpecsFor, AGENT_TOOLS, PENDING_TOOLS } from '../src/lib/agents/tools';
+import { toolSpecsFor, AGENT_TOOLS, PENDING_TOOLS, OMITTED_BY_DESIGN } from '../src/lib/agents/tools';
 import { looksLikeHallucination, needsImmediateEscalation, buildInstructions } from '../src/lib/agents/guardrails';
 import { scheduleAgentRun } from '../src/lib/agents/dispatch';
 import { DEFAULT_SALES_AGENT } from '../src/lib/agents/presets';
@@ -152,8 +152,8 @@ const B = await makeWorkspace('b');
   const instructions = DEFAULT_SALES_AGENT.instructions;
   check('Las instrucciones por defecto no asumen un rubro',
     !/malla|reja|cerco|inmobiliaria|restaurante|clinica/i.test(instructions));
-  check('El agente por defecto NO tiene herramientas de fases futuras',
-    !DEFAULT_SALES_AGENT.allowedTools.some((t) => (PENDING_TOOLS as readonly string[]).includes(t)));
+  check('El agente por defecto NO tiene herramientas omitidas a proposito',
+    !DEFAULT_SALES_AGENT.allowedTools.some((t) => (OMITTED_BY_DESIGN as readonly string[]).includes(t)));
   check('El agente por defecto NO puede cobrar sin que el cliente lo habilite',
     !(DEFAULT_SALES_AGENT.allowedTools as readonly string[]).includes('create_checkout'));
 }
@@ -177,8 +177,8 @@ const B = await makeWorkspace('b');
     contactName: 'Ana',
   });
   check('Las instrucciones incluyen las reglas innegociables', instructions.includes('REGLAS INNEGOCIABLES'));
-  check('Las instrucciones declaran lo que el agente NO puede hacer todavia',
-    instructions.includes('CAPACIDADES QUE AUN NO TIENES'));
+  check('Las instrucciones declaran los limites de sus herramientas',
+    instructions.includes('LIMITES DE TUS HERRAMIENTAS'));
   check('Las instrucciones nombran al workspace', instructions.includes('Negocio Demo'));
 }
 
@@ -521,7 +521,9 @@ const B = await makeWorkspace('b');
     params.required.includes('intent') && params.required.includes('reason'));
 
   check('El catalogo de herramientas crece con las fases', AGENT_TOOLS.length >= 15, `${AGENT_TOOLS.length} herramientas`);
-  check('Las herramientas de fases futuras siguen declaradas como pendientes', PENDING_TOOLS.length === 4);
+  check('Ya no quedan herramientas pendientes de la spec', PENDING_TOOLS.length === 0);
+  check('`create_digital_delivery` sigue omitida a proposito',
+    (OMITTED_BY_DESIGN as readonly string[]).includes('create_digital_delivery'));
 }
 
 // --- Limpieza ---------------------------------------------------------------

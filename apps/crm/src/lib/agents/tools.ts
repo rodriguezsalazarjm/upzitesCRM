@@ -17,6 +17,7 @@ import { CheckoutError, createOrderCheckout } from '../commerce/checkout';
 import { createShopifyClient } from '../shopify/client';
 import { createShopifyCheckout, ShopifyOrderError } from '../shopify/orders';
 import { fetchLiveVariant, getShopifyConnection } from '../shopify/sync';
+import { createQuote, listQuotableServices, QuoteError, requestReview } from '../quotes/service';
 import type { ToolSpec } from './provider';
 
 /**
@@ -678,30 +679,193 @@ export const AGENT_TOOLS: AgentTool[] = [
       };
     },
   },
+  // --- Fase 7: cotizacion -----------------------------------------------------
+  // El agente recolecta datos y pide el calculo. La aritmetica la hace el motor
+  // determinista del servidor: el modelo nunca produce el total.
+
+  {
+    name: 'collect_quote_inputs',
+    description:
+      'Lista los servicios cotizables y que datos hay que pedirle al cliente para cada uno. Usala ANTES de intentar cotizar.',
+    schema: z.object({}),
+    hasSideEffects: false,
+    execute: async (_args, context) => {
+      const services = await listQuotableServices(context.workspaceId);
+
+      if (services.length === 0) {
+        return { ok: false, error: 'Este negocio no tiene servicios cotizables configurados.' };
+      }
+
+      return {
+        ok: true,
+        data: services.map((service) => ({
+          serviceKey: service.serviceKey,
+          name: service.name,
+          description: service.description,
+          camposRequeridos: service.fields
+            .filter((field) => field.required)
+            .map((field) => ({
+              key: field.key,
+              pregunta: field.label,
+              tipo: field.type,
+              unidad: field.unit,
+              opciones: field.options,
+              ayuda: field.help,
+            })),
+        })),
+      };
+    },
+  },
+
+  {
+    name: 'calculate_quote',
+    description:
+      'Calcula la cotizacion con los datos recolectados. Si faltan datos devuelve cuales: preguntalos y vuelve a intentar. El total lo calcula el sistema, no lo inventes.',
+    schema: z.object({
+      serviceKey: z.string().min(1).describe('Servicio, segun collect_quote_inputs'),
+      inputs: z.string().min(2).describe('JSON con los datos: {"metros": 12, "altura": 2.5}'),
+    }),
+    hasSideEffects: true,
+    execute: async (args, context) => {
+      if (!context.contactId) return { ok: false, error: 'No hay contacto asociado.' };
+
+      const parsed = z
+        .object({ serviceKey: z.string().min(1), inputs: z.string().min(2) })
+        .safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Datos invalidos.' };
+
+      let inputs: Record<string, unknown>;
+      try {
+        inputs = JSON.parse(parsed.data.inputs);
+      } catch {
+        return { ok: false, error: 'El campo `inputs` debe ser un JSON valido.' };
+      }
+
+      try {
+        const quote = await createQuote({
+          workspaceId: context.workspaceId,
+          serviceKey: parsed.data.serviceKey,
+          inputs,
+          contactId: context.contactId,
+          conversationId: context.conversationId,
+        });
+
+        await audit(context, 'calculate_quote', {
+          quoteId: quote.id,
+          total: quote.total,
+          serviceKey: parsed.data.serviceKey,
+        });
+
+        return {
+          ok: true,
+          data: {
+            quoteId: quote.id,
+            numero: quote.number,
+            // El total viene del motor. El agente lo repite tal cual.
+            totalClp: quote.total,
+            desglose: quote.lines.map((line) => ({ concepto: line.label, monto: line.amount })),
+            disclaimer: quote.disclaimer,
+            estado: 'Pendiente de revision humana antes de enviarse.',
+          },
+        };
+      } catch (error) {
+        if (error instanceof QuoteError) {
+          // Los datos faltantes vuelven con su etiqueta, para que el agente
+          // pregunte en lenguaje natural en vez de pedir la clave tecnica.
+          if (error.code === 'MISSING_DATA') {
+            const details = error.details as { fields?: { label: string; unit?: string }[] };
+            return {
+              ok: false,
+              error: 'Faltan datos para cotizar.',
+              faltan: (details?.fields ?? []).map((field) =>
+                field.unit ? `${field.label} (${field.unit})` : field.label,
+              ),
+            } as never;
+          }
+          return { ok: false, error: error.message };
+        }
+        throw error;
+      }
+    },
+  },
+
+  {
+    name: 'request_quote_review',
+    description: 'Deja la cotizacion en la cola de revision humana con una nota.',
+    schema: z.object({
+      quoteId: z.string().min(1),
+      note: z.string().optional().describe('Contexto util para quien revisa'),
+    }),
+    hasSideEffects: true,
+    execute: async (args, context) => {
+      const parsed = z.object({ quoteId: z.string().min(1), note: z.string().optional() }).safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Falta el quoteId.' };
+
+      const quote = await prisma.quote.findFirst({
+        where: { id: parsed.data.quoteId, workspaceId: context.workspaceId },
+        select: { id: true },
+      });
+      if (!quote) return { ok: false, error: 'Esa cotizacion no existe.' };
+
+      await requestReview({
+        workspaceId: context.workspaceId,
+        quoteId: quote.id,
+        note: parsed.data.note,
+      });
+      await audit(context, 'request_quote_review', { quoteId: quote.id });
+
+      return { ok: true, data: { enRevision: true } };
+    },
+  },
+
+  {
+    name: 'get_quote_status',
+    description: 'Estado de una cotizacion: si ya fue revisada, enviada o aceptada.',
+    schema: z.object({ quoteId: z.string().min(1) }),
+    hasSideEffects: false,
+    execute: async (args, context) => {
+      const parsed = z.object({ quoteId: z.string().min(1) }).safeParse(args);
+      if (!parsed.success) return { ok: false, error: 'Falta el quoteId.' };
+
+      const quote = await prisma.quote.findFirst({
+        where: { id: parsed.data.quoteId, workspaceId: context.workspaceId },
+        select: {
+          number: true,
+          version: true,
+          status: true,
+          total: true,
+          currency: true,
+          validUntil: true,
+        },
+      });
+
+      if (!quote) return { ok: false, error: 'Esa cotizacion no existe.' };
+
+      // El enlace del PDF NUNCA se le entrega al agente: lo envia una persona
+      // desde el CRM tras aprobar.
+      return { ok: true, data: quote };
+    },
+  },
 ];
 
 /**
- * Herramientas que la spec define pero que dependen de fases posteriores.
+ * Herramientas de la spec que aun no existen.
  *
- * Se listan aqui para que quede explicito que NO estan disponibles todavia. El
- * agente no las recibe: si el cliente pregunta por precios o stock, la respuesta
- * correcta es derivar a un humano, no inventar.
+ * Vacia desde la Fase 7: todas las capacidades planificadas estan implementadas.
+ * Se conserva la lista porque el prompt la usa para que el agente reconozca sus
+ * limites, y volvera a llenarse si aparece una capacidad nueva.
  */
-export const PENDING_TOOLS = [
-  'collect_quote_inputs',
-  'calculate_quote',
-  'request_quote_review',
-  'get_quote_status',
-] as const;
+export const PENDING_TOOLS: readonly string[] = [];
 
 /**
- * `create_digital_delivery` NO existe como herramienta del agente, a proposito.
+ * Herramientas de la spec que NO se implementaran como herramienta del agente.
  *
- * La spec la lista, pero la entrega la dispara el webhook de pago verificado:
- * darle al agente la capacidad de conceder accesos seria darle la capacidad de
- * regalarlos si alguien lo convence. Reenviar un acceso perdido es una accion
- * humana (`POST /api/orders/[id]/resend`).
+ * `create_digital_delivery`: la entrega la dispara el webhook de pago
+ * verificado. Darle al agente la capacidad de conceder accesos seria darle la
+ * capacidad de regalarlos si alguien lo convence. Reenviar un acceso perdido es
+ * una accion humana (`POST /api/orders/[id]/resend`).
  */
+export const OMITTED_BY_DESIGN = ['create_digital_delivery'] as const;
 
 const BY_NAME = new Map(AGENT_TOOLS.map((tool) => [tool.name, tool]));
 

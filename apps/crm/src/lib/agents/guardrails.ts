@@ -30,9 +30,9 @@ export const SYSTEM_GUARDRAILS = `REGLAS INNEGOCIABLES
 9. Si una herramienta falla, dilo con naturalidad y ofrece derivar. No inventes
    el resultado.
 
-CAPACIDADES QUE AUN NO TIENES
-Todavia no puedes consultar catalogo, precios, stock, pagos, pedidos ni
-cotizaciones. Cuando el cliente pregunte por eso, reconoce el limite y deriva.`;
+LIMITES DE TUS HERRAMIENTAS
+Solo sabes lo que te devuelven tus herramientas. Si una no existe o falla, no
+supongas el dato: dilo y deriva.`;
 
 /**
  * Palabras que obligan a escalar sin consultar al modelo.
@@ -80,8 +80,11 @@ export function buildInstructions(input: {
     input.agentInstructions.trim(),
     '',
     SYSTEM_GUARDRAILS,
-    '',
-    `Herramientas que llegaran mas adelante y hoy NO existen: ${PENDING_TOOLS.join(', ')}.`,
+    // Solo se menciona lo pendiente cuando efectivamente falta algo: una lista
+    // vacia en el prompt confunde al modelo mas de lo que ayuda.
+    PENDING_TOOLS.length > 0
+      ? `\nHerramientas que llegaran mas adelante y hoy NO existen: ${PENDING_TOOLS.join(', ')}.`
+      : '',
   ]
     .filter(Boolean)
     .join('\n');

@@ -3,9 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 6 — Shopify
-- **Estado:** COMPLETADA con fixtures. Falta validarla contra una tienda real (faltan
-  credenciales de la app). Esperando aprobacion para la Fase 7.
+- **Fase actual:** 7 — Cotizador y aprobaciones
+- **Estado:** COMPLETADA y verificada end-to-end en local, incluido el PDF.
+  Esperando aprobacion para la Fase 8.
 - **Ultima actualizacion:** 2026-09-07
 
 ---
@@ -21,8 +21,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 4 | Agentes IA y herramientas | **Completada** (2026-09-07), probada con proveedor guionado |
 | 5 | Infoproductos, Mercado Pago y entrega | **Completada** (2026-09-08) |
 | 6 | Shopify | **Completada** (2026-09-08), probada con fixtures |
-| 7 | Cotizador y aprobaciones | No iniciada — requiere aprobacion |
-| 8 | Recuperacion, email y campanas | No iniciada |
+| 7 | Cotizador y aprobaciones | **Completada** (2026-09-08) |
+| 8 | Recuperacion, email y campanas | No iniciada — requiere aprobacion |
 | 9 | Onboarding SaaS, planes y consumo | No iniciada |
 | 10 | Hardening y lanzamiento beta | No iniciada |
 
@@ -181,6 +181,31 @@ una tienda real, que requiere crear la app en Shopify Partners (T16).
 
 ---
 
+### Fase 7 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Pricing rule sets versionados | Hecho | `PricingRuleSet` con DRAFT/PUBLISHED/ARCHIVED |
+| Schemas de intake por servicio | Hecho | `intakeSchema` en JSON validado con Zod |
+| Quote, lines, versiones, approval request | Hecho | 4 tablas nuevas |
+| Motor matematico determinista | Hecho | `lib/quotes/engine.ts`, funcion pura |
+| PDF con branding del workspace | Hecho | Sin dependencias, verificado en navegador |
+| Estimacion preliminar y cotizacion final | Hecho | El agente calcula; solo lo aprobado se envia |
+| Cola de revision | Hecho | `/cotizaciones` con desglose y diferencia entre versiones |
+| Envio por WhatsApp y seguimiento | Hecho | `POST /api/quotes/[id]/send` |
+| Configuracion piloto | Hecho | Como **datos**, no codigo: el servicio se define por API |
+
+**Criterio de salida:** un negocio de servicios puede recibir medidas, revisar y enviar la
+cotizacion desde el CRM. **Cumplido y verificado end-to-end en local**, incluida la generacion y
+apertura del PDF en el navegador.
+
+**Sobre el piloto:** la spec nombra Iron Mallas y sus campos (medidas, pilares, tipo de malla).
+Nada de eso esta en el codigo. El servicio de prueba usa terminos genericos —superficie, unidades,
+dificultad de acceso— y hay una prueba que falla si un rubro se cuela. Configurar el piloto es
+cargar un `PricingRuleSet` por API.
+
+---
+
 ## 2. Inventario de la linea base
 
 ### Stack verificado
@@ -198,10 +223,9 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 45 tablas tras la Fase 6: no agrego modelos, solo constraints de unicidad y valores de enum.
-  Sin datos.
+- 49 tablas (48 modelos + `_prisma_migrations`) tras la Fase 7. Sin datos.
 
-### Modelos Prisma (44)
+### Modelos Prisma (48)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -211,6 +235,8 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 `ScheduledAction`, `UsageRecord`.
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
+
+Fase 7 (4): `PricingRuleSet`, `Quote`, `QuoteLine`, `ApprovalRequest`.
 
 Fase 5 (9): `CommerceConnection`, `Product`, `ProductVariant`, `DigitalAsset`, `CustomerOrder`,
 `OrderLine`, `Payment`, `FulfillmentOrder`, `DigitalDelivery`.
@@ -223,7 +249,7 @@ Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedu
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (48)
+### Enums (52)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
@@ -236,6 +262,9 @@ Fase 1 (12): `LifecycleStatus`, `LeadTemperature`, `BuyingIntent`, `Conversation
 Fase 2 (9): `WhatsAppChannelStatus`, `ConversationStatus`, `MessageDirection`,
 `MessageSenderType`, `MessageType`, `MessageStatus`, `WebhookEventStatus`, `OutboxType`,
 `OutboxStatus`.
+
+Fase 7 (4): `PricingRuleSetStatus`, `QuoteLineKind`, `ApprovalType`, `ApprovalStatus`.
+`QuoteStatus`, creado vacio en la Fase 1, por fin tiene entidad.
 
 Fase 6: sin enums nuevos. Se agrego `SHOPIFY` a `IntegrationProvider` y
 `PROCESS_SHOPIFY_EVENT` / `SYNC_SHOPIFY_CATALOG` a `JobType`.
@@ -252,7 +281,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (15, todas aplicadas)
+### Migraciones (16, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -270,6 +299,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260908140000_fase6_shopify_sync
 20260908150000_fase6_integration_shopify
 20260908160000_fase6_job_shopify
+20260908180000_fase7_cotizador
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -531,6 +561,49 @@ Otras decisiones:
 - Los productos sincronizados se marcan `PHYSICAL`: Shopify no distingue digital de fisico de
   forma fiable, y asumirlo mal romperia la entrega automatica.
 
+### Cotizador (Fase 7)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/quotes/schema.ts` | Lenguaje de reglas y validacion de los datos del cliente |
+| `lib/quotes/engine.ts` | Calculo determinista. **Funcion pura**: no toca la base ni el reloj |
+| `lib/quotes/service.ts` | Ciclo de vida: crear, revisar, aprobar, enviar, aceptar, versionar |
+| `lib/quotes/pdf.ts` | Generacion de PDF sin dependencias |
+
+**Las reglas son datos, no codigo.** Cada workspace describe su servicio en JSON: que campos pedir
+(`intakeSchema`) y como calcular (`rules`). Un rubro nuevo no necesita un despliegue, y ningun
+rubro queda hardcodeado — que es la restriccion multivertical aplicada al cotizador.
+
+El lenguaje soporta seis tipos de componente: `FIXED`, `PER_UNIT`, `PER_AREA`, `TIERED`,
+`SURCHARGE` y `DISCOUNT`, mas minimo y redondeo. Las condiciones **reutilizan el evaluador de la
+Fase 3**: un operador nuevo sirve para automatizaciones y para precios a la vez.
+
+**Como se garantiza que el LLM no altera el total:**
+
+1. El agente llama a `collect_quote_inputs` para saber que preguntar.
+2. Recolecta los datos y llama a `calculate_quote` con ellos.
+3. El motor calcula y **guarda el total en la base**. Lo que el agente diga despues no cambia el
+   numero guardado: hay una prueba que lo verifica explicitamente.
+4. Nada se envia al cliente sin aprobacion humana.
+
+Otras decisiones:
+
+- **Faltan datos = no se calcula.** El error devuelve que campos faltan con su etiqueta, para que
+  el agente pregunte en lenguaje natural en vez de pedir la clave tecnica.
+- **Una cotizacion aprobada no se edita.** Aprobarla o rechazarla de nuevo devuelve error: el
+  camino es crear una version, que conserva el numero e incrementa `version`. La anterior queda
+  intacta y su PDF sigue sirviendo.
+- **Solo OWNER y ADMIN aprueban**; publicar reglas de precio es solo del OWNER.
+- **El PDF se genera al vuelo**, no se almacena: asi siempre corresponde a lo aprobado y no queda
+  un archivo viejo circulando con numeros que ya no son.
+- **Aceptar una cotizacion NO convierte en cliente.** Eso sigue exigiendo pago aprobado o
+  confirmacion humana (regla de la Fase 1).
+
+**Sobre el PDF sin dependencias:** se escribe el formato PDF 1.4 a mano (~120 lineas) en vez de
+sumar `pdfkit` o `@react-pdf`, que traen decenas de megas y un runtime que mantener para un
+documento que es texto en una pagina. El resultado es determinista —los mismos datos producen los
+mismos bytes— y se verifico abriendolo en el navegador, no solo comprobando que el archivo existe.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -548,6 +621,8 @@ Otras decisiones:
   idempotencia). No requiere credenciales de Mercado Pago.
 - `apps/crm/scripts/smoke-fase6.ts` y `scripts/fixtures/shopify.ts`: pruebas de la Fase 6 (OAuth,
   sincronizacion, draft orders y webhooks). No requiere tienda ni credenciales.
+- `apps/crm/scripts/smoke-fase7.ts`: pruebas de la Fase 7 (motor, validacion, aprobaciones,
+  versionado y PDF).
 
 ---
 
@@ -617,6 +692,22 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B10 — El enlace del PDF se perdia al aprobar la ultima cotizacion — CORREGIDO (2026-09-08)
+
+Lo detecto la prueba manual en la interfaz, no la suite. El banner con el enlace del PDF se
+renderizaba **despues** del early-return del estado vacio: al aprobar la ultima cotizacion
+pendiente la cola quedaba vacia, el componente devolvia el estado vacio y el enlace desaparecia.
+
+Y era peor que un problema visual: el token se muestra una sola vez y solo se guarda su hash, y
+una cotizacion aprobada no se puede volver a aprobar. **El enlace se perdia para siempre.**
+
+**Correccion en dos niveles:** el banner se movio antes del estado vacio, y se agrego
+`POST /api/quotes/[id]/pdf-link` para regenerar el enlace de una cotizacion ya aprobada —accion de
+owner/admin, auditada, que invalida el token anterior—, con su boton en el historial.
+
+**Leccion:** un early-return por estado vacio puede descartar informacion que se acaba de generar.
+Y cuando un secreto se muestra una sola vez, tiene que existir el camino para volver a obtenerlo.
 
 ### B9 — Cast a `never` que habria fallado en produccion — CORREGIDO (2026-09-08)
 
@@ -901,6 +992,40 @@ Dos pruebas que vale la pena destacar por lo que verifican:
 Tras la Fase 6 se reejecutaron las suites anteriores: **Fase 5 en 70/70**, **Fase 4 en 71/71**,
 **Fase 3 en 46/46**, **Fase 2 en 46/46** y **Fase 1 en 41/41**, sin regresiones.
 
+### Fase 7
+
+`pnpm exec tsx scripts/smoke-fase7.ts` desde `apps/crm`, ejecutado el 2026-09-08.
+
+**Resultado: 79/79.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Motor: calculos conocidos a mano, recargo condicional, minimo, redondeo, determinismo | 10 | 10/10 |
+| Validacion de entrada: faltantes, tipos, rangos, opciones, decimales con coma | 8 | 8/8 |
+| Crear cotizacion: **datos faltantes bloquean el calculo**, numeracion, desglose, revision automatica | 10 | 10/10 |
+| **Solo roles autorizados aprueban** | 2 | 2/2 |
+| Aprobacion: estado, revisor, token hasheado, cola | 6 | 6/6 |
+| **El PDF corresponde a los datos aprobados** y es determinista | 6 | 6/6 |
+| Recuperacion del enlace del PDF | 3 | 3/3 |
+| **Aprobada no se edita: crea version**; la anterior queda intacta | 8 | 8/8 |
+| Envio y aceptacion; aceptar NO convierte en cliente | 4 | 4/4 |
+| Aislamiento entre workspaces | 4 | 4/4 |
+| Solo se cotiza con reglas PUBLICADAS | 2 | 2/2 |
+| Herramientas del agente: **el total en la base es el del motor** | 11 | 11/11 |
+
+**La prueba central de la fase:** el agente llama a `calculate_quote`, recibe un total, y se
+verifica que **el total guardado en la base es el que produjo el motor**. Es la forma de comprobar
+que la regla "el LLM no realiza la aritmetica" se cumple de verdad, no solo en el prompt.
+
+**Verificacion end-to-end en el navegador:** se cargo un servicio con reglas reales, se generaron
+dos cotizaciones desde el motor, se aprobaron desde la cola de revision, se recupero el enlace del
+PDF y se abrio el PDF, comprobando que muestra el total aprobado y que un token inventado devuelve
+404.
+
+Tras la Fase 7 se reejecutaron las suites anteriores: **Fase 6 en 74/74**, **Fase 5 en 70/70**,
+**Fase 4 en 72/72**, **Fase 3 en 46/46**, **Fase 2 en 46/46** y **Fase 1 en 41/41**, sin
+regresiones.
+
 ---
 
 ## 7. Deuda tecnica
@@ -940,6 +1065,10 @@ Tras la Fase 6 se reejecutaron las suites anteriores: **Fase 5 en 70/70**, **Fas
 | **D31** | Los webhooks de Shopify no se registran automaticamente al conectar: hay que darlos de alta en la app | Se puede automatizar con `webhookSubscriptionCreate` en el callback |
 | **D32** | Los productos de Shopify se marcan `PHYSICAL` siempre: un infoproducto vendido por Shopify no dispararia entrega digital | Requiere mapear por tipo de producto o etiqueta. Fase 9 (onboarding) |
 | **D33** | Sin manejo de rate limit de Shopify (cost-based): una tienda grande puede toparse con el limite durante la sincronizacion | La cola reintenta, pero conviene respetar `throttleStatus` |
+| **D34** | No hay UI para crear ni editar reglas de precio: se cargan por API | Bloquea el onboarding autoservicio. Fase 9 |
+| **D35** | Las cotizaciones vencidas no pasan solas a EXPIRED: `validUntil` se guarda pero nadie lo barre | Agregar al cron, junto con los recurrentes de la Fase 3 |
+| **D36** | El PDF no lleva logo ni colores del workspace: solo el nombre | La spec pide "branding basico"; falta almacenamiento de imagenes (D26) |
+| **D37** | El seguimiento de cotizacion pendiente (1/3/7 dias, spec 9.6) no esta cableado a `ScheduledAction` | Fase 8, junto con los demas journeys |
 
 ---
 
@@ -977,6 +1106,7 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T14 | Definir como llega el enlace de entrega al cliente: mensaje de WhatsApp, email, o ambos | Hoy el acceso se genera pero no se envia solo (D29) |
 | T15 | Cargar el catalogo del piloto de infoproductos y habilitar `create_checkout` en su agente | Sin catalogo el agente deriva; sin la herramienta no puede cerrar la venta |
 | T16 | **Crear la app en Shopify Partners** y entregar `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` | Valida la Fase 6 contra una tienda real; hoy solo esta probada con fixtures |
+| T17 | Definir las reglas de precio reales del piloto de servicios y publicarlas | Sin reglas publicadas el agente no puede cotizar; se cargan por `POST /api/pricing-rule-sets` |
 
 ---
 
@@ -1005,16 +1135,16 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** 44 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
-(7/7, mas `DigitalAsset` y `DigitalDelivery` que la spec no listaba y que la entrega digital
-necesita), ahora con los dos proveedores. Faltan cotizaciones (0/4). De marketing y seguimiento ya
-estan consentimiento, scoring, supresion, scheduled actions y el motor de automatizaciones; faltan
-segmentos, journeys y campanas. Uso y costos: hecho.
+**Modelo de datos:** 48 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
+(7/7, mas `DigitalAsset` y `DigitalDelivery`), con los dos proveedores. Cotizaciones: hecho (4/4).
+De marketing y seguimiento ya estan consentimiento, scoring, supresion, scheduled actions y el
+motor de automatizaciones; **faltan segmentos, journeys y campanas**, que es todo lo que queda del
+modelo de datos de la spec. Uso y costos: hecho.
 
-**Herramientas del agente:** 15 de las 21 que lista la spec. Quedan 4 pendientes, todas de
-cotizacion (Fase 7). `create_digital_delivery` **no se implementara como herramienta**: la entrega
-la dispara el webhook verificado, no el agente. Y `create_checkout` existe pero no viene habilitada
-por defecto.
+**Herramientas del agente:** 20 de las 21 que lista la spec, todas implementadas.
+`create_digital_delivery` **no se implementara como herramienta**: la entrega la dispara el webhook
+verificado, no el agente. `create_checkout` y las de cotizacion existen pero no vienen habilitadas
+por defecto: cobrar y cotizar son efectos que el cliente activa a proposito.
 
 **Enums:** completos. Los 8 que exige la spec estan creados, mas 4 de apoyo. `ContactStatus`
 convive con `LifecycleStatus` mediante backfill y espejo automatico; se retira cuando la UI
@@ -1050,6 +1180,10 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-08 | Las reglas de precio son **datos en JSON, no codigo**. Un rubro nuevo se configura sin desplegar, y ningun rubro queda hardcodeado: es la restriccion multivertical aplicada al cotizador |
+| 2026-09-08 | El PDF se genera **sin dependencias**, escribiendo el formato a mano. `pdfkit` o `@react-pdf` traen decenas de megas y un runtime que mantener para un documento de una pagina. El resultado es determinista y se verifico abriendolo en el navegador |
+| 2026-09-08 | El PDF se genera al vuelo en cada peticion en vez de almacenarse: asi siempre corresponde a lo aprobado y no queda un archivo viejo circulando con numeros que ya no son |
+| 2026-09-08 | Las condiciones del cotizador reutilizan el evaluador de automatizaciones de la Fase 3 en vez de tener su propio lenguaje. Un operador nuevo sirve para las dos cosas |
 | 2026-09-08 | Para Shopify se usa la Admin **GraphQL** API, no REST: la spec pide no depender de APIs obsoletas y Shopify viene retirando los endpoints REST de productos y pedidos |
 | 2026-09-08 | La copia local del catalogo Shopify sirve para listar, pero **antes de cada checkout se re-consulta precio y stock**. Una prueba verifica el orden de las llamadas, no solo que se consulte |
 | 2026-09-08 | Si el precio cambio entre la conversacion y el checkout, se aborta y se le informa al agente el precio nuevo. Cobrar distinto de lo conversado es peor que perder la venta |
@@ -1189,4 +1323,20 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
   habria fallado en produccion. Se agrego el valor al enum de verdad.
 - Pruebas: **74/74** con fixtures. Fases 5, 4, 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
 - **Fase 6 cerrada a nivel de codigo. Falta validarla contra una tienda real (T16).**
-  No se inicia la Fase 7 sin aprobacion del propietario.
+
+### 2026-09-08 — Fase 7, cotizador y aprobaciones
+
+- 4 tablas y 4 enums nuevos; migracion `20260908180000_fase7_cotizador`, aditiva.
+- Lenguaje de reglas en JSON con 6 tipos de componente, minimo y redondeo. Las condiciones
+  reutilizan el evaluador de la Fase 3.
+- Motor de calculo determinista y puro; validacion de intake que dice que campos faltan.
+- Ciclo completo: crear, revision obligatoria, aprobar (solo owner/admin), enviar, aceptar y
+  versionar. Una aprobada no se edita.
+- PDF sin dependencias, verificado abriendolo en el navegador. Se corrigieron dos caracteres que
+  salian como `?` por no estar mapeados a WinAnsi.
+- 4 herramientas de cotizacion para el agente. Con esto quedan implementadas 20 de las 21 de la
+  spec; la restante se omite a proposito.
+- **Hallazgo corregido (B10):** el enlace del PDF se perdia al aprobar la ultima cotizacion, y no
+  habia forma de recuperarlo. Lo detecto la prueba manual en la interfaz, no la suite.
+- Pruebas: **79/79**. Fases 6, 5, 4, 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
+- **Fase 7 cerrada. No se inicia la Fase 8 sin aprobacion del propietario.**

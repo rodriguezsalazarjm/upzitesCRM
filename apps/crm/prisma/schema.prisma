@@ -56,6 +56,10 @@ model Workspace {
   digitalAssets       DigitalAsset[]
   digitalDeliveries   DigitalDelivery[]
 
+  pricingRuleSets  PricingRuleSet[]
+  quotes           Quote[]
+  approvalRequests ApprovalRequest[]
+
   @@map("workspaces")
 }
 
@@ -157,6 +161,7 @@ model Contact {
   conversations    Conversation[]
   orders           CustomerOrder[]
   deliveries       DigitalDelivery[]
+  quotes           Quote[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -1094,6 +1099,139 @@ model DigitalDelivery {
   @@map("digital_deliveries")
 }
 
+// --- Fase 7: cotizador y aprobaciones ----------------------------------------
+
+/// Reglas de precio de un servicio, versionadas.
+///
+/// `intakeSchema` define QUE datos hay que pedirle al cliente y `rules` COMO se
+/// calcula. Ambos son JSON validado con Zod, no codigo: cada workspace define
+/// su propio servicio sin que haya que tocar el producto. La beta es
+/// multivertical; mallas de seguridad es una configuracion, no una feature.
+model PricingRuleSet {
+  id           String               @id @default(cuid())
+  workspaceId  String               @map("workspace_id")
+  serviceKey   String               @map("service_key")
+  name         String
+  description  String?
+  version      Int                  @default(1)
+  currency     String               @default("CLP")
+  /// Campos que el agente debe recolectar antes de poder calcular.
+  intakeSchema Json                 @map("intake_schema")
+  /// Componentes de calculo: base, recargos, descuentos, minimo y redondeo.
+  rules        Json
+  disclaimer   String?
+  validityDays Int                  @default(15) @map("validity_days")
+  status       PricingRuleSetStatus @default(DRAFT)
+  publishedAt  DateTime?            @map("published_at")
+  createdById  String?              @map("created_by")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  quotes    Quote[]
+
+  @@unique([workspaceId, serviceKey, version])
+  @@index([workspaceId, status])
+  @@map("pricing_rule_sets")
+}
+
+/// Cotizacion calculada.
+///
+/// Guarda los datos de entrada y el desglose completo: una cotizacion aprobada
+/// tiene que poder reconstruirse anos despues aunque las reglas hayan cambiado.
+model Quote {
+  id             String      @id @default(cuid())
+  workspaceId    String      @map("workspace_id")
+  contactId      String?     @map("contact_id")
+  opportunityId  String?     @map("opportunity_id")
+  conversationId String?     @map("conversation_id")
+  ruleSetId      String      @map("rule_set_id")
+  serviceKey     String      @map("service_key")
+
+  /// Numero legible para el cliente: COT-0001.
+  number  String
+  version Int    @default(1)
+  /// Version anterior, cuando esta cotizacion la reemplaza.
+  parentQuoteId String? @map("parent_quote_id")
+
+  /// Datos que entrego el cliente, ya validados contra el intakeSchema.
+  inputs     Json
+  subtotal   Int
+  surcharges Int         @default(0)
+  discounts  Int         @default(0)
+  total      Int
+  currency   String      @default("CLP")
+  disclaimer String?
+  validUntil DateTime?   @map("valid_until")
+  status     QuoteStatus @default(DRAFT)
+
+  reviewerId String?   @map("reviewer_id")
+  reviewedAt DateTime? @map("reviewed_at")
+  reviewNote String?   @map("review_note")
+  sentAt     DateTime? @map("sent_at")
+  acceptedAt DateTime? @map("accepted_at")
+  rejectedAt DateTime? @map("rejected_at")
+
+  /// Token del PDF publico. Se guarda hasheado, como el de las entregas.
+  pdfTokenHash String?  @unique @map("pdf_token_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  ruleSet   PricingRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  parent    Quote?         @relation("QuoteVersions", fields: [parentQuoteId], references: [id], onDelete: SetNull)
+  revisions Quote[]        @relation("QuoteVersions")
+  lines     QuoteLine[]
+
+  @@unique([workspaceId, number, version])
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, contactId])
+  @@map("quotes")
+}
+
+/// Linea del desglose. Es el "por que" del total.
+model QuoteLine {
+  id       String        @id @default(cuid())
+  quoteId  String        @map("quote_id")
+  kind     QuoteLineKind
+  label    String
+  detail   String?
+  amount   Int
+  position Int           @default(0)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, position])
+  @@map("quote_lines")
+}
+
+/// Solicitud de aprobacion humana.
+///
+/// Generica a proposito: hoy la usan las cotizaciones, pero sirve para
+/// cualquier recurso que necesite revision antes de salir.
+model ApprovalRequest {
+  id            String         @id @default(cuid())
+  workspaceId   String         @map("workspace_id")
+  resourceType  String         @map("resource_type")
+  resourceId    String         @map("resource_id")
+  type          ApprovalType   @default(QUOTE_REVIEW)
+  status        ApprovalStatus @default(PENDING)
+  requestedById String?        @map("requested_by")
+  requestedNote String?        @map("requested_note")
+  approverId    String?        @map("approver_id")
+  comment       String?
+  dueAt         DateTime?      @map("due_at")
+  resolvedAt    DateTime?      @map("resolved_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceType, resourceId, status])
+  @@index([workspaceId, status, createdAt])
+  @@map("approval_requests")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -1505,4 +1643,34 @@ enum DeliveryStatus {
   ACCESSED
   REVOKED
   EXPIRED
+}
+
+
+// --- Fase 7: enums del cotizador ---------------------------------------------
+
+enum PricingRuleSetStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuoteLineKind {
+  BASE
+  SURCHARGE
+  DISCOUNT
+  MINIMUM_ADJUSTMENT
+  ROUNDING
+}
+
+enum ApprovalType {
+  QUOTE_REVIEW
+  DISCOUNT_APPROVAL
+  PRICING_PUBLISH
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
 }

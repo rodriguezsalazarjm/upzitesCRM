@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Package,
   Receipt,
+  FileText,
   PlugZap,
   ShieldCheck,
   Settings,
@@ -32,6 +33,7 @@ const navItems = [
   { href: '/oportunidades', label: 'Pipeline', icon: TrendingUp },
   { href: '/productos', label: 'Productos', icon: Package },
   { href: '/pedidos', label: 'Pedidos', icon: Receipt },
+  { href: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/actividades', label: 'Actividades', icon: Activity },
   { href: '/fuentes', label: 'Fuentes', icon: Globe2 },
   { href: '/integraciones', label: 'Integraciones', icon: PlugZap },
@@ -71,7 +73,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Principal
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(0, 13).map((item) => {
+          {navItems.slice(0, 14).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -98,7 +100,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           Sistema
         </p>
         <ul className="space-y-0.5">
-          {navItems.slice(13).map((item) => {
+          {navItems.slice(14).map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (

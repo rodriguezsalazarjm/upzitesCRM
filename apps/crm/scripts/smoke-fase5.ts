@@ -36,7 +36,7 @@ import {
   resolveDelivery,
 } from '../src/lib/commerce/delivery';
 import { scheduleAction } from '../src/lib/domain';
-import { AGENT_TOOLS, PENDING_TOOLS } from '../src/lib/agents/tools';
+import { AGENT_TOOLS } from '../src/lib/agents/tools';
 
 const results: { name: string; ok: boolean }[] = [];
 let failures = 0;
@@ -569,8 +569,7 @@ let paidContactId = '';
 
   check('El agente NO tiene una herramienta para conceder accesos',
     !names.includes('create_digital_delivery'));
-  check('Las herramientas de cotizacion siguen pendientes',
-    (PENDING_TOOLS as readonly string[]).includes('calculate_quote'));
+  check('Las herramientas de cotizacion ya existen (Fase 7)', names.includes('calculate_quote'));
 
   // get_order_status no debe filtrar el enlace de entrega.
   const tool = AGENT_TOOLS.find((t) => t.name === 'get_order_status')!;
