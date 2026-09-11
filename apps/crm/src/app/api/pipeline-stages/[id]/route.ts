@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
-import { parseBody } from '@/lib/http';
+import { notFound, orNull, parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const updateStageSchema = z.object({
@@ -19,10 +19,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
 
-  const stage = await prisma.pipelineStage.update({
-    where: { id, workspaceId },
-    data: input,
-  });
+  const stage = await orNull(
+    prisma.pipelineStage.update({
+      where: { id, workspaceId },
+      data: input,
+    }),
+  );
+
+  // D13: un id de otro workspace no encuentra nada y eso es un 404,
+  // no un error del servidor.
+  if (!stage) return notFound('Etapa');
 
   return NextResponse.json({ data: stage });
 }
@@ -31,9 +37,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const workspaceId = await getCurrentWorkspaceId();
 
-  await prisma.pipelineStage.delete({
-    where: { id, workspaceId },
-  });
+  const eliminado = await orNull(
+    prisma.pipelineStage.delete({
+      where: { id, workspaceId },
+    }),
+  );
+  if (!eliminado) return notFound('Etapa');
 
   return NextResponse.json({ ok: true });
 }

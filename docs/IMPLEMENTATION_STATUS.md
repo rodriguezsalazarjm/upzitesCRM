@@ -4,7 +4,8 @@ Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 - **Fase actual:** 10 — Hardening y lanzamiento beta
-- **Estado:** COMPLETADA a nivel de codigo. **Las 11 fases estan cerradas.**
+- **Estado:** COMPLETADA. **Las 11 fases estan cerradas**, y ademas se corrigieron los seis
+  defectos de la deuda que afectaban al comportamiento (D13, D22, D27, D29, D30, D41).
   Lo que queda para vender la beta son tareas del propietario (seccion 9), no codigo.
 - **Ultima actualizacion:** 2026-09-11
 
@@ -45,7 +46,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
 **Criterio de salida:** el estado actual puede restaurarse y desplegarse de forma reproducible.
 **Cumplido:** el codigo esta en `origin/master`, la base tiene el esquema completo y las pruebas
-de aceptacion pasan contra una instancia real. Queda **un defecto conocido** (D13) y el
+de aceptacion pasan contra una instancia real. Quedaba **un defecto conocido** (D13, corregido
+el 2026-09-11) y el
 despliegue en Vercel pendiente de actualizar variables (T3).
 
 ---
@@ -402,7 +404,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (20, todas aplicadas)
+### Migraciones (21, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -425,6 +427,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260911120000_fase9_onboarding_planes
 20260911130000_fase9_job_health
 20260911140000_fase10_hardening
+20260911160000_deuda_revoked_at
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -955,6 +958,23 @@ completo se valida en la Fase 5.
 
 Ver seccion 3.
 
+### B16 — El tope de intentos sin respuesta habria bloqueado las campanas — CORREGIDO (2026-09-11)
+
+Lo detecto la suite de la Fase 8 al reejecutarse: dos pruebas del tope de frecuencia empezaron a
+fallar porque el tope nuevo de "intentos consecutivos sin respuesta" saltaba antes.
+
+La primera version contaba **todos** los envios promocionales desde el ultimo mensaje entrante del
+contacto. Eso deja cualquier lista de correo bloqueada tras el tercer envio: a un boletin casi nadie
+responde, y no responder no significa que le moleste.
+
+**Correccion:** el tope cuenta solo los envios que pertenecen a un journey. La spec lo ubica junto a
+"maximo 1 seguimiento automatico por 24 horas por journey": habla de dejar de insistirle a alguien
+que no contesta, no de un broadcast que la persona pidio recibir.
+
+**Leccion:** una regla correcta aplicada al alcance equivocado hace mas dano que no tenerla. Y la
+senal de que el alcance estaba mal fue que una suite anterior empezo a fallar: las regresiones no
+siempre indican un error nuevo, a veces indican que una regla nueva se metio donde no iba.
+
 ### B15 — Una clave mal escrita en una regla de precio se descartaba en silencio — CORREGIDO (2026-09-11)
 
 Lo detecto la suite critica al escribir una regla con `conditions` en lugar de `when`. Zod descarta
@@ -1127,7 +1147,7 @@ conectado al Supabase real. Crea dos workspaces desechables y los elimina al ter
 | Auth | Registro de 2 workspaces, login de ambos, password incorrecta devuelve 401 | 5/5 |
 | CRUD contacto | Crear, listar, actualizar, verificar persistencia del cambio | 4/4 |
 | Aislamiento tenant | B no ve el contacto de A; B no altera el dato de A; sin sesion no se lista | 3/3 |
-| Aislamiento tenant (codigo HTTP) | ID ajeno devuelve 404/403 | **0/1 — D13** |
+| Aislamiento tenant (codigo HTTP) | ID ajeno devuelve 404/403 | **1/1** — corregido el 2026-09-11 |
 | Captura web | Formulario por defecto creado, render publico, submit, contacto creado en el workspace correcto, UTM conservada, submission registrada | 6/6 |
 | Eventos web | Ingesta, persistencia en el workspace correcto, `publicKey` invalida rechazada | 3/3 |
 | Webhook Mercado Pago | Sin firma rechazado (401), firma invalida rechazada (401) | 2/2 |
@@ -1488,7 +1508,7 @@ consumo con su nombre anterior.
 | D10 | Fallback demo (`admin@upzites.cl` / `demo1234`) activo cuando `NODE_ENV !== production` | Acotado, pero revisar antes de pilotos |
 | D11 | Formulario de perfil del workspace en `/configuracion` es `readOnly` con boton deshabilitado | Fase 9 |
 | D12 | Sin `AGENTS.md` ni `CLAUDE.md` en el repositorio | Conviene crearlos |
-| **D13** | **Un ID de otro workspace en `PATCH`/`DELETE /api/contacts/[id]` devuelve 500 en vez de 404.** El dato esta protegido (`where: { id, workspaceId }`), pero el `P2025` de Prisma no se captura | Exigido por la matriz de pruebas (seccion 18 de la spec). Revisar tambien `opportunities`, `activities` y `pipeline-stages`, que siguen el mismo patron |
+| **D13** | ~~Un ID de otro workspace devolvia 500 en vez de 404~~ | **Corregido (2026-09-11)**: helper `orNull` en `lib/http.ts`, aplicado a contacts, opportunities, activities y pipeline-stages. Solo se traga `P2025`; cualquier otro error sube |
 | **D14** | Desarrollo local apunta al **mismo** proyecto Supabase que produccion | Un error en dev afecta datos reales. Crear un segundo proyecto Supabase para dev |
 | ~~D15~~ | ~~El webhook procesa en linea~~ — resuelto: ahora encola `PROCESS_WEBHOOK_EVENT` y responde 200 sin esperar |
 | **D16** | Sin descarga de media (imagenes, audio, documentos): se guarda el payload con el id de Meta, no el archivo | La spec pide almacenamiento privado con URLs firmadas. Fase 3 o 10 |
@@ -1497,15 +1517,15 @@ consumo con su nombre anterior.
 | **D19** | El cron de Vercel corre **una vez al dia en plan Hobby**. Con ese plan los seguimientos no corren solos | Requiere Vercel Pro o `pg_cron` + `pg_net` en Supabase (T11) |
 | **D20** | ~~`/api/internal/*` sin rate limiting propio~~ | **Resuelto en la Fase 10**: si el secreto se filtra, el dano queda acotado a un ritmo razonable |
 | **D21** | ~~`pruneFinishedJobs` no lo llamaba nadie~~ | **Resuelto en la Fase 10**: el trabajo `MAINTENANCE` diario lo ejecuta junto con el resto de la limpieza |
-| **D22** | El agente no genera ni actualiza el `summary` de la conversacion: se manda resumen + 12 mensajes, pero nadie escribe el resumen | Conversaciones largas van a perder contexto. Fase 10 o antes |
+| **D22** | ~~Nadie escribia el `summary` de la conversacion~~ | **Corregido (2026-09-11)**: `lib/agents/summary.ts` lo construye con **hechos de la base**, no pidiendoselo al modelo. Un resumen inventado vuelve a entrar como contexto y se refuerza solo |
 | **D23** | Sin agente ROUTER: hay un solo agente publicado por workspace | Llega cuando existan los agentes de cotizacion y postventa (Fases 5 y 7) |
 | **D24** | Los costos por token estan hardcodeados en `provider.ts` con una tarifa unica | Al fijar precios de plan hay que tarifar por modelo |
 | **D25** | La deteccion de invenciones es por patrones de texto en español. Un modelo que diga "sale cuarenta mil" la esquiva | Es una red de seguridad, no la unica: el precio real solo sale de `search_products` |
 | **D26** | Los assets digitales tipo FILE guardan una ruta, pero **no hay almacenamiento de archivos**: hoy solo funcionan LINK y CODE | La spec pide almacenamiento privado con URLs firmadas. Fase 10 o antes |
-| **D27** | Sin devoluciones ni reembolsos: un pago `REFUNDED` se registra pero no revoca el acceso ni revierte el estado del contacto | Necesario antes de vender en volumen |
+| **D27** | ~~Un reembolso no revocaba el acceso~~ | **Corregido (2026-09-11)**: `revokeOrderAccess` revoca las entregas y marca el pedido. El ciclo de vida del contacto **no** se revierte a proposito: quien compro cinco veces y devolvio una sigue siendo cliente |
 | **D28** | El upsell y la recompra postventa no estan: el pago crea la actividad pero no programa nada | La spec los pide en la seccion 9.7. Fase 8 |
-| **D29** | La entrega digital no se ENVIA: se genera el acceso, pero nadie manda el enlace por WhatsApp o email | Falta conectar la entrega al outbox. Bloquea el criterio "sin intervencion humana" (T14) |
-| **D30** | La sincronizacion de Shopify no se agenda sola: hay que dispararla desde la UI o por API | Agregar `SYNC_SHOPIFY_CATALOG` a los recurrentes del cron |
+| **D29** | ~~La entrega digital se generaba y no se enviaba~~ | **Corregido (2026-09-11)**: `lib/commerce/delivery-notify.ts` la manda por WhatsApp y email. Si no sale por ninguno, levanta un aviso critico y crea la tarea |
+| **D30** | ~~La sincronizacion de Shopify no se agendaba sola~~ | **Corregido (2026-09-11)**: cada 4 horas por conexion activa. Un catalogo viejo en silencio hace que el agente ofrezca lo que ya no existe |
 | **D31** | Los webhooks de Shopify no se registran automaticamente al conectar: hay que darlos de alta en la app | Se puede automatizar con `webhookSubscriptionCreate` en el callback |
 | **D32** | Los productos de Shopify se marcan `PHYSICAL` siempre: un infoproducto vendido por Shopify no dispararia entrega digital | Requiere mapear por tipo de producto o etiqueta. Fase 9 (onboarding) |
 | **D33** | Sin manejo de rate limit de Shopify (cost-based): una tienda grande puede toparse con el limite durante la sincronizacion | La cola reintenta, pero conviene respetar `throttleStatus` |
@@ -1516,7 +1536,7 @@ consumo con su nombre anterior.
 | **D38** | No hay UI para crear ni editar segmentos, journeys, plantillas ni campanas: se cargan por API | La pagina `/recuperacion` muestra y enciende, no edita. Bloquea el onboarding autoservicio (Fase 9) |
 | **D39** | Una campana grande se envia de a 50 por tanda sin control de velocidad del proveedor | Resend tiene limite por segundo; con listas de miles conviene espaciar las tandas |
 | **D40** | Un contacto entra una sola vez a cada journey: no hay reinscripcion | La spec la deja como "reactivacion futura configurable". La unicidad en base lo impide a proposito |
-| **D41** | `maxConsecutiveNoReply` se guarda pero todavia no se aplica | Los journeys de fabrica ya acotan los intentos por diseno; el tope generico falta |
+| **D41** | ~~`maxConsecutiveNoReply` se guardaba y no se aplicaba~~ | **Corregido (2026-09-11)**: se cuenta desde el ultimo entrante y **solo sobre seguimientos de journey**, no campanas: a un boletin casi nadie responde y contarlo bloquearia cualquier lista |
 | **D42** | El journey pausado reintenta cada hora en vez de dormir hasta que lo reactiven | Cuesta una consulta por inscripcion por hora. Aceptable en la beta, no a escala |
 | **D43** | ~~El scoring no envejecia solo~~ | **Resuelto en la Fase 10**: `ageStaleScores` en el mantenimiento diario. Un lead que se calla ahora si se enfria |
 | **D44** | No hay UI para editar el perfil del negocio: el wizard enlaza a paginas que aun no tienen esos campos | Se guarda por `PATCH /api/onboarding/profile`. Es lo que mas falta para un alta autoservicio real |
@@ -1648,6 +1668,10 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-11 | El resumen de conversacion se construye con **hechos de la base**, no pidiendoselo al modelo. Un resumen inventado vuelve a entrar como contexto en la siguiente ejecucion, asi que la invencion se vuelve permanente y se refuerza sola |
+| 2026-09-11 | Un reembolso revoca el acceso pero **no** degrada el ciclo de vida del contacto: quien compro cinco veces y devolvio una sigue siendo cliente, y degradarlo borraria historia comercial cierta |
+| 2026-09-11 | La entrega digital se manda **por los dos canales**, no por uno con respaldo: WhatsApp es donde ocurrio la conversacion, el email es donde el cliente va a buscar el acceso dentro de tres meses |
+| 2026-09-11 | `orNull` solo se traga `P2025`. Un fallo de conexion no puede disfrazarse de 404 |
 | 2026-09-11 | Cada interruptor lleva escrita **la frase que dice que pasa si se apaga**. Uno sin esa frase es uno que nadie se atreve a tocar en una emergencia, que es justo cuando hace falta |
 | 2026-09-11 | Los interruptores **fallan encendidos**: si la tabla de flags no se puede leer, se responde "activo". Un fallo leyendo interruptores no puede dejar el producto muerto |
 | 2026-09-11 | El **corte global no tiene interfaz**: se hace por SQL y esta documentado en el runbook. No es una accion que deba estar a un clic |
@@ -1883,4 +1907,26 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 - **Dos hallazgos corregidos:** el guardrail no detectaba descuentos inventados (B14) y una clave
   mal escrita en una regla de precio se descartaba en silencio, cobrando un recargo a todos (B15).
 - Pruebas: **94/94** critica, **9/9** carga, y las 9 suites de fase sin regresiones.
-- **Las 11 fases estan cerradas. Lo que queda para vender la beta son tareas del propietario.**
+- **Las 11 fases estan cerradas.**
+
+### 2026-09-11 — Deuda: los seis defectos que afectaban al comportamiento
+
+Repaso de la deuda documentada, separando lo que **se comporta mal** de lo que **falta**. Se
+corrigieron los seis primeros; el resto son funciones pendientes, no defectos.
+
+- **D29** — el cliente pagaba y no recibia nada. Los accesos se generaban, se devolvian a quien
+  llamaba y se perdian. Ahora salen por WhatsApp y email, y si no sale por ninguno se levanta un
+  aviso critico con su tarea: un enlace que no salio y nadie sabe que no salio es el peor resultado.
+- **D27** — un reembolso no revocaba el acceso. El cliente devolvia el dinero y se quedaba con el
+  producto.
+- **D13** — un id de otro workspace devolvia 500 en vez de 404. El dato estaba protegido, pero la
+  respuesta filtraba que algo se habia roto adentro. Lo exige la matriz de lanzamiento.
+- **D22** — nadie escribia el resumen de la conversacion, asi que pasados 12 mensajes el agente
+  perdia todo lo anterior.
+- **D41** — `maxConsecutiveNoReply` se guardaba y no hacia nada. Un ajuste que no ajusta es peor que
+  no tenerlo, porque el cliente cree que esta protegido.
+- **D30** — la sincronizacion de Shopify no se agendaba sola: el catalogo envejecia en silencio.
+- **Un hallazgo propio (B16):** la primera version del tope de intentos habria bloqueado las
+  campanas. Lo delato la suite de la Fase 8 al reejecutarse.
+- Pruebas: **116/116** critica (21 nuevas), **142/142** Fase 8, y las 9 suites sin regresiones.
+  Build, lint y tsc limpios.

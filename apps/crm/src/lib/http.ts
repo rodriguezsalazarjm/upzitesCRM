@@ -39,3 +39,31 @@ export async function parseBody<S extends z.ZodTypeAny>(
 
   return { ok: true, data: result.data };
 }
+
+/**
+ * Ejecuta una escritura de Prisma y devuelve `null` si el registro no existe.
+ *
+ * Existe por un defecto real (D13): rutas como `PATCH /api/contacts/[id]`
+ * escriben con `where: { id, workspaceId }`, que protege el dato correctamente
+ * —un id de otro workspace no toca nada— pero lanza `P2025` sin capturar y el
+ * cliente recibe un **500**. La matriz de lanzamiento exige 404 o 403: un 500
+ * dice "algo se rompio aqui dentro", que es informacion que no corresponde dar
+ * a quien esta probando ids ajenos.
+ *
+ * Solo se traga `P2025` (registro no encontrado). Cualquier otro error sube:
+ * un fallo de conexion no puede disfrazarse de 404.
+ */
+export async function orNull<T>(operation: Promise<T>): Promise<T | null> {
+  try {
+    return await operation;
+  } catch (error) {
+    const code = (error as { code?: unknown })?.code;
+    if (code === 'P2025') return null;
+    throw error;
+  }
+}
+
+/** Respuesta 404 uniforme. No dice si el id existe en otra parte. */
+export function notFound(entity = 'Recurso') {
+  return NextResponse.json({ message: `${entity} no encontrado` }, { status: 404 });
+}

@@ -1,5 +1,6 @@
 import {
   ActivityType,
+  DeliveryStatus,
   OrderStatus,
   PaymentStatus,
 } from '../../../generated/prisma/client';
@@ -8,6 +9,7 @@ import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
 import { cancelCheckoutRecovery, upsertPayment } from './checkout';
 import { grantDigitalDelivery } from './delivery';
+import { notifyDigitalDelivery } from './delivery-notify';
 
 /**
  * Procesa el pago de un PEDIDO (no de una suscripcion).
@@ -33,8 +35,65 @@ export type OrderPaymentResult = {
   reason?: string;
   orderId?: string;
   delivered?: number;
+  /** Si el acceso salio hacia el cliente por algun canal. */
+  notified?: boolean;
+  /** Accesos revocados por un reembolso o contracargo. */
+  revoked?: number;
   alreadyProcessed?: boolean;
 };
+
+/**
+ * Revoca lo entregado de un pedido y lo marca como reembolsado.
+ *
+ * **No revierte el ciclo de vida del contacto.** Un reembolso no significa que
+ * nunca fue cliente: quien compro cinco veces y devolvio una sigue siendolo, y
+ * degradarlo por una devolucion borraria historia comercial cierta. Queda
+ * registrado como actividad, que es donde una persona lo va a ver.
+ */
+export async function revokeOrderAccess(input: {
+  workspaceId: string;
+  orderId: string;
+  reason: string;
+  actorId?: string | null;
+}) {
+  const revoked = await prisma.digitalDelivery.updateMany({
+    where: {
+      workspaceId: input.workspaceId,
+      orderId: input.orderId,
+      status: { not: DeliveryStatus.REVOKED },
+    },
+    data: { status: DeliveryStatus.REVOKED, revokedAt: new Date() },
+  });
+
+  const order = await prisma.customerOrder.update({
+    where: { id: input.orderId },
+    data: { status: OrderStatus.REFUNDED },
+    select: { contactId: true, total: true, currency: true },
+  });
+
+  if (order.contactId) {
+    await prisma.activity.create({
+      data: {
+        workspaceId: input.workspaceId,
+        contactId: order.contactId,
+        type: ActivityType.DEAL,
+        title: 'Pago devuelto',
+        description: `${input.reason}. Se revocaron ${revoked.count} acceso(s) del pedido.`,
+      },
+    });
+  }
+
+  await recordAudit({
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    action: 'order.refunded',
+    entity: 'CustomerOrder',
+    entityId: input.orderId,
+    metadata: { reason: input.reason, revoked: revoked.count },
+  });
+
+  return revoked.count;
+}
 
 export async function processOrderPayment(input: OrderPaymentInput): Promise<OrderPaymentResult> {
   const order = await prisma.customerOrder.findUnique({
@@ -60,6 +119,24 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
       currency: input.currency,
       payerEmail: input.payerEmail,
     });
+
+    // D27: un reembolso o un contracargo tienen que revocar lo entregado. Antes
+    // se registraba el pago devuelto y el cliente se quedaba con el acceso.
+    if (input.status === PaymentStatus.REFUNDED) {
+      const revoked = await revokeOrderAccess({
+        workspaceId,
+        orderId: order.id,
+        reason: `pago ${input.rawStatus}`,
+      });
+
+      return {
+        handled: true,
+        orderId: order.id,
+        reason: `pago en estado ${input.rawStatus}`,
+        delivered: 0,
+        revoked,
+      };
+    }
 
     return { handled: true, orderId: order.id, reason: `pago en estado ${input.rawStatus}`, delivered: 0 };
   }
@@ -139,6 +216,19 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     baseUrl: input.baseUrl,
   });
 
+  // D29: hasta ahora los accesos se generaban y se devolvian aqui, y nadie los
+  // mandaba. El cliente pagaba y no recibia nada.
+  //
+  // Solo se notifica lo recien generado: si el pago ya se habia procesado,
+  // `grantDigitalDelivery` devuelve tokens nulos —los validos son los de la
+  // primera vez— y reenviar seria mandar enlaces que no sirven.
+  const notified = await notifyDigitalDelivery({
+    workspaceId,
+    orderId: order.id,
+    contactId: order.contactId,
+    links: delivery.deliveries,
+  });
+
   await recordAudit({
     workspaceId,
     action: 'order.payment_confirmed',
@@ -148,6 +238,8 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
       paymentId: input.externalPaymentId,
       amount: input.amount,
       deliveries: delivery.deliveries.length,
+      notifiedByWhatsapp: notified.whatsapp,
+      notifiedByEmail: notified.email,
     },
   });
 
@@ -155,6 +247,7 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     handled: true,
     orderId: order.id,
     delivered: delivery.deliveries.filter((d) => d.token !== null).length,
+    notified: notified.whatsapp || notified.email,
   };
 }
 

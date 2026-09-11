@@ -10,6 +10,7 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
+import { notifyDigitalDelivery } from './delivery-notify';
 
 /**
  * Entrega digital.
@@ -236,7 +237,21 @@ export async function resendDelivery(input: {
     metadata: { assetId: delivery.assetId },
   });
 
-  return { url: `${input.baseUrl}/d/${token}`, assetName: delivery.asset.name };
+  // D29: reenviar tiene que enviar. Antes solo devolvia el enlace a quien
+  // apretara el boton, que despues tenia que copiarlo y pegarlo a mano.
+  const notified = await notifyDigitalDelivery({
+    workspaceId: input.workspaceId,
+    orderId: delivery.orderId,
+    contactId: delivery.contactId,
+    links: [{ token, assetName: delivery.asset.name, url: `${input.baseUrl}/d/${token}` }],
+  });
+
+  return {
+    url: `${input.baseUrl}/d/${token}`,
+    assetName: delivery.asset.name,
+    /** Si salio solo. Si no, quien reenvia tiene el enlace para mandarlo a mano. */
+    notified: notified.whatsapp || notified.email,
+  };
 }
 
 /** Compara dos tokens en tiempo constante. Se usa donde no hay hash de por medio. */

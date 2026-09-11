@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ContactStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
-import { parseBody } from '@/lib/http';
+import { notFound, orNull, parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const statusMap = {
@@ -49,20 +49,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           })
         : null;
 
-  const contact = await prisma.contact.update({
-    where: { id, workspaceId },
-    data: {
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      companyId: company === undefined ? undefined : company?.id ?? null,
-      status: input.status ? statusMap[input.status] : undefined,
-      source: input.source,
-      value: input.value,
-      tags: input.tags,
-    },
-  });
+  const contact = await orNull(
+    prisma.contact.update({
+      where: { id, workspaceId },
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phone: input.phone,
+        companyId: company === undefined ? undefined : (company?.id ?? null),
+        status: input.status ? statusMap[input.status] : undefined,
+        source: input.source,
+        value: input.value,
+        tags: input.tags,
+      },
+    }),
+  );
+
+  // D13: un id de otro workspace no encuentra nada y eso es un 404,
+  // no un error del servidor.
+  if (!contact) return notFound('Contacto');
 
   return NextResponse.json({ data: contact });
 }
@@ -71,10 +77,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const workspaceId = await getCurrentWorkspaceId();
 
-  await prisma.contact.delete({
-    where: { id, workspaceId },
-  });
+  const eliminado = await orNull(
+    prisma.contact.delete({
+      where: { id, workspaceId },
+    }),
+  );
+  if (!eliminado) return notFound('Contacto');
 
   return NextResponse.json({ ok: true });
 }
-

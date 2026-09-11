@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { OpportunityStage, OpportunityStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
-import { parseBody } from '@/lib/http';
+import { notFound, orNull, parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const stageMap = {
@@ -18,7 +18,9 @@ const updateOpportunitySchema = z.object({
   title: z.string().min(1).optional(),
   contactId: z.string().nullable().optional(),
   companyId: z.string().nullable().optional(),
-  stage: z.enum(['nuevo', 'calificado', 'propuesta', 'negociacion', 'ganado', 'perdido']).optional(),
+  stage: z
+    .enum(['nuevo', 'calificado', 'propuesta', 'negociacion', 'ganado', 'perdido'])
+    .optional(),
   ownerId: z.string().nullable().optional(),
   value: z.number().int().nonnegative().optional(),
   probability: z.number().int().min(0).max(100).optional(),
@@ -49,25 +51,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       })
     : undefined;
 
-  const opportunity = await prisma.opportunity.update({
-    where: { id, workspaceId },
-    data: {
-      title: input.title,
-      contactId: input.contactId,
-      companyId: input.companyId,
-      stageId: stage?.id,
-      ownerId: input.ownerId,
-      value: input.value,
-      probability: input.probability,
-      expectedCloseDate:
-        input.expectedCloseDate === undefined
-          ? undefined
-          : input.expectedCloseDate
-            ? new Date(input.expectedCloseDate)
-            : null,
-      status: stageKey ? statusForStage(stageKey) : undefined,
-    },
-  });
+  const opportunity = await orNull(
+    prisma.opportunity.update({
+      where: { id, workspaceId },
+      data: {
+        title: input.title,
+        contactId: input.contactId,
+        companyId: input.companyId,
+        stageId: stage?.id,
+        ownerId: input.ownerId,
+        value: input.value,
+        probability: input.probability,
+        expectedCloseDate:
+          input.expectedCloseDate === undefined
+            ? undefined
+            : input.expectedCloseDate
+              ? new Date(input.expectedCloseDate)
+              : null,
+        status: stageKey ? statusForStage(stageKey) : undefined,
+      },
+    }),
+  );
+
+  // D13: un id de otro workspace no encuentra nada y eso es un 404,
+  // no un error del servidor.
+  if (!opportunity) return notFound('Oportunidad');
 
   return NextResponse.json({ data: opportunity });
 }
@@ -76,10 +84,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const workspaceId = await getCurrentWorkspaceId();
 
-  await prisma.opportunity.delete({
-    where: { id, workspaceId },
-  });
+  const eliminado = await orNull(
+    prisma.opportunity.delete({
+      where: { id, workspaceId },
+    }),
+  );
+  if (!eliminado) return notFound('Oportunidad');
 
   return NextResponse.json({ ok: true });
 }
-

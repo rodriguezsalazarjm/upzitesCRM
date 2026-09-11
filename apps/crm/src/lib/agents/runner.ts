@@ -18,6 +18,7 @@ import {
   type ModelProvider,
 } from './provider';
 import { toolByName, toolSpecsFor, type ToolContext } from './tools';
+import { refreshConversationSummary } from './summary';
 import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
 import { raiseAlert } from '../billing/alerts';
 import { checkAllowance, recordUsage } from '../billing/usage';
@@ -448,6 +449,10 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     create: { conversationId: conversation.id, lastRunId: run.id, currentAgentId: input.version.id },
     update: { lastRunId: run.id, currentAgentId: input.version.id },
   });
+
+  // D22: el runner mandaba `conversation.summary` al modelo y nadie lo escribia.
+  // Pasados los 12 mensajes de contexto, todo lo anterior desaparecia.
+  await refreshConversationSummary(conversation.id);
 
   return {
     status,

@@ -389,6 +389,30 @@ export async function enqueueRecurringJobs(now = new Date()) {
     priority: 250,
   });
 
+  // D30: la sincronizacion de Shopify no se agendaba sola. Habia que apretar un
+  // boton, y si nadie lo apretaba el catalogo quedaba viejo **en silencio**: el
+  // agente ofrecia productos que ya no existen a precios que ya no son.
+  //
+  // Cada cuatro horas es un compromiso: mas seguido gasta cuota de la API de
+  // Shopify sin que el catalogo cambie tanto; menos seguido deja al agente
+  // trabajando con datos de ayer.
+  const bloque = Math.floor(now.getUTCHours() / 4);
+  const conexiones = await prisma.commerceConnection.findMany({
+    where: { provider: 'SHOPIFY', status: 'CONNECTED' },
+    select: { workspaceId: true },
+    take: 200,
+  });
+
+  for (const conexion of conexiones) {
+    await enqueue({
+      type: JobType.SYNC_SHOPIFY_CATALOG,
+      workspaceId: conexion.workspaceId,
+      payload: {},
+      dedupeKey: `shopify-sync:${conexion.workspaceId}:${day}-${bloque}`,
+      priority: 220,
+    });
+  }
+
   // Mantenimiento: lo ultimo de la cola, porque nada depende de el.
   await enqueue({
     type: JobType.MAINTENANCE,

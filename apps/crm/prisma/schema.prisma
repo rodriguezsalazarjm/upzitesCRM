@@ -1126,6 +1126,9 @@ model DigitalDelivery {
   downloadCount Int            @default(0) @map("download_count")
   lastAccessAt  DateTime?      @map("last_access_at")
   sentAt        DateTime?      @map("sent_at")
+  /// Cuando se revoco el acceso. Ante una disputa, saber el momento importa
+  /// tanto como saber que se revoco.
+  revokedAt     DateTime?      @map("revoked_at")
   createdAt     DateTime       @default(now()) @map("created_at")
 
   workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

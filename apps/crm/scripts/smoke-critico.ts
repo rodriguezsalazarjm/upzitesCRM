@@ -51,6 +51,9 @@ import { enqueue, claimJobs } from '../src/lib/jobs/queue';
 import { advanceEnrollment, enroll } from '../src/lib/marketing/journeys';
 import { isEnabled, setFlag } from '../src/lib/ops/flags';
 import { consume } from '../src/lib/ops/rate-limit';
+import { orNull } from '../src/lib/http';
+import { processOrderPayment } from '../src/lib/commerce/payment-webhook';
+import { refreshConversationSummary } from '../src/lib/agents/summary';
 
 const results: { name: string; ok: boolean }[] = [];
 let failures = 0;
@@ -233,12 +236,14 @@ console.log('\n== Confiabilidad ==');
     dedupeKey: `critico-retry-${stamp}`,
   });
 
-  const tomados = await claimJobs(5);
+  // Se toma un lote amplio: la cola puede tener trabajos de otros bloques y un
+  // limite chico haria que la prueba dependiera del orden, no del bloqueo.
+  const tomados = await claimJobs(100);
   const mio = tomados.find((job) => job.id === reintentable?.id);
   check('Un trabajo se toma una sola vez', mio !== undefined);
 
   // Segunda toma inmediata: ya no esta disponible.
-  const segundos = await claimJobs(5);
+  const segundos = await claimJobs(100);
   check(
     'Dos workers simultaneos no toman el mismo trabajo',
     !segundos.some((job) => job.id === reintentable?.id),
@@ -251,7 +256,7 @@ console.log('\n== Confiabilidad ==');
       data: { status: JobStatus.PENDING, runAt: new Date(Date.now() - 1000), lastError: 'fallo simulado' },
     });
 
-    const reintento = await claimJobs(5);
+    const reintento = await claimJobs(100);
     check(
       'Tras un fallo el trabajo se vuelve a tomar',
       reintento.some((job) => job.id === mio.id),
@@ -656,8 +661,6 @@ console.log('\n== Ecommerce ==');
   check('Ni confirma la orden', ordenTrasRechazo.status === OrderStatus.PENDING_PAYMENT);
 
   // --- Orden pagada y fulfillment creado ---
-  const { processOrderPayment } = await import('../src/lib/commerce/payment-webhook');
-
   const pagoInput = {
     orderId: orden.id,
     externalPaymentId: `aprobado-${stamp}`,
@@ -1027,6 +1030,390 @@ console.log('\n== Rate limiting ==');
   const { RATE_LIMITS } = await import('../src/lib/ops/rate-limit');
   check('El limite de webhooks es mucho mas alto que el de login',
     RATE_LIMITS.webhook.limit > RATE_LIMITS.login.limit * 10);
+}
+
+// =============================================================================
+console.log('\n== Deuda corregida ==');
+// =============================================================================
+{
+  // --- D13: un id ajeno devuelve 404, no 500 ---
+  // Se comprueba el helper, que es donde vive la regla. Las rutas lo usan.
+  const ajeno = await orNull(
+    prisma.contact.update({
+      where: { id: 'no-existe', workspaceId: A.workspaceId },
+      data: { firstName: 'x' },
+    }),
+  );
+  check('D13: escribir sobre un id inexistente devuelve null, no lanza', ajeno === null);
+
+  const deB = await prisma.contact.findFirstOrThrow({ where: { workspaceId: B.workspaceId } });
+  const cruzado = await orNull(
+    prisma.contact.update({
+      where: { id: deB.id, workspaceId: A.workspaceId },
+      data: { firstName: 'x' },
+    }),
+  );
+  check('D13: y un id de otro workspace tambien', cruzado === null);
+
+  const intacto = await prisma.contact.findUniqueOrThrow({ where: { id: deB.id } });
+  check('D13: sin tocar el dato ajeno', intacto.firstName !== 'x');
+
+  // Un error que NO es "no encontrado" sigue subiendo: un fallo de conexion no
+  // puede disfrazarse de 404.
+  let subio = false;
+  try {
+    await orNull(
+      prisma.contact.create({ data: { workspaceId: 'inexistente', firstName: 'a', lastName: 'b' } }),
+    );
+  } catch {
+    subio = true;
+  }
+  check('D13: otros errores siguen subiendo', subio);
+
+  // --- D29: la entrega digital se ENVIA ---
+  const producto = await prisma.product.create({
+    data: {
+      workspaceId: A.workspaceId,
+      name: 'Digital notificado',
+      type: 'DIGITAL',
+      status: 'ACTIVE',
+      variants: { create: [{ name: 'Acceso', priceClp: 15000, isDefault: true }] },
+      assets: {
+        create: [
+          {
+            workspaceId: A.workspaceId,
+            name: 'Material',
+            kind: 'LINK',
+            target: 'https://ejemplo.test/x',
+          },
+        ],
+      },
+    },
+    include: { variants: true },
+  });
+
+  const comprador = await prisma.contact.create({
+    data: {
+      workspaceId: A.workspaceId,
+      firstName: 'Notif',
+      lastName: 'Critico',
+      email: `notif-${stamp}@t.test`,
+      phone: '+56955554444',
+    },
+  });
+
+  // Una conversacion abierta para que el aviso pueda salir por WhatsApp.
+  const conversacionEntrega = await prisma.conversation.create({
+    data: {
+      workspaceId: A.workspaceId,
+      channelId: A.channelId,
+      contactId: comprador.id,
+      mode: ConversationMode.AI_ACTIVE,
+      status: ConversationStatus.OPEN,
+    },
+  });
+
+  const pedidoDigital = await prisma.customerOrder.create({
+    data: {
+      workspaceId: A.workspaceId,
+      contactId: comprador.id,
+      status: OrderStatus.PENDING_PAYMENT,
+      total: 15000,
+      lines: {
+        create: [
+          {
+            variantId: producto.variants[0].id,
+            name: producto.name,
+            unitPrice: 15000,
+            quantity: 1,
+            total: 15000,
+          },
+        ],
+      },
+    },
+  });
+
+  const resultado = await processOrderPayment({
+    orderId: pedidoDigital.id,
+    externalPaymentId: `notif-${stamp}`,
+    status: PaymentStatus.APPROVED,
+    rawStatus: 'approved',
+    amount: 15000,
+    currency: 'CLP',
+    baseUrl: 'http://localhost:3001',
+  });
+
+  check('D29: el pago notifica la entrega, no solo la genera', resultado.notified === true);
+
+  const salientes = await prisma.message.findMany({
+    where: { conversationId: conversacionEntrega.id, direction: MessageDirection.OUTBOUND },
+  });
+
+  check('D29: sale un mensaje al cliente', salientes.length === 1, `${salientes.length}`);
+  check('D29: con el enlace de acceso dentro', salientes[0]?.text?.includes('/d/') === true);
+
+  // --- D27: un reembolso revoca el acceso ---
+  const vivos = await prisma.digitalDelivery.count({
+    where: { orderId: pedidoDigital.id, status: 'REVOKED' },
+  });
+  check('D27: antes del reembolso el acceso esta vivo', vivos === 0);
+
+  await processOrderPayment({
+    orderId: pedidoDigital.id,
+    externalPaymentId: `devolucion-${stamp}`,
+    status: PaymentStatus.REFUNDED,
+    rawStatus: 'refunded',
+    amount: 15000,
+    currency: 'CLP',
+    baseUrl: 'http://localhost:3001',
+  });
+
+  const revocados = await prisma.digitalDelivery.findMany({ where: { orderId: pedidoDigital.id } });
+  check('D27: un reembolso revoca el acceso', revocados.every((d) => d.status === 'REVOKED'));
+  check('D27: y queda cuando se revoco', revocados.every((d) => d.revokedAt !== null));
+
+  const pedidoTrasDevolucion = await prisma.customerOrder.findUniqueOrThrow({
+    where: { id: pedidoDigital.id },
+  });
+  check(
+    'D27: el pedido queda como reembolsado',
+    pedidoTrasDevolucion.status === OrderStatus.REFUNDED,
+  );
+
+  // El ciclo de vida NO se revierte: quien compro cinco veces y devolvio una
+  // sigue siendo cliente.
+  const contactoTras = await prisma.contact.findUniqueOrThrow({ where: { id: comprador.id } });
+  check(
+    'D27: pero el contacto no deja de ser cliente por una devolucion',
+    contactoTras.lifecycleStatus === 'CUSTOMER',
+    contactoTras.lifecycleStatus,
+  );
+
+  // Un enlace revocado ya no sirve.
+  const { resolveDelivery } = await import('../src/lib/commerce/delivery');
+  const entregaRevocada = revocados[0];
+  check(
+    'D27: y el enlace revocado deja de funcionar',
+    entregaRevocada.status === 'REVOKED' &&
+      (await resolveDelivery('token-inventado-que-no-existe')).ok === false,
+  );
+
+  // --- D41: el tope de intentos sin respuesta se aplica ---
+  const insistido = await prisma.contact.create({
+    data: {
+      workspaceId: A.workspaceId,
+      firstName: 'Sin',
+      lastName: 'Respuesta',
+      email: `sinresp-${stamp}@t.test`,
+      phone: '+56944443333',
+    },
+  });
+
+  await grantConsent({
+    workspaceId: A.workspaceId,
+    contactId: insistido.id,
+    channel: ConsentChannel.WHATSAPP,
+    source: 'prueba',
+  });
+
+  await prisma.messagingPolicy.update({
+    where: { workspaceId: A.workspaceId },
+    data: {
+      quietStartMinute: 0,
+      quietEndMinute: 0,
+      maxWhatsappPerDay: 99,
+      maxConsecutiveNoReply: 3,
+      allowSameDayMultichannel: true,
+    },
+  });
+
+  const { evaluateSend: evaluar, recordSend: registrar } = await import(
+    '../src/lib/marketing/policy'
+  );
+
+  // El tope solo cuenta seguimientos de journey: un boletin al que nadie
+  // responde no es insistir. Por eso los envios de la prueba llevan journeyId.
+  const journeyParaTope = await prisma.journey.findFirstOrThrow({
+    where: { workspaceId: A.workspaceId },
+  });
+
+  for (let i = 0; i < 2; i += 1) {
+    await registrar({
+      workspaceId: A.workspaceId,
+      contactId: insistido.id,
+      channel: ConsentChannel.WHATSAPP,
+      journeyId: journeyParaTope.id,
+    });
+  }
+
+  const dosIntentos = await evaluar({
+    workspaceId: A.workspaceId,
+    contactId: insistido.id,
+    channel: ConsentChannel.WHATSAPP,
+  });
+  check(
+    'D41: con 2 intentos sin respuesta todavia se puede',
+    dosIntentos.allowed,
+    dosIntentos.allowed ? '' : dosIntentos.reason,
+  );
+
+  await registrar({
+    workspaceId: A.workspaceId,
+    contactId: insistido.id,
+    channel: ConsentChannel.WHATSAPP,
+    journeyId: journeyParaTope.id,
+  });
+
+  const tresIntentos = await evaluar({
+    workspaceId: A.workspaceId,
+    contactId: insistido.id,
+    channel: ConsentChannel.WHATSAPP,
+  });
+  check(
+    'D41: al tercero sin respuesta se corta',
+    !tresIntentos.allowed && tresIntentos.reason === 'NO_REPLY_LIMIT',
+    tresIntentos.allowed ? 'permitido' : tresIntentos.reason,
+  );
+
+  // Si responde, la cuenta vuelve a cero sola.
+  const conversacionInsistido = await prisma.conversation.create({
+    data: {
+      workspaceId: A.workspaceId,
+      channelId: A.channelId,
+      contactId: insistido.id,
+      mode: ConversationMode.AI_ACTIVE,
+      status: ConversationStatus.OPEN,
+    },
+  });
+
+  await prisma.message.create({
+    data: {
+      workspaceId: A.workspaceId,
+      conversationId: conversacionInsistido.id,
+      direction: MessageDirection.INBOUND,
+      senderType: MessageSenderType.CONTACT,
+      text: 'aqui estoy',
+      status: MessageStatus.DELIVERED,
+    },
+  });
+
+  const trasResponder = await evaluar({
+    workspaceId: A.workspaceId,
+    contactId: insistido.id,
+    channel: ConsentChannel.WHATSAPP,
+  });
+  check(
+    'D41: si responde, la cuenta vuelve a cero',
+    trasResponder.allowed,
+    trasResponder.allowed ? '' : trasResponder.reason,
+  );
+
+  // Un boletin no cuenta como insistir: a una campana casi nadie responde, y
+  // contarla dejaria cualquier lista bloqueada tras el tercer envio.
+  const deCampana = await prisma.contact.create({
+    data: {
+      workspaceId: A.workspaceId,
+      firstName: 'Lista',
+      lastName: 'Correo',
+      email: `lista-${stamp}@t.test`,
+      phone: '+56922221111',
+    },
+  });
+
+  await grantConsent({
+    workspaceId: A.workspaceId,
+    contactId: deCampana.id,
+    channel: ConsentChannel.WHATSAPP,
+    source: 'prueba',
+  });
+
+  const campanaParaTope = await prisma.campaign.create({
+    data: { workspaceId: A.workspaceId, name: 'Boletin', channel: ConsentChannel.EMAIL },
+  });
+
+  for (let i = 0; i < 5; i += 1) {
+    await registrar({
+      workspaceId: A.workspaceId,
+      contactId: deCampana.id,
+      channel: ConsentChannel.WHATSAPP,
+      campaignId: campanaParaTope.id,
+    });
+  }
+
+  const trasBoletin = await evaluar({
+    workspaceId: A.workspaceId,
+    contactId: deCampana.id,
+    channel: ConsentChannel.WHATSAPP,
+  });
+  check(
+    'D41: cinco campanas sin respuesta NO bloquean: no es insistir',
+    trasBoletin.allowed,
+    trasBoletin.allowed ? '' : trasBoletin.reason,
+  );
+
+  // --- D22: el resumen de la conversacion se escribe ---
+  // Contacto propio: `conversations` es unica por (canal, contacto) y el
+  // comprador ya tiene la suya.
+  const hablador = await prisma.contact.create({
+    data: {
+      workspaceId: A.workspaceId,
+      firstName: 'Conversa',
+      lastName: 'Larga',
+      email: `larga-${stamp}@t.test`,
+      phone: '+56933332222',
+    },
+  });
+
+  // Un pedido suyo, para comprobar que el resumen recoge el estado comercial.
+  await prisma.customerOrder.create({
+    data: {
+      workspaceId: A.workspaceId,
+      contactId: hablador.id,
+      status: OrderStatus.CONFIRMED,
+      total: 25000,
+    },
+  });
+
+  const larga = await prisma.conversation.create({
+    data: {
+      workspaceId: A.workspaceId,
+      channelId: A.channelId,
+      contactId: hablador.id,
+      mode: ConversationMode.AI_ACTIVE,
+      status: ConversationStatus.OPEN,
+    },
+  });
+
+  for (let i = 0; i < 14; i += 1) {
+    await prisma.message.create({
+      data: {
+        workspaceId: A.workspaceId,
+        conversationId: larga.id,
+        direction: i % 2 === 0 ? MessageDirection.INBOUND : MessageDirection.OUTBOUND,
+        senderType: i % 2 === 0 ? MessageSenderType.CONTACT : MessageSenderType.AI,
+        text: i === 0 ? 'Necesito ayuda con mi pedido' : `mensaje ${i}`,
+        status: MessageStatus.DELIVERED,
+      },
+    });
+  }
+
+  const resumen = await refreshConversationSummary(larga.id);
+
+  check('D22: una conversacion larga produce resumen', resumen !== null);
+  check(
+    'D22: con el motivo original de la consulta',
+    (resumen ?? '').includes('Necesito ayuda con mi pedido'),
+  );
+  check('D22: y con el estado comercial', (resumen ?? '').includes('Pedido por'));
+
+  const guardado = await prisma.conversation.findUniqueOrThrow({ where: { id: larga.id } });
+  check('D22: y queda guardado en la conversacion', guardado.summary === resumen);
+
+  // Una conversacion corta no necesita resumen: el modelo ya la ve entera.
+  check(
+    'D22: una conversacion corta no genera resumen',
+    (await refreshConversationSummary(conversacionEntrega.id)) === null,
+  );
 }
 
 // --- Limpieza ---------------------------------------------------------------

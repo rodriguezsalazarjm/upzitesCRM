@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ActivityType } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
-import { parseBody } from '@/lib/http';
+import { notFound, orNull, parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
 const activityTypeMap = {
@@ -30,19 +30,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
 
-  const activity = await prisma.activity.update({
-    where: { id, workspaceId },
-    data: {
-      contactId: input.contactId,
-      opportunityId: input.opportunityId,
-      type: input.type ? activityTypeMap[input.type] : undefined,
-      title: input.title,
-      description: input.description,
-      dueAt: input.dueAt === undefined ? undefined : input.dueAt ? new Date(input.dueAt) : null,
-      completedAt:
-        input.completedAt === undefined ? undefined : input.completedAt ? new Date(input.completedAt) : null,
-    },
-  });
+  const activity = await orNull(
+    prisma.activity.update({
+      where: { id, workspaceId },
+      data: {
+        contactId: input.contactId,
+        opportunityId: input.opportunityId,
+        type: input.type ? activityTypeMap[input.type] : undefined,
+        title: input.title,
+        description: input.description,
+        dueAt: input.dueAt === undefined ? undefined : input.dueAt ? new Date(input.dueAt) : null,
+        completedAt:
+          input.completedAt === undefined
+            ? undefined
+            : input.completedAt
+              ? new Date(input.completedAt)
+              : null,
+      },
+    }),
+  );
+
+  // D13: un id de otro workspace no encuentra nada y eso es un 404,
+  // no un error del servidor.
+  if (!activity) return notFound('Actividad');
 
   return NextResponse.json({ data: activity });
 }
@@ -51,10 +61,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const workspaceId = await getCurrentWorkspaceId();
 
-  await prisma.activity.delete({
-    where: { id, workspaceId },
-  });
+  const eliminado = await orNull(
+    prisma.activity.delete({
+      where: { id, workspaceId },
+    }),
+  );
+  if (!eliminado) return notFound('Actividad');
 
   return NextResponse.json({ ok: true });
 }
-
