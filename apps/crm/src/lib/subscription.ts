@@ -9,6 +9,7 @@ import { isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { DEFAULT_SCORE_RULES } from './domain';
 import { AUTOMATION_PRESETS } from './automation/presets';
 import { DEFAULT_SALES_AGENT } from './agents/presets';
+import { bootstrapMarketing } from './marketing/bootstrap';
 import { hashPassword } from './password';
 import { prisma } from './prisma';
 
@@ -142,7 +143,7 @@ export async function createCustomerWorkspace(input: {
   const slug = await uniqueWorkspaceSlug(input.companyName);
   const trialEndsAt = nextTrialEnd();
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const workspace = await tx.workspace.create({
       data: {
         name: input.companyName,
@@ -253,6 +254,7 @@ export async function createCustomerWorkspace(input: {
       })),
     });
 
+
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
@@ -266,4 +268,15 @@ export async function createCustomerWorkspace(input: {
 
     return { user, workspace, subscription: { trialEndsAt } };
   });
+
+  // Fase 8: politica de contacto, segmentos y journeys de fabrica.
+  //
+  // Va DESPUES de la transaccion y no dentro. Son una decena de escrituras que
+  // no forman parte de la invariante "el cliente existe", y meterlas en la
+  // transaccion interactiva la llevaba al limite de 5 segundos: el alta fallaba
+  // por culpa de unos segmentos de ejemplo. Si esto falla, el workspace queda
+  // igualmente operativo y basta reintentar: `bootstrapMarketing` es idempotente.
+  await bootstrapMarketing(created.workspace.id);
+
+  return created;
 }

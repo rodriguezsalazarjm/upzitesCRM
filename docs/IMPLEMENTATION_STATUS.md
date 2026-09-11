@@ -3,10 +3,10 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 7 — Cotizador y aprobaciones
-- **Estado:** COMPLETADA y verificada end-to-end en local, incluido el PDF.
-  Esperando aprobacion para la Fase 8.
-- **Ultima actualizacion:** 2026-09-07
+- **Fase actual:** 8 — Recuperacion, email y campanas
+- **Estado:** COMPLETADA y verificada end-to-end en local, incluida la baja publica.
+  Esperando aprobacion para la Fase 9.
+- **Ultima actualizacion:** 2026-09-11
 
 ---
 
@@ -22,8 +22,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 5 | Infoproductos, Mercado Pago y entrega | **Completada** (2026-09-08) |
 | 6 | Shopify | **Completada** (2026-09-08), probada con fixtures |
 | 7 | Cotizador y aprobaciones | **Completada** (2026-09-08) |
-| 8 | Recuperacion, email y campanas | No iniciada — requiere aprobacion |
-| 9 | Onboarding SaaS, planes y consumo | No iniciada |
+| 8 | Recuperacion, email y campanas | **Completada** (2026-09-11) |
+| 9 | Onboarding SaaS, planes y consumo | No iniciada — requiere aprobacion |
 | 10 | Hardening y lanzamiento beta | No iniciada |
 
 ### Fase 0 — detalle
@@ -181,6 +181,41 @@ una tienda real, que requiere crear la app en Shopify Partners (T16).
 
 ---
 
+### Fase 8 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Lead scoring y temperatura explicable | Hecho | Se activaron las dos reglas de email que la Fase 1 dejo pendientes |
+| Segmentos beta | Hecho | Los 8 de la spec, como **datos** con el mismo lenguaje que uno propio |
+| Journeys de lead silencioso, checkout, cotizacion y postventa | Hecho | Los 4, con los tiempos de la spec (9.4 a 9.7) |
+| Email provider, dominio, templates, campaigns y webhooks | Hecho | Interfaz `EmailProvider` + adaptadores Resend y guionado |
+| Unsubscribe y suppression global por canal/workspace | Hecho | `/baja/[token]` publico, verificado en el navegador |
+| Frequency caps y quiet hours | Hecho | `lib/marketing/policy.ts`, en la zona horaria del workspace |
+| Metricas de journey/campana | Hecho | Contadores materializados + tasa de recuperacion |
+| Personalizacion con IA dentro de limites del template | Hecho | `aiSlots`: el modelo rellena huecos, no escribe el email |
+
+**Criterio de salida:** el CRM recupera leads y ejecuta campanas autorizadas sin envios indebidos.
+**Cumplido.** Las seis pruebas que la spec exige para la fase estan cubiertas y la baja publica se
+verifico end-to-end en el navegador: abrir el enlace no da de baja a nadie, confirmar si, y tras
+confirmar el contacto desaparece de todos los segmentos enviables.
+
+**La idea que ordena la fase:** hay **una sola puerta de envio**. Journeys, campanas y avisos
+operativos pasan todos por `evaluateSend`, que decide en este orden: primero lo que bloquea para
+siempre (consentimiento, supresion) y despues lo que solo posterga (silencio, frecuencia). Que el
+orden sea ese importa: el motivo que queda guardado es el verdadero, y no "quiet hours" cuando en
+realidad la persona pidio no ser contactada.
+
+**Lo que se decidio no frenar:** un mensaje operativo de una compra no consume topes de marketing
+ni espera al amanecer. Lo unico que lo detiene es la supresion, porque un rebote duro significa que
+el buzon no existe. Confundir marketing con servicio en la direccion contraria —frenar la
+confirmacion de una compra por un tope de campana— seria peor que el problema que el tope resuelve.
+
+**Sobre el piloto:** ni los 8 segmentos ni los 4 journeys de fabrica nombran un rubro, y hay dos
+pruebas que fallan si uno se cuela. Los textos son genericos y editables: son un punto de partida,
+no el mensaje definitivo de nadie.
+
+---
+
 ### Fase 7 — detalle
 
 | Entregable | Estado | Evidencia |
@@ -223,9 +258,10 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 49 tablas (48 modelos + `_prisma_migrations`) tras la Fase 7. Sin datos.
+- 61 tablas (60 modelos + `_prisma_migrations`) tras la Fase 8. Sin datos: cada suite limpia
+  lo suyo y se verifico que no quedan filas residuales.
 
-### Modelos Prisma (48)
+### Modelos Prisma (60)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -235,6 +271,10 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 `ScheduledAction`, `UsageRecord`.
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
+
+Fase 8 (12): `MessagingPolicy`, `Segment`, `Journey`, `JourneyStep`, `JourneyEnrollment`,
+`EmailDomain`, `EmailTemplate`, `Campaign`, `CampaignRecipient`, `EmailMessage`, `EmailEvent`,
+`ContactSendLog`.
 
 Fase 7 (4): `PricingRuleSet`, `Quote`, `QuoteLine`, `ApprovalRequest`.
 
@@ -249,11 +289,17 @@ Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedu
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (52)
+### Enums (65)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
 `AutomationAction`, `AiInsightType`, `InsightStatus`, `SubscriptionStatus`.
+
+Fase 8 (13): `SegmentSource`, `JourneyStatus`, `JourneyTrigger`, `JourneyStepAction`,
+`JourneyEnrollmentStatus`, `EmailProviderKind`, `EmailDomainStatus`, `EmailTemplateStatus`,
+`CampaignStatus`, `CampaignRecipientStatus`, `EmailMessageStatus`, `EmailEventType`,
+`SendCategory`. `AutomationTrigger` sumo `EMAIL_OPENED`, `EMAIL_CLICKED` y `EMAIL_BOUNCED`;
+`JobType` sumo seis trabajos.
 
 Fase 1 (12): `LifecycleStatus`, `LeadTemperature`, `BuyingIntent`, `ConversationMode`,
 `OrderStatus`, `PaymentStatus`, `QuoteStatus`, `ConsentStatus`, `ConsentChannel`,
@@ -281,7 +327,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (16, todas aplicadas)
+### Migraciones (17, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -300,6 +346,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260908150000_fase6_integration_shopify
 20260908160000_fase6_job_shopify
 20260908180000_fase7_cotizador
+20260910120000_fase8_recuperacion_email
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -604,6 +651,57 @@ sumar `pdfkit` o `@react-pdf`, que traen decenas de megas y un runtime que mante
 documento que es texto en una pagina. El resultado es determinista —los mismos datos producen los
 mismos bytes— y se verifico abriendolo en el navegador, no solo comprobando que el archivo existe.
 
+### Recuperacion, email y campanas (Fase 8)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/marketing/policy.ts` | **La unica puerta de envio**: consentimiento, silencio, topes y multicanal |
+| `lib/marketing/segments.ts` | Lenguaje de filtros y resolucion, siempre sin suprimidos |
+| `lib/marketing/journeys.ts` | Motor de secuencias: inscribe, avanza de a un paso, saca |
+| `lib/marketing/enrollments.ts` | Salida de inscripciones, aparte para evitar un ciclo de imports |
+| `lib/marketing/campaigns.ts` | Destinatarios materializados y envio por tandas |
+| `lib/marketing/bootstrap.ts` | Politica, segmentos y journeys de fabrica de un workspace nuevo |
+| `lib/email/provider.ts` | Interfaz `EmailProvider`: mandar, verificar dominio, firma y eventos |
+| `lib/email/resend.ts` | Adaptador de Resend, con verificacion de firma Svix |
+| `lib/email/scripted.ts` | Proveedor determinista: pruebas y workspaces sin email configurado |
+| `lib/email/templates.ts` | Render, escapado y personalizacion con IA acotada |
+| `lib/email/send.ts` | Camino de envio: una sola funcion, todas las comprobaciones |
+| `lib/email/events.ts` | Webhook del proveedor: idempotencia, estados, supresion y scoring |
+| `lib/email/unsubscribe.ts` | Baja desde el enlace, idempotente y atribuida a su campana |
+
+**Una sola puerta.** Todo lo que escribe a un contacto pasa por `evaluateSend`. La alternativa
+—que cada journey y cada campana recordara comprobar consentimiento, supresion, horario y
+frecuencia— es exactamente el tipo de olvido que produce el envio indebido que la fase existe para
+impedir.
+
+**Quiet hours en la zona del workspace.** Un servidor en UTC no puede decidir si en Santiago son
+las 22:00. El calculo convierte hora de pared a instante iterando sobre el desfase real de la
+fecha, de modo que sobrevive al cambio de horario de verano; hay pruebas para el cambio de
+septiembre en Chile y para el cruce de fin de mes.
+
+**Un bloqueo reprograma, no consume el paso.** Si una inscripcion despierta de noche o el contacto
+ya alcanzo su tope, `nextRunAt` se corre y `currentPosition` no se mueve. Consumir el paso
+equivaldria a saltarse el mensaje en silencio, que es la falla que nadie detecta hasta que el
+cliente pregunta por que no le escribieron.
+
+**Los segmentos nunca se materializan.** Se guarda la definicion; el recuento es informativo y toda
+campana reevalua en el momento del envio. Asi nadie recibe algo por haber quedado en una lista
+vieja. La exclusion de suprimidos vive dentro del resolvedor y no en cada llamador, para que
+construir un journey nuevo no dependa de acordarse.
+
+**La IA rellena huecos, no escribe el email.** Un template declara `aiSlots` con su guia, su largo
+maximo y su texto de respaldo; eso es lo unico que el modelo puede tocar. Una respuesta con un
+enlace, HTML, un monto o un descuento se rechaza y queda el respaldo, y el rechazo se audita porque
+significa que el modelo intento salirse. Es el mismo criterio de la Fase 7 con los totales.
+
+**El token de baja no queda en claro en ninguna parte.** En la base vive su hash, y el cuerpo
+guardado lleva un marcador `{{unsubscribe_url}}` que solo se sustituye por la URL real en lo que
+sale hacia el proveedor. Guardar el cuerpo renderizado con el enlace dentro habria vuelto inutil
+guardar solo el hash.
+
+**Lo operacional no se frena.** Un aviso de compra no consume topes, no espera al amanecer y sale
+aunque el dominio este todavia pendiente de verificar. Lo unico que lo detiene es la supresion.
+
 ### Scripts de apoyo creados
 
 - `scripts/set-crm-db.mjs`: escribe `apps/crm/.env.production.local` a partir del connection
@@ -623,6 +721,8 @@ mismos bytes— y se verifico abriendolo en el navegador, no solo comprobando qu
   sincronizacion, draft orders y webhooks). No requiere tienda ni credenciales.
 - `apps/crm/scripts/smoke-fase7.ts`: pruebas de la Fase 7 (motor, validacion, aprobaciones,
   versionado y PDF).
+- `apps/crm/scripts/smoke-fase8.ts`: pruebas de la Fase 8 (politica, segmentos, journeys,
+  email, campanas y baja). No requiere proveedor de email ni credenciales.
 
 ---
 
@@ -692,6 +792,40 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B12 — El token de baja quedaba en claro dentro del cuerpo guardado — CORREGIDO (2026-09-11)
+
+Lo detecto una prueba que se escribio para afirmar justo eso: que el token no aparece en la base.
+`EmailMessage` guarda solo el hash del token, pero tambien guardaba el cuerpo renderizado del
+correo, y el cuerpo llevaba el enlace completo. Guardar el hash no servia de nada: el token estaba
+tres columnas mas alla, en texto plano.
+
+**Correccion:** el cuerpo se guarda con un marcador `{{unsubscribe_url}}` y la URL real solo se
+sustituye en lo que sale hacia el proveedor. El cuerpo guardado sigue sirviendo como evidencia de
+que se envio, sin llevar dentro la llave. De paso, una plantilla puede colocar el marcador donde
+quiera y entonces no se le agrega un segundo pie.
+
+**Leccion:** guardar un secreto hasheado no protege nada si el mismo secreto viaja dentro de otro
+campo de la misma fila. Vale la pena escribir la prueba que afirma la propiedad, no solo la que
+comprueba que la columna del hash no es nula.
+
+### B11 — El alta de un cliente excedia el limite de la transaccion — CORREGIDO (2026-09-11)
+
+Lo detecto la suite al crear sus workspaces de prueba: `P2028`, transaccion expirada a los 5.5 s.
+La Fase 8 sumo a `createCustomerWorkspace` la creacion de 8 segmentos, 4 journeys y sus 17 pasos,
+todo dentro de la transaccion interactiva del registro. Cada journey era un viaje mas a la base
+sobre el pooler, y el conjunto pasaba el limite de 5 segundos de Prisma.
+
+No era un problema de la prueba: **el registro de un cliente real habria fallado igual**, de forma
+intermitente y en el peor momento posible.
+
+**Correccion:** la configuracion de recuperacion salio de la transaccion a `bootstrapMarketing`,
+que corre despues del commit en tres escrituras masivas en vez de una por fila. Nada de eso forma
+parte de la invariante "el cliente existe": si falla, el workspace queda operativo igual y la
+funcion es idempotente, asi que basta volver a llamarla.
+
+**Leccion:** una transaccion interactiva no es el lugar para datos de ejemplo. Lo que debe ser
+atomico es el usuario, el workspace y su suscripcion; los presets pueden llegar un segundo despues.
 
 ### B10 — El enlace del PDF se perdia al aprobar la ultima cotizacion — CORREGIDO (2026-09-08)
 
@@ -1026,6 +1160,47 @@ Tras la Fase 7 se reejecutaron las suites anteriores: **Fase 6 en 74/74**, **Fas
 **Fase 4 en 72/72**, **Fase 3 en 46/46**, **Fase 2 en 46/46** y **Fase 1 en 41/41**, sin
 regresiones.
 
+### Fase 8
+
+`pnpm exec tsx scripts/smoke-fase8.ts` desde `apps/crm`, ejecutado el 2026-09-11.
+
+**Resultado: 142/142.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Zona horaria y quiet hours: horario de verano, fin de mes, ida y vuelta | 10 | 10/10 |
+| Consentimiento, **tope de frecuencia** y regla multicanal | 10 | 10/10 |
+| **Los segmentos excluyen a los suprimidos**; la lista de suprimidos no es enviable | 13 | 13/13 |
+| Plantillas: escapado, placeholders y **la IA no se sale del template** | 17 | 17/17 |
+| Envio: dominio verificado, enlace de baja obligatorio, token fuera de la base | 18 | 18/18 |
+| **La baja cancela acciones, saca de journeys y suprime** | 10 | 10/10 |
+| Webhook: firma, ventana de tiempo, idempotencia y estados que no retroceden | 15 | 15/15 |
+| **Rebote permanente suprime**; el transitorio no | 4 | 4/4 |
+| Journeys: **quiet hours reprograman**, **un pago saca de la recuperacion** | 30 | 30/30 |
+| Campanas: lista sin suprimidos, motivos de omision, metricas | 13 | 13/13 |
+| Scoring explicable con señales de email | 6 | 6/6 |
+
+**Las seis pruebas que la spec exige para la fase** estan todas cubiertas y nombradas tal cual:
+segmentos excluyen suprimidos, desuscripcion cancela acciones pendientes, pago saca al contacto de
+recuperacion, quiet hours reprograma, frequency cap impide exceso, rebote permanente suprime email.
+
+**La prueba central de la fase:** en quiet hours la inscripcion **no avanza de paso**. Se comprueba
+que `currentPosition` sigue igual, que `stepsCompleted` sigue en cero y que el proveedor no recibio
+nada. Un journey que "respeta el horario" saltandose el mensaje seria peor que uno que no lo
+respeta, porque el fallo es invisible.
+
+**Verificacion end-to-end en el navegador:** se cargo un workspace con dominio verificado, plantilla
+publicada y contactos; se envio un email real por el proveedor guionado y se abrio su enlace de
+baja. Se comprobo que **abrir la pagina no da de baja a nadie** (el consentimiento seguia GRANTED),
+que confirmar si lo hace, y que despues de confirmar el contacto **desaparece de todos los
+segmentos enviables** —el preview del segmento de leads calientes paso a cero— mientras aparece en
+el de suprimidos, que es de solo consulta. Tambien se pauso y se publico un journey desde la
+interfaz y se rechazo una zona horaria inexistente.
+
+Tras la Fase 8 se reejecutaron las suites anteriores: **Fase 7 en 79/79**, **Fase 6 en 74/74**,
+**Fase 5 en 70/70**, **Fase 4 en 72/72**, **Fase 3 en 46/46**, **Fase 2 en 46/46** y
+**Fase 1 en 41/41**, sin regresiones.
+
 ---
 
 ## 7. Deuda tecnica
@@ -1068,7 +1243,13 @@ regresiones.
 | **D34** | No hay UI para crear ni editar reglas de precio: se cargan por API | Bloquea el onboarding autoservicio. Fase 9 |
 | **D35** | Las cotizaciones vencidas no pasan solas a EXPIRED: `validUntil` se guarda pero nadie lo barre | Agregar al cron, junto con los recurrentes de la Fase 3 |
 | **D36** | El PDF no lleva logo ni colores del workspace: solo el nombre | La spec pide "branding basico"; falta almacenamiento de imagenes (D26) |
-| **D37** | El seguimiento de cotizacion pendiente (1/3/7 dias, spec 9.6) no esta cableado a `ScheduledAction` | Fase 8, junto con los demas journeys |
+| **D37** | El seguimiento de cotizacion pendiente (1/3/7 dias, spec 9.6) no esta cableado a `ScheduledAction` | **Resuelto en la Fase 8**: es el journey `cotizacion-pendiente` |
+| **D38** | No hay UI para crear ni editar segmentos, journeys, plantillas ni campanas: se cargan por API | La pagina `/recuperacion` muestra y enciende, no edita. Bloquea el onboarding autoservicio (Fase 9) |
+| **D39** | Una campana grande se envia de a 50 por tanda sin control de velocidad del proveedor | Resend tiene limite por segundo; con listas de miles conviene espaciar las tandas |
+| **D40** | Un contacto entra una sola vez a cada journey: no hay reinscripcion | La spec la deja como "reactivacion futura configurable". La unicidad en base lo impide a proposito |
+| **D41** | `maxConsecutiveNoReply` se guarda pero todavia no se aplica | Los journeys de fabrica ya acotan los intentos por diseno; el tope generico falta |
+| **D42** | El journey pausado reintenta cada hora en vez de dormir hasta que lo reactiven | Cuesta una consulta por inscripcion por hora. Aceptable en la beta, no a escala |
+| **D43** | El scoring por envejecimiento sigue dependiendo de que algo dispare el recalculo | Hay `RECALCULATE_SCORE` en la cola pero ningun barrido periodico lo encola |
 
 ---
 
@@ -1107,6 +1288,10 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T15 | Cargar el catalogo del piloto de infoproductos y habilitar `create_checkout` en su agente | Sin catalogo el agente deriva; sin la herramienta no puede cerrar la venta |
 | T16 | **Crear la app en Shopify Partners** y entregar `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` | Valida la Fase 6 contra una tienda real; hoy solo esta probada con fixtures |
 | T17 | Definir las reglas de precio reales del piloto de servicios y publicarlas | Sin reglas publicadas el agente no puede cotizar; se cargan por `POST /api/pricing-rule-sets` |
+| T18 | **Crear la cuenta de Resend** y entregar `RESEND_API_KEY` y `EMAIL_WEBHOOK_SECRET` | Sin esto el email queda en el proveedor guionado: se registra pero no sale |
+| T19 | **Verificar el dominio de envio** del piloto: registrarlo y publicar los registros DNS | Ningun email promocional sale desde un dominio sin verificar. Es una decision de DNS, no de codigo |
+| T20 | Revisar y aprobar los textos de los 4 journeys de fabrica antes de publicarlos | Nacen en borrador a proposito: publicarlos es empezar a escribirle a clientes reales |
+| T21 | Confirmar la zona horaria y los topes de contacto del piloto | Por defecto America/Santiago, 20:30-09:00, 1 WhatsApp/dia y 3 emails/semana. Se ajustan en `PATCH /api/messaging-policy` |
 
 ---
 
@@ -1135,11 +1320,11 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** 48 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
+**Modelo de datos:** 60 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
 (7/7, mas `DigitalAsset` y `DigitalDelivery`), con los dos proveedores. Cotizaciones: hecho (4/4).
-De marketing y seguimiento ya estan consentimiento, scoring, supresion, scheduled actions y el
-motor de automatizaciones; **faltan segmentos, journeys y campanas**, que es todo lo que queda del
-modelo de datos de la spec. Uso y costos: hecho.
+De marketing y seguimiento: **completo**. Consentimiento, scoring, supresion, scheduled actions,
+el motor de automatizaciones y ahora segmentos, journeys y campanas. **Con esto no queda nada
+pendiente del modelo de datos de la spec.** Uso y costos: hecho.
 
 **Herramientas del agente:** 20 de las 21 que lista la spec, todas implementadas.
 `create_digital_delivery` **no se implementara como herramienta**: la entrega la dispara el webhook
@@ -1180,6 +1365,15 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-11 | **Una sola puerta de envio**: journeys, campanas y avisos operativos pasan todos por `evaluateSend`. La alternativa —que cada llamador recuerde comprobar consentimiento, horario y frecuencia— es exactamente el olvido que produce el envio indebido |
+| 2026-09-11 | Un bloqueo por horario o por tope **reprograma la inscripcion, no consume el paso**. Consumirlo seria saltarse el mensaje en silencio, y ese fallo no lo detecta nadie hasta que el cliente pregunta por que no le escribieron |
+| 2026-09-11 | Los segmentos **no se materializan**: se guarda la definicion y toda campana reevalua al enviar. El recuento es informativo. Nadie recibe algo por haber quedado en una lista vieja |
+| 2026-09-11 | La exclusion de suprimidos vive **dentro del resolvedor**, no en cada llamador: construir un journey nuevo no puede depender de que alguien se acuerde de filtrar |
+| 2026-09-11 | Lo **operacional no se frena**: un aviso de compra no consume topes ni espera al amanecer. Frenarlo por un tope de marketing seria peor que el problema que el tope resuelve. Lo unico que lo detiene es la supresion |
+| 2026-09-11 | La IA **rellena huecos declarados** (`aiSlots`), no escribe el email. Un enlace, un monto o un descuento inventado se rechaza y queda el respaldo. Mismo criterio que con los totales en la Fase 7 |
+| 2026-09-11 | El cuerpo guardado lleva un **marcador** de baja, no la URL: guardar solo el hash del token no sirve si el token viaja en otra columna de la misma fila |
+| 2026-09-11 | Los 4 journeys de fabrica nacen en **DRAFT**. Publicar significa empezar a escribirle a clientes reales, igual que con el agente de la Fase 4 |
+| 2026-09-11 | Un contacto entra **una sola vez** a cada journey. La unicidad en base es lo que garantiza que un barrido repetido no vuelva a escribirle; reinscribir es una decision de producto que la spec deja para despues |
 | 2026-09-08 | Las reglas de precio son **datos en JSON, no codigo**. Un rubro nuevo se configura sin desplegar, y ningun rubro queda hardcodeado: es la restriccion multivertical aplicada al cotizador |
 | 2026-09-08 | El PDF se genera **sin dependencias**, escribiendo el formato a mano. `pdfkit` o `@react-pdf` traen decenas de megas y un runtime que mantener para un documento de una pagina. El resultado es determinista y se verifico abriendolo en el navegador |
 | 2026-09-08 | El PDF se genera al vuelo en cada peticion en vez de almacenarse: asi siempre corresponde a lo aprobado y no queda un archivo viejo circulando con numeros que ya no son |
@@ -1339,4 +1533,26 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 - **Hallazgo corregido (B10):** el enlace del PDF se perdia al aprobar la ultima cotizacion, y no
   habia forma de recuperarlo. Lo detecto la prueba manual en la interfaz, no la suite.
 - Pruebas: **79/79**. Fases 6, 5, 4, 3, 2 y 1 sin regresiones. Build, lint y tsc limpios.
-- **Fase 7 cerrada. No se inicia la Fase 8 sin aprobacion del propietario.**
+- **Fase 7 cerrada.**
+
+### 2026-09-11 — Fase 8, recuperacion, email y campanas
+
+- 12 tablas y 13 enums nuevos; migracion `20260910120000_fase8_recuperacion_email`, aditiva, con
+  backfill de la politica de contacto y de las dos reglas de scoring de email para los workspaces
+  que ya existian.
+- Politica de contacto con quiet hours **en la zona del workspace**, topes por canal y la regla de
+  no mezclar WhatsApp y email promocional el mismo dia.
+- Los 8 segmentos de la spec, escritos con el mismo lenguaje que uno propio del cliente. La
+  exclusion de suprimidos vive en el resolvedor.
+- Los 4 journeys de la spec con sus tiempos, en borrador. Motor que avanza de a un paso, persiste
+  el proximo y sale cuando el contacto responde, compra o lo toma un humano.
+- Interfaz `EmailProvider` con dos adaptadores: Resend (firma Svix verificada) y uno guionado que
+  sirve tanto para las pruebas como para un workspace sin email configurado.
+- Campanas por tandas con destinatarios materializados y el motivo de cada omision.
+- Baja publica en `/baja/[token]`: no se ejecuta al abrir la pagina, solo al confirmar.
+- Personalizacion con IA acotada a huecos declarados por el template.
+- **Dos hallazgos corregidos:** el alta de un cliente excedia el limite de la transaccion (B11) y
+  el token de baja quedaba en claro en el cuerpo guardado (B12). El primero habria roto el registro
+  de clientes reales; lo detecto la suite al crear sus propios workspaces.
+- Pruebas: **142/142**. Fases 7 a 1 sin regresiones. Build, lint (0 errores) y tsc limpios.
+- **Fase 8 cerrada. No se inicia la Fase 9 sin aprobacion del propietario.**

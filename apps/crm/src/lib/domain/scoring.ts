@@ -5,12 +5,12 @@ import { recordAudit, type Db } from './audit';
 /**
  * Reglas iniciales de scoring (spec, seccion 10).
  *
- * Solo se incluyen las que hoy son calculables con los datos que el CRM ya
- * tiene. Las que dependen de canales aun no implementados quedan registradas
- * como inactivas para no inventar señales:
- *   - apertura y clic de email  -> Fase 8
- *   - apertura de checkout real -> Fase 5 (hoy se infiere de BuyingIntent)
- *   - medidas o direccion       -> Fase 7 (cotizador)
+ * Solo se incluyen las calculables con datos que el CRM realmente tiene: una
+ * regla que puntua una señal que nadie mide produce un score inventado.
+ *
+ * La Fase 8 activo las dos de email, que hasta entonces no eran medibles. La
+ * migracion las agrega tambien a los workspaces que ya existian, porque un
+ * cliente anterior no deberia quedar con un scoring mas pobre que uno nuevo.
  */
 export const DEFAULT_SCORE_RULES = [
   { key: 'asked_price', label: 'Pidio precio', points: 20 },
@@ -19,6 +19,8 @@ export const DEFAULT_SCORE_RULES = [
   { key: 'replied_24h', label: 'Respondio en las ultimas 24 horas', points: 15 },
   { key: 'has_open_opportunity', label: 'Tiene oportunidad abierta', points: 15 },
   { key: 'engaged_activities', label: 'Actividades registradas', points: 10 },
+  { key: 'email_opened', label: 'Abrio un email', points: 5 },
+  { key: 'email_clicked', label: 'Hizo clic en un email', points: 10 },
   { key: 'stale_7d', label: 'Siete dias sin actividad', points: -15 },
   { key: 'stale_30d', label: 'Treinta dias sin actividad', points: -30 },
   { key: 'not_interested', label: 'Indico que no esta interesado', points: -50 },
@@ -45,6 +47,9 @@ export type ScoringSignals = {
   lastActivityAt: Date | null;
   activityCount: number;
   openOpportunities: number;
+  /** Fase 8: abrio o clickeo algun email en la ventana reciente. */
+  emailOpened?: boolean;
+  emailClicked?: boolean;
 };
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -88,6 +93,11 @@ export function computeScore(
   if (signals.openOpportunities > 0) add('has_open_opportunity');
   if (signals.activityCount >= 3) add('engaged_activities');
 
+  // El clic ya implica interes; sumar tambien la apertura seria contar dos
+  // veces la misma señal.
+  if (signals.emailClicked) add('email_clicked');
+  else if (signals.emailOpened) add('email_opened');
+
   const idleMs = signals.lastActivityAt ? Date.now() - signals.lastActivityAt.getTime() : null;
 
   if (idleMs !== null && idleMs <= DAY_MS) {
@@ -130,6 +140,20 @@ export async function recalculateContactScore(
     where: { workspaceId: input.workspaceId, contactId: contact.id, status: 'OPEN' },
   });
 
+  // Ventana de 30 dias: una apertura de hace medio ano no dice nada del interes
+  // de hoy, y dejaria el score alto para siempre.
+  const emailWindow = new Date(Date.now() - 30 * DAY_MS);
+
+  const engagement = await db.emailMessage.findFirst({
+    where: {
+      workspaceId: input.workspaceId,
+      contactId: contact.id,
+      OR: [{ openedAt: { gte: emailWindow } }, { clickedAt: { gte: emailWindow } }],
+    },
+    orderBy: { clickedAt: { sort: 'desc', nulls: 'last' } },
+    select: { openedAt: true, clickedAt: true },
+  });
+
   const rules = await db.leadScoreRule.findMany({
     where: { workspaceId: input.workspaceId, isActive: true },
     select: { key: true, label: true, points: true },
@@ -142,6 +166,8 @@ export async function recalculateContactScore(
       lastActivityAt: contact.lastActivityAt,
       activityCount: contact._count.activities,
       openOpportunities,
+      emailOpened: Boolean(engagement?.openedAt),
+      emailClicked: Boolean(engagement?.clickedAt),
     },
     rules.length > 0 ? rules : DEFAULT_SCORE_RULES,
   );

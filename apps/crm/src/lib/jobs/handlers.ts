@@ -16,6 +16,10 @@ import { syncShopifyCatalog, getShopifyConnection } from '../shopify/sync';
 import { createShopifyClient } from '../shopify/client';
 import { emitDomainEvent } from '../automation/emit';
 import type { DomainEvent } from '../automation/types';
+import { sendEmail } from '../email/send';
+import { sendCampaignBatch } from '../marketing/campaigns';
+import { advanceEnrollment, processDueEnrollments, scanJourneyEntries } from '../marketing/journeys';
+import { refreshSegmentCount } from '../marketing/segments';
 import { enqueue } from './queue';
 
 /**
@@ -196,6 +200,79 @@ const handlers: Record<JobType, JobHandler> = {
     if (!contactId || !workspaceId) throw new Error('RECALCULATE_SCORE requiere contactId y workspaceId.');
     return recalculateContactScore({ workspaceId, contactId });
   },
+
+  /**
+   * Un email suelto: lo usa un journey que necesita reintentar y cualquier
+   * envio pedido desde la interfaz.
+   */
+  [JobType.SEND_EMAIL]: async (payload, workspaceId) => {
+    const contactId = String(payload.contactId ?? '');
+    if (!contactId || !workspaceId) throw new Error('SEND_EMAIL requiere contactId y workspaceId.');
+
+    return sendEmail({
+      workspaceId,
+      contactId,
+      templateKey: typeof payload.templateKey === 'string' ? payload.templateKey : undefined,
+      subject: typeof payload.subject === 'string' ? payload.subject : undefined,
+      bodyHtml: typeof payload.bodyHtml === 'string' ? payload.bodyHtml : undefined,
+      bodyText: typeof payload.bodyText === 'string' ? payload.bodyText : undefined,
+      campaignId: typeof payload.campaignId === 'string' ? payload.campaignId : null,
+      journeyId: typeof payload.journeyId === 'string' ? payload.journeyId : null,
+    });
+  },
+
+  /**
+   * Una tanda de campana. Si quedan destinatarios se vuelve a encolar sola:
+   * asi una campana grande avanza sin monopolizar el worker ni pasarse del
+   * tiempo maximo de una funcion.
+   */
+  [JobType.SEND_CAMPAIGN]: async (payload, workspaceId) => {
+    const campaignId = String(payload.campaignId ?? '');
+    if (!campaignId || !workspaceId) throw new Error('SEND_CAMPAIGN requiere campaignId y workspaceId.');
+
+    const result = await sendCampaignBatch({ workspaceId, campaignId, limit: 50 });
+
+    if (result.remaining > 0) {
+      await enqueue({
+        type: JobType.SEND_CAMPAIGN,
+        workspaceId,
+        payload: { campaignId },
+        // La tanda va en el dedupeKey: sin eso el reencolado chocaria consigo
+        // mismo y la campana se detendria despues de la primera tanda.
+        dedupeKey: `campaign:${campaignId}:${result.remaining}`,
+        priority: 100,
+      });
+    }
+
+    return result;
+  },
+
+  /** Avanza las inscripciones vencidas. Es el latido de los journeys. */
+  [JobType.PROCESS_JOURNEYS]: async () => processDueEnrollments(100),
+
+  [JobType.RUN_JOURNEY_STEP]: async (payload) => {
+    const enrollmentId = String(payload.enrollmentId ?? '');
+    if (!enrollmentId) throw new Error('RUN_JOURNEY_STEP requiere enrollmentId.');
+
+    return advanceEnrollment(enrollmentId);
+  },
+
+  /** Inscribe a quien califique en cada journey publicado. */
+  [JobType.SCAN_JOURNEY_ENTRIES]: async () => scanJourneyEntries(200),
+
+  [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
+    const segments = await prisma.segment.findMany({
+      where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
+      select: { id: true, workspaceId: true },
+      take: 200,
+    });
+
+    for (const segment of segments) {
+      await refreshSegmentCount(segment.workspaceId, segment.id);
+    }
+
+    return { refreshed: segments.length };
+  },
 };
 
 export function handlerFor(type: JobType): JobHandler {
@@ -223,6 +300,15 @@ export async function enqueueRecurringJobs(now = new Date()) {
     priority: 20,
   });
 
+  // Los journeys se miran cada minuto: un paso de "dos horas" que se ejecuta
+  // una hora tarde ya no es el mensaje que se penso.
+  await enqueue({
+    type: JobType.PROCESS_JOURNEYS,
+    payload: {},
+    dedupeKey: `journeys:${minute}`,
+    priority: 30,
+  });
+
   // El barrido de silencio es caro: basta una vez por hora.
   const hour = now.toISOString().slice(0, 13);
   await enqueue({
@@ -230,6 +316,23 @@ export async function enqueueRecurringJobs(now = new Date()) {
     payload: {},
     dedupeKey: `scan-silence:${hour}`,
     priority: 200,
+  });
+
+  // Las entradas a journeys tambien: recorren toda la base de contactos.
+  await enqueue({
+    type: JobType.SCAN_JOURNEY_ENTRIES,
+    payload: {},
+    dedupeKey: `journey-entries:${hour}`,
+    priority: 210,
+  });
+
+  // Los recuentos de segmento son informativos: una vez al dia alcanza.
+  const day = now.toISOString().slice(0, 10);
+  await enqueue({
+    type: JobType.REFRESH_SEGMENT_COUNTS,
+    payload: {},
+    dedupeKey: `segment-counts:${day}`,
+    priority: 300,
   });
 }
 

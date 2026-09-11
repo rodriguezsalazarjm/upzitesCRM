@@ -7,6 +7,7 @@ import {
   type Prisma,
 } from '../../../generated/prisma/client';
 import { emitDomainEvent } from '../automation/emit';
+import { exitEnrollments } from '../marketing/enrollments';
 import { prisma } from '../prisma';
 import { recordAudit, type Db } from './audit';
 
@@ -29,10 +30,17 @@ function identifierFor(channel: ConsentChannel, contact: { email: string | null;
   return raw ? normalizeIdentifier(channel, raw) : null;
 }
 
-export type ConsentDecision = {
-  allowed: boolean;
-  reason: 'GRANTED' | 'NO_CONSENT' | 'REVOKED' | 'SUPPRESSED' | 'NO_IDENTIFIER' | 'NOT_FOUND';
-};
+/**
+ * Union discriminada, no `{ allowed: boolean }`: asi quien entra a la rama de
+ * rechazo sabe por tipos que 'GRANTED' no puede aparecer ahi, y no tiene que
+ * inventar un caso imposible para que compile.
+ */
+export type ConsentDecision =
+  | { allowed: true; reason: 'GRANTED' }
+  | {
+      allowed: false;
+      reason: 'NO_CONSENT' | 'REVOKED' | 'SUPPRESSED' | 'NO_IDENTIFIER' | 'NOT_FOUND';
+    };
 
 /**
  * Decide si se puede contactar a alguien por un canal.
@@ -183,9 +191,14 @@ export type RevokeInput = {
 /**
  * Revoca el consentimiento de un canal y bloquea el envio de inmediato.
  *
- * Hace tres cosas de forma atomica: marca el consentimiento como REVOKED,
- * agrega la identidad a la lista de supresion (para que sobreviva al contacto)
- * y cancela las acciones programadas pendientes de ese contacto.
+ * Hace cuatro cosas de forma atomica: marca el consentimiento como REVOKED,
+ * agrega la identidad a la lista de supresion (para que sobreviva al contacto),
+ * cancela las acciones programadas pendientes de ese contacto y lo saca de los
+ * journeys que escriben por ese canal.
+ *
+ * Lo ultimo es lo que hace que una desuscripcion detenga de verdad la
+ * recuperacion: sin eso el consentimiento quedaba revocado pero la secuencia
+ * seguia despertando cada dia para descubrirlo.
  */
 export async function revokeConsent(input: RevokeInput) {
   const result = await prisma.$transaction(async (tx) => {
@@ -194,7 +207,9 @@ export async function revokeConsent(input: RevokeInput) {
       select: { id: true, email: true, phone: true },
     });
 
-    if (!contact) return { revoked: false, suppressed: false, canceledActions: 0 };
+    if (!contact) {
+      return { revoked: false, suppressed: false, canceledActions: 0, exitedEnrollments: 0 };
+    }
 
     const now = new Date();
 
@@ -248,6 +263,17 @@ export async function revokeConsent(input: RevokeInput) {
       data: { status: ScheduledActionStatus.CANCELED, canceledAt: now },
     });
 
+    const exited = await exitEnrollments(
+      {
+        workspaceId: input.workspaceId,
+        contactId: contact.id,
+        channel: input.channel,
+        reason: `consentimiento revocado (${input.channel})`,
+        actorId: input.actorId,
+      },
+      tx,
+    );
+
     await recordAudit(
       {
         workspaceId: input.workspaceId,
@@ -259,12 +285,13 @@ export async function revokeConsent(input: RevokeInput) {
           channel: input.channel,
           reason: input.reason ?? SuppressionReason.USER_REQUEST,
           canceledActions: canceled.count,
+          exitedEnrollments: exited,
         },
       },
       tx,
     );
 
-    return { revoked: true, suppressed, canceledActions: canceled.count };
+    return { revoked: true, suppressed, canceledActions: canceled.count, exitedEnrollments: exited };
   });
 
   if (result.revoked) {

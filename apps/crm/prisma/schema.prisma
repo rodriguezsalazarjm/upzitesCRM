@@ -60,6 +60,17 @@ model Workspace {
   quotes           Quote[]
   approvalRequests ApprovalRequest[]
 
+  messagingPolicy    MessagingPolicy?
+  segments           Segment[]
+  journeys           Journey[]
+  journeyEnrollments JourneyEnrollment[]
+  emailDomains       EmailDomain[]
+  emailTemplates     EmailTemplate[]
+  campaigns          Campaign[]
+  emailMessages      EmailMessage[]
+  emailEvents        EmailEvent[]
+  contactSendLogs    ContactSendLog[]
+
   @@map("workspaces")
 }
 
@@ -162,6 +173,11 @@ model Contact {
   orders           CustomerOrder[]
   deliveries       DigitalDelivery[]
   quotes           Quote[]
+
+  journeyEnrollments JourneyEnrollment[]
+  campaignRecipients CampaignRecipient[]
+  emailMessages      EmailMessage[]
+  sendLogs           ContactSendLog[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -1232,6 +1248,397 @@ model ApprovalRequest {
   @@map("approval_requests")
 }
 
+// --- Fase 8: recuperacion, email y campanas -----------------------------------
+
+/// Politica de contacto del workspace: zona horaria, ventana de silencio y
+/// topes de frecuencia.
+///
+/// Es 1:1 con el workspace y arranca con los valores de la spec (seccion 11),
+/// de modo que un workspace recien creado ya queda protegido contra envios
+/// indebidos sin que nadie configure nada.
+model MessagingPolicy {
+  id          String @id @default(cuid())
+  workspaceId String @unique @map("workspace_id")
+
+  /// Zona IANA. Las quiet hours se evaluan aqui, no en la del servidor.
+  timezone String @default("America/Santiago")
+
+  /// Minutos desde medianoche. Por defecto 20:30 a 09:00.
+  quietStartMinute Int @default(1230) @map("quiet_start_minute")
+  quietEndMinute   Int @default(540) @map("quiet_end_minute")
+
+  /// Topes de frecuencia. Solo los consume lo promocional: un mensaje
+  /// operativo de una compra nunca queda bloqueado por un tope de marketing.
+  maxWhatsappPerDay     Int @default(1) @map("max_whatsapp_per_day")
+  maxEmailPerWeek       Int @default(3) @map("max_email_per_week")
+  maxConsecutiveNoReply Int @default(3) @map("max_consecutive_no_reply")
+
+  /// Regla 9 de la spec: no enviar WhatsApp y email promocional el mismo dia
+  /// salvo que el workspace lo habilite a proposito.
+  allowSameDayMultichannel Boolean @default(false) @map("allow_same_day_multichannel")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("messaging_policies")
+}
+
+/// Segmento de contactos: un filtro declarativo, no una lista materializada.
+///
+/// El recuento guardado es informativo. Toda campana reevalua el segmento en el
+/// momento del envio, para que nadie reciba algo por estar en una lista vieja.
+model Segment {
+  id          String        @id @default(cuid())
+  workspaceId String        @map("workspace_id")
+  key         String
+  name        String
+  description String?
+  source      SegmentSource @default(PRESET)
+
+  /// Filtro validado con Zod. Ver src/lib/marketing/segments.ts.
+  definition Json
+
+  estimatedCount  Int       @default(0) @map("estimated_count")
+  lastEvaluatedAt DateTime? @map("last_evaluated_at")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+  journeys  Journey[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, isActive])
+  @@map("segments")
+}
+
+/// Secuencia de seguimiento. Los pasos y sus esperas son datos: un rubro nuevo
+/// configura su recuperacion sin desplegar codigo.
+model Journey {
+  id          String         @id @default(cuid())
+  workspaceId String         @map("workspace_id")
+  key         String
+  name        String
+  description String?
+  status      JourneyStatus  @default(DRAFT)
+  trigger     JourneyTrigger
+
+  /// Ademas del disparador, el contacto debe pertenecer a este segmento.
+  segmentId String? @map("segment_id")
+
+  entryConditions Json? @map("entry_conditions")
+  exitConditions  Json? @map("exit_conditions")
+
+  version     Int       @default(1)
+  publishedAt DateTime? @map("published_at")
+  pausedAt    DateTime? @map("paused_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  segment       Segment?            @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  steps         JourneyStep[]
+  enrollments   JourneyEnrollment[]
+  emailMessages EmailMessage[]
+  sendLogs      ContactSendLog[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, status])
+  @@map("journeys")
+}
+
+model JourneyStep {
+  id        String            @id @default(cuid())
+  journeyId String            @map("journey_id")
+  position  Int
+  label     String
+  action    JourneyStepAction
+
+  /// Espera desde el paso anterior; en el primero, desde la inscripcion.
+  delayHours Float @default(0) @map("delay_hours")
+
+  channel    ConsentChannel?
+  templateId String?         @map("template_id")
+
+  /// Cuerpo para WhatsApp, o para email sin template.
+  body       String?
+  conditions Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  journey  Journey        @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  template EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([journeyId, position])
+  @@map("journey_steps")
+}
+
+/// Inscripcion de un contacto en un journey.
+///
+/// `@@unique([journeyId, contactId])` es deliberado: en la beta un contacto
+/// entra una sola vez a cada journey. Reinscribir es una decision de producto
+/// (la spec la deja como "reactivacion futura configurable"), y mientras no
+/// exista, la unicidad impide que un barrido repetido vuelva a escribirle.
+model JourneyEnrollment {
+  id          String                  @id @default(cuid())
+  workspaceId String                  @map("workspace_id")
+  journeyId   String                  @map("journey_id")
+  contactId   String                  @map("contact_id")
+  status      JourneyEnrollmentStatus @default(ACTIVE)
+
+  currentPosition Int       @default(0) @map("current_position")
+  nextRunAt       DateTime? @map("next_run_at")
+
+  /// Clave con la que se cancelan de una vez las acciones de esta inscripcion.
+  cancelKey String @map("cancel_key")
+
+  stepsCompleted Int       @default(0) @map("steps_completed")
+  enteredAt      DateTime  @default(now()) @map("entered_at")
+  exitedAt       DateTime? @map("exited_at")
+  exitReason     String?   @map("exit_reason")
+  lastError      String?   @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey   Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, contactId])
+  @@index([workspaceId, status])
+  @@index([status, nextRunAt])
+  @@map("journey_enrollments")
+}
+
+/// Dominio de envio del cliente. Sin un dominio verificado no sale email
+/// promocional: enviar desde un dominio ajeno arruina la reputacion de todos.
+model EmailDomain {
+  id          String            @id @default(cuid())
+  workspaceId String            @map("workspace_id")
+  domain      String
+  provider    EmailProviderKind @default(SCRIPTED)
+  status      EmailDomainStatus @default(PENDING)
+
+  /// Registros DNS que el cliente debe publicar. Los entrega el proveedor.
+  dnsRecords       Json?   @map("dns_records")
+  providerDomainId String? @map("provider_domain_id")
+
+  fromName  String? @map("from_name")
+  fromEmail String? @map("from_email")
+
+  verifiedAt    DateTime? @map("verified_at")
+  lastCheckedAt DateTime? @map("last_checked_at")
+  lastError     String?   @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, domain])
+  @@index([workspaceId, status])
+  @@map("email_domains")
+}
+
+/// Plantilla de email.
+///
+/// `aiSlots` declara los unicos huecos que la IA puede rellenar. El asunto, la
+/// estructura y los enlaces son del template: la personalizacion no reescribe
+/// el mensaje, solo completa lo que el template le dejo completar.
+model EmailTemplate {
+  id          String              @id @default(cuid())
+  workspaceId String              @map("workspace_id")
+  key         String
+  name        String
+  subject     String
+  bodyHtml    String              @map("body_html")
+  bodyText    String              @map("body_text")
+  variables   String[]            @default([])
+  aiSlots     Json?               @map("ai_slots")
+  category    SendCategory        @default(PROMOTIONAL)
+  status      EmailTemplateStatus @default(DRAFT)
+  publishedAt DateTime?           @map("published_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns     Campaign[]
+  journeySteps  JourneyStep[]
+  emailMessages EmailMessage[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, status])
+  @@map("email_templates")
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  workspaceId String         @map("workspace_id")
+  name        String
+  channel     ConsentChannel @default(EMAIL)
+  segmentId   String?        @map("segment_id")
+  templateId  String?        @map("template_id")
+  status      CampaignStatus @default(DRAFT)
+
+  scheduledAt DateTime? @map("scheduled_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  /// Contadores materializados: la vista de metricas no recorre destinatarios.
+  recipientCount    Int @default(0) @map("recipient_count")
+  sentCount         Int @default(0) @map("sent_count")
+  skippedCount      Int @default(0) @map("skipped_count")
+  failedCount       Int @default(0) @map("failed_count")
+  deliveredCount    Int @default(0) @map("delivered_count")
+  openedCount       Int @default(0) @map("opened_count")
+  clickedCount      Int @default(0) @map("clicked_count")
+  bouncedCount      Int @default(0) @map("bounced_count")
+  complainedCount   Int @default(0) @map("complained_count")
+  unsubscribedCount Int @default(0) @map("unsubscribed_count")
+
+  createdById String? @map("created_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  segment       Segment?            @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  template      EmailTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients    CampaignRecipient[]
+  emailMessages EmailMessage[]
+  sendLogs      ContactSendLog[]
+
+  @@index([workspaceId, status])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id          String                  @id @default(cuid())
+  workspaceId String                  @map("workspace_id")
+  campaignId  String                  @map("campaign_id")
+  contactId   String                  @map("contact_id")
+  status      CampaignRecipientStatus @default(PENDING)
+
+  /// Por que no se le envio. Es la evidencia de que la omision fue deliberada.
+  skipReason     String?   @map("skip_reason")
+  emailMessageId String?   @unique @map("email_message_id")
+  processedAt    DateTime? @map("processed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  campaign     Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact      Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, contactId])
+  @@index([workspaceId, status])
+  @@map("campaign_recipients")
+}
+
+model EmailMessage {
+  id          String  @id @default(cuid())
+  workspaceId String  @map("workspace_id")
+  contactId   String? @map("contact_id")
+  campaignId  String? @map("campaign_id")
+  journeyId   String? @map("journey_id")
+  templateId  String? @map("template_id")
+
+  toEmail   String @map("to_email")
+  fromEmail String @map("from_email")
+  subject   String
+  bodyHtml  String @map("body_html")
+  bodyText  String @map("body_text")
+
+  category SendCategory       @default(PROMOTIONAL)
+  status   EmailMessageStatus @default(QUEUED)
+  provider EmailProviderKind  @default(SCRIPTED)
+
+  providerMessageId String? @map("provider_message_id")
+
+  /// Solo el hash del token de baja: el enlace se arma una vez y el CRM nunca
+  /// guarda con que se puede dar de baja a alguien.
+  unsubscribeTokenHash String? @unique @map("unsubscribe_token_hash")
+
+  sentAt         DateTime? @map("sent_at")
+  deliveredAt    DateTime? @map("delivered_at")
+  openedAt       DateTime? @map("opened_at")
+  clickedAt      DateTime? @map("clicked_at")
+  bouncedAt      DateTime? @map("bounced_at")
+  complainedAt   DateTime? @map("complained_at")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+  failedAt       DateTime? @map("failed_at")
+  lastError      String?   @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  campaign  Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  journey   Journey?           @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+  template  EmailTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  events    EmailEvent[]
+  recipient CampaignRecipient?
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, providerMessageId])
+  @@map("email_messages")
+}
+
+/// Hecho reportado por el proveedor de email. `dedupeKey` hace idempotente el
+/// webhook: el mismo evento reintentado no cuenta dos veces.
+model EmailEvent {
+  id             String         @id @default(cuid())
+  workspaceId    String         @map("workspace_id")
+  emailMessageId String?        @map("email_message_id")
+  type           EmailEventType
+  dedupeKey      String         @map("dedupe_key")
+  payload        Json?
+  occurredAt     DateTime       @default(now()) @map("occurred_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, type, occurredAt])
+  @@map("email_events")
+}
+
+/// Registro de envios por contacto y canal.
+///
+/// Existe para aplicar los topes de frecuencia sin recorrer mensajes ni emails,
+/// y para poder responder "cuando fue la ultima vez que le escribimos" con una
+/// sola consulta.
+model ContactSendLog {
+  id          String         @id @default(cuid())
+  workspaceId String         @map("workspace_id")
+  contactId   String         @map("contact_id")
+  channel     ConsentChannel
+  category    SendCategory   @default(PROMOTIONAL)
+  journeyId   String?        @map("journey_id")
+  campaignId  String?        @map("campaign_id")
+  sentAt      DateTime       @default(now()) @map("sent_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  journey   Journey?  @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+  campaign  Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, contactId, channel, sentAt])
+  @@index([workspaceId, sentAt])
+  @@map("contact_send_logs")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -1311,6 +1718,10 @@ enum AutomationTrigger {
   QUOTE_CREATED
   QUOTE_ACCEPTED
   ORDER_FULFILLED
+  // Fase 8
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_BOUNCED
 }
 
 enum AutomationAction {
@@ -1547,6 +1958,13 @@ enum JobType {
   // Fase 6
   PROCESS_SHOPIFY_EVENT
   SYNC_SHOPIFY_CATALOG
+  // Fase 8
+  SEND_EMAIL
+  SEND_CAMPAIGN
+  PROCESS_JOURNEYS
+  RUN_JOURNEY_STEP
+  SCAN_JOURNEY_ENTRIES
+  REFRESH_SEGMENT_COUNTS
 }
 
 enum JobStatus {
@@ -1673,4 +2091,114 @@ enum ApprovalStatus {
   APPROVED
   REJECTED
   CHANGES_REQUESTED
+}
+
+
+// --- Fase 8: enums de recuperacion, email y campanas -------------------------
+
+/// PRESET: uno de los segmentos que la spec pide traer de fabrica.
+/// CUSTOM: creado por el cliente con el mismo lenguaje de filtros.
+enum SegmentSource {
+  PRESET
+  CUSTOM
+}
+
+enum JourneyStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+/// Momentos que inscriben a un contacto. Coinciden con los cuatro journeys que
+/// pide la spec (secciones 9.4 a 9.7).
+enum JourneyTrigger {
+  NO_ACTIVITY
+  CHECKOUT_ABANDONED
+  QUOTE_PENDING
+  ORDER_PAID
+  MANUAL
+}
+
+enum JourneyStepAction {
+  SEND_WHATSAPP
+  SEND_EMAIL
+  CREATE_TASK
+  SET_TEMPERATURE
+  EXIT
+}
+
+enum JourneyEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  /// Salio por una condicion de salida: respondio, pago, lo tomo un humano.
+  EXITED
+  /// Lo saco una revocacion de consentimiento o una accion humana.
+  CANCELED
+  FAILED
+}
+
+enum EmailProviderKind {
+  /// Proveedor determinista para pruebas y para workspaces sin email configurado.
+  SCRIPTED
+  RESEND
+}
+
+enum EmailDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum EmailTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  CANCELED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  /// No se le envio y se guardo el motivo. No es un fallo.
+  SKIPPED
+  FAILED
+}
+
+enum EmailMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+  FAILED
+}
+
+enum EmailEventType {
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+  FAILED
+}
+
+/// Distingue marketing de servicio. Un mensaje operativo de una compra no
+/// consume topes de frecuencia ni exige consentimiento promocional, y tampoco
+/// puede reutilizarse como permiso para hacer marketing (spec, regla 10).
+enum SendCategory {
+  PROMOTIONAL
+  OPERATIONAL
 }

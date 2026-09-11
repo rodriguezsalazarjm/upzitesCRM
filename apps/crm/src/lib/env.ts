@@ -35,6 +35,12 @@ const OPTIONAL_INTEGRATIONS = [
     vars: ['INTERNAL_WORKER_SECRET'],
     effect: '/api/internal/* respondera 401 y el outbox no se procesara en background',
   },
+  {
+    name: 'Proveedor de email',
+    vars: ['EMAIL_PROVIDER', 'RESEND_API_KEY', 'EMAIL_WEBHOOK_SECRET'],
+    effect:
+      'las campanas y los journeys de email quedaran en el proveedor guionado: se registran pero no salen',
+  },
 ] as const;
 
 /**
