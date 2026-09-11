@@ -9,6 +9,7 @@ import {
 } from '../../../generated/prisma/client';
 import type { ModelProvider } from '../agents/provider';
 import { recordAudit } from '../domain/audit';
+import { checkAllowance, hasCapability, recordUsage } from '../billing/usage';
 import { evaluateSend, recordSend, type ContactPolicy } from '../marketing/policy';
 import { prisma } from '../prisma';
 import { createResendProvider } from './resend';
@@ -134,6 +135,20 @@ export async function sendEmail(request: SendEmailRequest): Promise<SendResult> 
 
   const sender = await resolveSender(request.workspaceId, category);
   if (!sender.ok) return { status: 'SKIPPED', reason: sender.reason };
+
+  // Fase 9: el plan tiene que incluir email, y quedar cupo del mes.
+  //
+  // Lo operacional se exime del cupo por lo mismo que se exime de los topes de
+  // frecuencia: un aviso de compra no es marketing, y bloquearlo por haber
+  // agotado una cuota de campanas seria romper una venta ya hecha.
+  if (category === SendCategory.PROMOTIONAL) {
+    if (!(await hasCapability(request.workspaceId, 'EMAIL'))) {
+      return { status: 'SKIPPED', reason: 'PLAN_WITHOUT_EMAIL' };
+    }
+
+    const quota = await checkAllowance({ workspaceId: request.workspaceId, metric: 'emails' });
+    if (!quota.allowed) return { status: 'SKIPPED', reason: 'EMAIL_QUOTA_EXCEEDED' };
+  }
 
   // Consentimiento, supresion, quiet hours y topes: una sola puerta.
   const decision = await evaluateSend({
@@ -287,6 +302,19 @@ export async function sendEmail(request: SendEmailRequest): Promise<SendResult> 
     campaignId: request.campaignId ?? null,
     journeyId: request.journeyId ?? null,
   });
+
+  // Solo lo promocional consume cupo de plan. Un aviso de compra no se le
+  // descuenta a nadie de su cuota de marketing.
+  if (category === SendCategory.PROMOTIONAL) {
+    await recordUsage({
+      workspaceId: request.workspaceId,
+      provider: provider.kind,
+      metric: 'emails',
+      quantity: 1,
+      referenceType: 'EmailMessage',
+      referenceId: message.id,
+    });
+  }
 
   if (personalization.rejected.length > 0) {
     // Se audita porque significa que el modelo intento salirse del template.

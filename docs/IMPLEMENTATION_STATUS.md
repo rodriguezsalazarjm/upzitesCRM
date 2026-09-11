@@ -3,9 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 8 — Recuperacion, email y campanas
-- **Estado:** COMPLETADA y verificada end-to-end en local, incluida la baja publica.
-  Esperando aprobacion para la Fase 9.
+- **Fase actual:** 9 — Onboarding SaaS, planes y consumo
+- **Estado:** COMPLETADA y verificada end-to-end en local, incluido el wizard.
+  Sigue la Fase 10 (hardening y lanzamiento).
 - **Ultima actualizacion:** 2026-09-11
 
 ---
@@ -23,8 +23,8 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 6 | Shopify | **Completada** (2026-09-08), probada con fixtures |
 | 7 | Cotizador y aprobaciones | **Completada** (2026-09-08) |
 | 8 | Recuperacion, email y campanas | **Completada** (2026-09-11) |
-| 9 | Onboarding SaaS, planes y consumo | No iniciada — requiere aprobacion |
-| 10 | Hardening y lanzamiento beta | No iniciada |
+| 9 | Onboarding SaaS, planes y consumo | **Completada** (2026-09-11) |
+| 10 | Hardening y lanzamiento beta | En curso |
 
 ### Fase 0 — detalle
 
@@ -181,6 +181,40 @@ una tienda real, que requiere crear la app en Shopify Partners (T16).
 
 ---
 
+### Fase 9 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Wizard de onboarding | Hecho | 10 pasos, `/onboarding`, avance **calculado** del estado real |
+| Embedded Signup o flujo compatible | Parcial | Se conecta WhatsApp por token; el Signup embebido queda para T9 |
+| Conectar Shopify | Hecho | Ya existia (Fase 6); ahora ademas exige la capacidad del plan |
+| Configurar email | Hecho | Paso del wizard, obligatorio solo si el plan incluye email |
+| Cargar catalogo/conocimiento/reglas | Hecho | Lo que exige depende del tipo de negocio, no del rubro |
+| Probar y publicar agentes | Hecho | El paso exige una prueba en el simulador Y una version publicada |
+| Usage records y limites | Hecho | `UsageRecord` (detalle) + `UsageCounter` (contador del periodo) |
+| Estados de integracion y alertas | Hecho | `WorkspaceAlert` con barrido horario que levanta **y cierra** |
+| Planes con capacidades/allowances; nunca ilimitado | Hecho | 7 capacidades, 7 metricas, 3 planes; una prueba falla si algo queda sin declarar |
+
+**Criterio de salida:** un workspace nuevo puede quedar operativo mediante onboarding guiado sin
+cambios de codigo especificos. **Cumplido y verificado en el navegador.**
+
+**La decision que sostiene la fase: el avance del wizard no se guarda, se calcula.** Cada paso mira
+el estado real —hay canal conectado, hay plantilla publicada, hay agente probado— en vez de leer una
+casilla que alguien marco. Un checklist almacenado empieza a mentir en el momento en que el cliente
+desconecta WhatsApp: seguiria diciendo "listo" sobre algo que ya no existe. Se comprobo en el
+navegador: desconectar el canal devuelve el paso a pendiente y baja el contador de 5 a 4.
+
+**Los limites limitan de verdad.** No es una pantalla de consumo: sin cupo de IA el agente deja de
+responder y avisa; sin cupo de email no sale nada promocional; sin la capacidad en el plan, el
+cotizador, Shopify y las campanas devuelven error antes de hacer nada. Cada una de esas puertas
+tiene su prueba.
+
+**Lo que no se frena nunca:** un aviso operativo de una compra. No consume cupo de marketing, no
+espera al amanecer y sale aunque el dominio este pendiente de verificar. Frenar la confirmacion de
+una venta ya hecha por una cuota de campanas seria romper lo que el cliente pago.
+
+---
+
 ### Fase 8 — detalle
 
 | Entregable | Estado | Evidencia |
@@ -258,10 +292,11 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 61 tablas (60 modelos + `_prisma_migrations`) tras la Fase 8. Sin datos: cada suite limpia
-  lo suyo y se verifico que no quedan filas residuales.
+- 65 tablas (64 modelos + `_prisma_migrations`) tras la Fase 9. Sin datos de workspace: cada
+  suite limpia lo suyo y se verifico que no quedan filas residuales. Quedan 4 planes, que son
+  catalogo global y no datos de cliente.
 
-### Modelos Prisma (60)
+### Modelos Prisma (64)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -271,6 +306,9 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 `ScheduledAction`, `UsageRecord`.
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
+
+Fase 9 (4): `WorkspaceProfile`, `WorkspaceActivation`, `UsageCounter`, `WorkspaceAlert`.
+`SubscriptionPlan` sumo `capabilities`, `allowances`, `overages`, `isActive` y `position`.
 
 Fase 8 (12): `MessagingPolicy`, `Segment`, `Journey`, `JourneyStep`, `JourneyEnrollment`,
 `EmailDomain`, `EmailTemplate`, `Campaign`, `CampaignRecipient`, `EmailMessage`, `EmailEvent`,
@@ -289,11 +327,14 @@ Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedu
 `Contact` sumo cinco columnas: `lifecycleStatus`, `temperature`, `buyingIntent`, `leadScore` y
 `scoreUpdatedAt`.
 
-### Enums (65)
+### Enums (69)
 
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
 `AutomationAction`, `AiInsightType`, `InsightStatus`, `SubscriptionStatus`.
+
+Fase 9 (4): `BusinessType`, `ActivationStatus`, `AlertKind`, `AlertSeverity`.
+`JobType` sumo `SCAN_WORKSPACE_HEALTH`.
 
 Fase 8 (13): `SegmentSource`, `JourneyStatus`, `JourneyTrigger`, `JourneyStepAction`,
 `JourneyEnrollmentStatus`, `EmailProviderKind`, `EmailDomainStatus`, `EmailTemplateStatus`,
@@ -327,7 +368,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (17, todas aplicadas)
+### Migraciones (19, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -347,6 +388,8 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260908160000_fase6_job_shopify
 20260908180000_fase7_cotizador
 20260910120000_fase8_recuperacion_email
+20260911120000_fase9_onboarding_planes
+20260911130000_fase9_job_health
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -651,6 +694,48 @@ sumar `pdfkit` o `@react-pdf`, que traen decenas de megas y un runtime que mante
 documento que es texto en una pagina. El resultado es determinista —los mismos datos producen los
 mismos bytes— y se verifico abriendolo en el navegador, no solo comprobando que el archivo existe.
 
+### Onboarding, planes y consumo (Fase 9)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/billing/plans.ts` | Capacidades y cupos como **datos validados**, no como `if`s por nombre de plan |
+| `lib/billing/usage.ts` | Registro de consumo y la comprobacion de cupo que usan todas las puertas |
+| `lib/billing/alerts.ts` | Avisos operativos: los levanta y —tan importante— los cierra solos |
+| `lib/onboarding/steps.ts` | Los 10 pasos del wizard, cada uno con su comprobacion del estado real |
+| `lib/onboarding/activation.ts` | Activar, suspender y la pregunta "esta operativo este workspace" |
+
+**El avance del wizard se calcula, no se guarda.** Es la decision que ordena la fase. Cuesta unas
+consultas cada vez que se abre; a cambio, el estado mostrado es siempre cierto y "activar" puede
+exigir de verdad lo que dice exigir. Se comprobo desconectando WhatsApp en el navegador: el paso
+vuelve a pendiente solo.
+
+**El consumo se guarda dos veces a proposito.** `UsageRecord` es el detalle auditable —que run, que
+mensaje, cuanto costo— y `UsageCounter` es el total del periodo. Comprobar un limite antes de cada
+inferencia tiene que costar la lectura de UNA fila; sumar un mes de registros en cada envio
+convertiria el control de consumo en el cuello de botella del producto. Las dos escrituras van en
+la misma transaccion: separarlas dejaria a un cliente consumiendo sin que el contador lo sepa.
+
+**Existencias y consumo no son lo mismo.** Contactos, usuarios y numeros de WhatsApp se cuentan en
+vivo —borrar un contacto libera cupo—; conversaciones, emails y costo de IA se leen del contador
+del mes. La distincion tambien decide que es "agotado": tener 1 numero de 1 permitido es el estado
+normal de quien compro uno, mientras que gastar 500 conversaciones de 500 no deja nada. Tratarlos
+igual llenaba el panel de alertas criticas por workspaces sanos.
+
+**Nunca ilimitado.** Una metrica que el plan no declara no queda "sin limite": queda prohibida. Es
+la diferencia entre olvidarse de poner un tope y decidir que no hay tope, y solo una de las dos es
+una decision. Hay una prueba que falla si algun plan deja una metrica sin declarar.
+
+**Donde limitan los limites.** No es una pantalla de consumo: sin cupo de IA el agente se detiene y
+avisa, sin cupo de email no sale nada promocional, y sin la capacidad en el plan el cotizador,
+Shopify y las campanas fallan antes de hacer nada. El simulador del agente es la excepcion
+deliberada: probarlo es uno de los pasos para poder activar, y exigir la activacion para probarlo
+seria pedir la llave que esta dentro de la casa.
+
+**Los avisos se cierran solos.** `dedupeKey` identifica el motivo y no el momento, asi que un
+problema que sigue abierto es el mismo aviso con su fecha original —cuanto lleva roto es su dato
+mas util— y arreglarlo lo resuelve sin que nadie lo toque. Un aviso que hay que cerrar a mano
+entrena al cliente a ignorar el panel.
+
 ### Recuperacion, email y campanas (Fase 8)
 
 | Archivo | Responsabilidad |
@@ -723,6 +808,10 @@ aunque el dominio este todavia pendiente de verificar. Lo unico que lo detiene e
   versionado y PDF).
 - `apps/crm/scripts/smoke-fase8.ts`: pruebas de la Fase 8 (politica, segmentos, journeys,
   email, campanas y baja). No requiere proveedor de email ni credenciales.
+- `apps/crm/scripts/smoke-fase9.ts`: pruebas de la Fase 9 (planes, onboarding, activacion,
+  consumo, limites y avisos).
+- `apps/crm/scripts/fixtures/workspace.ts`: activa un workspace de prueba saltandose el wizard.
+  Desde la Fase 9 un workspace nace sin activar, y las suites anteriores prueban otra cosa.
 
 ---
 
@@ -792,6 +881,24 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B13 — Un workspace sano aparecia con una alerta critica — CORREGIDO (2026-09-11)
+
+Lo detecto el barrido de salud al sembrar datos de demostracion: un workspace con 1 numero de
+WhatsApp de 1 permitido levantaba "cupo agotado" en rojo. No es un cupo agotado: es el estado
+normal de quien compro un numero.
+
+El error venia de tratar igual dos cosas distintas. Un **consumo del mes** en su tope si esta
+agotado —no queda nada que gastar—; una **existencia** en su tope simplemente esta completa. La
+condicion era `usado >= limite` para ambas.
+
+**Correccion:** la distincion vive ahora en `AllowanceCheck.exhausted`, calculada una sola vez en
+`checkAllowance`, y la usan tanto los avisos como la barra de la pagina de uso. Antes la interfaz
+reimplementaba su propio umbral, asi que podian discrepar.
+
+**Leccion:** el problema no era el umbral sino que "agotado" estaba definido en dos sitios. Y una
+alerta critica sobre un estado sano no es un detalle cosmetico: es la forma mas rapida de que se
+dejen de leer todas las demas.
 
 ### B12 — El token de baja quedaba en claro dentro del cuerpo guardado — CORREGIDO (2026-09-11)
 
@@ -1201,6 +1308,43 @@ Tras la Fase 8 se reejecutaron las suites anteriores: **Fase 7 en 79/79**, **Fas
 **Fase 5 en 70/70**, **Fase 4 en 72/72**, **Fase 3 en 46/46**, **Fase 2 en 46/46** y
 **Fase 1 en 41/41**, sin regresiones.
 
+### Fase 9
+
+`pnpm exec tsx scripts/smoke-fase9.ts` desde `apps/crm`, ejecutado el 2026-09-11.
+
+**Resultado: 75/75.**
+
+| Area | Pruebas | Estado |
+|---|---|---|
+| Planes: **ninguna metrica sin declarar, ningun cupo ilimitado** | 9 | 9/9 |
+| Onboarding: el avance se calcula y **deshacerlo lo revierte** | 11 | 11/11 |
+| Activacion: requisitos, permisos, suspension reversible y auditoria | 12 | 12/12 |
+| Consumo: detalle + contador, acumulacion y aislamiento por workspace | 8 | 8/8 |
+| **Los limites limitan**: contactos, IA, email, y lo operacional no se frena | 8 | 8/8 |
+| **Capacidades**: cotizador, campanas y email cerrados por plan | 10 | 10/10 |
+| Suscripcion vencida o ausente: sin consumo y sin capacidades | 4 | 4/4 |
+| Avisos: idempotencia, cierre automatico, existencias vs consumo | 9 | 9/9 |
+| La recuperacion espera a la activacion | 4 | 4/4 |
+
+**La prueba central de la fase:** definir el tipo de negocio marca su paso como hecho, y volver a
+dejarlo sin definir lo devuelve a pendiente. Es lo que demuestra que el wizard no puede mentir: no
+hay ninguna casilla guardada que pueda quedar desincronizada del estado real.
+
+**Verificacion end-to-end en el navegador:** se creo un workspace con algunos pasos hechos y otros
+no; el wizard mostro "5 de 9" y nombro exactamente los cuatro pendientes. Intentar activar devolvio
+409 con la lista de bloqueos. Al desconectar el canal de WhatsApp, el paso volvio a pendiente y el
+contador bajo a 4 sin intervencion. La pagina de uso mostro los siete cupos con su consumo real y
+el costo variable del periodo.
+
+Tras la Fase 9 se reejecutaron las suites anteriores: **Fase 8 en 142/142**, **Fase 7 en 79/79**,
+**Fase 6 en 74/74**, **Fase 5 en 70/70**, **Fase 4 en 74/74**, **Fase 3 en 46/46**,
+**Fase 2 en 46/46** y **Fase 1 en 41/41**.
+
+Dos suites necesitaron ajuste, y ninguno fue por un fallo del codigo nuevo: las Fases 4 y 8 creaban
+workspaces que desde ahora nacen sin activar, asi que el agente y los journeys —correctamente— se
+negaban a escribir. Se les agrego `activateForTests`. La Fase 4 ademas afirmaba la metrica de
+consumo con su nombre anterior.
+
 ---
 
 ## 7. Deuda tecnica
@@ -1250,6 +1394,11 @@ Tras la Fase 8 se reejecutaron las suites anteriores: **Fase 7 en 79/79**, **Fas
 | **D41** | `maxConsecutiveNoReply` se guarda pero todavia no se aplica | Los journeys de fabrica ya acotan los intentos por diseno; el tope generico falta |
 | **D42** | El journey pausado reintenta cada hora en vez de dormir hasta que lo reactiven | Cuesta una consulta por inscripcion por hora. Aceptable en la beta, no a escala |
 | **D43** | El scoring por envejecimiento sigue dependiendo de que algo dispare el recalculo | Hay `RECALCULATE_SCORE` en la cola pero ningun barrido periodico lo encola |
+| **D44** | No hay UI para editar el perfil del negocio: el wizard enlaza a paginas que aun no tienen esos campos | Se guarda por `PATCH /api/onboarding/profile`. Es lo que mas falta para un alta autoservicio real |
+| **D45** | Cambiar de plan exige pasar por el checkout completo; no hay upgrade/downgrade prorrateado | Aceptable en la beta: los planes se venden asistidos |
+| **D46** | Los excedentes se calculan pero no se cobran: no hay linea de facturacion por sobreconsumo | El `overages` del plan solo decide si se bloquea o se permite |
+| **D47** | El barrido de salud recorre hasta 200 workspaces por corrida sin paginar | Suficiente para la beta; a escala hay que cursorear |
+| **D48** | Embedded Signup de Meta no implementado: WhatsApp se conecta pegando el token | Depende de credenciales de la app (T9) |
 
 ---
 
@@ -1292,6 +1441,8 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T19 | **Verificar el dominio de envio** del piloto: registrarlo y publicar los registros DNS | Ningun email promocional sale desde un dominio sin verificar. Es una decision de DNS, no de codigo |
 | T20 | Revisar y aprobar los textos de los 4 journeys de fabrica antes de publicarlos | Nacen en borrador a proposito: publicarlos es empezar a escribirle a clientes reales |
 | T21 | Confirmar la zona horaria y los topes de contacto del piloto | Por defecto America/Santiago, 20:30-09:00, 1 WhatsApp/dia y 3 emails/semana. Se ajustan en `PATCH /api/messaging-policy` |
+| T22 | **Revisar y aprobar los precios y cupos de los tres planes beta** | Hoy son 49.000 / 89.000 / 149.000 CLP con cupos que invente como punto de partida. Son el modelo comercial: no los deberia fijar yo |
+| T23 | Decidir con que plan queda cada piloto y activarlo por el checkout | Cambiar de plan pasa por Mercado Pago a proposito; no hay forma de subir de plan sin pagar |
 
 ---
 
@@ -1320,7 +1471,7 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** 60 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
+**Modelo de datos:** 64 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
 (7/7, mas `DigitalAsset` y `DigitalDelivery`), con los dos proveedores. Cotizaciones: hecho (4/4).
 De marketing y seguimiento: **completo**. Consentimiento, scoring, supresion, scheduled actions,
 el motor de automatizaciones y ahora segmentos, journeys y campanas. **Con esto no queda nada
@@ -1365,6 +1516,12 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-11 | El avance del onboarding **se calcula, no se guarda**. Un checklist almacenado empieza a mentir en cuanto el cliente desconecta algo, y el precio de equivocarse aqui es activar un workspace que no esta listo |
+| 2026-09-11 | El consumo se guarda **dos veces**: detalle auditable en `UsageRecord` y total del periodo en `UsageCounter`. Comprobar un limite tiene que costar una fila, no la suma de un mes |
+| 2026-09-11 | **Ninguna metrica sin declarar queda permitida.** Un cupo ausente es mas probable que sea un olvido que una concesion, y la spec prohibe lo ilimitado |
+| 2026-09-11 | Las capacidades del plan se consultan por **nombre de capacidad**, nunca por nombre de plan: agregar un plan no obliga a tocar ningun `if` |
+| 2026-09-11 | El simulador del agente funciona **sin activacion y sin cupo**: probarlo es un paso previo para poder activar, y exigir lo segundo para lo primero seria pedir la llave que esta dentro de la casa |
+| 2026-09-11 | Los workspaces anteriores a esta fase se migraron a ACTIVE, no a ONBOARDING: mandar al wizard a un cliente que ya opera apagaria un CRM que funciona para satisfacer una tabla nueva |
 | 2026-09-11 | **Una sola puerta de envio**: journeys, campanas y avisos operativos pasan todos por `evaluateSend`. La alternativa —que cada llamador recuerde comprobar consentimiento, horario y frecuencia— es exactamente el olvido que produce el envio indebido |
 | 2026-09-11 | Un bloqueo por horario o por tope **reprograma la inscripcion, no consume el paso**. Consumirlo seria saltarse el mensaje en silencio, y ese fallo no lo detecta nadie hasta que el cliente pregunta por que no le escribieron |
 | 2026-09-11 | Los segmentos **no se materializan**: se guarda la definicion y toda campana reevalua al enviar. El recuento es informativo. Nadie recibe algo por haber quedado en una lista vieja |
@@ -1555,4 +1712,19 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
   el token de baja quedaba en claro en el cuerpo guardado (B12). El primero habria roto el registro
   de clientes reales; lo detecto la suite al crear sus propios workspaces.
 - Pruebas: **142/142**. Fases 7 a 1 sin regresiones. Build, lint (0 errores) y tsc limpios.
-- **Fase 8 cerrada. No se inicia la Fase 9 sin aprobacion del propietario.**
+- **Fase 8 cerrada.**
+
+### 2026-09-11 — Fase 9, onboarding, planes y consumo
+
+- 4 tablas y 4 enums nuevos, mas 5 columnas en `SubscriptionPlan`. Dos migraciones aditivas, con
+  backfill de perfil y activacion para los workspaces existentes.
+- Wizard de 10 pasos cuyo avance se calcula del estado real. Activar exige que los requisitos se
+  cumplan en ese momento, no que el wizard los haya mostrado en verde hace un rato.
+- Planes con 7 capacidades y 7 cupos mensuales, ninguno ilimitado. Tres planes beta sembrados.
+- Consumo con detalle auditable y contador del periodo, escritos en la misma transaccion.
+- Los limites aplican de verdad en cinco puntos: agente, contactos, email, campanas y cotizador.
+- Avisos operativos que se levantan y se cierran solos, con barrido horario.
+- **Un hallazgo corregido (B13):** un workspace sano aparecia con alerta critica por tener su unico
+  numero de WhatsApp. El problema de fondo era que "agotado" estaba definido en dos sitios.
+- Pruebas: **75/75**. Fases 8 a 1 sin regresiones tras ajustar dos suites al nuevo estado inicial.
+- **Fase 9 cerrada. Sigue la Fase 10: hardening y lanzamiento.**

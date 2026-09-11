@@ -24,6 +24,21 @@ export async function bootstrapMarketing(workspaceId: string) {
     update: {},
   });
 
+  // Fase 9: perfil comercial vacio y estado de onboarding. El workspace nace
+  // SIN activar: el agente no atiende solo hasta que el cliente complete el
+  // wizard y active a proposito.
+  await prisma.workspaceProfile.upsert({
+    where: { workspaceId },
+    create: { workspaceId },
+    update: {},
+  });
+
+  await prisma.workspaceActivation.upsert({
+    where: { workspaceId },
+    create: { workspaceId },
+    update: {},
+  });
+
   await prisma.segment.createMany({
     data: PRESET_SEGMENTS.map((preset) => ({
       workspaceId,

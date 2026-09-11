@@ -7,11 +7,13 @@ import {
   Bot,
   ChevronRight,
   CreditCard,
+  Gauge,
   Globe2,
   LayoutDashboard,
   MessageSquare,
   Package,
   Receipt,
+  Rocket,
   Send,
   FileText,
   PlugZap,
@@ -28,6 +30,7 @@ import type { CurrentUser } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const navItems = [
+  { href: '/onboarding', label: 'Puesta en marcha', icon: Rocket },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/contactos', label: 'Contactos', icon: Users },
@@ -41,6 +44,7 @@ const navItems = [
   { href: '/automatizaciones', label: 'Automatizaciones', icon: Bot },
   { href: '/recuperacion', label: 'Recuperacion', icon: Send },
   { href: '/insights', label: 'Insights IA', icon: Bot },
+  { href: '/uso', label: 'Uso y costos', icon: Gauge },
   { href: '/billing', label: 'Billing', icon: CreditCard },
   { href: '/ops', label: 'Ops', icon: ShieldCheck },
   { href: '/configuracion', label: 'Configuracion', icon: Settings },

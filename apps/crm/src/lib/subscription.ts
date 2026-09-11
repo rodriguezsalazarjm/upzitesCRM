@@ -11,6 +11,7 @@ import { AUTOMATION_PRESETS } from './automation/presets';
 import { DEFAULT_SALES_AGENT } from './agents/presets';
 import { bootstrapMarketing } from './marketing/bootstrap';
 import { hashPassword } from './password';
+import { BETA_PLANS } from './billing/plans';
 import { prisma } from './prisma';
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30;
@@ -43,24 +44,89 @@ export function nextTrialEnd(from = new Date()) {
   return new Date(from.getTime() + TRIAL_MS);
 }
 
+/**
+ * Plan con el que arranca todo workspace nuevo.
+ *
+ * Habilita todas las capacidades a proposito —durante la prueba el cliente
+ * tiene que poder ver que hace el producto— pero con cupos deliberadamente
+ * bajos. Ninguno es ilimitado: la spec lo prohibe, y un trial sin techo es una
+ * factura de OpenAI esperando a ocurrir.
+ */
+const MONTHLY_PLAN_TERMS = {
+  name: 'CRM Upzites Mensual',
+  priceClp: 49000,
+  maxUsers: 3,
+  maxContacts: 1000,
+  features: ['CRM', 'Captura de leads', 'Pipeline', 'Automatizaciones basicas', 'Reportes'],
+  capabilities: ['WHATSAPP', 'AI_AGENTS', 'PAYMENTS', 'QUOTES', 'EMAIL', 'CAMPAIGNS', 'SHOPIFY'],
+  allowances: {
+    users: 3,
+    contacts: 1000,
+    whatsapp_numbers: 1,
+    conversations: 500,
+    ai_cost_clp: 20000,
+    emails: 2000,
+    campaign_contacts: 1000,
+  },
+} as const;
+
 export async function ensureMonthlyPlan() {
   return prisma.subscriptionPlan.upsert({
     where: { key: MONTHLY_PLAN_KEY },
     create: {
       key: MONTHLY_PLAN_KEY,
-      name: 'CRM Upzites Mensual',
-      priceClp: 49000,
-      maxUsers: 3,
-      maxContacts: 1000,
-      features: ['CRM', 'Captura de leads', 'Pipeline', 'Automatizaciones basicas', 'Reportes'],
+      name: MONTHLY_PLAN_TERMS.name,
+      priceClp: MONTHLY_PLAN_TERMS.priceClp,
+      maxUsers: MONTHLY_PLAN_TERMS.maxUsers,
+      maxContacts: MONTHLY_PLAN_TERMS.maxContacts,
+      features: [...MONTHLY_PLAN_TERMS.features],
+      capabilities: [...MONTHLY_PLAN_TERMS.capabilities],
+      allowances: MONTHLY_PLAN_TERMS.allowances,
     },
     update: {
-      name: 'CRM Upzites Mensual',
-      priceClp: 49000,
-      maxUsers: 3,
-      maxContacts: 1000,
-      features: ['CRM', 'Captura de leads', 'Pipeline', 'Automatizaciones basicas', 'Reportes'],
+      name: MONTHLY_PLAN_TERMS.name,
+      priceClp: MONTHLY_PLAN_TERMS.priceClp,
+      maxUsers: MONTHLY_PLAN_TERMS.maxUsers,
+      maxContacts: MONTHLY_PLAN_TERMS.maxContacts,
+      features: [...MONTHLY_PLAN_TERMS.features],
+      capabilities: [...MONTHLY_PLAN_TERMS.capabilities],
+      allowances: MONTHLY_PLAN_TERMS.allowances,
     },
+  });
+}
+
+/**
+ * Escalera comercial de la beta. Idempotente.
+ *
+ * Se siembra bajo demanda desde `GET /api/plans` en vez de en una migracion:
+ * los precios cambian, y una migracion que fija precios obliga a otra migracion
+ * cada vez que se ajusta uno.
+ */
+export async function ensureBetaPlans() {
+  for (const plan of BETA_PLANS) {
+    const data = {
+      name: plan.name,
+      priceClp: plan.priceClp,
+      maxUsers: plan.allowances.users ?? 1,
+      maxContacts: plan.allowances.contacts ?? 0,
+      features: plan.features,
+      capabilities: [...plan.capabilities],
+      allowances: plan.allowances,
+      overages: plan.overages,
+      position: plan.position,
+      isActive: true,
+    };
+
+    await prisma.subscriptionPlan.upsert({
+      where: { key: plan.key },
+      create: { key: plan.key, ...data },
+      update: data,
+    });
+  }
+
+  return prisma.subscriptionPlan.findMany({
+    where: { isActive: true },
+    orderBy: [{ position: 'asc' }, { priceClp: 'asc' }],
   });
 }
 

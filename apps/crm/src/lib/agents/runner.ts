@@ -18,6 +18,10 @@ import {
   type ModelProvider,
 } from './provider';
 import { toolByName, toolSpecsFor, type ToolContext } from './tools';
+import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
+import { raiseAlert } from '../billing/alerts';
+import { checkAllowance, recordUsage } from '../billing/usage';
+import { isWorkspaceActive } from '../onboarding/activation';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -126,6 +130,40 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const published = await publishedVersion(input.workspaceId, AgentKind.SALES);
   if (!published) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no tiene un agente publicado' };
+  }
+
+  // Fase 9: la IA no atiende sola hasta que el workspace se activa, y no pasa
+  // del cupo de IA de su plan.
+  //
+  // Ambas comprobaciones se saltan en el simulador: probar al agente es
+  // justamente uno de los pasos que hay que completar para poder activar, y
+  // exigir la activacion para probarlo seria pedir la llave que esta dentro de
+  // la casa.
+  if (!input.dryRun) {
+    if (!(await isWorkspaceActive(input.workspaceId))) {
+      return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no esta activo' };
+    }
+
+    const budget = await checkAllowance({
+      workspaceId: input.workspaceId,
+      metric: 'ai_cost_clp',
+      amount: 0,
+    });
+
+    if (!budget.allowed) {
+      // Se avisa, no se falla en silencio: quedarse sin IA sin que nadie lo
+      // sepa es indistinguible de que la IA este rota.
+      await raiseAlert({
+        workspaceId: input.workspaceId,
+        kind: AlertKind.ALLOWANCE_EXCEEDED,
+        severity: AlertSeverity.CRITICAL,
+        title: 'Se agoto el cupo de IA del mes',
+        detail: `${budget.used} de ${budget.limit} CLP. El agente dejo de responder y las conversaciones pasan a una persona.`,
+        dedupeKey: 'allowance-exceeded:ai_cost_clp',
+      });
+
+      return { status: AgentRunStatus.ABORTED, skippedReason: 'sin cupo de IA en el plan' };
+    }
   }
 
   const owner = randomUUID();
@@ -381,16 +419,20 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
   });
 
   // El consumo se mide por workspace: es la base de los limites de plan.
-  await prisma.usageRecord.create({
-    data: {
-      workspaceId: run.workspaceId,
-      provider: provider.name,
-      metric: 'ai_tokens',
-      quantity: inputTokens + outputTokens,
-      costEstimate: cost,
-      referenceType: 'AgentRun',
-      referenceId: run.id,
-    },
+  // `recordUsage` escribe el detalle Y mueve el contador del periodo, que es lo
+  // que se consulta antes de cada inferencia.
+  //
+  // Un solo registro, no uno por tokens y otro por costo: dos filas con el
+  // mismo costo lo contarian dos veces en el total del periodo. La cantidad son
+  // los tokens y el costo son los pesos, que es el cupo que el plan limita.
+  await recordUsage({
+    workspaceId: run.workspaceId,
+    provider: provider.name,
+    metric: 'ai_cost_clp',
+    quantity: inputTokens + outputTokens,
+    costClp: cost,
+    referenceType: 'AgentRun',
+    referenceId: run.id,
   });
 
   await prisma.conversationAgentState.upsert({

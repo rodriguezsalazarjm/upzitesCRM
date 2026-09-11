@@ -60,6 +60,11 @@ model Workspace {
   quotes           Quote[]
   approvalRequests ApprovalRequest[]
 
+  profile        WorkspaceProfile?
+  activation     WorkspaceActivation?
+  usageCounters  UsageCounter[]
+  alerts         WorkspaceAlert[]
+
   messagingPolicy    MessagingPolicy?
   segments           Segment[]
   journeys           Journey[]
@@ -422,6 +427,22 @@ model SubscriptionPlan {
   maxContacts Int      @map("max_contacts")
   features    String[] @default([])
   createdAt   DateTime @default(now()) @map("created_at")
+
+  /// Fase 9: que puede hacer el plan. Claves de `PlanCapability`, validadas con
+  /// Zod al leerlas. `features` sigue siendo texto para mostrar en la pagina de
+  /// precios; esto es lo que el codigo consulta.
+  capabilities String[] @default([]) @map("capabilities")
+
+  /// Cupos mensuales por metrica. **Ninguno es ilimitado** (regla de la spec):
+  /// un plan sin la metrica declarada no la permite en absoluto.
+  allowances Json? @map("allowances")
+
+  /// Precio del excedente por unidad, cuando el plan lo admite. Sin entrada
+  /// para una metrica, pasarse la bloquea en vez de cobrarla.
+  overages Json?
+
+  isActive Boolean @default(true) @map("is_active")
+  position Int     @default(0)
 
   subscriptions WorkspaceSubscription[]
 
@@ -1639,6 +1660,126 @@ model ContactSendLog {
   @@map("contact_send_logs")
 }
 
+// --- Fase 9: onboarding, planes y consumo ------------------------------------
+
+/// Perfil comercial del workspace: lo que el wizard recoge y el resto del CRM
+/// necesita saber para comportarse distinto sin que nadie toque codigo.
+///
+/// `businessType` es la unica pieza que cambia que se le pide a un cliente
+/// —infoproducto, ecommerce o servicios—. No cambia la logica: cambia que
+/// pasos del onboarding son obligatorios y que capacidades tiene sentido
+/// activar. La beta es multivertical y esto es lo mas cerca que esta de
+/// reconocer un rubro: tres formas de vender, no tres rubros.
+model WorkspaceProfile {
+  id          String       @id @default(cuid())
+  workspaceId String       @unique @map("workspace_id")
+
+  businessType BusinessType @default(UNDEFINED) @map("business_type")
+  currency     String       @default("CLP")
+  country      String       @default("CL")
+
+  /// Horario de atencion humana. Minutos desde medianoche, en la zona de
+  /// `MessagingPolicy`.
+  businessStartMinute Int   @default(540) @map("business_start_minute")
+  businessEndMinute   Int   @default(1080) @map("business_end_minute")
+  /// Dias habiles: 1 = lunes ... 7 = domingo.
+  businessDays        Int[] @default([1, 2, 3, 4, 5]) @map("business_days")
+
+  /// Lo que el agente puede decir del negocio. Es conocimiento, no prompt: se
+  /// inyecta como contexto y no reemplaza las instrucciones del agente.
+  about           String?
+  policies        String?
+  shippingInfo    String? @map("shipping_info")
+  returnsPolicy   String? @map("returns_policy")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_profiles")
+}
+
+/// Estado de activacion del workspace.
+///
+/// Guarda SOLO lo que no se puede deducir del resto del sistema: cuando se
+/// activo y quien lo hizo. El avance del wizard NO se guarda: se calcula
+/// mirando el estado real (hay canal conectado? hay agente publicado?). Un
+/// checklist con casillas guardadas miente en cuanto alguien desconecta algo.
+model WorkspaceActivation {
+  id          String           @id @default(cuid())
+  workspaceId String           @unique @map("workspace_id")
+  status      ActivationStatus @default(ONBOARDING)
+
+  activatedAt   DateTime? @map("activated_at")
+  activatedById String?   @map("activated_by")
+  /// Motivo por el que se suspendio o volvio a onboarding.
+  note          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_activations")
+}
+
+/// Contador de consumo por periodo.
+///
+/// Existe aparte de `UsageRecord` por una razon de forma: comprobar un limite
+/// tiene que costar la lectura de una fila, no sumar un mes de registros. El
+/// detalle vive en `UsageRecord` para poder auditar; el contador es lo que se
+/// consulta antes de cada envio, cada inferencia y cada contacto nuevo.
+model UsageCounter {
+  id          String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  /// Periodo `YYYY-MM`. Los limites del plan son mensuales.
+  period      String
+  metric      String
+
+  quantity Int @default(0)
+  costClp  Int @default(0) @map("cost_clp")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, period, metric])
+  @@index([workspaceId, period])
+  @@map("usage_counters")
+}
+
+/// Aviso operativo dirigido al cliente: una integracion que se cayo, un limite
+/// que se acerca, un plan vencido.
+///
+/// Se guarda en vez de calcularse al vuelo porque hace falta saber si ya se
+/// aviso: repetir el mismo aviso cada cinco minutos consigue que se ignoren
+/// todos.
+model WorkspaceAlert {
+  id          String        @id @default(cuid())
+  workspaceId String        @map("workspace_id")
+  kind        AlertKind
+  severity    AlertSeverity @default(WARNING)
+
+  title   String
+  detail  String?
+  /// Identifica el motivo del aviso. Unico mientras sigue abierto.
+  dedupeKey String @map("dedupe_key")
+
+  resolvedAt   DateTime? @map("resolved_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedById String? @map("acknowledged_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, resolvedAt])
+  @@map("workspace_alerts")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -1965,6 +2106,8 @@ enum JobType {
   RUN_JOURNEY_STEP
   SCAN_JOURNEY_ENTRIES
   REFRESH_SEGMENT_COUNTS
+  // Fase 9
+  SCAN_WORKSPACE_HEALTH
 }
 
 enum JobStatus {
@@ -2201,4 +2344,38 @@ enum EmailEventType {
 enum SendCategory {
   PROMOTIONAL
   OPERATIONAL
+}
+
+
+// --- Fase 9: enums de onboarding, planes y consumo ---------------------------
+
+/// Como vende el cliente. Decide que pasos del onboarding son obligatorios,
+/// no como funciona el CRM.
+enum BusinessType {
+  UNDEFINED
+  INFOPRODUCT
+  ECOMMERCE
+  SERVICES
+}
+
+enum ActivationStatus {
+  /// Todavia completando el wizard. La IA no atiende sola.
+  ONBOARDING
+  ACTIVE
+  /// Apagado por el operador o por impago. Conserva los datos.
+  SUSPENDED
+}
+
+enum AlertKind {
+  INTEGRATION_DOWN
+  ALLOWANCE_NEAR_LIMIT
+  ALLOWANCE_EXCEEDED
+  SUBSCRIPTION_EXPIRED
+  ONBOARDING_INCOMPLETE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
 }

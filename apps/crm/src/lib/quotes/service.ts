@@ -6,6 +6,7 @@ import {
   QuoteStatus,
   UserRole,
 } from '../../../generated/prisma/client';
+import { hasCapability } from '../billing/usage';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { calculateQuote } from './engine';
@@ -98,6 +99,11 @@ export type CreateQuoteInput = {
  * necesita saber que preguntar, no solo que fallo.
  */
 export async function createQuote(input: CreateQuoteInput) {
+  // Fase 9: cotizar es una capacidad del plan, no una funcion siempre presente.
+  if (!(await hasCapability(input.workspaceId, 'QUOTES'))) {
+    throw new QuoteError('El plan actual no incluye el cotizador.', 'FORBIDDEN');
+  }
+
   const ruleSet = await getPublishedRuleSet(input.workspaceId, input.serviceKey);
 
   if (!ruleSet) {

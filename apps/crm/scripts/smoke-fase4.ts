@@ -30,6 +30,7 @@ import {
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { activateForTests } from './fixtures/workspace';
 import { runAgent } from '../src/lib/agents/runner';
 import { ScriptedProvider, estimateCostClp, OpenAIProvider } from '../src/lib/agents/provider';
 import { toolSpecsFor, AGENT_TOOLS, PENDING_TOOLS, OMITTED_BY_DESIGN } from '../src/lib/agents/tools';
@@ -55,6 +56,10 @@ async function makeWorkspace(key: string) {
     email: `fase4-${key}-${stamp}@upzites.test`,
     password: 'Fase4#Test1234',
   });
+
+  // Desde la Fase 9 el workspace nace sin activar y el agente no atiende solo.
+  // Esta suite prueba el agente, no la puerta de activacion.
+  await activateForTests(workspace.id);
 
   // El agente nace en borrador; para probar hay que publicarlo.
   const definition = await prisma.agentDefinition.findFirstOrThrow({
@@ -227,7 +232,15 @@ const B = await makeWorkspace('b');
   const usage = await prisma.usageRecord.findFirst({
     where: { workspaceId: A.workspaceId, referenceId: run.id },
   });
-  check('El consumo queda medido por workspace', usage?.metric === 'ai_tokens');
+  // Desde la Fase 9 la metrica es `ai_cost_clp`: la cantidad son los tokens y
+  // el costo son los pesos, que es el cupo que el plan limita.
+  check('El consumo queda medido por workspace', usage?.metric === 'ai_cost_clp');
+  check('Con los tokens como cantidad', (usage?.quantity ?? 0) > 0);
+
+  const counter = await prisma.usageCounter.findFirst({
+    where: { workspaceId: A.workspaceId, metric: 'ai_cost_clp' },
+  });
+  check('Y el contador del periodo tambien se mueve', counter !== null);
 }
 
 // --- 5. No inventa precio cuando no tiene la herramienta --------------------

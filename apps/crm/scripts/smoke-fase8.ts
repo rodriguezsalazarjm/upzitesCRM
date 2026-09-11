@@ -39,6 +39,7 @@ import {
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { activateForTests } from './fixtures/workspace';
 import { grantConsent, suppressIdentifier } from '../src/lib/domain/consent';
 import { scheduleAction } from '../src/lib/domain/scheduled-actions';
 import { computeScore } from '../src/lib/domain/scoring';
@@ -89,6 +90,11 @@ async function makeWorkspace(suffix: string) {
     email: `owner-${suffix}-${stamp}@fase8.test`,
     password: 'contrasena-de-prueba-1234',
   });
+
+  // Desde la Fase 9 los journeys no escriben hasta que el workspace se activa.
+  // Esa puerta se prueba en la suite de la Fase 9; aqui se prueba la
+  // recuperacion.
+  await activateForTests(created.workspace.id);
 
   return { workspaceId: created.workspace.id, userId: created.user.id };
 }

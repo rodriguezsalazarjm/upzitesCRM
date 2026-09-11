@@ -10,6 +10,7 @@ import {
   WebhookEventStatus,
   AutomationTrigger,
 } from '../../../generated/prisma/client';
+import { recordUsage } from '../billing/usage';
 import { prisma } from '../prisma';
 import { cancelForContact } from '../domain';
 import { emitDomainEvent } from '../automation/emit';
@@ -155,6 +156,9 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
   const phone = toE164(event.from);
 
   let isNewContact = false;
+  let countsAsNewConversation = false;
+  let conversationWorkspaceId = '';
+  let conversationId = '';
 
   const contactId = await prisma.$transaction(async (tx) => {
     const before = await tx.contact.count({ where: { workspaceId: channel.workspaceId, phone } });
@@ -166,6 +170,20 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     isNewContact = before === 0;
 
     const now = event.timestamp;
+
+    // Fase 9: el plan mide conversaciones del periodo, no mensajes sueltos.
+    // Una conversacion cuenta la PRIMERA vez que recibe un entrante en el mes;
+    // que el mismo cliente siga escribiendo ese mes no vuelve a descontar. Es
+    // como cobra Meta y es lo que el cliente entiende por "una conversacion".
+    const previous = await tx.conversation.findUnique({
+      where: { channelId_contactId: { channelId: channel.id, contactId: contact.id } },
+      select: { lastInboundAt: true },
+    });
+
+    const period = now.toISOString().slice(0, 7);
+    countsAsNewConversation =
+      !previous?.lastInboundAt || previous.lastInboundAt.toISOString().slice(0, 7) !== period;
+
     const conversation = await tx.conversation.upsert({
       where: { channelId_contactId: { channelId: channel.id, contactId: contact.id } },
       create: {
@@ -211,8 +229,25 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
       data: { lastActivityAt: now },
     });
 
+    conversationWorkspaceId = channel.workspaceId;
+    conversationId = conversation.id;
+
     return contact.id;
   });
+
+  // El consumo del plan se registra fuera de la transaccion: si falla, el
+  // mensaje ya quedo guardado, y perder un mensaje entrante por no haber podido
+  // anotar una metrica seria un pesimo intercambio.
+  if (countsAsNewConversation && conversationWorkspaceId) {
+    await recordUsage({
+      workspaceId: conversationWorkspaceId,
+      provider: 'whatsapp',
+      metric: 'conversations',
+      quantity: 1,
+      referenceType: 'Conversation',
+      referenceId: conversationId,
+    });
+  }
 
   // El contacto respondio: se cancelan sus seguimientos pendientes. Va fuera de
   // la transaccion porque es un efecto secundario: si falla, el mensaje ya esta

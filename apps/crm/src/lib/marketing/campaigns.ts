@@ -5,6 +5,7 @@ import {
   EmailTemplateStatus,
   SendCategory,
 } from '../../../generated/prisma/client';
+import { checkAllowance, hasCapability, recordUsage } from '../billing/usage';
 import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
 import { prisma } from '../prisma';
@@ -27,7 +28,13 @@ import { parseDefinition, resolveForSending, SegmentError } from './segments';
 export class CampaignError extends Error {
   constructor(
     message: string,
-    readonly code: 'NOT_FOUND' | 'INVALID_STATE' | 'NO_SEGMENT' | 'NO_TEMPLATE' | 'QUERY_ONLY',
+    readonly code:
+      | 'NOT_FOUND'
+      | 'INVALID_STATE'
+      | 'NO_SEGMENT'
+      | 'NO_TEMPLATE'
+      | 'QUERY_ONLY'
+      | 'PLAN_LIMIT',
   ) {
     super(message);
     this.name = 'CampaignError';
@@ -53,6 +60,10 @@ export async function buildRecipients(input: {
   if (!campaign) throw new CampaignError('Campana no encontrada.', 'NOT_FOUND');
   if (!campaign.segmentId) throw new CampaignError('La campana no tiene segmento.', 'NO_SEGMENT');
 
+  if (!(await hasCapability(input.workspaceId, 'CAMPAIGNS'))) {
+    throw new CampaignError('El plan actual no incluye campanas.', 'PLAN_LIMIT');
+  }
+
   const segment = await prisma.segment.findFirst({
     where: { id: campaign.segmentId, workspaceId: input.workspaceId },
   });
@@ -75,6 +86,22 @@ export async function buildRecipients(input: {
     throw error;
   }
 
+  // El cupo se comprueba con la lista ya resuelta: es el numero de personas a
+  // las que se les va a escribir, no el tamano bruto del segmento.
+  const quota = await checkAllowance({
+    workspaceId: input.workspaceId,
+    metric: 'campaign_contacts',
+    amount: contacts.length,
+  });
+
+  if (!quota.allowed) {
+    throw new CampaignError(
+      `El plan permite ${quota.limit} contactos de campana al mes y ya van ${quota.used}. ` +
+        `Esta campana suma ${contacts.length}.`,
+      'PLAN_LIMIT',
+    );
+  }
+
   if (contacts.length > 0) {
     await prisma.campaignRecipient.createMany({
       data: contacts.map((contact) => ({
@@ -90,6 +117,17 @@ export async function buildRecipients(input: {
   const recipientCount = await prisma.campaignRecipient.count({
     where: { campaignId: campaign.id },
   });
+
+  if (contacts.length > 0) {
+    await recordUsage({
+      workspaceId: input.workspaceId,
+      provider: 'crm',
+      metric: 'campaign_contacts',
+      quantity: contacts.length,
+      referenceType: 'Campaign',
+      referenceId: campaign.id,
+    });
+  }
 
   await prisma.campaign.update({
     where: { id: campaign.id },

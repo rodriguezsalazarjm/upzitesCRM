@@ -20,6 +20,7 @@ import { sendEmail } from '../email/send';
 import { sendCampaignBatch } from '../marketing/campaigns';
 import { advanceEnrollment, processDueEnrollments, scanJourneyEntries } from '../marketing/journeys';
 import { refreshSegmentCount } from '../marketing/segments';
+import { scanWorkspaceHealth } from '../billing/alerts';
 import { enqueue } from './queue';
 
 /**
@@ -260,6 +261,29 @@ const handlers: Record<JobType, JobHandler> = {
   /** Inscribe a quien califique en cada journey publicado. */
   [JobType.SCAN_JOURNEY_ENTRIES]: async () => scanJourneyEntries(200),
 
+  /**
+   * Revisa la salud de los workspaces: integraciones caidas y cupos al limite.
+   *
+   * Se recorre workspace por workspace en vez de con una consulta global porque
+   * cada uno tiene su plan y sus cupos, y el aviso tiene que ser suyo.
+   */
+  [JobType.SCAN_WORKSPACE_HEALTH]: async (_payload, workspaceId) => {
+    const workspaces = workspaceId
+      ? [{ id: workspaceId }]
+      : await prisma.workspace.findMany({ select: { id: true }, take: 200 });
+
+    let raised = 0;
+    let resolved = 0;
+
+    for (const workspace of workspaces) {
+      const result = await scanWorkspaceHealth(workspace.id);
+      raised += result.raised;
+      resolved += result.resolved;
+    }
+
+    return { workspaces: workspaces.length, raised, resolved };
+  },
+
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
     const segments = await prisma.segment.findMany({
       where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
@@ -333,6 +357,15 @@ export async function enqueueRecurringJobs(now = new Date()) {
     payload: {},
     dedupeKey: `segment-counts:${day}`,
     priority: 300,
+  });
+
+  // La salud se revisa cada hora: una integracion caida que se descubre al dia
+  // siguiente ya costo un dia de conversaciones sin responder.
+  await enqueue({
+    type: JobType.SCAN_WORKSPACE_HEALTH,
+    payload: {},
+    dedupeKey: `health:${hour}`,
+    priority: 250,
   });
 }
 

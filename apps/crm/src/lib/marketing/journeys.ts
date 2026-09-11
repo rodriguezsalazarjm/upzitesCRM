@@ -16,6 +16,7 @@ import {
   type JourneyEnrollment,
   type JourneyStep,
 } from '../../../generated/prisma/client';
+import { isWorkspaceActive } from '../onboarding/activation';
 import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
 import { prisma } from '../prisma';
@@ -383,6 +384,18 @@ export async function advanceEnrollment(enrollmentId: string, now = new Date()):
   });
 
   const journey = await prisma.journey.findUniqueOrThrow({ where: { id: enrollment.journeyId } });
+
+  // Fase 9: mientras el workspace no este activo, la recuperacion no escribe.
+  // La inscripcion no se pierde: se vuelve a mirar en una hora, igual que con
+  // un journey pausado. Configurar el CRM no puede empezar a mandarle mensajes
+  // a clientes reales por accidente.
+  if (!(await isWorkspaceActive(enrollment.workspaceId))) {
+    await prisma.journeyEnrollment.update({
+      where: { id: enrollment.id },
+      data: { nextRunAt: new Date(now.getTime() + 3_600_000) },
+    });
+    return { enrollmentId, outcome: 'NOT_ACTIVE', detail: 'workspace sin activar' };
+  }
 
   if (journey.status !== JourneyStatus.PUBLISHED) {
     // Un journey pausado no escribe, pero la inscripcion no se pierde: vuelve a
