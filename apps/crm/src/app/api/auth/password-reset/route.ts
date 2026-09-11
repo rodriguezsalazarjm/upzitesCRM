@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateResetToken, hashResetToken } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
+import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 
 const requestResetSchema = z.object({
@@ -9,6 +10,10 @@ const requestResetSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Fase 10: Reseteo de contrasena: frena el envio masivo de correos de recuperacion.
+  const limited = await enforce('passwordReset', request);
+  if (limited) return limited;
+
   const parsed = await parseBody(request, requestResetSchema);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;

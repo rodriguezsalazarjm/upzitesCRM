@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { setSessionCookie } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
 import { createCustomerWorkspace } from '@/lib/subscription';
+import { enforce } from '@/lib/ops/rate-limit';
 
 const registerSchema = z.object({
   companyName: z.string().min(2),
@@ -12,6 +13,10 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Fase 10: Alta de cuentas: un limite bajo por hora frena el registro masivo.
+  const limited = await enforce('register', request);
+  if (limited) return limited;
+
   const parsed = await parseBody(request, registerSchema);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;

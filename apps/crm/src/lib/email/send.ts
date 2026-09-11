@@ -11,6 +11,7 @@ import type { ModelProvider } from '../agents/provider';
 import { recordAudit } from '../domain/audit';
 import { checkAllowance, hasCapability, recordUsage } from '../billing/usage';
 import { evaluateSend, recordSend, type ContactPolicy } from '../marketing/policy';
+import { isEnabled } from '../ops/flags';
 import { prisma } from '../prisma';
 import { createResendProvider } from './resend';
 import { createScriptedProvider } from './scripted';
@@ -132,6 +133,13 @@ export async function sendEmail(request: SendEmailRequest): Promise<SendResult> 
 
   if (!contact) return { status: 'SKIPPED', reason: 'NOT_FOUND' };
   if (!contact.email) return { status: 'SKIPPED', reason: 'NO_IDENTIFIER' };
+
+  // Fase 10: interruptor de email. Apaga TODO el email, incluido lo operativo:
+  // si el proveedor esta rebotando o se filtro una plantilla, lo que hay que
+  // parar es el envio entero.
+  if (!(await isEnabled('EMAIL_SENDING', request.workspaceId))) {
+    return { status: 'SKIPPED', reason: 'EMAIL_DISABLED' };
+  }
 
   const sender = await resolveSender(request.workspaceId, category);
   if (!sender.ok) return { status: 'SKIPPED', reason: sender.reason };

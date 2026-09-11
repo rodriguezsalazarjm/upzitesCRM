@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isInternalRequest } from '@/lib/internal-auth';
+import { enforce } from '@/lib/ops/rate-limit';
 import { processDueEnrollments, scanJourneyEntries } from '@/lib/marketing/journeys';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,11 @@ export const dynamic = 'force-dynamic';
  * `?scan=0` salta el barrido de entradas, que es la parte cara.
  */
 export async function POST(request: Request) {
+  // Fase 10: limite propio ademas del secreto (D20). Si el secreto se filtra,
+  // el dano queda acotado a un ritmo razonable en vez de ser ilimitado.
+  const limited = await enforce('internal', request);
+  if (limited) return limited;
+
   if (!isInternalRequest(request)) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }

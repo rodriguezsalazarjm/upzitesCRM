@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ActivityType, ConsentChannel, WebEventType } from '../../../../../../../generated/prisma/client';
 import { publicCorsHeaders, upsertLeadContact } from '@/lib/capture';
 import { grantConsent } from '@/lib/domain';
+import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 
 /** El formulario publico manda el checkbox como boolean o como string. */
@@ -16,6 +17,10 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ publicId: string }> }) {
+  // Fase 10: Envio de formulario publico.
+  const limited = await enforce('capture', request);
+  if (limited) return limited;
+
   const { publicId } = await params;
   const form = await prisma.form.findUnique({
     where: { publicId },

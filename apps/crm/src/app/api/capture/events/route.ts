@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getWorkspaceByPublicKey, publicCorsHeaders, webEventTypeMap } from '@/lib/capture';
 import { parseBody } from '@/lib/http';
+import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 
 const eventSchema = z.object({
@@ -25,6 +26,10 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  // Fase 10: Captura publica: es el endpoint mas expuesto del CRM.
+  const limited = await enforce('capture', request);
+  if (limited) return limited;
+
   const parsed = await parseBody(request, eventSchema);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;

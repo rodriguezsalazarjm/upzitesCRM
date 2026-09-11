@@ -4,6 +4,7 @@ import { setSessionCookie } from '@/lib/auth';
 import { DEV_DEMO_USER, isDatabaseUnavailable, isDemoCredential, isDevDemoEnabled } from '@/lib/dev-demo';
 import { verifyPassword } from '@/lib/password';
 import { parseBody } from '@/lib/http';
+import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 
 const loginSchema = z.object({
@@ -12,6 +13,11 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Fase 10: freno de fuerza bruta. Se limita por IP antes de tocar la base:
+  // el objetivo es que un atacante no pueda probar contrasenas en volumen.
+  const limited = await enforce('login', request);
+  if (limited) return limited;
+
   const parsed = await parseBody(request, loginSchema);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;

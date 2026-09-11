@@ -1,15 +1,27 @@
-import { AlertTriangle, Database, Layers, PlugZap, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Database, Layers, PlugZap, PowerOff, ShieldCheck } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { requireCurrentUser } from '@/lib/auth';
 import { getOpsSummary } from '@/lib/ops-data';
+import { flagStates } from '@/lib/ops/flags';
+import { FlagsClient } from './flags-client';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OpsPage() {
+  const user = await requireCurrentUser();
+
+  const [summary, flags] = await Promise.all([
+    getOpsSummary(),
+    flagStates(user.workspace.id),
+  ]);
+
   const { auditLogs, openInsights, disconnectedIntegrations, queue, deadJobs, failedOutbox } =
-    await getOpsSummary();
+    summary;
+
+  const apagadas = flags.filter((flag) => !flag.enabled).length;
 
   const cards = [
     { label: 'Cola pendiente', value: queue.pending, icon: Layers, alert: queue.pending > 100 },
@@ -18,12 +30,13 @@ export default async function OpsPage() {
     { label: 'Envios fallidos', value: failedOutbox, icon: AlertTriangle, alert: failedOutbox > 0 },
     { label: 'Insights abiertos', value: openInsights, icon: ShieldCheck, alert: false },
     { label: 'Integraciones sin conectar', value: disconnectedIntegrations, icon: PlugZap, alert: false },
+    { label: 'Funciones apagadas', value: apagadas, icon: PowerOff, alert: apagadas > 0 },
   ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Ops" subtitle="Salud del sistema, cola de trabajos y auditoria" />
-      <div className="flex-1 space-y-4 overflow-y-auto p-6">
+      <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => {
             const Icon = card.icon;
@@ -54,6 +67,13 @@ export default async function OpsPage() {
             );
           })}
         </div>
+
+        <section>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Interruptores
+          </p>
+          <FlagsClient flags={flags} canManage={user.role === 'OWNER'} />
+        </section>
 
         {deadJobs.length > 0 && (
           <Card className="border-0 shadow-sm">

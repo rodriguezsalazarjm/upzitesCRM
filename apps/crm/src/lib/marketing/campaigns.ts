@@ -6,6 +6,7 @@ import {
   SendCategory,
 } from '../../../generated/prisma/client';
 import { checkAllowance, hasCapability, recordUsage } from '../billing/usage';
+import { isEnabled } from '../ops/flags';
 import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
 import { prisma } from '../prisma';
@@ -34,7 +35,8 @@ export class CampaignError extends Error {
       | 'NO_SEGMENT'
       | 'NO_TEMPLATE'
       | 'QUERY_ONLY'
-      | 'PLAN_LIMIT',
+      | 'PLAN_LIMIT'
+      | 'DISABLED',
   ) {
     super(message);
     this.name = 'CampaignError';
@@ -62,6 +64,10 @@ export async function buildRecipients(input: {
 
   if (!(await hasCapability(input.workspaceId, 'CAMPAIGNS'))) {
     throw new CampaignError('El plan actual no incluye campanas.', 'PLAN_LIMIT');
+  }
+
+  if (!(await isEnabled('CAMPAIGNS', input.workspaceId))) {
+    throw new CampaignError('Las campanas estan apagadas.', 'DISABLED');
   }
 
   const segment = await prisma.segment.findFirst({
@@ -176,6 +182,13 @@ export async function sendCampaignBatch(input: {
 
   if (campaign.channel !== ConsentChannel.EMAIL) {
     throw new CampaignError('En la beta solo hay campanas de email.', 'INVALID_STATE');
+  }
+
+  // Se comprueba tambien aqui y no solo al armar la lista: entre programar una
+  // campana y enviarla pasan horas, y el corte tiene que valer para una campana
+  // ya encolada.
+  if (!(await isEnabled('CAMPAIGNS', input.workspaceId))) {
+    throw new CampaignError('Las campanas estan apagadas.', 'DISABLED');
   }
 
   const template = campaign.templateId

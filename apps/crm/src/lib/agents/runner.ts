@@ -22,6 +22,7 @@ import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
 import { raiseAlert } from '../billing/alerts';
 import { checkAllowance, recordUsage } from '../billing/usage';
 import { isWorkspaceActive } from '../onboarding/activation';
+import { isEnabled } from '../ops/flags';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -140,6 +141,13 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // exigir la activacion para probarlo seria pedir la llave que esta dentro de
   // la casa.
   if (!input.dryRun) {
+    // Fase 10: el freno de mano. Apagar la IA deja el resto del CRM intacto y
+    // las conversaciones esperando a una persona, que es exactamente lo que se
+    // quiere de un corte de emergencia.
+    if (!(await isEnabled('AI_AGENTS', input.workspaceId))) {
+      return { status: AgentRunStatus.ABORTED, skippedReason: 'agentes IA apagados' };
+    }
+
     if (!(await isWorkspaceActive(input.workspaceId))) {
       return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no esta activo' };
     }

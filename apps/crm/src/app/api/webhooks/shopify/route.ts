@@ -3,6 +3,7 @@ import { JobType } from '../../../../../generated/prisma/client';
 import { enqueue } from '@/lib/jobs/queue';
 import { getShopifyConfig, verifyWebhookHmac } from '@/lib/shopify/oauth';
 import { ingestShopifyWebhook } from '@/lib/shopify/webhooks';
+import { enforce } from '@/lib/ops/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,10 @@ export const dynamic = 'force-dynamic';
  * de forma idempotente, encola y responde 200. No procesa nada en linea.
  */
 export async function POST(request: Request) {
+  // Fase 10: Limite alto por el mismo motivo que el de Meta.
+  const limited = await enforce('webhook', request);
+  if (limited) return limited;
+
   const config = getShopifyConfig();
   if (!config) {
     // Sin secreto no se puede verificar nada. 200 para que Shopify no reintente

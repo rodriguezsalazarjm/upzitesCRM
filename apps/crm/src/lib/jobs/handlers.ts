@@ -21,6 +21,8 @@ import { sendCampaignBatch } from '../marketing/campaigns';
 import { advanceEnrollment, processDueEnrollments, scanJourneyEntries } from '../marketing/journeys';
 import { refreshSegmentCount } from '../marketing/segments';
 import { scanWorkspaceHealth } from '../billing/alerts';
+import { pruneRateLimitWindows } from '../ops/rate-limit';
+import { ageStaleScores, expireOverdueQuotes } from '../ops/maintenance';
 import { enqueue } from './queue';
 
 /**
@@ -284,6 +286,25 @@ const handlers: Record<JobType, JobHandler> = {
     return { workspaces: workspaces.length, raised, resolved };
   },
 
+  /**
+   * Mantenimiento diario.
+   *
+   * Junta en un solo trabajo lo que antes no llamaba nadie: podar trabajos
+   * terminados, borrar ventanas de rate limiting viejas, vencer cotizaciones
+   * pasadas de fecha y envejecer el scoring de los contactos en silencio.
+   *
+   * Ir juntos importa menos que existir: cada uno era deuda documentada que
+   * dependia de que alguien se acordara de encolarlo a mano.
+   */
+  [JobType.MAINTENANCE]: async () => {
+    const prunedJobs = await pruneFinishedJobs(7);
+    const prunedWindows = await pruneRateLimitWindows(24);
+    const expiredQuotes = await expireOverdueQuotes();
+    const agedScores = await ageStaleScores();
+
+    return { prunedJobs, prunedWindows, expiredQuotes, agedScores };
+  },
+
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
     const segments = await prisma.segment.findMany({
       where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
@@ -366,6 +387,14 @@ export async function enqueueRecurringJobs(now = new Date()) {
     payload: {},
     dedupeKey: `health:${hour}`,
     priority: 250,
+  });
+
+  // Mantenimiento: lo ultimo de la cola, porque nada depende de el.
+  await enqueue({
+    type: JobType.MAINTENANCE,
+    payload: {},
+    dedupeKey: `maintenance:${day}`,
+    priority: 400,
   });
 }
 

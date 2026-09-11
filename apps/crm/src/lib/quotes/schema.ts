@@ -24,13 +24,15 @@ export const intakeFieldSchema = z.object({
   min: z.number().optional(),
   max: z.number().optional(),
   help: z.string().optional(),
-});
+}).strict();
 
 export type IntakeField = z.infer<typeof intakeFieldSchema>;
 
-export const intakeSchemaSchema = z.object({
-  fields: z.array(intakeFieldSchema).min(1).max(30),
-});
+export const intakeSchemaSchema = z
+  .object({
+    fields: z.array(intakeFieldSchema).min(1).max(30),
+  })
+  .strict();
 
 export type IntakeSchema = z.infer<typeof intakeSchemaSchema>;
 
@@ -45,7 +47,7 @@ const baseComponent = {
 
 export const componentSchema = z.discriminatedUnion('type', [
   /** Monto fijo. */
-  z.object({ ...baseComponent, type: z.literal('FIXED'), amountClp: z.number().int() }),
+  z.object({ ...baseComponent, type: z.literal('FIXED'), amountClp: z.number().int() }).strict(),
 
   /** Precio por unidad de un campo numerico. */
   z.object({
@@ -53,7 +55,7 @@ export const componentSchema = z.discriminatedUnion('type', [
     type: z.literal('PER_UNIT'),
     unitPriceClp: z.number().int(),
     quantityFrom: z.string().min(1),
-  }),
+  }).strict(),
 
   /** Precio por area: dos campos numericos multiplicados. */
   z.object({
@@ -62,7 +64,7 @@ export const componentSchema = z.discriminatedUnion('type', [
     unitPriceClp: z.number().int(),
     widthFrom: z.string().min(1),
     heightFrom: z.string().min(1),
-  }),
+  }).strict(),
 
   /**
    * Precio por tramos sobre un campo numerico. El tramo se elige por el valor,
@@ -81,7 +83,7 @@ export const componentSchema = z.discriminatedUnion('type', [
         }),
       )
       .min(1),
-  }),
+  }).strict(),
 
   /** Recargo: monto fijo o porcentaje del subtotal acumulado. */
   z.object({
@@ -89,7 +91,7 @@ export const componentSchema = z.discriminatedUnion('type', [
     type: z.literal('SURCHARGE'),
     amountClp: z.number().int().optional(),
     percent: z.number().optional(),
-  }),
+  }).strict(),
 
   /** Descuento. Se guarda como monto negativo en el desglose. */
   z.object({
@@ -97,18 +99,30 @@ export const componentSchema = z.discriminatedUnion('type', [
     type: z.literal('DISCOUNT'),
     amountClp: z.number().int().optional(),
     percent: z.number().optional(),
-  }),
+  }).strict(),
 ]);
 
 export type PricingComponent = z.infer<typeof componentSchema>;
 
-export const rulesSchema = z.object({
-  components: z.array(componentSchema).min(1).max(40),
-  /** Piso del total. Un trabajo chico igual tiene un costo minimo. */
-  minimumClp: z.number().int().min(0).optional(),
-  /** Redondeo del total final, en pesos. 1000 redondea al millar mas cercano. */
-  roundToClp: z.number().int().min(0).optional(),
-});
+/**
+ * Las reglas se validan en modo **estricto**: una clave que el esquema no
+ * conoce hace fallar la validacion en vez de descartarse en silencio.
+ *
+ * No es una preferencia de estilo. Zod por defecto elimina lo que no reconoce,
+ * asi que escribir `conditions` en lugar de `when` dejaba el componente sin
+ * condicion: un recargo del 20% pensado para casos dificiles se le cobraba a
+ * todos, y la cotizacion salia igual de bien formada. Un error de tipeo no
+ * puede costarle dinero al cliente en silencio.
+ */
+export const rulesSchema = z
+  .object({
+    components: z.array(componentSchema).min(1).max(40),
+    /** Piso del total. Un trabajo chico igual tiene un costo minimo. */
+    minimumClp: z.number().int().min(0).optional(),
+    /** Redondeo del total final, en pesos. 1000 redondea al millar mas cercano. */
+    roundToClp: z.number().int().min(0).optional(),
+  })
+  .strict();
 
 export type PricingRules = z.infer<typeof rulesSchema>;
 

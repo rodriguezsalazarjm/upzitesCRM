@@ -3,9 +3,9 @@
 Seguimiento de la ejecucion de `ESPECIFICACION_CRM_SAAS_BETA_CLAUDE_CODE.md` (v1.0, 6-sep-2026).
 Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 
-- **Fase actual:** 9 — Onboarding SaaS, planes y consumo
-- **Estado:** COMPLETADA y verificada end-to-end en local, incluido el wizard.
-  Sigue la Fase 10 (hardening y lanzamiento).
+- **Fase actual:** 10 — Hardening y lanzamiento beta
+- **Estado:** COMPLETADA a nivel de codigo. **Las 11 fases estan cerradas.**
+  Lo que queda para vender la beta son tareas del propietario (seccion 9), no codigo.
 - **Ultima actualizacion:** 2026-09-11
 
 ---
@@ -24,7 +24,7 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 | 7 | Cotizador y aprobaciones | **Completada** (2026-09-08) |
 | 8 | Recuperacion, email y campanas | **Completada** (2026-09-11) |
 | 9 | Onboarding SaaS, planes y consumo | **Completada** (2026-09-11) |
-| 10 | Hardening y lanzamiento beta | En curso |
+| 10 | Hardening y lanzamiento beta | **Completada** (2026-09-11) |
 
 ### Fase 0 — detalle
 
@@ -181,6 +181,36 @@ una tienda real, que requiere crear la app en Shopify Partners (T16).
 
 ---
 
+### Fase 10 — detalle
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| Suite automatizada critica | Hecho | `scripts/smoke-critico.ts`, la matriz de la seccion 18 |
+| E2E de infoproducto, Shopify y cotizacion | Hecho | Infoproducto y cotizacion end-to-end; Shopify con fixtures (T16) |
+| Pruebas de carga moderadas sobre webhook/cola | Hecho | `scripts/carga.ts` |
+| Alertas y dashboards operativos | Hecho | `/ops` con interruptores; avisos de la Fase 9 |
+| Politica de privacidad, consentimiento y terminos | Parcial | `docs/PRIVACIDAD-Y-CONSENTIMIENTO.md` describe lo que hace el sistema; **la redaccion legal es T24** |
+| Runbooks de incidentes | Hecho | `docs/RUNBOOKS.md`, ocho escenarios |
+| Backups verificados | Pendiente | T25: es configuracion de Supabase, no codigo |
+| Seed limpio para demos/pilotos | Hecho | `scripts/seed-demo.ts`, idempotente |
+| Documentacion de soporte y onboarding | Hecho | `docs/OPERACION.md` |
+| Feature flags y kill switches | Hecho | 8 interruptores, por workspace y globales |
+
+**Criterio de salida:** no existen defectos criticos conocidos en aislamiento tenant, pagos,
+consentimiento, mensajeria ni creacion de ordenes, y existe forma rapida de apagar IA o campanas
+sin detener el CRM. **Cumplido**, con la salvedad de las tareas del propietario.
+
+**El freno de mano.** Ocho interruptores, cada uno con la frase que dice que pasa exactamente si se
+apaga. Un interruptor sin esa frase es uno que nadie se atreve a tocar en una emergencia, que es
+justo cuando hace falta. Se verifico en local: apagar `AI_AGENTS` deja el agente mudo
+—`ABORTED / agentes IA apagados`— mientras el inbox, los contactos y los pedidos siguen intactos, y
+reencenderlo lo reactiva en el siguiente mensaje.
+
+**El corte global gana.** Un workspace no puede reencender lo que la plataforma apago por un
+incidente. Si pudiera, el corte no serviria de nada.
+
+---
+
 ### Fase 9 — detalle
 
 | Entregable | Estado | Evidencia |
@@ -292,11 +322,11 @@ que corren en `iad1` al no declararse `regions` en `vercel.json`.
 
 - `DATABASE_URL`: transaction pooler, puerto 6543 (runtime).
 - `DIRECT_URL`: session pooler, puerto 5432 (Prisma CLI: migraciones y seed).
-- 65 tablas (64 modelos + `_prisma_migrations`) tras la Fase 9. Sin datos de workspace: cada
+- 67 tablas (66 modelos + `_prisma_migrations`) tras la Fase 10. Sin datos de workspace: cada
   suite limpia lo suyo y se verifico que no quedan filas residuales. Quedan 4 planes, que son
   catalogo global y no datos de cliente.
 
-### Modelos Prisma (64)
+### Modelos Prisma (66)
 
 Base (18): `Workspace`, `User`, `PasswordResetToken`, `Company`, `Contact`, `PipelineStage`,
 `Opportunity`, `Activity`, `LeadSource`, `Form`, `FormSubmission`, `WebEvent`, `Integration`,
@@ -306,6 +336,8 @@ Fase 1 (6): `ContactChannelConsent`, `SuppressionEntry`, `LeadScoreRule`, `LeadS
 `ScheduledAction`, `UsageRecord`.
 
 Fase 2 (5): `WhatsAppChannel`, `Conversation`, `Message`, `WebhookEvent`, `OutboxEvent`.
+
+Fase 10 (2): `FeatureFlag`, `RateLimitWindow`.
 
 Fase 9 (4): `WorkspaceProfile`, `WorkspaceActivation`, `UsageCounter`, `WorkspaceAlert`.
 `SubscriptionPlan` sumo `capabilities`, `allowances`, `overages`, `isActive` y `position`.
@@ -332,6 +364,8 @@ Fase 3 (2): `Job`, `AutomationExecution`. `AutomationRule` sumo `actions`, `dedu
 Base (13): `UserRole`, `ContactStatus`, `OpportunityStage`, `OpportunityStatus`, `ActivityType`,
 `WebEventType`, `IntegrationProvider`, `IntegrationStatus`, `AutomationTrigger`,
 `AutomationAction`, `AiInsightType`, `InsightStatus`, `SubscriptionStatus`.
+
+Fase 10: sin enums nuevos. `JobType` sumo `MAINTENANCE`.
 
 Fase 9 (4): `BusinessType`, `ActivationStatus`, `AlertKind`, `AlertSeverity`.
 `JobType` sumo `SCAN_WORKSPACE_HEALTH`.
@@ -368,7 +402,7 @@ de 4 a 13 valores y `AutomationAction` de 4 a 13.
 `ConversationMode` (creado en la Fase 1) ya se usa. `OrderStatus`, `PaymentStatus` y `QuoteStatus`
 siguen sin entidad: llegan con las Fases 5, 6 y 7.
 
-### Migraciones (19, todas aplicadas)
+### Migraciones (20, todas aplicadas)
 
 ```
 20260614171000_init_crm
@@ -390,6 +424,7 @@ siguen sin entidad: llegan con las Fases 5, 6 y 7.
 20260910120000_fase8_recuperacion_email
 20260911120000_fase9_onboarding_planes
 20260911130000_fase9_job_health
+20260911140000_fase10_hardening
 ```
 
 La migracion de la Fase 1 es aditiva: agrega columnas con default, crea tablas nuevas y hace
@@ -694,6 +729,40 @@ sumar `pdfkit` o `@react-pdf`, que traen decenas de megas y un runtime que mante
 documento que es texto en una pagina. El resultado es determinista —los mismos datos producen los
 mismos bytes— y se verifico abriendolo en el navegador, no solo comprobando que el archivo existe.
 
+### Hardening: interruptores y limites de abuso (Fase 10)
+
+| Archivo | Responsabilidad |
+|---|---|
+| `lib/ops/flags.ts` | Los 8 interruptores, por workspace y globales |
+| `lib/ops/rate-limit.ts` | Ventana fija en base de datos para login, captura y webhooks |
+| `lib/ops/maintenance.ts` | Poda, vencimiento de cotizaciones y envejecimiento de scores |
+
+**Por defecto todo esta encendido, y ante un fallo tambien.** Un interruptor que no existe no apaga
+nada, y si la consulta a la tabla de flags falla se responde "encendido". Un fallo leyendo la tabla
+de interruptores no puede dejar el producto muerto.
+
+**El corte global gana sobre el del workspace.** Apagar algo globalmente es un corte de emergencia
+del operador, no una preferencia del cliente: si un workspace pudiera reencenderlo, no serviria de
+nada. Por eso tampoco hay interfaz para el corte global —se hace por SQL, documentado en el
+runbook—: no es una accion que deba estar a un clic.
+
+**Cada interruptor dice que pasa si se apaga.** Es lo que lo hace usable: "el agente deja de
+responder, las conversaciones quedan esperando a una persona" es accionable a las tres de la
+manana; "AI_AGENTS: off" no lo es.
+
+**El rate limiting vive en la base, no en memoria.** El CRM corre en funciones sin estado: un
+contador en memoria protege una instancia y deja pasar el ataque por la de al lado. Se aplica solo
+donde hace falta —login, registro, reseteo, captura publica, webhooks y endpoints internos— y no al
+trafico normal.
+
+**Falla abierto a proposito.** Si la base no responde, el limitador deja pasar. Protege contra
+abuso, no es una barrera de seguridad —la autenticacion y las firmas siguen ahi—, y un limitador
+caido no debe tumbar el login ni los webhooks.
+
+**Los limites de webhook son altos** (600/minuto frente a 10 en cinco minutos del login). Cortarle
+el webhook a Meta o a Mercado Pago pierde mensajes y pagos: el limite existe para frenar un abuso
+evidente, no para moderar a un proveedor que se porta bien.
+
 ### Onboarding, planes y consumo (Fase 9)
 
 | Archivo | Responsabilidad |
@@ -810,6 +879,10 @@ aunque el dominio este todavia pendiente de verificar. Lo unico que lo detiene e
   email, campanas y baja). No requiere proveedor de email ni credenciales.
 - `apps/crm/scripts/smoke-fase9.ts`: pruebas de la Fase 9 (planes, onboarding, activacion,
   consumo, limites y avisos).
+- `apps/crm/scripts/smoke-critico.ts`: **la matriz minima de lanzamiento** (spec, seccion 18).
+  Es la suite que decide si la beta puede venderse.
+- `apps/crm/scripts/carga.ts`: carga moderada sobre cola, webhooks y rate limiting.
+- `apps/crm/scripts/seed-demo.ts`: workspace completo y coherente para demos y pilotos.
 - `apps/crm/scripts/fixtures/workspace.ts`: activa un workspace de prueba saltandose el wizard.
   Desde la Fase 9 un workspace nace sin activar, y las suites anteriores prueban otra cosa.
 
@@ -881,6 +954,32 @@ completo se valida en la Fase 5.
 ### B4 — Trabajo sin commit — RESUELTO (2026-09-06)
 
 Ver seccion 3.
+
+### B15 — Una clave mal escrita en una regla de precio se descartaba en silencio — CORREGIDO (2026-09-11)
+
+Lo detecto la suite critica al escribir una regla con `conditions` en lugar de `when`. Zod descarta
+por defecto lo que no reconoce, asi que el componente quedaba **sin condicion**: un recargo del 20%
+pensado para casos dificiles se le cobraba a todos, y la cotizacion salia igual de bien formada.
+
+**Correccion:** los esquemas de reglas e intake pasan a modo estricto. Una clave desconocida hace
+fallar la validacion al guardar, con el error visible en `POST /api/pricing-rule-sets`.
+
+**Leccion:** un error de tipeo no puede costarle dinero al cliente en silencio. En configuracion
+que decide precios, "ignorar lo que no entiendo" es la opcion equivocada por defecto.
+
+### B14 — El guardrail no detectaba descuentos inventados — CORREGIDO (2026-09-11)
+
+La matriz de lanzamiento exige "descuento no autorizado: rechaza o escala". El detector cubria
+precios, stock, pagos y despachos, pero **no descuentos**: el agente podia decir "te hago un 30% de
+descuento" y el mensaje salia sin que nadie lo viera.
+
+**Correccion:** tres patrones nuevos —porcentaje de descuento, promesa de descuento y afirmacion de
+un total con otra redaccion— mas pruebas de falsos positivos, porque un guardrail que bloquea
+respuestas normales deja al agente mudo.
+
+**Un detalle que costo una iteracion:** el patrón usaba `[^.]{0,40}` como comodin, y los montos en
+español llevan punto de miles (`$19.990`). Excluir el punto cortaba la busqueda justo en el caso
+que mas importa detectar.
 
 ### B13 — Un workspace sano aparecia con una alerta critica — CORREGIDO (2026-09-11)
 
@@ -1336,6 +1435,32 @@ no; el wizard mostro "5 de 9" y nombro exactamente los cuatro pendientes. Intent
 contador bajo a 4 sin intervencion. La pagina de uso mostro los siete cupos con su consumo real y
 el costo variable del periodo.
 
+### Fase 10 y suite critica
+
+`pnpm exec tsx scripts/smoke-critico.ts` y `scripts/carga.ts`, ejecutados el 2026-09-11.
+
+**Suite critica: 94/94. Carga: 9/9.**
+
+| Bloque de la matriz (spec, seccion 18) | Pruebas | Estado |
+|---|---|---|
+| Seguridad: aislamiento, firmas, ids ajenos, tokens | 16 | 16/16 |
+| Confiabilidad: idempotencia, reintentos, reinicio en journey | 8 | 8/8 |
+| IA: limites del catalogo, **descuentos**, humano, prompt injection | 15 | 15/15 |
+| Marketing: opt-out, unsubscribe, reimportacion, horario | 6 | 6/6 |
+| Ecommerce: stock, cambio de precio, rechazo, **E2E de infoproducto** | 12 | 12/12 |
+| Cotizacion: formulas, minimo, recargos, vigencia, PDF | 17 | 17/17 |
+| Kill switches: por workspace, global, y el CRM sigue en pie | 10 | 10/10 |
+| Rate limiting: limite, aislamiento por identificador, webhooks | 5 | 5/5 |
+| **Carga**: 50 webhooks identicos, 8 workers concurrentes, rafaga de login | 9 | 9/9 |
+
+**El resultado mas importante de la carga:** ocho workers tomando lotes a la vez sobre 100 trabajos
+dieron **101 tomas y 101 unicos**. Ninguno tomo el mismo trabajo dos veces. Es la prueba de que
+`FOR UPDATE SKIP LOCKED` hace lo que se espera bajo concurrencia real, y no solo en teoria.
+
+**Verificacion end-to-end en el navegador:** se apago `AI_AGENTS` desde `/ops` y se comprobo que el
+agente devuelve `ABORTED / agentes IA apagados` mientras el inbox, los contactos y los pedidos
+siguen funcionando; reencenderlo lo reactiva en el siguiente mensaje.
+
 Tras la Fase 9 se reejecutaron las suites anteriores: **Fase 8 en 142/142**, **Fase 7 en 79/79**,
 **Fase 6 en 74/74**, **Fase 5 en 70/70**, **Fase 4 en 74/74**, **Fase 3 en 46/46**,
 **Fase 2 en 46/46** y **Fase 1 en 41/41**.
@@ -1351,7 +1476,7 @@ consumo con su nombre anterior.
 
 | # | Item | Impacto |
 |---|---|---|
-| D1 | Sin rate limiting en `/api/auth/login`, la captura publica (CORS `*`) ni el webhook de WhatsApp | Seccion 15 de la spec lo exige antes de beta publica |
+| D1 | ~~Sin rate limiting en login, captura publica ni webhooks~~ | **Resuelto en la Fase 10**: `lib/ops/rate-limit.ts` en login, registro, reseteo, captura, webhooks e internos |
 | D2 | Sin runner de tests formal (Vitest/Jest): las suites son scripts ejecutables por fase | Conviene consolidarlas antes de la Fase 10 |
 | D3 | ~~Sin pruebas de aislamiento entre workspaces~~ — cubierto por `smoke-fase0.mjs` | — |
 | D4 | ~~Sin cifrado de tokens de integracion~~ — resuelto en la Fase 2 con `lib/crypto.ts` (AES-256-GCM). Queda migrar `Integration.config`, que sigue en JSON plano | Fase 6 |
@@ -1370,8 +1495,8 @@ consumo con su nombre anterior.
 | **D17** | Sin envio de plantillas aprobadas: fuera de la ventana de 24h la bandeja avisa pero no permite responder | Requiere dar de alta las plantillas en Meta (T9) |
 | ~~D18~~ | ~~Sin debounce ni lock por conversacion~~ — resueltos en la Fase 4 |
 | **D19** | El cron de Vercel corre **una vez al dia en plan Hobby**. Con ese plan los seguimientos no corren solos | Requiere Vercel Pro o `pg_cron` + `pg_net` en Supabase (T11) |
-| **D20** | El endpoint `/api/internal/run-jobs` no tiene rate limiting propio; depende solo del secreto | Junto con D1, antes de la beta publica |
-| **D21** | `pruneFinishedJobs` existe pero no lo llama ningun recurrente: la tabla `jobs` crece | Agregar al cron o a un barrido diario |
+| **D20** | ~~`/api/internal/*` sin rate limiting propio~~ | **Resuelto en la Fase 10**: si el secreto se filtra, el dano queda acotado a un ritmo razonable |
+| **D21** | ~~`pruneFinishedJobs` no lo llamaba nadie~~ | **Resuelto en la Fase 10**: el trabajo `MAINTENANCE` diario lo ejecuta junto con el resto de la limpieza |
 | **D22** | El agente no genera ni actualiza el `summary` de la conversacion: se manda resumen + 12 mensajes, pero nadie escribe el resumen | Conversaciones largas van a perder contexto. Fase 10 o antes |
 | **D23** | Sin agente ROUTER: hay un solo agente publicado por workspace | Llega cuando existan los agentes de cotizacion y postventa (Fases 5 y 7) |
 | **D24** | Los costos por token estan hardcodeados en `provider.ts` con una tarifa unica | Al fijar precios de plan hay que tarifar por modelo |
@@ -1385,7 +1510,7 @@ consumo con su nombre anterior.
 | **D32** | Los productos de Shopify se marcan `PHYSICAL` siempre: un infoproducto vendido por Shopify no dispararia entrega digital | Requiere mapear por tipo de producto o etiqueta. Fase 9 (onboarding) |
 | **D33** | Sin manejo de rate limit de Shopify (cost-based): una tienda grande puede toparse con el limite durante la sincronizacion | La cola reintenta, pero conviene respetar `throttleStatus` |
 | **D34** | No hay UI para crear ni editar reglas de precio: se cargan por API | Bloquea el onboarding autoservicio. Fase 9 |
-| **D35** | Las cotizaciones vencidas no pasan solas a EXPIRED: `validUntil` se guarda pero nadie lo barre | Agregar al cron, junto con los recurrentes de la Fase 3 |
+| **D35** | ~~Las cotizaciones vencidas no pasaban solas a EXPIRED~~ | **Resuelto en la Fase 10**: `expireOverdueQuotes` en el mantenimiento diario |
 | **D36** | El PDF no lleva logo ni colores del workspace: solo el nombre | La spec pide "branding basico"; falta almacenamiento de imagenes (D26) |
 | **D37** | El seguimiento de cotizacion pendiente (1/3/7 dias, spec 9.6) no esta cableado a `ScheduledAction` | **Resuelto en la Fase 8**: es el journey `cotizacion-pendiente` |
 | **D38** | No hay UI para crear ni editar segmentos, journeys, plantillas ni campanas: se cargan por API | La pagina `/recuperacion` muestra y enciende, no edita. Bloquea el onboarding autoservicio (Fase 9) |
@@ -1393,12 +1518,16 @@ consumo con su nombre anterior.
 | **D40** | Un contacto entra una sola vez a cada journey: no hay reinscripcion | La spec la deja como "reactivacion futura configurable". La unicidad en base lo impide a proposito |
 | **D41** | `maxConsecutiveNoReply` se guarda pero todavia no se aplica | Los journeys de fabrica ya acotan los intentos por diseno; el tope generico falta |
 | **D42** | El journey pausado reintenta cada hora en vez de dormir hasta que lo reactiven | Cuesta una consulta por inscripcion por hora. Aceptable en la beta, no a escala |
-| **D43** | El scoring por envejecimiento sigue dependiendo de que algo dispare el recalculo | Hay `RECALCULATE_SCORE` en la cola pero ningun barrido periodico lo encola |
+| **D43** | ~~El scoring no envejecia solo~~ | **Resuelto en la Fase 10**: `ageStaleScores` en el mantenimiento diario. Un lead que se calla ahora si se enfria |
 | **D44** | No hay UI para editar el perfil del negocio: el wizard enlaza a paginas que aun no tienen esos campos | Se guarda por `PATCH /api/onboarding/profile`. Es lo que mas falta para un alta autoservicio real |
 | **D45** | Cambiar de plan exige pasar por el checkout completo; no hay upgrade/downgrade prorrateado | Aceptable en la beta: los planes se venden asistidos |
 | **D46** | Los excedentes se calculan pero no se cobran: no hay linea de facturacion por sobreconsumo | El `overages` del plan solo decide si se bloquea o se permite |
 | **D47** | El barrido de salud recorre hasta 200 workspaces por corrida sin paginar | Suficiente para la beta; a escala hay que cursorear |
 | **D48** | Embedded Signup de Meta no implementado: WhatsApp se conecta pegando el token | Depende de credenciales de la app (T9) |
+| **D49** | No hay flujo de borrado ni exportacion de datos por titular | Requisito de la normativa chilena vigente. Bloquea la beta publica, no un piloto cerrado |
+| **D50** | El rate limiting usa ventana fija, no deslizante | En el borde de la ventana se puede pasar hasta 2x el limite. Aceptable para frenar fuerza bruta |
+| **D51** | Los interruptores no se cachean: cada envio consulta la tabla | Una lectura indexada por envio. A escala conviene un cache de segundos |
+| **D52** | El corte global solo se acciona por SQL | Es deliberado —no deberia estar a un clic— pero conviene un CLI antes de tener varios operadores |
 
 ---
 
@@ -1443,6 +1572,9 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T21 | Confirmar la zona horaria y los topes de contacto del piloto | Por defecto America/Santiago, 20:30-09:00, 1 WhatsApp/dia y 3 emails/semana. Se ajustan en `PATCH /api/messaging-policy` |
 | T22 | **Revisar y aprobar los precios y cupos de los tres planes beta** | Hoy son 49.000 / 89.000 / 149.000 CLP con cupos que invente como punto de partida. Son el modelo comercial: no los deberia fijar yo |
 | T23 | Decidir con que plan queda cada piloto y activarlo por el checkout | Cambiar de plan pasa por Mercado Pago a proposito; no hay forma de subir de plan sin pagar |
+| T24 | **Redaccion legal de la politica de privacidad y los terminos** | `docs/PRIVACIDAD-Y-CONSENTIMIENTO.md` describe que hace el sistema; la redaccion legal la tiene que hacer un abogado |
+| T25 | **Verificar los backups de Supabase**: comprobar que existen y restaurar uno de prueba | Un backup que nunca se restauro no es un backup. Es configuracion, no codigo |
+| T26 | Firmar acuerdos de encargado de datos con Meta, Resend, Mercado Pago y OpenAI | Necesario antes de la beta publica |
 
 ---
 
@@ -1471,7 +1603,7 @@ habilitan una integracion: una integracion sin configurar aparece inactiva, no t
 
 Resumen del informe de la Fase 0. Detalle por fase en la spec.
 
-**Modelo de datos:** 64 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
+**Modelo de datos:** 66 tablas. Mensajeria: hecha (5/5). Agentes IA: hecha (4/4). Comercio: hecho
 (7/7, mas `DigitalAsset` y `DigitalDelivery`), con los dos proveedores. Cotizaciones: hecho (4/4).
 De marketing y seguimiento: **completo**. Consentimiento, scoring, supresion, scheduled actions,
 el motor de automatizaciones y ahora segmentos, journeys y campanas. **Con esto no queda nada
@@ -1516,6 +1648,12 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 | 2026-09-07 | `ContactStatus` NO se elimina en la Fase 1. Se agrega `lifecycleStatus` con backfill y `transitionLifecycle` mantiene ambos sincronizados. Retirar la columna vieja es una migracion posterior, cuando nada la lea |
 | 2026-09-07 | El consentimiento requiere registro explicito: la ausencia de dato no habilita el envio. Es mas restrictivo que el minimo legal, y evita que una importacion masiva se interprete como permiso |
 | 2026-09-07 | Las reglas de scoring que dependen de canales aun no implementados (apertura de email, checkout real, medidas de cotizacion) NO se inventan: se documentan y llegan con su fase |
+| 2026-09-11 | Cada interruptor lleva escrita **la frase que dice que pasa si se apaga**. Uno sin esa frase es uno que nadie se atreve a tocar en una emergencia, que es justo cuando hace falta |
+| 2026-09-11 | Los interruptores **fallan encendidos**: si la tabla de flags no se puede leer, se responde "activo". Un fallo leyendo interruptores no puede dejar el producto muerto |
+| 2026-09-11 | El **corte global no tiene interfaz**: se hace por SQL y esta documentado en el runbook. No es una accion que deba estar a un clic |
+| 2026-09-11 | El rate limiting vive en la base y no en memoria —el CRM corre sin estado— y **falla abierto**: protege contra abuso, no es una barrera de seguridad, y uno caido no debe tumbar el login |
+| 2026-09-11 | Las reglas de precio se validan en **modo estricto**. Ignorar una clave desconocida en configuracion que decide precios es la opcion equivocada por defecto |
+| 2026-09-11 | La politica de privacidad se documenta como **descripcion factual del sistema**, no como texto legal. Publicar como legal algo que ningun abogado reviso seria peor que no tener nada |
 | 2026-09-11 | El avance del onboarding **se calcula, no se guarda**. Un checklist almacenado empieza a mentir en cuanto el cliente desconecta algo, y el precio de equivocarse aqui es activar un workspace que no esta listo |
 | 2026-09-11 | El consumo se guarda **dos veces**: detalle auditable en `UsageRecord` y total del periodo en `UsageCounter`. Comprobar un limite tiene que costar una fila, no la suma de un mes |
 | 2026-09-11 | **Ninguna metrica sin declarar queda permitida.** Un cupo ausente es mas probable que sea un olvido que una concesion, y la spec prohibe lo ilimitado |
@@ -1727,4 +1865,22 @@ explicitamente para no cambiarle el significado a un pago en vuelo. Hay una prue
 - **Un hallazgo corregido (B13):** un workspace sano aparecia con alerta critica por tener su unico
   numero de WhatsApp. El problema de fondo era que "agotado" estaba definido en dos sitios.
 - Pruebas: **75/75**. Fases 8 a 1 sin regresiones tras ajustar dos suites al nuevo estado inicial.
-- **Fase 9 cerrada. Sigue la Fase 10: hardening y lanzamiento.**
+- **Fase 9 cerrada.**
+
+### 2026-09-11 — Fase 10, hardening y lanzamiento
+
+- 2 tablas nuevas: interruptores y ventanas de rate limiting. Migracion aditiva.
+- 8 interruptores por workspace y globales, cableados al agente, journeys, campanas y email.
+  Verificado en el navegador: apagar la IA la calla y deja el CRM entero funcionando.
+- Rate limiting en login, registro, reseteo, captura publica, webhooks e internos (D1, D20).
+- Trabajo de mantenimiento diario que resuelve tres deudas que nadie llamaba: poda de trabajos
+  (D21), vencimiento de cotizaciones (D35) y envejecimiento del scoring (D43).
+- `smoke-critico.ts`: la matriz de la seccion 18 de la spec, 94 pruebas.
+- `carga.ts`: carga moderada. Ocho workers concurrentes sobre 100 trabajos dieron 101 tomas y 101
+  unicos.
+- `seed-demo.ts`: workspace completo e idempotente para demos y pilotos.
+- `docs/RUNBOOKS.md`, `docs/OPERACION.md` y `docs/PRIVACIDAD-Y-CONSENTIMIENTO.md`.
+- **Dos hallazgos corregidos:** el guardrail no detectaba descuentos inventados (B14) y una clave
+  mal escrita en una regla de precio se descartaba en silencio, cobrando un recargo a todos (B15).
+- Pruebas: **94/94** critica, **9/9** carga, y las 9 suites de fase sin regresiones.
+- **Las 11 fases estan cerradas. Lo que queda para vender la beta son tareas del propietario.**

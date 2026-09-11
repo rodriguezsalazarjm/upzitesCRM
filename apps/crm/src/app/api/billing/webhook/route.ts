@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PaymentStatus, SubscriptionStatus } from '../../../../../generated/prisma/client';
 import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-webhook';
+import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 import { nextMonthlyRenewal, MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
 import { getPaymentClient, verifyWebhookSignature } from '@/lib/mercado-pago';
@@ -13,6 +14,10 @@ import { getPaymentClient, verifyWebhookSignature } from '@/lib/mercado-pago';
  * Endpoint server-to-server (no CORS: no lo llama un navegador).
  */
 export async function POST(request: Request) {
+  // Fase 10: Limite alto: cortarle el webhook a Mercado Pago pierde pagos.
+  const limited = await enforce('webhook', request);
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const dataId = url.searchParams.get('data.id') ?? url.searchParams.get('id');
   const type = url.searchParams.get('type');

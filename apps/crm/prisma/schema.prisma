@@ -60,6 +60,8 @@ model Workspace {
   quotes           Quote[]
   approvalRequests ApprovalRequest[]
 
+  featureFlags   FeatureFlag[]
+
   profile        WorkspaceProfile?
   activation     WorkspaceActivation?
   usageCounters  UsageCounter[]
@@ -1780,6 +1782,62 @@ model WorkspaceAlert {
   @@map("workspace_alerts")
 }
 
+// --- Fase 10: hardening y lanzamiento ----------------------------------------
+
+/// Interruptor de una funcion, global o de un workspace.
+///
+/// Es el freno de mano que pide la spec: "forma rapida de apagar IA o campanas
+/// sin detener el CRM". Apagar `AI_AGENTS` deja el inbox, los contactos y los
+/// pedidos funcionando; solo el agente deja de responder.
+///
+/// `scope` vale `GLOBAL` o el id del workspace. Es una columna aparte y no el
+/// `workspaceId` nullable porque en Postgres dos NULL son distintos entre si:
+/// un unique sobre (workspaceId, key) dejaria crear dos interruptores globales
+/// contradictorios para la misma funcion.
+model FeatureFlag {
+  id          String  @id @default(cuid())
+  scope       String
+  workspaceId String? @map("workspace_id")
+  key         String
+  enabled     Boolean @default(true)
+  /// Por que se apago. Se muestra en la interfaz de operaciones.
+  note        String?
+
+  updatedById String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, key])
+  @@index([key, enabled])
+  @@map("feature_flags")
+}
+
+/// Contador de una ventana de rate limiting.
+///
+/// Vive en la base y no en memoria porque el CRM corre en funciones sin estado:
+/// un contador en memoria protegeria una instancia y dejaria pasar el ataque
+/// por la de al lado.
+///
+/// El precio es una escritura por peticion en los endpoints protegidos. Se
+/// acepta: son login, captura publica y webhooks, no el trafico normal.
+model RateLimitWindow {
+  id     String @id @default(cuid())
+  /// Identifica al limitado: `login:<ip>`, `capture:<formId>`, etc.
+  bucket String
+  /// Inicio de la ventana, truncado. Dos peticiones de la misma ventana
+  /// comparten fila.
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([bucket, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_windows")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -2108,6 +2166,8 @@ enum JobType {
   REFRESH_SEGMENT_COUNTS
   // Fase 9
   SCAN_WORKSPACE_HEALTH
+  // Fase 10
+  MAINTENANCE
 }
 
 enum JobStatus {

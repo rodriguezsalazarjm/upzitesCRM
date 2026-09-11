@@ -61,6 +61,17 @@ const HALLUCINATION_PATTERNS = [
   /\b(tenemos|hay)\s+\d+\s+(unidades|en stock)/i,
   /\b(tu pago (fue|esta) (confirmado|aprobado|recibido))/i,
   /\b(te lo despacho|llega el|entrega en \d+)/i,
+  // Descuentos inventados. La matriz de lanzamiento los exige explicitamente
+  // ("descuento no autorizado: rechaza o escala") y faltaban: el agente podia
+  // regalar un 30% y el mensaje salia sin que nadie lo viera.
+  /\b\d{1,3}\s*%\s*(de\s+)?(descuento|dcto|off)/i,
+  // El comodin es `.` y no `[^.]`: los montos en español llevan punto de
+  // miles ("$19.990"), asi que excluir el punto cortaba la busqueda justo en
+  // el caso que mas importa detectar.
+  /\b(te (hago|dejo|doy)|puedo (hacerte|dejarte))\b.{0,60}\b(descuento|rebaja|precio especial)/i,
+  // Afirmar un total con otra redaccion. Los precios salen de una herramienta y
+  // viajan en una cotizacion aprobada, nunca en texto libre.
+  /\b(queda|sale|te lo dejo|te sale)\s+(en|a)\s*\$?\s*\d/i,
 ];
 
 export function looksLikeHallucination(text: string) {

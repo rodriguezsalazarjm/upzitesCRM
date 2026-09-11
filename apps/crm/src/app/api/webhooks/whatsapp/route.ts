@@ -3,6 +3,7 @@ import { JobType } from '../../../../../generated/prisma/client';
 import { enqueue } from '@/lib/jobs/queue';
 import { ingestWebhookEvent } from '@/lib/whatsapp/inbound';
 import { resolveVerification, verifyMetaSignature } from '@/lib/whatsapp/signature';
+import { enforce } from '@/lib/ops/rate-limit';
 
 /**
  * Webhook publico de WhatsApp Cloud API.
@@ -28,6 +29,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Fase 10: Limite alto: un proveedor legitimo manda rafagas y cortarle el webhook
+  // a Meta pierde mensajes. Esto frena el abuso evidente, no a Meta.
+  const limited = await enforce('webhook', request);
+  if (limited) return limited;
+
   // La firma se calcula sobre el cuerpo CRUDO: parsear antes de verificar
   // cambiaria los bytes y la firma nunca coincidiria.
   const rawBody = await request.text();

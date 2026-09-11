@@ -17,6 +17,7 @@ import {
   type JourneyStep,
 } from '../../../generated/prisma/client';
 import { isWorkspaceActive } from '../onboarding/activation';
+import { isEnabled } from '../ops/flags';
 import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
 import { prisma } from '../prisma';
@@ -384,6 +385,16 @@ export async function advanceEnrollment(enrollmentId: string, now = new Date()):
   });
 
   const journey = await prisma.journey.findUniqueOrThrow({ where: { id: enrollment.journeyId } });
+
+  // Fase 10: el interruptor de journeys. Se conserva la inscripcion igual que
+  // con un journey pausado: apagar no puede significar perder el estado.
+  if (!(await isEnabled('JOURNEYS', enrollment.workspaceId))) {
+    await prisma.journeyEnrollment.update({
+      where: { id: enrollment.id },
+      data: { nextRunAt: new Date(now.getTime() + 3_600_000) },
+    });
+    return { enrollmentId, outcome: 'NOT_ACTIVE', detail: 'journeys apagados' };
+  }
 
   // Fase 9: mientras el workspace no este activo, la recuperacion no escribe.
   // La inscripcion no se pierde: se vuelve a mirar en una hora, igual que con
