@@ -1576,13 +1576,13 @@ Punto de partida: las 6 migraciones existentes estan aplicadas y verificadas sob
 | T5 | **Rotar la password de Postgres de `mtdtccnchxpwnjllpsog`** | Se compartio por chat durante el setup |
 | T6 | Crear un segundo proyecto Supabase para desarrollo | D14 |
 | T7 | Confirmar el email real de Alvaro Quintero antes de correr `seed-alvaro.ts` | El seed trae un default provisional |
-| T8 | Aprobar el inicio de la Fase 3 (cola y scheduler) | La spec exige aprobacion explicita por fase |
+| T8 | ~~Aprobar el inicio de la Fase 3~~ — hecho; las 11 fases quedaron aprobadas y cerradas | — |
 | T9 | **Credenciales de Meta**: `META_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` y un numero de prueba | Valida la Fase 2 contra la API real; hoy solo esta probada con fixtures |
 | T10 | Generar `INTEGRATION_ENCRYPTION_KEY` e `INTERNAL_WORKER_SECRET` para Vercel | Sin la primera no se pueden guardar tokens; sin la segunda el cron responde 401 y **nada se procesa** |
 | T11 | Decidir como corre el cron: Vercel Pro (cron por minuto) o `pg_cron` + `pg_net` en Supabase | En plan Hobby el cron corre 1 vez al dia y los seguimientos no funcionan (D19) |
 | T12 | **Cargar creditos en OpenAI** y definir un limite de gasto del proyecto | Sin creditos el agente no puede responder en produccion (B7) |
 | T13 | **Rotar la API key de OpenAI**: circulo por el chat | Igual que la password de Postgres (T5) |
-| T14 | Definir como llega el enlace de entrega al cliente: mensaje de WhatsApp, email, o ambos | Hoy el acceso se genera pero no se envia solo (D29) |
+| T14 | ~~Definir como llega el enlace de entrega~~ — resuelto en codigo: sale por **ambos** canales, y si no sale por ninguno levanta un aviso | Queda solo confirmar que el texto del mensaje te parece bien |
 | T15 | Cargar el catalogo del piloto de infoproductos y habilitar `create_checkout` en su agente | Sin catalogo el agente deriva; sin la herramienta no puede cerrar la venta |
 | T16 | **Crear la app en Shopify Partners** y entregar `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` | Valida la Fase 6 contra una tienda real; hoy solo esta probada con fixtures |
 | T17 | Definir las reglas de precio reales del piloto de servicios y publicarlas | Sin reglas publicadas el agente no puede cotizar; se cargan por `POST /api/pricing-rule-sets` |
