@@ -121,7 +121,13 @@ const definitions: StepDefinition[] = [
     isRequired: ({ capabilities }) => capabilities.includes('WHATSAPP'),
     check: async ({ workspaceId }) => {
       const channel = await prisma.whatsAppChannel.findFirst({
-        where: { workspaceId, status: WhatsAppChannelStatus.CONNECTED },
+        where: {
+          workspaceId,
+          status: WhatsAppChannelStatus.CONNECTED,
+          accessTokenEncrypted: { not: null },
+          lastHealthCheckAt: { not: null },
+          webhookSubscribedAt: { not: null },
+        },
         select: { id: true },
       });
 

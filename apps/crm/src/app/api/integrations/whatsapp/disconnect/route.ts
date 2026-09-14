@@ -32,30 +32,47 @@ export async function POST(request: Request) {
   const parsed = await parseBody(request, disconnectSchema);
   if (!parsed.ok) return parsed.response;
 
-  const updated = await prisma.whatsAppChannel.updateMany({
+  const channel = await prisma.whatsAppChannel.findFirst({
     where: { id: parsed.data.channelId, workspaceId: user.workspace.id },
-    data: {
-      status: WhatsAppChannelStatus.DISCONNECTED,
-      accessTokenEncrypted: null,
-      webhookSubscribedAt: null,
-    },
+    select: { id: true },
   });
+  if (!channel) return NextResponse.json({ message: 'Canal no encontrado' }, { status: 404 });
 
-  if (updated.count === 0) {
-    return NextResponse.json({ message: 'Canal no encontrado' }, { status: 404 });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.whatsAppChannel.update({
+      where: { id: channel.id, workspaceId: user.workspace.id },
+      data: {
+        status: WhatsAppChannelStatus.DISCONNECTED,
+        accessTokenEncrypted: null,
+        webhookSubscribedAt: null,
+        lastHealthCheckAt: null,
+      },
+    });
 
-  await prisma.integration.updateMany({
-    where: { workspaceId: user.workspace.id, provider: IntegrationProvider.WHATSAPP },
-    data: { status: IntegrationStatus.DISCONNECTED },
-  });
+    const otherConnected = await tx.whatsAppChannel.count({
+      where: {
+        workspaceId: user.workspace.id,
+        id: { not: channel.id },
+        status: WhatsAppChannelStatus.CONNECTED,
+      },
+    });
+    await tx.integration.updateMany({
+      where: { workspaceId: user.workspace.id, provider: IntegrationProvider.WHATSAPP },
+      data: {
+        status: otherConnected > 0 ? IntegrationStatus.CONNECTED : IntegrationStatus.DISCONNECTED,
+      },
+    });
 
-  await recordAudit({
-    workspaceId: user.workspace.id,
-    actorId: user.id,
-    action: 'whatsapp.channel_disconnected',
-    entity: 'WhatsAppChannel',
-    entityId: parsed.data.channelId,
+    await recordAudit(
+      {
+        workspaceId: user.workspace.id,
+        actorId: user.id,
+        action: 'whatsapp.channel_disconnected',
+        entity: 'WhatsAppChannel',
+        entityId: channel.id,
+      },
+      tx,
+    );
   });
 
   return NextResponse.json({ ok: true });

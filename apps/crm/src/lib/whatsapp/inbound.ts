@@ -87,14 +87,18 @@ export async function ingestWebhookEvent(rawBody: string, parsed: unknown): Prom
  */
 export async function processWebhookEvent(eventId: string) {
   const event = await prisma.webhookEvent.findUnique({ where: { id: eventId } });
-  if (!event || event.status === WebhookEventStatus.PROCESSED) {
+  if (
+    !event ||
+    (event.status !== WebhookEventStatus.PENDING && event.status !== WebhookEventStatus.FAILED)
+  ) {
     return { processed: 0, skipped: true };
   }
 
-  await prisma.webhookEvent.update({
-    where: { id: event.id },
+  const claimed = await prisma.webhookEvent.updateMany({
+    where: { id: event.id, status: event.status },
     data: { status: WebhookEventStatus.PROCESSING, attempts: { increment: 1 } },
   });
+  if (claimed.count === 0) return { processed: 0, skipped: true };
 
   try {
     const events = normalizeWebhookPayload(event.payload);
@@ -143,7 +147,8 @@ async function resolveChannel(phoneNumberId: string) {
 
 async function applyInboundMessage(event: NormalizedInboundMessage) {
   const channel = await resolveChannel(event.phoneNumberId);
-  if (!channel) return false;
+  // Un evento de prueba o un numero desconectado no puede abrir conversaciones.
+  if (!channel || channel.status !== 'CONNECTED') return false;
 
   // Idempotencia a nivel de mensaje: si ya existe ese id externo, no se duplica
   // aunque el evento completo llegue con otra clave.
@@ -168,6 +173,28 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
       profileName: event.profileName,
     });
     isNewContact = before === 0;
+
+    // Cada entrante renueva la evidencia que permite responder por WhatsApp,
+    // incluso si el contacto ya existia por una importacion anterior.
+    await tx.contactChannelConsent.upsert({
+      where: { contactId_channel: { contactId: contact.id, channel: ConsentChannel.WHATSAPP } },
+      create: {
+        workspaceId: channel.workspaceId,
+        contactId: contact.id,
+        channel: ConsentChannel.WHATSAPP,
+        status: ConsentStatus.GRANTED,
+        source: 'inbound-message',
+        evidence: { reason: 'el contacto inicio la conversacion' },
+        grantedAt: event.timestamp,
+      },
+      update: {
+        status: ConsentStatus.GRANTED,
+        source: 'inbound-message',
+        evidence: { reason: 'el contacto escribio nuevamente' },
+        grantedAt: event.timestamp,
+        revokedAt: null,
+      },
+    });
 
     const now = event.timestamp;
 
@@ -334,20 +361,6 @@ async function upsertContactByPhone(
     },
   });
 
-  // Escribir primero es consentimiento suficiente para responder por ese canal.
-  // No habilita marketing: eso requiere un opt-in explicito aparte.
-  await tx.contactChannelConsent.create({
-    data: {
-      workspaceId: input.workspaceId,
-      contactId: contact.id,
-      channel: ConsentChannel.WHATSAPP,
-      status: ConsentStatus.GRANTED,
-      source: 'inbound-message',
-      evidence: { reason: 'el contacto inicio la conversacion' },
-      grantedAt: new Date(),
-    },
-  });
-
   await tx.activity.create({
     data: {
       workspaceId: input.workspaceId,
@@ -363,7 +376,7 @@ async function upsertContactByPhone(
 
 async function applyStatusUpdate(event: NormalizedStatusUpdate) {
   const channel = await resolveChannel(event.phoneNumberId);
-  if (!channel) return false;
+  if (!channel || channel.status !== 'CONNECTED') return false;
 
   const message = await prisma.message.findUnique({
     where: { externalMessageId: event.externalMessageId },

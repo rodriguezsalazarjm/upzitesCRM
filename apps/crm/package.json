@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:whatsapp": "tsx --test src/lib/whatsapp/*.test.ts",
     "test:onboarding": "tsx --test src/lib/onboarding/*.test.ts",
     "test:quotes": "tsx --test src/lib/quotes/*.test.ts",
     "db:generate": "prisma generate",

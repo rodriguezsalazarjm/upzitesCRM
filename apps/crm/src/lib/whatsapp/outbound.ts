@@ -44,54 +44,108 @@ export type QueueMessageInput = {
 export async function queueOutboundMessage(input: QueueMessageInput) {
   const conversation = await prisma.conversation.findFirst({
     where: { id: input.conversationId, workspaceId: input.workspaceId },
-    select: { id: true, mode: true, contactId: true, channelId: true, contact: { select: { phone: true } } },
+    select: {
+      id: true,
+      mode: true,
+      status: true,
+      customerServiceWindowEndsAt: true,
+      contactId: true,
+      channelId: true,
+      contact: {
+        select: {
+          phone: true,
+          consents: {
+            where: { channel: 'WHATSAPP' },
+            select: { status: true },
+            take: 1,
+          },
+        },
+      },
+      channel: { select: { status: true } },
+    },
   });
 
   if (!conversation) {
     throw new OutboundError('Conversacion no encontrada en este workspace.', 'NOT_FOUND');
   }
 
-  // Regla de la spec: la IA no responde cuando hay un humano a cargo.
-  if (input.senderType === MessageSenderType.AI && conversation.mode === ConversationMode.HUMAN_ACTIVE) {
-    throw new OutboundError('La conversacion esta tomada por un humano: la IA no responde.', 'AI_BLOCKED');
+  if (conversation.status === 'CLOSED') {
+    throw new OutboundError('La conversacion esta cerrada.', 'CONVERSATION_CLOSED');
   }
 
-  const message = await prisma.message.create({
-    data: {
-      workspaceId: input.workspaceId,
-      conversationId: conversation.id,
-      direction: MessageDirection.OUTBOUND,
-      senderType: input.senderType,
-      senderUserId: input.senderUserId ?? null,
-      agentRunId: input.agentRunId ?? null,
-      type: MessageType.TEXT,
-      text: input.text,
-      status: MessageStatus.QUEUED,
-    },
-  });
+  if (conversation.channel.status !== 'CONNECTED') {
+    throw new OutboundError(
+      'El canal de WhatsApp requiere atencion antes de enviar.',
+      'CONVERSATION_CLOSED',
+    );
+  }
 
-  await prisma.outboxEvent.create({
-    data: {
-      workspaceId: input.workspaceId,
-      type: OutboxType.WHATSAPP_MESSAGE,
-      // El id del mensaje ES la clave de idempotencia: un reintento del worker
-      // no puede producir dos envios.
-      idempotencyKey: `message:${message.id}`,
-      payload: {
-        messageId: message.id,
+  if (!conversation.contact.phone) {
+    throw new OutboundError('El contacto no tiene un telefono de WhatsApp.', 'NOT_FOUND');
+  }
+
+  if (conversation.contact.consents[0]?.status !== 'GRANTED') {
+    throw new OutboundError('El contacto no autorizo respuestas por WhatsApp.', 'NO_CONSENT');
+  }
+
+  if (
+    input.senderType === MessageSenderType.USER &&
+    (!conversation.customerServiceWindowEndsAt ||
+      conversation.customerServiceWindowEndsAt <= new Date())
+  ) {
+    throw new OutboundError(
+      'La ventana de 24 horas termino. Debes usar una plantilla aprobada para volver a contactar.',
+      'CONVERSATION_CLOSED',
+    );
+  }
+
+  // Regla de la spec: la IA no responde cuando hay un humano a cargo.
+  if (
+    input.senderType === MessageSenderType.AI &&
+    conversation.mode === ConversationMode.HUMAN_ACTIVE
+  ) {
+    throw new OutboundError(
+      'La conversacion esta tomada por un humano: la IA no responde.',
+      'AI_BLOCKED',
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const message = await tx.message.create({
+      data: {
+        workspaceId: input.workspaceId,
         conversationId: conversation.id,
-        to: conversation.contact.phone ?? '',
+        direction: MessageDirection.OUTBOUND,
+        senderType: input.senderType,
+        senderUserId: input.senderUserId ?? null,
+        agentRunId: input.agentRunId ?? null,
+        type: MessageType.TEXT,
         text: input.text,
+        status: MessageStatus.QUEUED,
       },
-    },
-  });
+    });
 
-  await prisma.conversation.update({
-    where: { id: conversation.id },
-    data: { lastOutboundAt: new Date(), lastMessageAt: new Date() },
-  });
+    await tx.outboxEvent.create({
+      data: {
+        workspaceId: input.workspaceId,
+        type: OutboxType.WHATSAPP_MESSAGE,
+        idempotencyKey: `message:${message.id}`,
+        payload: {
+          messageId: message.id,
+          conversationId: conversation.id,
+          to: conversation.contact.phone,
+          text: input.text,
+        },
+      },
+    });
 
-  return message;
+    await tx.conversation.update({
+      where: { id: conversation.id, workspaceId: input.workspaceId },
+      data: { lastOutboundAt: new Date(), lastMessageAt: new Date() },
+    });
+
+    return message;
+  });
 }
 
 export type ProcessOutboxResult = {
@@ -150,7 +204,7 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
 
       const channel = await prisma.whatsAppChannel.findUnique({
         where: { id: message.conversation.channelId },
-        select: { phoneNumberId: true, accessTokenEncrypted: true },
+        select: { id: true, workspaceId: true, phoneNumberId: true, accessTokenEncrypted: true },
       });
 
       if (!channel) {
@@ -193,6 +247,19 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
         });
         result.retried += 1;
         continue;
+      }
+
+      if (sent.errorCode === '190' || sent.errorCode === '401' || sent.errorCode === '403') {
+        await prisma.$transaction([
+          prisma.whatsAppChannel.update({
+            where: { id: channel.id },
+            data: { status: 'NEEDS_ATTENTION' },
+          }),
+          prisma.integration.updateMany({
+            where: { workspaceId: channel.workspaceId, provider: 'WHATSAPP' },
+            data: { status: 'NEEDS_ATTENTION' },
+          }),
+        ]);
       }
 
       await markFailed(event.id, payload.messageId, sent.errorMessage, sent.errorCode);
@@ -249,10 +316,19 @@ async function markFailed(outboxId: string, messageId: string, error: string, co
 }
 
 /** Reencola un mensaje fallido, desde el boton de reintento de la bandeja. */
-export async function retryMessage(input: { workspaceId: string; messageId: string; actorId?: string }) {
+export async function retryMessage(input: {
+  workspaceId: string;
+  messageId: string;
+  actorId?: string;
+}) {
   const message = await prisma.message.findFirst({
     where: { id: input.messageId, workspaceId: input.workspaceId, status: MessageStatus.FAILED },
-    select: { id: true, text: true, conversationId: true, conversation: { select: { contact: { select: { phone: true } } } } },
+    select: {
+      id: true,
+      text: true,
+      conversationId: true,
+      conversation: { select: { contact: { select: { phone: true } } } },
+    },
   });
 
   if (!message) throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');

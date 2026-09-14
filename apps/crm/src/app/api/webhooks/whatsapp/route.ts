@@ -62,6 +62,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
+  if (ingest.events === 0) {
+    // Las pruebas de Meta y los campos no soportados quedan registradas como
+    // IGNORED, pero no crean trabajo ni intentan resolver un tenant.
+    return NextResponse.json({ ok: true, ignored: true });
+  }
+
   // El evento ya esta a salvo en la base. El procesamiento va a la cola: el
   // webhook responde 200 sin esperar a que corran las automatizaciones.
   await enqueue({

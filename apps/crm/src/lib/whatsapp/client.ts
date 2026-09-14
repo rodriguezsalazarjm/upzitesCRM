@@ -1,4 +1,5 @@
 import { decryptSecret } from '../crypto';
+import { whatsappGraphVersion } from './meta';
 
 /**
  * Cliente minimo de WhatsApp Cloud API.
@@ -6,12 +7,6 @@ import { decryptSecret } from '../crypto';
  * Sin credenciales configuradas devuelve `configured: false` en vez de lanzar:
  * la integracion aparece inactiva y el resto del CRM sigue funcionando.
  */
-const DEFAULT_GRAPH_VERSION = 'v21.0';
-
-function graphVersion() {
-  return process.env.WHATSAPP_GRAPH_API_VERSION ?? DEFAULT_GRAPH_VERSION;
-}
-
 export type SendResult =
   | { ok: true; externalMessageId: string }
   | { ok: false; retryable: boolean; errorCode?: string; errorMessage: string };
@@ -46,7 +41,7 @@ export async function sendTextMessage(input: {
     };
   }
 
-  const url = `https://graph.facebook.com/${graphVersion()}/${input.channel.phoneNumberId}/messages`;
+  const url = `https://graph.facebook.com/${whatsappGraphVersion()}/${input.channel.phoneNumberId}/messages`;
 
   let response: Response;
   try {
@@ -64,12 +59,12 @@ export async function sendTextMessage(input: {
         text: { preview_url: false, body: input.text },
       }),
     });
-  } catch (error) {
+  } catch {
     // Fallo de red: reintentable, el mensaje sigue en el outbox.
     return {
       ok: false,
       retryable: true,
-      errorMessage: error instanceof Error ? error.message : 'error de red',
+      errorMessage: 'No se pudo contactar a WhatsApp. El envio se reintentara.',
     };
   }
 
@@ -77,12 +72,19 @@ export async function sendTextMessage(input: {
 
   if (!response.ok) {
     const error = (body.error ?? {}) as Record<string, unknown>;
+    const errorCode = error.code ? String(error.code) : String(response.status);
+    const invalidCredentials =
+      response.status === 401 || response.status === 403 || errorCode === '190';
     return {
       ok: false,
       // 4xx (salvo 429) es un problema del mensaje, no del momento: no reintentar.
       retryable: response.status === 429 || response.status >= 500,
-      errorCode: error.code ? String(error.code) : String(response.status),
-      errorMessage: String(error.message ?? `HTTP ${response.status}`),
+      errorCode,
+      // No propagamos el texto de Meta: puede contener detalles de la cuenta o
+      // repetir partes de credenciales enviadas por el operador.
+      errorMessage: invalidCredentials
+        ? 'Las credenciales de WhatsApp son invalidas o vencieron.'
+        : `WhatsApp rechazo el envio (codigo ${errorCode}).`,
     };
   }
 

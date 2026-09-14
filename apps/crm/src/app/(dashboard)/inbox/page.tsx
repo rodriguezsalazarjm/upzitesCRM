@@ -40,7 +40,9 @@ export default async function InboxPage() {
   const user = await requireCurrentUser();
   const [conversations, channelCount] = await Promise.all([
     listConversations(),
-    prisma.whatsAppChannel.count({ where: { workspaceId: user.workspace.id } }),
+    prisma.whatsAppChannel.count({
+      where: { workspaceId: user.workspace.id, status: 'CONNECTED' },
+    }),
   ]);
 
   return (
