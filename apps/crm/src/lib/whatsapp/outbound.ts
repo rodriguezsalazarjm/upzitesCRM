@@ -40,6 +40,7 @@ export type QueueMessageInput = {
   text: string;
   senderType: MessageSenderType;
   origin: OutboundOrigin;
+  idempotencyKey?: string;
   senderUserId?: string | null;
   agentRunId?: string | null;
 };
@@ -120,14 +121,43 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
         'CONVERSATION_CLOSED',
       );
     }
-    if (
-      pausesOnHumanTakeover(input.origin) &&
-      conversation.mode !== ConversationMode.AI_ACTIVE
-    ) {
+    if (pausesOnHumanTakeover(input.origin) && conversation.mode !== ConversationMode.AI_ACTIVE) {
       throw new OutboundError(
         'La conversación está a cargo de una persona: la respuesta automática no se enviará.',
         'AI_BLOCKED',
       );
+    }
+
+    if (input.idempotencyKey) {
+      const existingEvent = await tx.outboxEvent.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+        select: { workspaceId: true, payload: true },
+      });
+      if (existingEvent) {
+        const existingPayload = existingEvent.payload as Partial<OutboxMessagePayload>;
+        const existingMessage = existingPayload.messageId
+          ? await tx.message.findFirst({
+              where: { id: existingPayload.messageId, workspaceId: input.workspaceId },
+            })
+          : null;
+        if (
+          existingEvent.workspaceId !== input.workspaceId ||
+          existingPayload.conversationId !== conversation.id ||
+          !existingMessage
+        ) {
+          throw new Error('La clave de idempotencia ya pertenece a otro envío.');
+        }
+        if (
+          existingMessage.status === MessageStatus.FAILED ||
+          existingMessage.status === MessageStatus.CANCELLED
+        ) {
+          throw new OutboundError(
+            'El intento anterior no se envió. Reinténtalo desde la conversación.',
+            'CONVERSATION_CLOSED',
+          );
+        }
+        return existingMessage;
+      }
     }
 
     const message = await tx.message.create({
@@ -156,7 +186,7 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
       data: {
         workspaceId: input.workspaceId,
         type: OutboxType.WHATSAPP_MESSAGE,
-        idempotencyKey: `message:${message.id}`,
+        idempotencyKey: input.idempotencyKey ?? `message:${message.id}`,
         payload,
       },
     });
@@ -345,7 +375,10 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
 
       if (sent.errorCode === '190' || sent.errorCode === '401' || sent.errorCode === '403') {
         await prisma.$transaction([
-          prisma.whatsAppChannel.update({ where: { id: channel.id }, data: { status: 'NEEDS_ATTENTION' } }),
+          prisma.whatsAppChannel.update({
+            where: { id: channel.id },
+            data: { status: 'NEEDS_ATTENTION' },
+          }),
           prisma.integration.updateMany({
             where: { workspaceId: channel.workspaceId, provider: 'WHATSAPP' },
             data: { status: 'NEEDS_ATTENTION' },
@@ -517,9 +550,12 @@ export async function retryMessage(input: {
     });
     if (!message) throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');
 
-    const previous = await tx.outboxEvent.findUnique({
-      where: { idempotencyKey: `message:${message.id}` },
-      select: { payload: true },
+    const previous = await tx.outboxEvent.findFirst({
+      where: {
+        workspaceId: input.workspaceId,
+        payload: { path: ['messageId'], equals: message.id },
+      },
+      select: { idempotencyKey: true, payload: true },
     });
     const origin = inferOutboundOrigin(
       (previous?.payload ?? {}) as Partial<OutboxMessagePayload>,
@@ -545,7 +581,7 @@ export async function retryMessage(input: {
       data: { status: MessageStatus.QUEUED, failedAt: null, errorCode: null, errorMessage: null },
     });
     await tx.outboxEvent.upsert({
-      where: { idempotencyKey: `message:${message.id}` },
+      where: { idempotencyKey: previous?.idempotencyKey ?? `message:${message.id}` },
       create: {
         workspaceId: input.workspaceId,
         type: OutboxType.WHATSAPP_MESSAGE,

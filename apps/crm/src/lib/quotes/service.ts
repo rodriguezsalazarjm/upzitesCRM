@@ -3,6 +3,7 @@ import {
   ApprovalStatus,
   ApprovalType,
   PricingRuleSetStatus,
+  Prisma,
   QuoteStatus,
   type UserRole,
 } from '../../../generated/prisma/client';
@@ -74,9 +75,57 @@ export async function listQuotableServices(workspaceId: string) {
   }));
 }
 
-async function nextQuoteNumber(workspaceId: string) {
-  const count = await prisma.quote.count({ where: { workspaceId } });
+async function nextQuoteNumber(db: Prisma.TransactionClient, workspaceId: string) {
+  const count = await db.quote.count({ where: { workspaceId } });
   return `COT-${String(count + 1).padStart(4, '0')}`;
+}
+
+async function lockWorkspaceForQuote(db: Prisma.TransactionClient, workspaceId: string) {
+  const rows = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "workspaces" WHERE "id" = ${workspaceId} FOR UPDATE
+  `;
+  if (rows.length === 0) throw new QuoteError('Workspace no encontrado.', 'NOT_FOUND');
+}
+
+async function validateQuoteLinks(db: Prisma.TransactionClient, input: CreateQuoteInput) {
+  const [contact, opportunity, conversation] = await Promise.all([
+    input.contactId
+      ? db.contact.findFirst({
+          where: { id: input.contactId, workspaceId: input.workspaceId },
+          select: { id: true },
+        })
+      : null,
+    input.opportunityId
+      ? db.opportunity.findFirst({
+          where: { id: input.opportunityId, workspaceId: input.workspaceId },
+          select: { id: true, contactId: true },
+        })
+      : null,
+    input.conversationId
+      ? db.conversation.findFirst({
+          where: { id: input.conversationId, workspaceId: input.workspaceId },
+          select: { id: true, contactId: true },
+        })
+      : null,
+  ]);
+
+  if (input.contactId && !contact) throw new QuoteError('Contacto no encontrado.', 'NOT_FOUND');
+  if (input.opportunityId && !opportunity)
+    throw new QuoteError('Oportunidad no encontrada.', 'NOT_FOUND');
+  if (input.conversationId && !conversation)
+    throw new QuoteError('Conversación no encontrada.', 'NOT_FOUND');
+
+  const linkedContactIds = [
+    input.contactId,
+    opportunity?.contactId,
+    conversation?.contactId,
+  ].filter((id): id is string => Boolean(id));
+  if (new Set(linkedContactIds).size > 1) {
+    throw new QuoteError(
+      'El contacto, la oportunidad y la conversación deben corresponder a la misma persona.',
+      'INVALID_STATE',
+    );
+  }
 }
 
 export type CreateQuoteInput = {
@@ -139,81 +188,115 @@ export async function createQuote(input: CreateQuoteInput) {
   }
 
   const calculation = calculateQuote(rules, validation.values);
-  const parent = input.parentQuoteId
-    ? await prisma.quote.findFirst({
-        where: { id: input.parentQuoteId, workspaceId: input.workspaceId },
-        select: { id: true, number: true, version: true },
-      })
-    : null;
 
-  const number = parent?.number ?? (await nextQuoteNumber(input.workspaceId));
-  const version = parent ? parent.version + 1 : 1;
+  return prisma.$transaction(async (tx) => {
+    // Serializa numeración y revisiones solo dentro de este workspace.
+    await lockWorkspaceForQuote(tx, input.workspaceId);
+    await validateQuoteLinks(tx, input);
 
-  const quote = await prisma.quote.create({
-    data: {
-      workspaceId: input.workspaceId,
-      contactId: input.contactId ?? null,
-      opportunityId: input.opportunityId ?? null,
-      conversationId: input.conversationId ?? null,
-      ruleSetId: ruleSet.id,
-      serviceKey: ruleSet.serviceKey,
-      number,
-      version,
-      parentQuoteId: parent?.id ?? null,
-      inputs: validation.values as never,
-      subtotal: calculation.subtotal,
-      surcharges: calculation.surcharges,
-      discounts: calculation.discounts,
-      total: calculation.total,
-      currency: ruleSet.currency,
-      disclaimer: ruleSet.disclaimer,
-      validUntil: new Date(Date.now() + ruleSet.validityDays * 24 * 3_600_000),
-      status: QuoteStatus.CALCULATED,
-      lines: {
-        create: calculation.lines.map((line, position) => ({
-          kind: line.kind,
-          label: line.label,
-          detail: line.detail,
-          amount: line.amount,
-          position,
-        })),
+    const parent = input.parentQuoteId
+      ? await tx.quote.findFirst({
+          where: { id: input.parentQuoteId, workspaceId: input.workspaceId },
+          select: { id: true, number: true, version: true, serviceKey: true },
+        })
+      : null;
+    if (input.parentQuoteId && !parent) {
+      throw new QuoteError('Cotización anterior no encontrada.', 'NOT_FOUND');
+    }
+    if (parent && parent.serviceKey !== ruleSet.serviceKey) {
+      throw new QuoteError(
+        'La nueva versión debe usar el mismo servicio que la cotización anterior.',
+        'INVALID_STATE',
+      );
+    }
+    if (parent) {
+      const latest = await tx.quote.findFirst({
+        where: { workspaceId: input.workspaceId, number: parent.number },
+        orderBy: { version: 'desc' },
+        select: { id: true },
+      });
+      if (latest?.id !== parent.id) {
+        throw new QuoteError(
+          'Ya existe una versión posterior de esta cotización.',
+          'INVALID_STATE',
+        );
+      }
+    }
+
+    const number = parent?.number ?? (await nextQuoteNumber(tx, input.workspaceId));
+    const version = parent ? parent.version + 1 : 1;
+    const quote = await tx.quote.create({
+      data: {
+        workspaceId: input.workspaceId,
+        contactId: input.contactId ?? null,
+        opportunityId: input.opportunityId ?? null,
+        conversationId: input.conversationId ?? null,
+        ruleSetId: ruleSet.id,
+        serviceKey: ruleSet.serviceKey,
+        number,
+        version,
+        parentQuoteId: parent?.id ?? null,
+        inputs: validation.values as never,
+        subtotal: calculation.subtotal,
+        surcharges: calculation.surcharges,
+        discounts: calculation.discounts,
+        total: calculation.total,
+        currency: ruleSet.currency,
+        disclaimer: ruleSet.disclaimer,
+        validUntil: new Date(Date.now() + ruleSet.validityDays * 24 * 3_600_000),
+        status: QuoteStatus.CALCULATED,
+        lines: {
+          create: calculation.lines.map((line, position) => ({
+            kind: line.kind,
+            label: line.label,
+            detail: line.detail,
+            amount: line.amount,
+            position,
+          })),
+        },
       },
-    },
-    include: { lines: { orderBy: { position: 'asc' } } },
-  });
+      include: { lines: { orderBy: { position: 'asc' } } },
+    });
 
-  // Toda cotizacion nace pidiendo revision: la spec la hace obligatoria.
-  await requestReview({
-    workspaceId: input.workspaceId,
-    quoteId: quote.id,
-    requestedById: input.actorId,
+    await requestReview(
+      {
+        workspaceId: input.workspaceId,
+        quoteId: quote.id,
+        requestedById: input.actorId,
+      },
+      tx,
+    );
+    await recordAudit(
+      {
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+        action: 'quote.created',
+        entity: 'Quote',
+        entityId: quote.id,
+        metadata: { number, version, total: quote.total, serviceKey: ruleSet.serviceKey },
+      },
+      tx,
+    );
+    return quote;
   });
-
-  await recordAudit({
-    workspaceId: input.workspaceId,
-    actorId: input.actorId,
-    action: 'quote.created',
-    entity: 'Quote',
-    entityId: quote.id,
-    metadata: { number, version, total: quote.total, serviceKey: ruleSet.serviceKey },
-  });
-
-  return quote;
 }
 
 /** Abre (o reutiliza) la solicitud de revision de una cotizacion. */
-export async function requestReview(input: {
-  workspaceId: string;
-  quoteId: string;
-  requestedById?: string | null;
-  note?: string;
-}) {
-  await prisma.quote.updateMany({
+export async function requestReview(
+  input: {
+    workspaceId: string;
+    quoteId: string;
+    requestedById?: string | null;
+    note?: string;
+  },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  await db.quote.updateMany({
     where: { id: input.quoteId, workspaceId: input.workspaceId, status: QuoteStatus.CALCULATED },
     data: { status: QuoteStatus.PENDING_HUMAN_REVIEW },
   });
 
-  const existing = await prisma.approvalRequest.findFirst({
+  const existing = await db.approvalRequest.findFirst({
     where: {
       workspaceId: input.workspaceId,
       resourceType: 'Quote',
@@ -224,7 +307,7 @@ export async function requestReview(input: {
 
   if (existing) return existing;
 
-  return prisma.approvalRequest.create({
+  return db.approvalRequest.create({
     data: {
       workspaceId: input.workspaceId,
       resourceType: 'Quote',
@@ -274,9 +357,13 @@ export async function approveQuote(input: ReviewInput) {
 
   const token = generateQuoteToken();
 
-  await prisma.$transaction([
-    prisma.quote.update({
-      where: { id: quote.id },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.quote.updateMany({
+      where: {
+        id: quote.id,
+        workspaceId: input.workspaceId,
+        status: { in: [QuoteStatus.PENDING_HUMAN_REVIEW, QuoteStatus.CALCULATED] },
+      },
       data: {
         status: QuoteStatus.APPROVED,
         reviewerId: input.reviewer.id,
@@ -284,8 +371,14 @@ export async function approveQuote(input: ReviewInput) {
         reviewNote: input.comment,
         pdfTokenHash: hashQuoteToken(token),
       },
-    }),
-    prisma.approvalRequest.updateMany({
+    });
+    if (updated.count === 0) {
+      throw new QuoteError(
+        'La cotización ya fue resuelta por otra persona. Recarga para ver su estado.',
+        'INVALID_STATE',
+      );
+    }
+    await tx.approvalRequest.updateMany({
       where: {
         workspaceId: input.workspaceId,
         resourceType: 'Quote',
@@ -298,16 +391,18 @@ export async function approveQuote(input: ReviewInput) {
         comment: input.comment,
         resolvedAt: new Date(),
       },
-    }),
-  ]);
-
-  await recordAudit({
-    workspaceId: input.workspaceId,
-    actorId: input.reviewer.id,
-    action: 'quote.approved',
-    entity: 'Quote',
-    entityId: quote.id,
-    metadata: { number: quote.number, version: quote.version },
+    });
+    await recordAudit(
+      {
+        workspaceId: input.workspaceId,
+        actorId: input.reviewer.id,
+        action: 'quote.approved',
+        entity: 'Quote',
+        entityId: quote.id,
+        metadata: { number: quote.number, version: quote.version },
+      },
+      tx,
+    );
   });
 
   return { token };
@@ -324,16 +419,20 @@ export async function rejectQuote(input: ReviewInput & { changesRequested?: bool
   });
 
   if (!quote) throw new QuoteError('Cotizacion no encontrada.', 'NOT_FOUND');
-  if (quote.status === QuoteStatus.APPROVED || quote.status === QuoteStatus.ACCEPTED) {
-    throw new QuoteError(
-      'Una cotizacion aprobada no se rechaza: crea una version nueva.',
-      'INVALID_STATE',
-    );
+  if (
+    quote.status !== QuoteStatus.PENDING_HUMAN_REVIEW &&
+    quote.status !== QuoteStatus.CALCULATED
+  ) {
+    throw new QuoteError('Esta cotización ya no está pendiente de revisión.', 'INVALID_STATE');
   }
 
-  await prisma.$transaction([
-    prisma.quote.update({
-      where: { id: quote.id },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.quote.updateMany({
+      where: {
+        id: quote.id,
+        workspaceId: input.workspaceId,
+        status: { in: [QuoteStatus.PENDING_HUMAN_REVIEW, QuoteStatus.CALCULATED] },
+      },
       data: {
         status: QuoteStatus.REJECTED,
         reviewerId: input.reviewer.id,
@@ -341,8 +440,14 @@ export async function rejectQuote(input: ReviewInput & { changesRequested?: bool
         reviewNote: input.comment,
         rejectedAt: new Date(),
       },
-    }),
-    prisma.approvalRequest.updateMany({
+    });
+    if (updated.count === 0) {
+      throw new QuoteError(
+        'La cotización ya fue resuelta por otra persona. Recarga para ver su estado.',
+        'INVALID_STATE',
+      );
+    }
+    await tx.approvalRequest.updateMany({
       where: {
         workspaceId: input.workspaceId,
         resourceType: 'Quote',
@@ -355,16 +460,18 @@ export async function rejectQuote(input: ReviewInput & { changesRequested?: bool
         comment: input.comment,
         resolvedAt: new Date(),
       },
-    }),
-  ]);
-
-  await recordAudit({
-    workspaceId: input.workspaceId,
-    actorId: input.reviewer.id,
-    action: 'quote.rejected',
-    entity: 'Quote',
-    entityId: quote.id,
-    metadata: { changesRequested: Boolean(input.changesRequested) },
+    });
+    await recordAudit(
+      {
+        workspaceId: input.workspaceId,
+        actorId: input.reviewer.id,
+        action: 'quote.rejected',
+        entity: 'Quote',
+        entityId: quote.id,
+        metadata: { changesRequested: Boolean(input.changesRequested) },
+      },
+      tx,
+    );
   });
 
   return { rejected: true };

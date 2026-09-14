@@ -3,6 +3,7 @@ import { PricingRuleSetStatus, UserRole } from '../../../../../../generated/pris
 import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { prisma } from '@/lib/prisma';
+import { isRuleSetUsable } from '@/lib/quotes/schema';
 
 /**
  * Publica una version de reglas y archiva la anterior.
@@ -23,12 +24,33 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const ruleSet = await prisma.pricingRuleSet.findFirst({
     where: { id, workspaceId: user.workspace.id },
-    select: { id: true, serviceKey: true, version: true, status: true },
+    select: {
+      id: true,
+      serviceKey: true,
+      version: true,
+      status: true,
+      intakeSchema: true,
+      rules: true,
+    },
   });
 
   if (!ruleSet) return NextResponse.json({ message: 'Reglas no encontradas' }, { status: 404 });
   if (ruleSet.status === PricingRuleSetStatus.PUBLISHED) {
     return NextResponse.json({ data: { alreadyPublished: true } });
+  }
+  if (ruleSet.status !== PricingRuleSetStatus.DRAFT) {
+    return NextResponse.json(
+      {
+        message: 'Este servicio está desactivado. Crea un borrador nuevo para volver a publicarlo.',
+      },
+      { status: 409 },
+    );
+  }
+  if (!isRuleSetUsable(ruleSet.intakeSchema, ruleSet.rules)) {
+    return NextResponse.json(
+      { message: 'Completa una regla de precio válida antes de publicar este servicio.' },
+      { status: 422 },
+    );
   }
 
   await prisma.$transaction(async (tx) => {

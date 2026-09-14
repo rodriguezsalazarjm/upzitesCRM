@@ -120,6 +120,32 @@ Validación realizada: 12/12 unitarias de WhatsApp, Prisma validate, TypeScript,
 ESLint sin errores y build de producción. Falta ejecutar los casos
 transaccionales de carrera y aislamiento sobre la base aislada protegida.
 
+### Configuración y cotizador
+
+Estado: invariantes de código reforzadas; persistencia aislada pendiente.
+
+- Guardar y publicar son acciones explícitas. Un admin puede dejar un borrador
+  y el owner puede publicarlo desde la misma tarjeta.
+- Una regla desactivada no se puede republicar mediante una URL antigua; se
+  debe crear una versión nueva.
+- Publicar exige que los campos y reglas formen una configuración que el motor
+  realmente pueda calcular.
+- La creación serializa numeración y versiones por workspace, valida contacto,
+  oportunidad y conversación dentro del tenant y rechaza vínculos cruzados.
+- La cotización conserva el rule set, entradas y desglose con los que fue
+  calculada. Una revisión nace sin aprobación y una versión nueva no hereda la
+  aprobación anterior.
+- Aprobar o rechazar usa una actualización condicional: dos revisores no pueden
+  resolver la misma solicitud con decisiones concurrentes.
+- El envío por WhatsApp valida que el enlace firmado pertenezca a esa
+  cotización y solo cambia el estado después de encolar el mensaje.
+- Shopify continúa sin completar precios para la modalidad Servicios.
+
+Validación realizada: 4/4 unitarias del motor de precios, 9/9 unitarias de
+onboarding, TypeScript y ESLint sin errores. La creación, recarga, versionado,
+publicación, desactivación y aprobación con datos reales siguen pendientes de
+la base aislada marcada.
+
 ## Verificaciones de la linea base
 
 - Pruebas unitarias de WhatsApp: 12/12.

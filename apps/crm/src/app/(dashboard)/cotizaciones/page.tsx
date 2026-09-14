@@ -6,6 +6,7 @@ import { canApproveQuotes, pendingApprovals } from '@/lib/quotes/service';
 import { parseIntakeSchema } from '@/lib/quotes/schema';
 import { AprobacionesClient, type PendingQuoteView } from './aprobaciones-client';
 import { HistorialClient } from './historial-client';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,14 @@ export default async function CotizacionesPage() {
     }),
     prisma.pricingRuleSet.findMany({
       where: { workspaceId: user.workspace.id },
-      select: { id: true, serviceKey: true, name: true, intakeSchema: true, status: true, version: true },
+      select: {
+        id: true,
+        serviceKey: true,
+        name: true,
+        intakeSchema: true,
+        status: true,
+        version: true,
+      },
     }),
   ]);
 
@@ -87,10 +95,15 @@ export default async function CotizacionesPage() {
                 No hay servicios cotizables configurados
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Sin reglas de precio publicadas, el agente reconoce que no puede cotizar y deriva
-                a una persona. Configura un servicio en <code>POST /api/pricing-rule-sets</code> y
-                publicalo.
+                Sin precios publicados, el CRM deriva la solicitud a una persona en vez de inventar
+                un valor. Agrega un servicio y revisa sus reglas antes de publicarlo.
               </p>
+              <Link
+                href="/configuracion#servicios-precios"
+                className="mt-3 inline-flex text-xs font-semibold text-blue-700 underline"
+              >
+                Configurar servicios y precios
+              </Link>
             </CardContent>
           </Card>
         )}

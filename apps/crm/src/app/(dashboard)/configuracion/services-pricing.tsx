@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, Pencil, Plus, PowerOff, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Loader2, Pencil, Plus, PowerOff, Send, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -239,7 +239,7 @@ export function ServicesPricing({
 
     setBusy(true);
     try {
-      const created = await request('/api/pricing-rule-sets', {
+      await request('/api/pricing-rule-sets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -259,25 +259,38 @@ export function ServicesPricing({
           validityDays: Number(editor.validityDays),
         }),
       });
-      const id = created.data?.id;
-      if (canPublish && id) {
-        await request(`/api/pricing-rule-sets/${id}/publish`, { method: 'POST' });
-        setNotice({
-          kind: 'success',
-          text: 'El servicio quedó guardado y disponible para cotizar.',
-        });
-      } else {
-        setNotice({
-          kind: 'success',
-          text: 'Guardamos un borrador. La persona propietaria debe publicarlo para comenzar a cotizar.',
-        });
-      }
+      setNotice({
+        kind: 'success',
+        text: canPublish
+          ? 'Guardamos el borrador. Revísalo y publícalo para usar estos cambios al cotizar.'
+          : 'Guardamos el borrador. La persona propietaria debe publicarlo para comenzar a cotizar.',
+      });
       setEditor(null);
       router.refresh();
     } catch (error) {
       setNotice({
         kind: 'error',
         text: error instanceof Error ? error.message : 'No pudimos guardar el servicio.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function publish(service: ServiceRuleSetView) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await request(`/api/pricing-rule-sets/${service.id}/publish`, { method: 'POST' });
+      setNotice({
+        kind: 'success',
+        text: 'El servicio quedó publicado y disponible para cotizar.',
+      });
+      router.refresh();
+    } catch (error) {
+      setNotice({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'No pudimos publicar el servicio.',
       });
     } finally {
       setBusy(false);
@@ -325,7 +338,7 @@ export function ServicesPricing({
             }}
           >
             <Plus aria-hidden="true" />
-            Agregar mi primer servicio
+            Agregar servicio
           </Button>
         )}
       </div>
@@ -397,6 +410,17 @@ export function ServicesPricing({
                     >
                       <Pencil aria-hidden="true" />
                       Editar
+                    </Button>
+                  )}
+                  {canPublish && service.status === 'DRAFT' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => publish(service)}
+                    >
+                      <Send aria-hidden="true" />
+                      Publicar cambios
                     </Button>
                   )}
                   {canPublish && (
@@ -598,7 +622,7 @@ export function ServicesPricing({
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={busy}>
               {busy && <Loader2 className="animate-spin" />}
-              {busy ? 'Guardando…' : canPublish ? 'Guardar y publicar' : 'Guardar borrador'}
+              {busy ? 'Guardando…' : 'Guardar borrador'}
             </Button>
             <Button type="button" variant="ghost" disabled={busy} onClick={() => setEditor(null)}>
               Cancelar

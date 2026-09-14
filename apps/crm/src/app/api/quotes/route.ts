@@ -50,7 +50,8 @@ export async function POST(request: Request) {
         where: { id: parsed.data.contactId, workspaceId: user.workspace.id },
         select: { id: true },
       });
-      if (!contact) return NextResponse.json({ message: 'Contacto no encontrado' }, { status: 404 });
+      if (!contact)
+        return NextResponse.json({ message: 'Contacto no encontrado' }, { status: 404 });
     }
 
     const quote = await createQuote({
@@ -67,7 +68,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: quote }, { status: 201 });
   } catch (error) {
     if (error instanceof QuoteError) {
-      const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'MISSING_DATA' ? 422 : 409;
+      const status =
+        error.code === 'NOT_FOUND'
+          ? 404
+          : error.code === 'MISSING_DATA'
+            ? 422
+            : error.code === 'FORBIDDEN'
+              ? 403
+              : 409;
       return NextResponse.json(
         { message: error.message, code: error.code, details: error.details },
         { status },
