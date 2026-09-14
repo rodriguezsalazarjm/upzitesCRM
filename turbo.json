@@ -10,6 +10,36 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    "@upzites/crm#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NEXT_PUBLIC_CRM_BASE_URL"],
+      "passThroughEnv": [
+        "CRM_SESSION_SECRET",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "EMAIL_PROVIDER",
+        "EMAIL_WEBHOOK_SECRET",
+        "INTEGRATION_ENCRYPTION_KEY",
+        "INTERNAL_WORKER_SECRET",
+        "MERCADO_PAGO_ACCESS_TOKEN",
+        "MERCADO_PAGO_WEBHOOK_SECRET",
+        "META_APP_SECRET",
+        "OPENAI_API_KEY",
+        "OPENAI_DEFAULT_MODEL",
+        "OPENAI_PROJECT_ID",
+        "RESEND_API_KEY",
+        "SHOPIFY_API_KEY",
+        "SHOPIFY_API_SECRET",
+        "SHOPIFY_API_VERSION",
+        "SHOPIFY_APP_URL",
+        "SHOPIFY_SCOPES",
+        "SUPABASE_CA_CERT",
+        "WHATSAPP_GRAPH_API_VERSION",
+        "WHATSAPP_SYSTEM_ACCESS_TOKEN",
+        "WHATSAPP_VERIFY_TOKEN"
+      ]
+    },
     "lint": {},
     "start": {
       "cache": false,
