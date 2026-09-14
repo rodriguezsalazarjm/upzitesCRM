@@ -13,7 +13,7 @@
  * Uso, desde apps/crm:
  *   pnpm exec tsx scripts/smoke-fase1.ts
  */
-import 'dotenv/config';
+import './fixtures/test-environment';
 import {
   BuyingIntent,
   ConsentChannel,

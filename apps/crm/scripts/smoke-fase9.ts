@@ -12,7 +12,7 @@
  * Uso, desde apps/crm:
  *   pnpm exec tsx scripts/smoke-fase9.ts
  */
-import 'dotenv/config';
+import './fixtures/test-environment';
 import {
   ActivationStatus,
   AgentRunStatus,

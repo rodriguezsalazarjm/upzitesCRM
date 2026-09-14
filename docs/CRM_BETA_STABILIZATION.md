@@ -48,11 +48,45 @@ el proyecto Vercel de la web principal.
 
 ### Entorno de pruebas
 
-Estado: pendiente.
+Estado: protecciones implementadas; ejecucion pendiente de una base aislada.
 
 No existe `TEST_DATABASE_URL` ni una base aislada identificada. Los scripts
 `smoke-fase*` y `smoke-critico.ts` crean y eliminan datos; no deben ejecutarse
 con las variables normales de la aplicacion.
+
+Todos los smoke tests pasan ahora por un cerco que:
+
+- exige `TEST_DATABASE_URL` sin usar `DATABASE_URL` como respaldo;
+- compara endpoint, usuario, base y project ref de Supabase contra
+  `DATABASE_URL` y `DIRECT_URL`, reconociendo conexiones directas y poolers;
+- exige que `TEST_DIRECT_URL`, si existe, llegue al mismo proyecto aislado;
+- consulta un marcador independiente antes de importar el cliente Prisma;
+- retira credenciales de proveedores y bloquea trafico HTTP externo.
+
+En la base aislada, un administrador debe instalar una vez el marcador:
+
+```sql
+comment on database nombre_de_la_base_de_pruebas
+is 'CRM_UPZITES_ISOLATED_TEST_DATABASE_V1';
+```
+
+Luego se configuran localmente, sin versionar sus valores:
+
+```text
+TEST_DATABASE_URL=conexion_pooler_o_directa_de_pruebas
+TEST_DIRECT_URL=conexion_directa_del_mismo_proyecto_de_pruebas
+```
+
+Comandos seguros disponibles desde `apps/crm`:
+
+```powershell
+pnpm test:db:deploy
+pnpm test:smoke
+pnpm test:smoke:all
+```
+
+`test:db:deploy` usa `prisma migrate deploy`. El mismo cerco se ejecuta incluso
+si alguien llama directamente a uno de los archivos `smoke-*.ts`.
 
 ### Toma de control humana
 

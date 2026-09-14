@@ -13,7 +13,7 @@
  * Uso, desde apps/crm:
  *   pnpm exec tsx scripts/smoke-critico.ts
  */
-import 'dotenv/config';
+import './fixtures/test-environment';
 import { createHmac } from 'node:crypto';
 import {
   AgentRunStatus,
