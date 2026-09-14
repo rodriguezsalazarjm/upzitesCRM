@@ -48,7 +48,7 @@ export default async function InboxPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Inbox" subtitle="Conversaciones de WhatsApp del workspace" />
-      <div className="flex-1 space-y-3 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-6">
         {channelCount === 0 && (
           <Card className="border-0 bg-blue-50 shadow-sm">
             <CardContent className="flex items-start gap-3 p-5">
@@ -84,7 +84,7 @@ export default async function InboxPage() {
         {conversations.map((conversation) => (
           <Link key={conversation.id} href={`/inbox/${conversation.id}`} className="block">
             <Card className="border-0 shadow-sm transition-shadow hover:shadow-md">
-              <CardContent className="flex items-center gap-4 p-4">
+              <CardContent className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold text-slate-900">
@@ -102,10 +102,10 @@ export default async function InboxPage() {
                   <p className="mt-0.5 text-[10px] text-slate-400">{conversation.contactPhone}</p>
                 </div>
 
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-1.5 sm:max-w-none">
                   <span
                     className={cn(
-                      'rounded-md px-2 py-0.5 text-[10px] font-semibold',
+                      'max-w-full truncate rounded-md px-2 py-0.5 text-[10px] font-semibold',
                       MODE_STYLE[conversation.mode],
                     )}
                   >

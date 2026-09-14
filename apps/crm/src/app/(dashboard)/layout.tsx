@@ -6,9 +6,10 @@ import { getSubscriptionStatus } from '@/lib/subscription';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireCurrentUser();
-  const subscription = user.id === DEV_DEMO_USER.id
-    ? { isActive: true, expiresAt: null }
-    : await getSubscriptionStatus(user.workspace.id);
+  const subscription =
+    user.id === DEV_DEMO_USER.id
+      ? { isActive: true, expiresAt: null }
+      : await getSubscriptionStatus(user.workspace.id);
 
   if (!subscription.isActive) {
     return (
@@ -20,11 +21,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-dvh overflow-hidden bg-slate-50">
       <Sidebar user={user} />
-      <main className="flex flex-1 flex-col overflow-hidden">
-        {children}
-      </main>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   );
 }

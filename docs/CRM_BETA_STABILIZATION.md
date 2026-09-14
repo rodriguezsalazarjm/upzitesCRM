@@ -146,6 +146,32 @@ onboarding, TypeScript y ESLint sin errores. La creación, recarga, versionado,
 publicación, desactivación y aprobación con datos reales siguen pendientes de
 la base aislada marcada.
 
+### Inbox móvil y PWA
+
+Estado: implementación web completada; validación en teléfono real pendiente.
+
+- El dashboard usa la altura visible del dispositivo y el detalle de Inbox
+  conserva cabecera, acciones, mensajes y compositor sin solaparse con el menú.
+- La lista reduce espacios y limita etiquetas en pantallas angostas. Las
+  burbujas aprovechan el ancho móvil y el compositor respeta el área segura.
+- Cada conversación conserva su borrador en el dispositivo. Un fallo de red no
+  limpia ni envía el texto, y volver la conexión tampoco dispara un envío.
+- Cerrar sesión elimina los borradores locales del CRM.
+- El manifest instala la aplicación en modo standalone con iconos derivados
+  del isotipo ya existente de Upzites.
+- El service worker nunca cachea APIs, HTML autenticado, RSC, conversaciones,
+  contactos ni tokens. Solo conserva la pantalla pública de desconexión,
+  iconos y archivos estáticos de Next.js.
+- Una actualización espera una acción del operador y avisa que los borradores
+  se conservarán antes de recargar.
+
+Validación realizada: TypeScript, ESLint sin errores, sintaxis del service
+worker, build de producción, manifest (`standalone`, tres iconos), service
+worker y pantalla offline con HTTP 200. La pantalla offline se inspeccionó en
+el navegador local. El Inbox autenticado no se inspeccionó visualmente porque
+no hay datos en una base aislada. Quedan pendientes instalación y pruebas de
+teclado, rotación, reconexión y actualización en un Samsung S24 Ultra real.
+
 ## Verificaciones de la linea base
 
 - Pruebas unitarias de WhatsApp: 12/12.

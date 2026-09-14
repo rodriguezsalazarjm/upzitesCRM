@@ -28,9 +28,9 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import type { CurrentUser } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { LogoutForm } from './logout-form';
 
 const navItems = [
   { href: '/onboarding', label: 'Puesta en marcha', icon: Rocket },
@@ -168,11 +168,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
             {user.role}
           </Badge>
         </div>
-        <form action="/api/auth/logout" method="post" className="mt-2">
-          <Button type="submit" variant="ghost" className="h-8 w-full justify-start text-xs text-slate-500">
-            Cerrar sesion
-          </Button>
-        </form>
+        <LogoutForm />
       </div>
       </aside>
     </>

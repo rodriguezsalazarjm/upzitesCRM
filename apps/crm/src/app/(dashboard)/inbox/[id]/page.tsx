@@ -33,10 +33,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   }));
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex h-16 items-center gap-3 border-b bg-white px-6">
-          <Link href="/inbox" className="text-slate-400 hover:text-slate-700">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b bg-white pl-16 pr-4 sm:px-6">
+          <Link
+            href="/inbox"
+            aria-label="Volver a conversaciones"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
@@ -58,7 +62,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       </div>
 
       <aside className="hidden w-[280px] shrink-0 overflow-y-auto border-l bg-white p-5 xl:block">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Contacto</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          Contacto
+        </p>
         <p className="mt-2 text-sm font-semibold text-slate-900">
           {contact.firstName} {contact.lastName}
         </p>
@@ -75,10 +81,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             </Badge>
           </div>
           <Row label="Fuente" value={contact.source ?? 'Sin fuente'} />
-          <Row
-            label="Asignada a"
-            value={conversation.assignee?.name ?? 'Sin asignar'}
-          />
+          <Row label="Asignada a" value={conversation.assignee?.name ?? 'Sin asignar'} />
         </div>
 
         <Link

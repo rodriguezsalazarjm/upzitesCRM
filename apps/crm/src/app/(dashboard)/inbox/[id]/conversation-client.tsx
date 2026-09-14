@@ -1,8 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { AlertCircle, Ban, Bot, Check, CheckCheck, Clock, RotateCw, Send, User } from 'lucide-react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import {
+  AlertCircle,
+  Ban,
+  Bot,
+  Check,
+  CheckCheck,
+  Clock,
+  RotateCw,
+  Send,
+  User,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -43,16 +53,54 @@ export function ConversationClient({
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [online, setOnline] = useState(true);
   const [pending, startTransition] = useTransition();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const draftKey = `crm:conversation-draft:${conversationId}`;
+
+  useEffect(() => {
+    queueMicrotask(() => setText(window.localStorage.getItem(draftKey) ?? ''));
+    const updateOnline = () => setOnline(window.navigator.onLine);
+    updateOnline();
+    window.addEventListener('online', updateOnline);
+    window.addEventListener('offline', updateOnline);
+    return () => {
+      window.removeEventListener('online', updateOnline);
+      window.removeEventListener('offline', updateOnline);
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages]);
+
+  function updateDraft(value: string) {
+    setText(value);
+    if (value) window.localStorage.setItem(draftKey, value);
+    else window.localStorage.removeItem(draftKey);
+  }
 
   async function post(path: string, body?: unknown) {
     setError(null);
     setNotice(null);
-    const response = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    if (!window.navigator.onLine) {
+      setError(
+        'No tienes conexión. Conservamos el texto para que lo envíes cuando vuelvas a estar en línea.',
+      );
+      return false;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      setError('No pudimos conectar con el CRM. Conservamos el texto y no se envió nada.');
+      return false;
+    }
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -80,14 +128,14 @@ export function ConversationClient({
     const value = text.trim();
     if (!value) return;
     const ok = await post(`/api/conversations/${conversationId}/messages`, { text: value });
-    if (ok) setText('');
+    if (ok) updateDraft('');
   }
 
   const isHuman = mode === 'HUMAN_ACTIVE';
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center gap-2 border-b bg-white px-6 py-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-white px-3 py-2 sm:px-6 sm:py-3">
         {isHuman ? (
           <Button
             size="sm"
@@ -111,7 +159,7 @@ export function ConversationClient({
         {pending && <span className="text-[11px] text-slate-400">Actualizando…</span>}
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-6">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-slate-50 p-3 sm:p-6">
         {messages.length === 0 && (
           <p className="text-center text-xs text-slate-400">Sin mensajes en esta conversacion.</p>
         )}
@@ -119,10 +167,13 @@ export function ConversationClient({
         {messages.map((message) => {
           const outbound = message.direction === 'OUTBOUND';
           return (
-            <div key={message.id} className={cn('flex', outbound ? 'justify-end' : 'justify-start')}>
+            <div
+              key={message.id}
+              className={cn('flex', outbound ? 'justify-end' : 'justify-start')}
+            >
               <div
                 className={cn(
-                  'max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm',
+                  'max-w-[88%] rounded-2xl px-3 py-2.5 shadow-sm sm:max-w-[70%] sm:px-4',
                   outbound ? 'bg-blue-600 text-white' : 'bg-white text-slate-800',
                   message.status === 'FAILED' && 'ring-1 ring-red-400',
                   message.status === 'CANCELLED' && 'opacity-70 ring-1 ring-amber-300',
@@ -134,7 +185,9 @@ export function ConversationClient({
                   </p>
                 )}
                 {outbound && message.senderName && message.senderType === 'USER' && (
-                  <p className="mb-0.5 text-[10px] font-semibold text-blue-200">{message.senderName}</p>
+                  <p className="mb-0.5 text-[10px] font-semibold text-blue-200">
+                    {message.senderName}
+                  </p>
                 )}
 
                 <p className="whitespace-pre-wrap text-sm">{message.text ?? '(sin texto)'}</p>
@@ -162,7 +215,9 @@ export function ConversationClient({
                     <button
                       type="button"
                       className="flex items-center gap-1 text-[10px] font-semibold text-red-700 hover:underline"
-                      onClick={() => post(`/api/conversations/${conversationId}/messages/${message.id}/retry`)}
+                      onClick={() =>
+                        post(`/api/conversations/${conversationId}/messages/${message.id}/retry`)
+                      }
                     >
                       <RotateCw className="h-3 w-3" />
                       Reintentar
@@ -171,16 +226,18 @@ export function ConversationClient({
                 )}
                 {message.status === 'CANCELLED' && (
                   <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
-                    {message.errorMessage ?? 'Respuesta automática cancelada al tomar la conversación.'}
+                    {message.errorMessage ??
+                      'Respuesta automática cancelada al tomar la conversación.'}
                   </p>
                 )}
               </div>
             </div>
           );
         })}
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t bg-white p-4">
+      <div className="shrink-0 border-t bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:p-4">
         {!withinServiceWindow && (
           <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
             Pasaron mas de 24 horas desde el ultimo mensaje del cliente. WhatsApp solo permite
@@ -196,22 +253,32 @@ export function ConversationClient({
             {notice}
           </p>
         )}
+        {!online && (
+          <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+            Sin conexión. Tu borrador queda guardado en este dispositivo y no se enviará solo.
+          </p>
+        )}
 
         <div className="flex items-end gap-2">
           <textarea
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => updateDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 void send();
               }
             }}
-            rows={2}
+            rows={1}
             placeholder="Escribe un mensaje…  (Enter envia, Shift+Enter salta linea)"
-            className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            className="min-h-10 max-h-28 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-base outline-none focus:border-blue-400 sm:text-sm"
           />
-          <Button onClick={() => void send()} disabled={!text.trim()} className="h-10">
+          <Button
+            aria-label="Enviar mensaje"
+            onClick={() => void send()}
+            disabled={!text.trim() || !online || pending}
+            className="h-10 w-10 shrink-0 p-0"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </div>
