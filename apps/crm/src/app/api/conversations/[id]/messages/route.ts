@@ -29,6 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       conversationId: id,
       text: parsed.data.text,
       senderType: MessageSenderType.USER,
+      origin: 'HUMAN',
       senderUserId: user.id,
     });
 

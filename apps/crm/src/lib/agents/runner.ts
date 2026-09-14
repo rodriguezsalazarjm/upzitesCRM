@@ -9,6 +9,7 @@ import {
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { queueOutboundMessage } from '../whatsapp/outbound';
+import { activateHumanControl } from '../whatsapp/human-control';
 import { buildInstructions, looksLikeHallucination, needsImmediateEscalation } from './guardrails';
 import {
   estimateCostClp,
@@ -213,9 +214,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
     // Un fallo del proveedor no puede dejar al cliente sin respuesta: se escala.
     if (error instanceof ModelProviderError) {
-      await prisma.conversation.updateMany({
-        where: { id: conversation.id },
-        data: { mode: ConversationMode.HUMAN_ACTIVE },
+      await activateHumanControl({
+        conversationId: conversation.id,
+        workspaceId: input.workspaceId,
       });
       await recordAudit({
         workspaceId: input.workspaceId,
@@ -400,6 +401,7 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
       conversationId: conversation.id,
       text: reply,
       senderType: MessageSenderType.AI,
+      origin: 'AI',
       agentRunId: run.id,
     });
   }
@@ -464,9 +466,9 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
 }
 
 async function escalate(conversationId: string, run: { id: string; workspaceId: string }, reason: string) {
-  await prisma.conversation.updateMany({
-    where: { id: conversationId },
-    data: { mode: ConversationMode.HUMAN_ACTIVE },
+  await activateHumanControl({
+    conversationId,
+    workspaceId: run.workspaceId,
   });
 
   await prisma.agentRun.update({

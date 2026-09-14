@@ -2,6 +2,8 @@ import { ConversationMode, ConversationStatus, UserRole } from '../../generated/
 import { requireCurrentUser } from './auth';
 import { recordAudit } from './domain/audit';
 import { prisma } from './prisma';
+import { activateHumanControl } from './whatsapp/human-control';
+import { lockConversation } from './whatsapp/outbound';
 
 /**
  * Consultas y acciones de la bandeja. Toda funcion resuelve el workspace desde
@@ -108,16 +110,13 @@ export async function getConversationDetail(conversationId: string) {
 export async function takeOverConversation(conversationId: string) {
   const user = await requireCurrentUser();
 
-  const updated = await prisma.conversation.updateMany({
-    where: { id: conversationId, workspaceId: user.workspace.id },
-    data: {
-      mode: ConversationMode.HUMAN_ACTIVE,
-      assignedUserId: user.id,
-      status: ConversationStatus.OPEN,
-    },
+  const result = await activateHumanControl({
+    conversationId,
+    workspaceId: user.workspace.id,
+    assignedUserId: user.id,
+    openConversation: true,
   });
-
-  if (updated.count === 0) return null;
+  if (!result) return null;
 
   await recordAudit({
     workspaceId: user.workspace.id,
@@ -125,21 +124,32 @@ export async function takeOverConversation(conversationId: string) {
     action: 'conversation.taken_over',
     entity: 'Conversation',
     entityId: conversationId,
+    metadata: {
+      cancelledAutomaticMessages: result.cancelledAutomaticMessages,
+      automaticMessagesAlreadySending: result.automaticMessagesAlreadySending,
+    },
   });
 
-  return { mode: ConversationMode.HUMAN_ACTIVE, assignedUserId: user.id };
+  return result;
 }
 
 /** Devuelve la conversacion a la IA. */
 export async function releaseConversationToAi(conversationId: string) {
   const user = await requireCurrentUser();
 
-  const updated = await prisma.conversation.updateMany({
-    where: { id: conversationId, workspaceId: user.workspace.id },
-    data: { mode: ConversationMode.AI_ACTIVE, assignedUserId: null },
+  const released = await prisma.$transaction(async (tx) => {
+    if (!(await lockConversation(tx, conversationId, user.workspace.id))) return false;
+    await tx.conversation.update({
+      where: { id: conversationId, workspaceId: user.workspace.id },
+      data: {
+        mode: ConversationMode.AI_ACTIVE,
+        assignedUserId: null,
+        lockVersion: { increment: 1 },
+      },
+    });
+    return true;
   });
-
-  if (updated.count === 0) return null;
+  if (!released) return null;
 
   await recordAudit({
     workspaceId: user.workspace.id,
@@ -164,12 +174,12 @@ export async function assignConversation(conversationId: string, assigneeId: str
 
   if (!assignee) return null;
 
-  const updated = await prisma.conversation.updateMany({
-    where: { id: conversationId, workspaceId: user.workspace.id },
-    data: { assignedUserId: assignee.id, mode: ConversationMode.HUMAN_ACTIVE },
+  const result = await activateHumanControl({
+    conversationId,
+    workspaceId: user.workspace.id,
+    assignedUserId: assignee.id,
   });
-
-  if (updated.count === 0) return null;
+  if (!result) return null;
 
   await recordAudit({
     workspaceId: user.workspace.id,

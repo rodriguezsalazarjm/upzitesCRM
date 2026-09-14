@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { AlertCircle, Bot, Check, CheckCheck, Clock, RotateCw, Send, User } from 'lucide-react';
+import { AlertCircle, Ban, Bot, Check, CheckCheck, Clock, RotateCw, Send, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -12,7 +12,7 @@ export type ThreadMessage = {
   senderType: 'CONTACT' | 'USER' | 'AI' | 'SYSTEM';
   senderName: string | null;
   text: string | null;
-  status: 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+  status: 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED';
   errorMessage: string | null;
   createdAt: string;
 };
@@ -20,6 +20,8 @@ export type ThreadMessage = {
 /** Un icono por estado, para que el operador vea de un vistazo si llego. */
 function StatusIcon({ status }: { status: ThreadMessage['status'] }) {
   if (status === 'QUEUED') return <Clock className="h-3 w-3 text-slate-400" />;
+  if (status === 'SENDING') return <Clock className="h-3 w-3 text-blue-200" />;
+  if (status === 'CANCELLED') return <Ban className="h-3 w-3 text-amber-500" />;
   if (status === 'SENT') return <Check className="h-3 w-3 text-slate-400" />;
   if (status === 'DELIVERED') return <CheckCheck className="h-3 w-3 text-slate-400" />;
   if (status === 'READ') return <CheckCheck className="h-3 w-3 text-blue-500" />;
@@ -40,10 +42,12 @@ export function ConversationClient({
   const router = useRouter();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   async function post(path: string, body?: unknown) {
     setError(null);
+    setNotice(null);
     const response = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -56,6 +60,18 @@ export function ConversationClient({
       return false;
     }
 
+    const data = await response.json().catch(() => ({}));
+    if (typeof data.data?.cancelledAutomaticMessages === 'number') {
+      const cancelled = data.data.cancelledAutomaticMessages;
+      const inFlight = data.data.automaticMessagesAlreadySending ?? 0;
+      setNotice(
+        inFlight > 0
+          ? `Tomaste la conversación. ${cancelled} respuesta(s) automática(s) se cancelaron y ${inFlight} ya estaba(n) enviándose.`
+          : cancelled > 0
+            ? `Tomaste la conversación. Se cancelaron ${cancelled} respuesta(s) automática(s) pendiente(s).`
+            : 'Tomaste la conversación. Las nuevas respuestas automáticas quedaron pausadas.',
+      );
+    }
     startTransition(() => router.refresh());
     return true;
   }
@@ -109,6 +125,7 @@ export function ConversationClient({
                   'max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm',
                   outbound ? 'bg-blue-600 text-white' : 'bg-white text-slate-800',
                   message.status === 'FAILED' && 'ring-1 ring-red-400',
+                  message.status === 'CANCELLED' && 'opacity-70 ring-1 ring-amber-300',
                 )}
               >
                 {outbound && message.senderType === 'AI' && (
@@ -152,6 +169,11 @@ export function ConversationClient({
                     </button>
                   </div>
                 )}
+                {message.status === 'CANCELLED' && (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
+                    {message.errorMessage ?? 'Respuesta automática cancelada al tomar la conversación.'}
+                  </p>
+                )}
               </div>
             </div>
           );
@@ -168,6 +190,11 @@ export function ConversationClient({
 
         {error && (
           <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-700">{error}</p>
+        )}
+        {notice && (
+          <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+            {notice}
+          </p>
         )}
 
         <div className="flex items-end gap-2">

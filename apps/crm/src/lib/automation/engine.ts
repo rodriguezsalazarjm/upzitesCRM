@@ -4,7 +4,6 @@ import {
   AutomationExecutionStatus,
   AutomationTrigger,
   ConsentChannel,
-  ConversationMode,
   LifecycleStatus,
   MessageSenderType,
   OpportunityStage,
@@ -23,6 +22,7 @@ import {
   transitionLifecycle,
 } from '../domain';
 import { queueOutboundMessage } from '../whatsapp/outbound';
+import { activateHumanControl } from '../whatsapp/human-control';
 import { scheduleAgentRun } from '../agents/dispatch';
 import { evaluateGroup, type EventContext } from './conditions';
 import type { DomainEvent } from './types';
@@ -329,6 +329,7 @@ async function executeAction(action: AutomationActionConfig, event: DomainEvent)
         conversationId: event.conversationId,
         text: action.text,
         senderType: MessageSenderType.SYSTEM,
+        origin: 'AUTOMATION',
       });
       return;
     }
@@ -417,9 +418,10 @@ async function executeAction(action: AutomationActionConfig, event: DomainEvent)
       });
       if (!assignee) throw new Error('El usuario a asignar no pertenece al workspace.');
 
-      await prisma.conversation.updateMany({
-        where: { id: event.conversationId, workspaceId },
-        data: { assignedUserId: assignee.id, mode: ConversationMode.HUMAN_ACTIVE },
+      await activateHumanControl({
+        conversationId: event.conversationId,
+        workspaceId,
+        assignedUserId: assignee.id,
       });
       return;
     }

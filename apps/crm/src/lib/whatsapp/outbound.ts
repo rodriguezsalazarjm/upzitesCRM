@@ -6,14 +6,23 @@ import {
   MessageType,
   OutboxStatus,
   OutboxType,
+  Prisma,
 } from '../../../generated/prisma/client';
-import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
+import { prisma } from '../prisma';
 import { sendTextMessage } from './client';
+import {
+  inferOutboundOrigin,
+  isOriginCompatibleWithSender,
+  type OutboundOrigin,
+  type OutboxMessagePayload,
+  pausesOnHumanTakeover,
+  shouldCancelAutomaticSend,
+} from './outbound-policy';
 
-/** Reintentos con espera creciente: 1, 5 y 15 minutos. */
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
 const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
+export const TAKEOVER_CANCEL_REASON = 'Cancelado porque una persona tomó la conversación.';
 
 export class OutboundError extends Error {
   constructor(
@@ -30,87 +39,97 @@ export type QueueMessageInput = {
   conversationId: string;
   text: string;
   senderType: MessageSenderType;
+  origin: OutboundOrigin;
   senderUserId?: string | null;
   agentRunId?: string | null;
 };
 
+export async function lockConversation(
+  tx: Prisma.TransactionClient,
+  conversationId: string,
+  workspaceId: string,
+) {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "conversations"
+    WHERE "id" = ${conversationId} AND "workspace_id" = ${workspaceId}
+    FOR UPDATE
+  `;
+  return rows.length > 0;
+}
+
 /**
- * Encola un mensaje saliente.
- *
- * Primero persiste el Message (QUEUED) y el OutboxEvent, y recien despues se
- * intenta el envio. Asi una llamada fallida a Meta no deja el CRM diciendo que
- * mando algo que nunca salio.
+ * Persiste el mensaje y el outbox bajo el mismo bloqueo de fila que takeover.
+ * La automatización no puede validar AI_ACTIVE y encolarse después de la toma.
  */
 export async function queueOutboundMessage(input: QueueMessageInput) {
-  const conversation = await prisma.conversation.findFirst({
-    where: { id: input.conversationId, workspaceId: input.workspaceId },
-    select: {
-      id: true,
-      mode: true,
-      status: true,
-      customerServiceWindowEndsAt: true,
-      contactId: true,
-      channelId: true,
-      contact: {
-        select: {
-          phone: true,
-          consents: {
-            where: { channel: 'WHATSAPP' },
-            select: { status: true },
-            take: 1,
+  if (!isOriginCompatibleWithSender(input.origin, input.senderType)) {
+    throw new Error('La procedencia del mensaje no coincide con su remitente.');
+  }
+  return prisma.$transaction(async (tx) => {
+    if (!(await lockConversation(tx, input.conversationId, input.workspaceId))) {
+      throw new OutboundError('Conversacion no encontrada en este workspace.', 'NOT_FOUND');
+    }
+
+    const conversation = await tx.conversation.findFirst({
+      where: { id: input.conversationId, workspaceId: input.workspaceId },
+      select: {
+        id: true,
+        mode: true,
+        status: true,
+        lockVersion: true,
+        customerServiceWindowEndsAt: true,
+        contact: {
+          select: {
+            phone: true,
+            consents: {
+              where: { channel: 'WHATSAPP' },
+              select: { status: true },
+              take: 1,
+            },
           },
         },
+        channel: { select: { status: true } },
       },
-      channel: { select: { status: true } },
-    },
-  });
+    });
 
-  if (!conversation) {
-    throw new OutboundError('Conversacion no encontrada en este workspace.', 'NOT_FOUND');
-  }
+    if (!conversation) {
+      throw new OutboundError('Conversacion no encontrada en este workspace.', 'NOT_FOUND');
+    }
+    if (conversation.status === 'CLOSED') {
+      throw new OutboundError('La conversacion esta cerrada.', 'CONVERSATION_CLOSED');
+    }
+    if (conversation.channel.status !== 'CONNECTED') {
+      throw new OutboundError(
+        'El canal de WhatsApp requiere atencion antes de enviar.',
+        'CONVERSATION_CLOSED',
+      );
+    }
+    if (!conversation.contact.phone) {
+      throw new OutboundError('El contacto no tiene un telefono de WhatsApp.', 'NOT_FOUND');
+    }
+    if (conversation.contact.consents[0]?.status !== 'GRANTED') {
+      throw new OutboundError('El contacto no autorizo respuestas por WhatsApp.', 'NO_CONSENT');
+    }
+    if (
+      input.senderType === MessageSenderType.USER &&
+      (!conversation.customerServiceWindowEndsAt ||
+        conversation.customerServiceWindowEndsAt <= new Date())
+    ) {
+      throw new OutboundError(
+        'La ventana de 24 horas termino. Debes usar una plantilla aprobada para volver a contactar.',
+        'CONVERSATION_CLOSED',
+      );
+    }
+    if (
+      pausesOnHumanTakeover(input.origin) &&
+      conversation.mode !== ConversationMode.AI_ACTIVE
+    ) {
+      throw new OutboundError(
+        'La conversación está a cargo de una persona: la respuesta automática no se enviará.',
+        'AI_BLOCKED',
+      );
+    }
 
-  if (conversation.status === 'CLOSED') {
-    throw new OutboundError('La conversacion esta cerrada.', 'CONVERSATION_CLOSED');
-  }
-
-  if (conversation.channel.status !== 'CONNECTED') {
-    throw new OutboundError(
-      'El canal de WhatsApp requiere atencion antes de enviar.',
-      'CONVERSATION_CLOSED',
-    );
-  }
-
-  if (!conversation.contact.phone) {
-    throw new OutboundError('El contacto no tiene un telefono de WhatsApp.', 'NOT_FOUND');
-  }
-
-  if (conversation.contact.consents[0]?.status !== 'GRANTED') {
-    throw new OutboundError('El contacto no autorizo respuestas por WhatsApp.', 'NO_CONSENT');
-  }
-
-  if (
-    input.senderType === MessageSenderType.USER &&
-    (!conversation.customerServiceWindowEndsAt ||
-      conversation.customerServiceWindowEndsAt <= new Date())
-  ) {
-    throw new OutboundError(
-      'La ventana de 24 horas termino. Debes usar una plantilla aprobada para volver a contactar.',
-      'CONVERSATION_CLOSED',
-    );
-  }
-
-  // Regla de la spec: la IA no responde cuando hay un humano a cargo.
-  if (
-    input.senderType === MessageSenderType.AI &&
-    conversation.mode === ConversationMode.HUMAN_ACTIVE
-  ) {
-    throw new OutboundError(
-      'La conversacion esta tomada por un humano: la IA no responde.',
-      'AI_BLOCKED',
-    );
-  }
-
-  return prisma.$transaction(async (tx) => {
     const message = await tx.message.create({
       data: {
         workspaceId: input.workspaceId,
@@ -124,26 +143,27 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
         status: MessageStatus.QUEUED,
       },
     });
+    const payload: OutboxMessagePayload = {
+      messageId: message.id,
+      conversationId: conversation.id,
+      to: conversation.contact.phone,
+      text: input.text,
+      origin: input.origin,
+      conversationLockVersion: conversation.lockVersion,
+    };
 
     await tx.outboxEvent.create({
       data: {
         workspaceId: input.workspaceId,
         type: OutboxType.WHATSAPP_MESSAGE,
         idempotencyKey: `message:${message.id}`,
-        payload: {
-          messageId: message.id,
-          conversationId: conversation.id,
-          to: conversation.contact.phone,
-          text: input.text,
-        },
+        payload,
       },
     });
-
     await tx.conversation.update({
       where: { id: conversation.id, workspaceId: input.workspaceId },
       data: { lastOutboundAt: new Date(), lastMessageAt: new Date() },
     });
-
     return message;
   });
 }
@@ -153,24 +173,113 @@ export type ProcessOutboxResult = {
   sent: number;
   failed: number;
   retried: number;
+  cancelled: number;
 };
 
+type PreparedSend = {
+  kind: 'READY';
+  channelId: string;
+  payload: OutboxMessagePayload;
+  origin: OutboundOrigin;
+};
+type SkippedSend = { kind: 'SKIPPED'; cancelled: boolean };
+
 /**
- * Procesa el outbox pendiente. En la Fase 3 lo llamara la cola durable; hoy se
- * invoca desde /api/internal/process-outbox.
+ * Reserva el envío en una transacción corta. SENDING es el límite a partir del
+ * cual la llamada a Meta puede empezar y ya no se puede cancelar.
  */
+async function prepareSend(
+  outboxId: string,
+  workspaceId: string | null,
+  payload: OutboxMessagePayload,
+): Promise<PreparedSend | SkippedSend> {
+  if (!workspaceId) return { kind: 'SKIPPED', cancelled: false };
+
+  return prisma.$transaction(async (tx) => {
+    if (!(await lockConversation(tx, payload.conversationId, workspaceId))) {
+      await markFailedWithClient(tx, outboxId, payload.messageId, 'La conversación ya no existe.');
+      return { kind: 'SKIPPED', cancelled: false };
+    }
+    const event = await tx.outboxEvent.findFirst({
+      where: { id: outboxId, workspaceId, status: OutboxStatus.PROCESSING },
+      select: { id: true },
+    });
+    if (!event) return { kind: 'SKIPPED', cancelled: true };
+
+    const message = await tx.message.findFirst({
+      where: { id: payload.messageId, workspaceId },
+      select: {
+        id: true,
+        status: true,
+        senderType: true,
+        conversation: { select: { id: true, mode: true, lockVersion: true, channelId: true } },
+      },
+    });
+    if (!message || message.conversation.id !== payload.conversationId) {
+      await markFailedWithClient(tx, outboxId, payload.messageId, 'El mensaje ya no existe.');
+      return { kind: 'SKIPPED', cancelled: false };
+    }
+
+    if (message.status !== MessageStatus.QUEUED) {
+      const cancelled = message.status === MessageStatus.CANCELLED;
+      const failed = message.status === MessageStatus.FAILED;
+      await tx.outboxEvent.update({
+        where: { id: outboxId },
+        data: {
+          status: cancelled
+            ? OutboxStatus.CANCELLED
+            : failed
+              ? OutboxStatus.FAILED
+              : OutboxStatus.SENT,
+          processedAt: new Date(),
+        },
+      });
+      return { kind: 'SKIPPED', cancelled };
+    }
+
+    const origin = inferOutboundOrigin(payload, message.senderType);
+    if (
+      shouldCancelAutomaticSend({
+        origin,
+        queuedLockVersion: payload.conversationLockVersion,
+        currentLockVersion: message.conversation.lockVersion,
+        conversationMode: message.conversation.mode,
+      })
+    ) {
+      await cancelWithClient(tx, outboxId, message.id);
+      return { kind: 'SKIPPED', cancelled: true };
+    }
+
+    const reserved = await tx.outboxEvent.updateMany({
+      where: { id: outboxId, status: OutboxStatus.PROCESSING },
+      data: { status: OutboxStatus.SENDING },
+    });
+    if (reserved.count === 0) return { kind: 'SKIPPED', cancelled: true };
+    await tx.message.updateMany({
+      where: { id: message.id, status: MessageStatus.QUEUED },
+      data: { status: MessageStatus.SENDING },
+    });
+
+    return { kind: 'READY', channelId: message.conversation.channelId, payload, origin };
+  });
+}
+
+/** Procesa eventos pendientes sin mantener una transacción durante la red. */
 export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
-  const now = new Date();
   const pending = await prisma.outboxEvent.findMany({
-    where: { status: OutboxStatus.PENDING, availableAt: { lte: now } },
+    where: { status: OutboxStatus.PENDING, availableAt: { lte: new Date() } },
     orderBy: { availableAt: 'asc' },
     take: limit,
   });
-
-  const result: ProcessOutboxResult = { processed: 0, sent: 0, failed: 0, retried: 0 };
+  const result: ProcessOutboxResult = {
+    processed: 0,
+    sent: 0,
+    failed: 0,
+    retried: 0,
+    cancelled: 0,
+  };
 
   for (const event of pending) {
-    // Lock optimista: solo procesa quien logra moverlo a PROCESSING.
     const claimed = await prisma.outboxEvent.updateMany({
       where: { id: event.id, status: OutboxStatus.PENDING },
       data: { status: OutboxStatus.PROCESSING, attempts: { increment: 1 } },
@@ -179,34 +288,20 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
 
     result.processed += 1;
     const attempts = event.attempts + 1;
-    const payload = event.payload as { messageId: string; to: string; text: string };
+    const payload = event.payload as OutboxMessagePayload;
 
     try {
-      const message = await prisma.message.findUnique({
-        where: { id: payload.messageId },
-        select: { id: true, status: true, conversation: { select: { channelId: true } } },
-      });
-
-      if (!message) {
-        await markFailed(event.id, payload.messageId, 'El mensaje ya no existe.');
-        result.failed += 1;
+      const prepared = await prepareSend(event.id, event.workspaceId, payload);
+      if (prepared.kind === 'SKIPPED') {
+        if (prepared.cancelled) result.cancelled += 1;
+        else result.failed += 1;
         continue;
       }
 
-      // Idempotencia: si otra corrida ya lo envio, no se reenvia.
-      if (message.status !== MessageStatus.QUEUED) {
-        await prisma.outboxEvent.update({
-          where: { id: event.id },
-          data: { status: OutboxStatus.SENT, processedAt: new Date() },
-        });
-        continue;
-      }
-
-      const channel = await prisma.whatsAppChannel.findUnique({
-        where: { id: message.conversation.channelId },
+      const channel = await prisma.whatsAppChannel.findFirst({
+        where: { id: prepared.channelId, workspaceId: event.workspaceId ?? undefined },
         select: { id: true, workspaceId: true, phoneNumberId: true, accessTokenEncrypted: true },
       });
-
       if (!channel) {
         await markFailed(event.id, payload.messageId, 'El canal de WhatsApp ya no existe.');
         result.failed += 1;
@@ -214,11 +309,10 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
       }
 
       const sent = await sendTextMessage({ channel, to: payload.to, text: payload.text });
-
       if (sent.ok) {
         await prisma.$transaction([
-          prisma.message.update({
-            where: { id: payload.messageId },
+          prisma.message.updateMany({
+            where: { id: payload.messageId, status: MessageStatus.SENDING },
             data: {
               externalMessageId: sent.externalMessageId,
               status: MessageStatus.SENT,
@@ -227,8 +321,8 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
               errorMessage: null,
             },
           }),
-          prisma.outboxEvent.update({
-            where: { id: event.id },
+          prisma.outboxEvent.updateMany({
+            where: { id: event.id, status: OutboxStatus.SENDING },
             data: { status: OutboxStatus.SENT, processedAt: new Date(), error: null },
           }),
         ]);
@@ -237,65 +331,137 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
       }
 
       if (sent.retryable && attempts < MAX_ATTEMPTS) {
-        await prisma.outboxEvent.update({
-          where: { id: event.id },
-          data: {
-            status: OutboxStatus.PENDING,
-            availableAt: new Date(Date.now() + RETRY_DELAYS_MS[attempts - 1]),
-            error: sent.errorMessage,
-          },
-        });
-        result.retried += 1;
+        const retry = await retryOrCancel(
+          event.id,
+          event.workspaceId,
+          payload,
+          prepared.origin,
+          attempts,
+          sent.errorMessage,
+        );
+        result[retry] += 1;
         continue;
       }
 
       if (sent.errorCode === '190' || sent.errorCode === '401' || sent.errorCode === '403') {
         await prisma.$transaction([
-          prisma.whatsAppChannel.update({
-            where: { id: channel.id },
-            data: { status: 'NEEDS_ATTENTION' },
-          }),
+          prisma.whatsAppChannel.update({ where: { id: channel.id }, data: { status: 'NEEDS_ATTENTION' } }),
           prisma.integration.updateMany({
             where: { workspaceId: channel.workspaceId, provider: 'WHATSAPP' },
             data: { status: 'NEEDS_ATTENTION' },
           }),
         ]);
       }
-
       await markFailed(event.id, payload.messageId, sent.errorMessage, sent.errorCode);
       result.failed += 1;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'error desconocido';
-
-      if (attempts < MAX_ATTEMPTS) {
-        await prisma.outboxEvent.update({
-          where: { id: event.id },
-          data: {
-            status: OutboxStatus.PENDING,
-            availableAt: new Date(Date.now() + RETRY_DELAYS_MS[attempts - 1]),
-            error: message,
-          },
+      const errorMessage = error instanceof Error ? error.message : 'error desconocido';
+      const current = await prisma.outboxEvent.findUnique({
+        where: { id: event.id },
+        select: { status: true },
+      });
+      if (current?.status === OutboxStatus.CANCELLED) {
+        result.cancelled += 1;
+      } else if (attempts < MAX_ATTEMPTS) {
+        const sender = await prisma.message.findUnique({
+          where: { id: payload.messageId },
+          select: { senderType: true },
         });
-        result.retried += 1;
+        const retry = await retryOrCancel(
+          event.id,
+          event.workspaceId,
+          payload,
+          inferOutboundOrigin(payload, sender?.senderType ?? 'SYSTEM'),
+          attempts,
+          errorMessage,
+        );
+        result[retry] += 1;
       } else {
-        await markFailed(event.id, payload.messageId, message);
+        await markFailed(event.id, payload.messageId, errorMessage);
         result.failed += 1;
       }
     }
   }
-
   return result;
 }
 
-/** Estado terminal: dead letter. El mensaje queda FAILED y visible en la bandeja. */
-async function markFailed(outboxId: string, messageId: string, error: string, code?: string) {
-  const event = await prisma.outboxEvent.update({
-    where: { id: outboxId },
+async function retryOrCancel(
+  outboxId: string,
+  workspaceId: string | null,
+  payload: OutboxMessagePayload,
+  origin: OutboundOrigin,
+  attempts: number,
+  error: string,
+): Promise<'retried' | 'cancelled'> {
+  if (!workspaceId) {
+    await markFailed(outboxId, payload.messageId, error);
+    return 'cancelled';
+  }
+  return prisma.$transaction(async (tx) => {
+    const locked = await lockConversation(tx, payload.conversationId, workspaceId);
+    const conversation = locked
+      ? await tx.conversation.findFirst({
+          where: { id: payload.conversationId, workspaceId },
+          select: { mode: true, lockVersion: true },
+        })
+      : null;
+    if (
+      !conversation ||
+      shouldCancelAutomaticSend({
+        origin,
+        queuedLockVersion: payload.conversationLockVersion,
+        currentLockVersion: conversation.lockVersion,
+        conversationMode: conversation.mode,
+      })
+    ) {
+      await cancelWithClient(tx, outboxId, payload.messageId);
+      return 'cancelled';
+    }
+
+    await tx.outboxEvent.updateMany({
+      where: { id: outboxId, status: { in: [OutboxStatus.PROCESSING, OutboxStatus.SENDING] } },
+      data: {
+        status: OutboxStatus.PENDING,
+        availableAt: new Date(Date.now() + RETRY_DELAYS_MS[attempts - 1]),
+        error,
+      },
+    });
+    await tx.message.updateMany({
+      where: { id: payload.messageId, status: MessageStatus.SENDING },
+      data: { status: MessageStatus.QUEUED },
+    });
+    return 'retried';
+  });
+}
+
+async function cancelWithClient(tx: Prisma.TransactionClient, outboxId: string, messageId: string) {
+  await tx.outboxEvent.updateMany({
+    where: { id: outboxId, status: { in: [OutboxStatus.PENDING, OutboxStatus.PROCESSING] } },
+    data: {
+      status: OutboxStatus.CANCELLED,
+      processedAt: new Date(),
+      error: TAKEOVER_CANCEL_REASON,
+    },
+  });
+  await tx.message.updateMany({
+    where: { id: messageId, status: MessageStatus.QUEUED },
+    data: { status: MessageStatus.CANCELLED, errorMessage: TAKEOVER_CANCEL_REASON },
+  });
+}
+
+async function markFailedWithClient(
+  tx: Prisma.TransactionClient,
+  outboxId: string,
+  messageId: string,
+  error: string,
+  code?: string,
+) {
+  await tx.outboxEvent.updateMany({
+    where: { id: outboxId, status: { notIn: [OutboxStatus.SENT, OutboxStatus.CANCELLED] } },
     data: { status: OutboxStatus.FAILED, processedAt: new Date(), error },
   });
-
-  await prisma.message.updateMany({
-    where: { id: messageId, status: MessageStatus.QUEUED },
+  await tx.message.updateMany({
+    where: { id: messageId, status: { in: [MessageStatus.QUEUED, MessageStatus.SENDING] } },
     data: {
       status: MessageStatus.FAILED,
       failedAt: new Date(),
@@ -303,8 +469,14 @@ async function markFailed(outboxId: string, messageId: string, error: string, co
       errorMessage: error,
     },
   });
+}
 
-  if (event.workspaceId) {
+async function markFailed(outboxId: string, messageId: string, error: string, code?: string) {
+  const event = await prisma.$transaction(async (tx) => {
+    await markFailedWithClient(tx, outboxId, messageId, error, code);
+    return tx.outboxEvent.findUnique({ where: { id: outboxId }, select: { workspaceId: true } });
+  });
+  if (event?.workspaceId) {
     await recordAudit({
       workspaceId: event.workspaceId,
       action: 'whatsapp.send_failed',
@@ -315,44 +487,80 @@ async function markFailed(outboxId: string, messageId: string, error: string, co
   }
 }
 
-/** Reencola un mensaje fallido, desde el boton de reintento de la bandeja. */
+/** Reencola un mensaje fallido desde la bandeja sin revivir una generación vieja. */
 export async function retryMessage(input: {
   workspaceId: string;
   messageId: string;
   actorId?: string;
 }) {
-  const message = await prisma.message.findFirst({
-    where: { id: input.messageId, workspaceId: input.workspaceId, status: MessageStatus.FAILED },
-    select: {
-      id: true,
-      text: true,
-      conversationId: true,
-      conversation: { select: { contact: { select: { phone: true } } } },
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const candidate = await tx.message.findFirst({
+      where: { id: input.messageId, workspaceId: input.workspaceId, status: MessageStatus.FAILED },
+      select: { conversationId: true },
+    });
+    if (!candidate) throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');
+    if (!(await lockConversation(tx, candidate.conversationId, input.workspaceId))) {
+      throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');
+    }
 
-  if (!message) throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');
-
-  await prisma.message.update({
-    where: { id: message.id },
-    data: { status: MessageStatus.QUEUED, failedAt: null, errorCode: null, errorMessage: null },
-  });
-
-  await prisma.outboxEvent.upsert({
-    where: { idempotencyKey: `message:${message.id}` },
-    create: {
-      workspaceId: input.workspaceId,
-      type: OutboxType.WHATSAPP_MESSAGE,
-      idempotencyKey: `message:${message.id}`,
-      payload: {
-        messageId: message.id,
-        conversationId: message.conversationId,
-        to: message.conversation.contact.phone ?? '',
-        text: message.text ?? '',
+    const message = await tx.message.findFirst({
+      where: { id: input.messageId, workspaceId: input.workspaceId, status: MessageStatus.FAILED },
+      select: {
+        id: true,
+        text: true,
+        senderType: true,
+        conversationId: true,
+        conversation: {
+          select: { mode: true, lockVersion: true, contact: { select: { phone: true } } },
+        },
       },
-    },
-    update: { status: OutboxStatus.PENDING, availableAt: new Date(), attempts: 0, error: null },
-  });
+    });
+    if (!message) throw new OutboundError('Mensaje fallido no encontrado.', 'NOT_FOUND');
 
-  return message.id;
+    const previous = await tx.outboxEvent.findUnique({
+      where: { idempotencyKey: `message:${message.id}` },
+      select: { payload: true },
+    });
+    const origin = inferOutboundOrigin(
+      (previous?.payload ?? {}) as Partial<OutboxMessagePayload>,
+      message.senderType,
+    );
+    if (pausesOnHumanTakeover(origin) && message.conversation.mode !== ConversationMode.AI_ACTIVE) {
+      throw new OutboundError(
+        'La conversación está a cargo de una persona: no se reintentará la respuesta automática.',
+        'AI_BLOCKED',
+      );
+    }
+
+    const payload: OutboxMessagePayload = {
+      messageId: message.id,
+      conversationId: message.conversationId,
+      to: message.conversation.contact.phone ?? '',
+      text: message.text ?? '',
+      origin,
+      conversationLockVersion: message.conversation.lockVersion,
+    };
+    await tx.message.update({
+      where: { id: message.id },
+      data: { status: MessageStatus.QUEUED, failedAt: null, errorCode: null, errorMessage: null },
+    });
+    await tx.outboxEvent.upsert({
+      where: { idempotencyKey: `message:${message.id}` },
+      create: {
+        workspaceId: input.workspaceId,
+        type: OutboxType.WHATSAPP_MESSAGE,
+        idempotencyKey: `message:${message.id}`,
+        payload,
+      },
+      update: {
+        payload,
+        status: OutboxStatus.PENDING,
+        availableAt: new Date(),
+        attempts: 0,
+        error: null,
+        processedAt: null,
+      },
+    });
+    return message.id;
+  });
 }

@@ -52,6 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           `Hola${quote.contact?.firstName ? ` ${quote.contact.firstName}` : ''}, te dejo la cotizacion ` +
           `${quote.number}: $${total} ${quote.currency}.\n${body.pdfUrl}`,
         senderType: MessageSenderType.USER,
+        origin: 'HUMAN',
         senderUserId: user.id,
       });
       messageQueued = true;

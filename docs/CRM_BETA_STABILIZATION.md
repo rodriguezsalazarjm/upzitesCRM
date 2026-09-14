@@ -21,7 +21,7 @@ pruebas realizadas con infraestructura o proveedores reales.
 
 ### Despliegue automatico de Vercel
 
-Estado: configuracion externa corregida; validacion mediante Git en curso.
+Estado: configuracion externa corregida y validada mediante Git.
 
 Valores anteriores de `upzites-crm`:
 
@@ -45,6 +45,10 @@ Valores aplicados exclusivamente a `upzites-crm`:
 
 No se modificaron variables de entorno, dominios, certificados, migraciones ni
 el proyecto Vercel de la web principal.
+
+El push de `d100ae7` disparó un despliegue Git automático. El deployment
+`dpl_7h9zYmS2CxdmNQckUMqRRLZssHah` quedó Ready, recibió el alias
+`crm.upzites.com` y respondió HTTP 200 en `/api/system/health`.
 
 ### Entorno de pruebas
 
@@ -90,16 +94,35 @@ si alguien llama directamente a uno de los archivos `smoke-*.ts`.
 
 ### Toma de control humana
 
-Estado: riesgo confirmado, correccion pendiente.
+Estado: corrección implementada; integración con base aislada pendiente.
 
-El modo `HUMAN_ACTIVE` impide nuevas ejecuciones y nuevos mensajes de IA. El
-worker del outbox no vuelve a comprobar modo y procedencia justo antes del
-envio, por lo que una respuesta automatica ya encolada podria salir despues de
-la toma de control.
+La pausa tiene alcance de conversación. Cada salida declara procedencia:
+persona, IA, automatización, journey o evento transaccional. IA,
+automatizaciones y journeys quedan sujetos a la toma humana; los mensajes
+manuales y los eventos transaccionales legítimos continúan.
+
+La cola, el worker, takeover y la reactivación se coordinan mediante bloqueo de
+la fila de conversación y `lockVersion`. Takeover invalida la generación
+anterior y cancela eventos `PENDING` o `PROCESSING`. El worker vuelve a validar
+modo, generación, workspace y procedencia antes de reservar el envío.
+
+`SENDING` marca el límite en que la llamada a Meta puede empezar. No se mantiene
+una transacción durante la red. Si takeover encuentra una salida en ese estado,
+la conserva e informa al operador: Meta podría haberla aceptado y no existe una
+cancelación retrospectiva segura. Los mensajes cancelados quedan en estado
+terminal y no reviven al devolver la conversación a la IA.
+
+La migración `20260914160000_human_takeover_outbox` agrega únicamente los
+valores `SENDING` y `CANCELLED` a los enums de mensaje y outbox. No necesita
+backfill. Debe aplicarse antes de desplegar este bloque funcional.
+
+Validación realizada: 12/12 unitarias de WhatsApp, Prisma validate, TypeScript,
+ESLint sin errores y build de producción. Falta ejecutar los casos
+transaccionales de carrera y aislamiento sobre la base aislada protegida.
 
 ## Verificaciones de la linea base
 
-- Pruebas unitarias de WhatsApp: 7/7.
+- Pruebas unitarias de WhatsApp: 12/12.
 - Pruebas unitarias de onboarding: 9/9.
 - Pruebas unitarias de precios: 4/4.
 - ESLint: 0 errores, 2 advertencias de estilo en archivos de configuracion.

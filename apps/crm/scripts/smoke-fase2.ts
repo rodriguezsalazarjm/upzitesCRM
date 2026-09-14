@@ -233,6 +233,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
     conversationId: conversation.id,
     text: 'Hola, gracias por escribir.',
     senderType: MessageSenderType.USER,
+    origin: 'HUMAN',
     senderUserId: A.userId,
   });
 
@@ -283,6 +284,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
       conversationId: conversation.id,
       text: 'Respuesta automatica',
       senderType: MessageSenderType.AI,
+      origin: 'AI',
     });
   } catch (error) {
     blocked = error instanceof OutboundError && error.code === 'AI_BLOCKED';
@@ -295,6 +297,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
     conversationId: conversation.id,
     text: 'Respuesta del operador',
     senderType: MessageSenderType.USER,
+    origin: 'HUMAN',
     senderUserId: A.userId,
   });
   check('El humano si puede enviar con la conversacion tomada', human !== null);
@@ -309,6 +312,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
     conversationId: conversation.id,
     text: 'Respuesta de IA',
     senderType: MessageSenderType.AI,
+    origin: 'AI',
   });
   check('Devuelta a la IA, vuelve a poder responder', ai !== null);
 }
@@ -326,6 +330,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
       conversationId: conversationB.id,
       text: 'Mensaje cruzado',
       senderType: MessageSenderType.USER,
+      origin: 'HUMAN',
       senderUserId: A.userId,
     });
   } catch (error) {

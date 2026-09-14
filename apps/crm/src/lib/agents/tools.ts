@@ -3,13 +3,13 @@ import {
   ActivityType,
   BuyingIntent,
   ConsentChannel,
-  ConversationMode,
   OpportunityStage,
   OpportunityStatus,
   ScheduledActionType,
   SuppressionReason,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { activateHumanControl } from '../whatsapp/human-control';
 import { recordAudit } from '../domain/audit';
 import { cancelForContact, revokeConsent, scheduleAction } from '../domain';
 import { createOrder, listCatalog, OrderError } from '../commerce/orders';
@@ -274,9 +274,9 @@ export const AGENT_TOOLS: AgentTool[] = [
       const parsed = z.object({ reason: z.string().min(1) }).safeParse(args);
       if (!parsed.success) return { ok: false, error: 'Falta el motivo.' };
 
-      await prisma.conversation.updateMany({
-        where: { id: context.conversationId, workspaceId: context.workspaceId },
-        data: { mode: ConversationMode.HUMAN_ACTIVE },
+      await activateHumanControl({
+        conversationId: context.conversationId,
+        workspaceId: context.workspaceId,
       });
 
       await prisma.activity.create({

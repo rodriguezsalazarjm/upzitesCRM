@@ -306,6 +306,7 @@ async function runStep(
         conversationId: conversation.id,
         text: step.body ?? step.label,
         senderType: MessageSenderType.SYSTEM,
+        origin: 'JOURNEY',
       });
 
       await recordSend({

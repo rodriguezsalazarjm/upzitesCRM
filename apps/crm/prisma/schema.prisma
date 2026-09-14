@@ -2120,10 +2120,12 @@ enum MessageType {
 
 enum MessageStatus {
   QUEUED
+  SENDING
   SENT
   DELIVERED
   READ
   FAILED
+  CANCELLED
 }
 
 enum WebhookEventStatus {
@@ -2143,8 +2145,10 @@ enum OutboxType {
 enum OutboxStatus {
   PENDING
   PROCESSING
+  SENDING
   SENT
   FAILED
+  CANCELLED
 }
 
 

@@ -387,7 +387,15 @@ async function applyStatusUpdate(event: NormalizedStatusUpdate) {
   if (!message || message.workspaceId !== channel.workspaceId) return false;
 
   // Los estados solo avanzan: un `sent` que llega tarde no pisa un `read`.
-  const ORDER: Record<string, number> = { QUEUED: 0, SENT: 1, DELIVERED: 2, READ: 3, FAILED: 4 };
+  const ORDER: Record<string, number> = {
+    QUEUED: 0,
+    SENDING: 1,
+    SENT: 2,
+    DELIVERED: 3,
+    READ: 4,
+    FAILED: 5,
+    CANCELLED: 5,
+  };
   if (event.status !== MessageStatus.FAILED && ORDER[event.status] <= ORDER[message.status]) {
     return false;
   }

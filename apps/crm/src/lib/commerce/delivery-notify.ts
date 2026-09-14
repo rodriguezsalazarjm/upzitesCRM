@@ -117,6 +117,7 @@ export async function notifyDigitalDelivery(input: {
         conversationId: conversacion.id,
         text: texto,
         senderType: MessageSenderType.SYSTEM,
+        origin: 'TRANSACTIONAL',
       });
       porWhatsapp = true;
     } catch (error) {
