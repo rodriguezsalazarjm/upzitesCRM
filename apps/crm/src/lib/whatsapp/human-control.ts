@@ -58,7 +58,7 @@ export async function activateHumanControl(input: ActivateHumanControlInput) {
       .map((event) => (event.payload as Partial<OutboxMessagePayload>).messageId)
       .filter((id): id is string => typeof id === 'string');
 
-    await tx.conversation.update({
+    const updatedConversation = await tx.conversation.update({
       where: { id: input.conversationId, workspaceId: input.workspaceId },
       data: {
         mode: ConversationMode.HUMAN_ACTIVE,
@@ -92,6 +92,7 @@ export async function activateHumanControl(input: ActivateHumanControlInput) {
       assignedUserId: input.assignedUserId ?? null,
       cancelledAutomaticMessages: cancelledMessageIds.length,
       automaticMessagesAlreadySending: inFlight.length,
+      lockVersion: updatedConversation.lockVersion,
     };
   });
 }

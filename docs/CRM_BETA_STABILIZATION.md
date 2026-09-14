@@ -172,11 +172,44 @@ el navegador local. El Inbox autenticado no se inspeccionó visualmente porque
 no hay datos en una base aislada. Quedan pendientes instalación y pruebas de
 teclado, rotación, reconexión y actualización en un Samsung S24 Ultra real.
 
+### Notificaciones push
+
+Estado: implementación completa en código; entrega real pendiente de claves y
+base aislada.
+
+- La suscripción se inicia únicamente al pulsar la campana y el permiso se pide
+  en ese gesto. Cada navegador queda asociado al usuario y al workspace de la
+  sesión; cerrar sesión elimina la asociación y la suscripción local.
+- La pantalla bloqueada solo muestra textos discretos. No incluye nombres,
+  teléfonos, mensajes, importes ni contenido de clientes.
+- Una conversación asignada avisa solo a su responsable. Escalaciones,
+  cotizaciones por aprobar y fallos operativos avisan a owner/admin; un mensaje
+  entrante sin responsable no se difunde a todo el equipo.
+- Cada persona controla cinco preferencias por dispositivo. Los endpoints
+  vencidos o rechazados con 404/410 se eliminan; otros fallos usan la cola
+  durable con un máximo de tres intentos.
+- El clic abre solo rutas protegidas del CRM. El servidor vuelve a exigir sesión
+  y aislamiento por workspace antes de mostrar datos.
+
+La migración `20260914170000_push_notifications` agrega el trabajo `SEND_PUSH`
+y la tabla `push_subscriptions`. No modifica ni rellena datos existentes. Debe
+aplicarse antes de desplegar este bloque. Producción también necesita
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`; la clave privada debe
+guardarse como secreto.
+
+Validación realizada: 3/3 pruebas puras de política y contenido, sintaxis del
+service worker, Prisma validate, instalación con lockfile congelado, TypeScript,
+ESLint sin errores y build de producción. Falta probar alta, entrega, clic,
+preferencias, renovación, cierre de sesión y eliminación de endpoints en un
+dispositivo real conectado a una base aislada. No se generaron claves ni se
+contactó a ningún proveedor push.
+
 ## Verificaciones de la linea base
 
 - Pruebas unitarias de WhatsApp: 12/12.
 - Pruebas unitarias de onboarding: 9/9.
 - Pruebas unitarias de precios: 4/4.
+- Pruebas unitarias de push: 3/3.
 - ESLint: 0 errores, 2 advertencias de estilo en archivos de configuracion.
 - Build CRM: correcto con pnpm 11.3.0.
 - Health de produccion: HTTP 200, base operativa y sin trabajos, outbox o

@@ -4,6 +4,7 @@ import { recordAudit } from './domain/audit';
 import { prisma } from './prisma';
 import { activateHumanControl } from './whatsapp/human-control';
 import { lockConversation } from './whatsapp/outbound';
+import { queuePushSafely } from './push/events';
 
 /**
  * Consultas y acciones de la bandeja. Toda funcion resuelve el workspace desde
@@ -65,7 +66,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
     temperature: conversation.contact.temperature,
     withinServiceWindow: Boolean(
       conversation.customerServiceWindowEndsAt &&
-        conversation.customerServiceWindowEndsAt.getTime() > now,
+      conversation.customerServiceWindowEndsAt.getTime() > now,
     ),
   }));
 }
@@ -97,7 +98,7 @@ export async function getConversationDetail(conversationId: string) {
   // render de un componente lo vuelve impuro.
   const withinServiceWindow = Boolean(
     conversation.customerServiceWindowEndsAt &&
-      conversation.customerServiceWindowEndsAt.getTime() > Date.now(),
+    conversation.customerServiceWindowEndsAt.getTime() > Date.now(),
   );
 
   return { ...conversation, withinServiceWindow };
@@ -188,6 +189,14 @@ export async function assignConversation(conversationId: string, assigneeId: str
     entity: 'Conversation',
     entityId: conversationId,
     metadata: { assigneeId: assignee.id },
+  });
+
+  await queuePushSafely({
+    workspaceId: user.workspace.id,
+    kind: 'ASSIGNED',
+    dedupeKey: `assigned:${conversationId}:${result.lockVersion}`,
+    userId: assignee.id,
+    conversationId,
   });
 
   return { assignedUserId: assignee.id, assigneeName: assignee.name };

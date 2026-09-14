@@ -18,6 +18,7 @@ import { createShopifyClient } from '../shopify/client';
 import { createShopifyCheckout, ShopifyOrderError } from '../shopify/orders';
 import { fetchLiveVariant, getShopifyConnection } from '../shopify/sync';
 import { createQuote, listQuotableServices, QuoteError, requestReview } from '../quotes/service';
+import { queuePushSafely } from '../push/events';
 import type { ToolSpec } from './provider';
 
 /**
@@ -290,6 +291,12 @@ export const AGENT_TOOLS: AgentTool[] = [
       });
 
       await audit(context, 'assign_to_human', { reason: parsed.data.reason });
+      await queuePushSafely({
+        workspaceId: context.workspaceId,
+        kind: 'HUMAN_ATTENTION',
+        dedupeKey: `agent-tool-escalated:${context.agentRunId}`,
+        conversationId: context.conversationId,
+      });
 
       return { ok: true, data: { escalated: true } };
     },

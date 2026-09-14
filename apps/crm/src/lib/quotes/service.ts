@@ -13,6 +13,7 @@ import { recordAudit } from '../domain/audit';
 import { calculateQuote } from './engine';
 import { parseIntakeSchema, parseRules, validateIntake } from './schema';
 import { canApproveQuotes } from './roles';
+import { queuePushSafely } from '../push/events';
 
 export { canApproveQuotes } from './roles';
 
@@ -189,7 +190,7 @@ export async function createQuote(input: CreateQuoteInput) {
 
   const calculation = calculateQuote(rules, validation.values);
 
-  return prisma.$transaction(async (tx) => {
+  const quote = await prisma.$transaction(async (tx) => {
     // Serializa numeración y revisiones solo dentro de este workspace.
     await lockWorkspaceForQuote(tx, input.workspaceId);
     await validateQuoteLinks(tx, input);
@@ -279,6 +280,14 @@ export async function createQuote(input: CreateQuoteInput) {
     );
     return quote;
   });
+
+  await queuePushSafely({
+    workspaceId: input.workspaceId,
+    kind: 'QUOTE_APPROVAL',
+    dedupeKey: `quote-review:${quote.id}`,
+    quoteId: quote.id,
+  });
+  return quote;
 }
 
 /** Abre (o reutiliza) la solicitud de revision de una cotizacion. */

@@ -16,6 +16,7 @@ import { cancelForContact } from '../domain';
 import { emitDomainEvent } from '../automation/emit';
 import { scheduleAgentRun } from '../agents/dispatch';
 import { recordAudit } from '../domain/audit';
+import { queuePushSafely } from '../push/events';
 import {
   dedupeKeyFor,
   normalizeWebhookPayload,
@@ -288,8 +289,18 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
 
   const conversation = await prisma.conversation.findUnique({
     where: { channelId_contactId: { channelId: channel.id, contactId } },
-    select: { id: true },
+    select: { id: true, assignedUserId: true },
   });
+
+  if (conversation?.assignedUserId) {
+    await queuePushSafely({
+      workspaceId: channel.workspaceId,
+      kind: 'INCOMING_MESSAGE',
+      dedupeKey: `incoming:${event.externalMessageId}`,
+      userId: conversation.assignedUserId,
+      conversationId: conversation.id,
+    });
+  }
 
   // Si el contacto es nuevo, tambien es un lead nuevo.
   if (isNewContact) {
@@ -427,6 +438,11 @@ async function applyStatusUpdate(event: NormalizedStatusUpdate) {
       trigger: AutomationTrigger.MESSAGE_FAILED,
       dedupeKey: `message-failed:${event.externalMessageId}`,
       context: { message: { errorCode: event.errorCode ?? null } },
+    });
+    await queuePushSafely({
+      workspaceId: channel.workspaceId,
+      kind: 'OPERATIONAL_ISSUE',
+      dedupeKey: `whatsapp-status-failed:${event.externalMessageId}`,
     });
   }
 

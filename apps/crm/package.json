@@ -12,6 +12,7 @@
     "test:whatsapp": "tsx --test src/lib/whatsapp/*.test.ts",
     "test:onboarding": "tsx --test src/lib/onboarding/*.test.ts",
     "test:quotes": "tsx --test src/lib/quotes/*.test.ts",
+    "test:push": "tsx --test src/lib/push/*.test.ts",
     "test:test-safety": "tsx --test src/lib/testing/*.test.ts",
     "test:smoke": "tsx scripts/smoke-critico.ts",
     "test:smoke:all": "tsx scripts/run-smoke.ts",
@@ -47,6 +48,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.6.0",
+    "web-push": "^3.6.7",
     "zod": "^3.22.4",
     "zustand": "^4.4.7"
   },
@@ -55,6 +57,7 @@
     "@types/node": "^20.11.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.17",
     "dotenv": "^17.4.2",
     "eslint": "^9.0.0",

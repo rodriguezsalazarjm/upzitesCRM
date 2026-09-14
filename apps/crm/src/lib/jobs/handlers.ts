@@ -24,6 +24,7 @@ import { scanWorkspaceHealth } from '../billing/alerts';
 import { pruneRateLimitWindows } from '../ops/rate-limit';
 import { ageStaleScores, expireOverdueQuotes } from '../ops/maintenance';
 import { enqueue } from './queue';
+import { sendPushJob } from '../push/send';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -33,6 +34,7 @@ import { enqueue } from './queue';
 export type JobHandler = (payload: Record<string, unknown>, workspaceId: string | null) => Promise<unknown>;
 
 const handlers: Record<JobType, JobHandler> = {
+  [JobType.SEND_PUSH]: sendPushJob,
   [JobType.PROCESS_WEBHOOK_EVENT]: async (payload) => {
     const eventId = String(payload.eventId ?? '');
     if (!eventId) throw new Error('PROCESS_WEBHOOK_EVENT requiere eventId.');

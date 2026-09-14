@@ -66,6 +66,7 @@ model Workspace {
   activation     WorkspaceActivation?
   usageCounters  UsageCounter[]
   alerts         WorkspaceAlert[]
+  pushSubscriptions PushSubscription[]
 
   messagingPolicy    MessagingPolicy?
   segments           Segment[]
@@ -98,6 +99,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   assignedConversations Conversation[]     @relation("ConversationAssignee")
   sentMessages          Message[]          @relation("MessageSender")
+  pushSubscriptions     PushSubscription[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId])
@@ -1789,6 +1791,40 @@ model WorkspaceAlert {
   @@map("workspace_alerts")
 }
 
+/// Suscripción Web Push de un usuario en un navegador concreto. El endpoint y
+/// las claves son credenciales de entrega: solo se usan en el servidor.
+model PushSubscription {
+  id          String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  userId      String @map("user_id")
+  endpoint    String @unique
+  p256dh      String
+  auth        String
+
+  deviceLabel String?   @map("device_label")
+  userAgent   String?   @map("user_agent")
+  expiresAt   DateTime? @map("expires_at")
+  enabled     Boolean   @default(true)
+
+  notifyHumanAttention   Boolean @default(true) @map("notify_human_attention")
+  notifyAssigned         Boolean @default(true) @map("notify_assigned")
+  notifyQuoteApproval    Boolean @default(true) @map("notify_quote_approval")
+  notifyOperationalIssue Boolean @default(true) @map("notify_operational_issue")
+  notifyIncomingMessage  Boolean @default(true) @map("notify_incoming_message")
+
+  failureCount  Int       @default(0) @map("failure_count")
+  lastSuccessAt DateTime? @map("last_success_at")
+  disabledAt    DateTime? @map("disabled_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, enabled])
+  @@map("push_subscriptions")
+}
+
 // --- Fase 10: hardening y lanzamiento ----------------------------------------
 
 /// Interruptor de una funcion, global o de un workspace.
@@ -2179,6 +2215,7 @@ enum JobType {
   SCAN_WORKSPACE_HEALTH
   // Fase 10
   MAINTENANCE
+  SEND_PUSH
 }
 
 enum JobStatus {

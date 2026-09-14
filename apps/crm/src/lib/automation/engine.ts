@@ -24,6 +24,7 @@ import {
 import { queueOutboundMessage } from '../whatsapp/outbound';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { scheduleAgentRun } from '../agents/dispatch';
+import { queuePushSafely } from '../push/events';
 import { evaluateGroup, type EventContext } from './conditions';
 import type { DomainEvent } from './types';
 import { parseActions, parseConditions, type AutomationActionConfig } from './schema';
@@ -418,11 +419,20 @@ async function executeAction(action: AutomationActionConfig, event: DomainEvent)
       });
       if (!assignee) throw new Error('El usuario a asignar no pertenece al workspace.');
 
-      await activateHumanControl({
+      const result = await activateHumanControl({
         conversationId: event.conversationId,
         workspaceId,
         assignedUserId: assignee.id,
       });
+      if (result) {
+        await queuePushSafely({
+          workspaceId,
+          kind: 'ASSIGNED',
+          dedupeKey: `assigned:${event.conversationId}:${result.lockVersion}`,
+          userId: assignee.id,
+          conversationId: event.conversationId,
+        });
+      }
       return;
     }
 

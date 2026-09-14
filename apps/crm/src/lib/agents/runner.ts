@@ -25,6 +25,7 @@ import { raiseAlert } from '../billing/alerts';
 import { checkAllowance, recordUsage } from '../billing/usage';
 import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
+import { queuePushSafely } from '../push/events';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -224,6 +225,12 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         entity: 'AgentRun',
         entityId: run.id,
         metadata: { error: message, code: error.code ?? null },
+      });
+      await queuePushSafely({
+        workspaceId: input.workspaceId,
+        kind: 'HUMAN_ATTENTION',
+        dedupeKey: `agent-provider-failed:${run.id}`,
+        conversationId: conversation.id,
       });
     }
 
@@ -482,5 +489,11 @@ async function escalate(conversationId: string, run: { id: string; workspaceId: 
     entity: 'AgentRun',
     entityId: run.id,
     metadata: { reason },
+  });
+  await queuePushSafely({
+    workspaceId: run.workspaceId,
+    kind: 'HUMAN_ATTENTION',
+    dedupeKey: `agent-escalated:${run.id}`,
+    conversationId,
   });
 }

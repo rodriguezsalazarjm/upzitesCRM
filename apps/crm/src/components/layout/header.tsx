@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell, Search, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PushNotificationsButton } from '@/components/pwa/push-notifications-button';
 
 interface HeaderProps {
   title: string;
@@ -28,10 +29,7 @@ export function Header({ title, subtitle, action }: HeaderProps) {
           />
         </div>
 
-        <Button variant="ghost" size="icon" className="relative h-8 w-8">
-          <Bell className="h-4 w-4 text-slate-500" />
-          <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
-        </Button>
+        <PushNotificationsButton />
 
         {action && (
           <Button size="sm" className="h-8 gap-1.5 text-xs" asChild>

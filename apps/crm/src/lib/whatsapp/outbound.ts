@@ -11,6 +11,7 @@ import {
 import { recordAudit } from '../domain/audit';
 import { prisma } from '../prisma';
 import { sendTextMessage } from './client';
+import { queuePushSafely } from '../push/events';
 import {
   inferOutboundOrigin,
   isOriginCompatibleWithSender,
@@ -516,6 +517,11 @@ async function markFailed(outboxId: string, messageId: string, error: string, co
       entity: 'Message',
       entityId: messageId,
       metadata: { error, code: code ?? null },
+    });
+    await queuePushSafely({
+      workspaceId: event.workspaceId,
+      kind: 'OPERATIONAL_ISSUE',
+      dedupeKey: `whatsapp-send-failed:${messageId}`,
     });
   }
 }
