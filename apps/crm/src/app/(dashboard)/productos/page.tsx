@@ -5,6 +5,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { requireCurrentUser } from '@/lib/auth';
 import { formatCurrency } from '@/lib/mock-data';
 import { prisma } from '@/lib/prisma';
+import { BusinessType } from '../../../../generated/prisma/client';
+import { canManageChannels } from '@/lib/conversations';
+import { NewProductForm } from './new-product-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,24 +26,43 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function ProductosPage() {
   const user = await requireCurrentUser();
 
-  const products = await prisma.product.findMany({
-    where: { workspaceId: user.workspace.id },
-    include: { variants: { orderBy: { priceClp: 'asc' } }, assets: true },
-    orderBy: [{ status: 'asc' }, { name: 'asc' }],
-  });
+  const [products, profile] = await Promise.all([
+    prisma.product.findMany({
+      where: { workspaceId: user.workspace.id },
+      include: { variants: { orderBy: { priceClp: 'asc' } }, assets: true },
+      orderBy: [{ status: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.workspaceProfile.findUnique({
+      where: { workspaceId: user.workspace.id },
+      select: { businessType: true },
+    }),
+  ]);
+  const preferredType = profile?.businessType === BusinessType.INFOPRODUCT ? 'DIGITAL' : 'PHYSICAL';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Productos" subtitle="Catalogo interno: lo que el agente puede vender" />
       <div className="flex-1 space-y-3 overflow-y-auto p-6">
+        <Card className="border-0 shadow-sm">
+          <CardContent className="space-y-3 p-5">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Catálogo manual</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Puedes vender desde este catálogo sin conectar Shopify. Los precios guardados aquí
+                son los que utiliza el sistema.
+              </p>
+            </div>
+            <NewProductForm preferredType={preferredType} canEdit={canManageChannels(user.role)} />
+          </CardContent>
+        </Card>
         {products.length === 0 && (
           <Card className="border-0 shadow-sm">
             <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
               <PackageOpen className="h-8 w-8 text-slate-300" />
               <p className="text-sm font-medium text-slate-700">Catalogo vacio</p>
               <p className="max-w-sm text-xs text-slate-500">
-                Sin productos, el agente reconoce que no tiene catalogo y deriva a una persona en
-                vez de inventar precios.
+                Agrega tu primer producto con su precio y disponibilidad. Mientras el catálogo esté
+                vacío, el sistema deriva la consulta a una persona en vez de inventar precios.
               </p>
             </CardContent>
           </Card>

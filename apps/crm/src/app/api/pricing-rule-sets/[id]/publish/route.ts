@@ -31,28 +31,30 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ data: { alreadyPublished: true } });
   }
 
-  await prisma.$transaction([
-    prisma.pricingRuleSet.updateMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.pricingRuleSet.updateMany({
       where: {
         workspaceId: user.workspace.id,
         serviceKey: ruleSet.serviceKey,
         status: PricingRuleSetStatus.PUBLISHED,
       },
       data: { status: PricingRuleSetStatus.ARCHIVED },
-    }),
-    prisma.pricingRuleSet.update({
+    });
+    await tx.pricingRuleSet.update({
       where: { id: ruleSet.id },
       data: { status: PricingRuleSetStatus.PUBLISHED, publishedAt: new Date() },
-    }),
-  ]);
-
-  await recordAudit({
-    workspaceId: user.workspace.id,
-    actorId: user.id,
-    action: 'pricing.rule_set_published',
-    entity: 'PricingRuleSet',
-    entityId: ruleSet.id,
-    metadata: { serviceKey: ruleSet.serviceKey, version: ruleSet.version },
+    });
+    await recordAudit(
+      {
+        workspaceId: user.workspace.id,
+        actorId: user.id,
+        action: 'pricing.rule_set_published',
+        entity: 'PricingRuleSet',
+        entityId: ruleSet.id,
+        metadata: { serviceKey: ruleSet.serviceKey, version: ruleSet.version },
+      },
+      tx,
+    );
   });
 
   return NextResponse.json({ data: { published: ruleSet.version } });

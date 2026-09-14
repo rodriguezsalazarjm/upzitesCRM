@@ -13,7 +13,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, action }: HeaderProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-6">
+    <header className="flex min-h-16 shrink-0 items-center justify-between border-b bg-white py-3 pl-16 pr-4 sm:px-6">
       <div>
         <h1 className="text-lg font-bold text-slate-900">{title}</h1>
         {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}

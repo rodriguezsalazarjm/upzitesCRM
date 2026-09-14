@@ -1680,6 +1680,10 @@ model WorkspaceProfile {
   workspaceId String       @unique @map("workspace_id")
 
   businessType BusinessType @default(UNDEFINED) @map("business_type")
+  /// Rubro declarado por el cliente. Es independiente de `businessType`, que
+  /// describe la modalidad de venta y condiciona el onboarding.
+  industry      String?
+  industryOther String?      @map("industry_other")
   currency     String       @default("CLP")
   country      String       @default("CL")
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Activity,
   Bot,
@@ -11,6 +12,7 @@ import {
   Globe2,
   LayoutDashboard,
   MessageSquare,
+  Menu,
   Package,
   Receipt,
   Rocket,
@@ -22,6 +24,7 @@ import {
   TrendingUp,
   Users,
   Zap,
+  X,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -61,9 +64,28 @@ function getInitials(name: string) {
 
 export function Sidebar({ user }: { user: CurrentUser }) {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
-    <aside className="flex h-screen w-[240px] flex-col border-r bg-white">
+    <>
+      <button
+        type="button"
+        aria-label={open ? 'Cerrar navegación' : 'Abrir navegación'}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
+      >
+        {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </button>
+      {open && (
+        <button
+          type="button"
+          aria-label="Cerrar navegación"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-950/30 md:hidden"
+        />
+      )}
+      <aside className={cn('fixed inset-y-0 left-0 z-40 flex h-dvh w-[240px] shrink-0 flex-col border-r bg-white transition-transform md:static md:h-screen md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
       <div className="flex h-16 items-center gap-3 border-b px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
           <Zap className="h-4 w-4 text-white" />
@@ -86,6 +108,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={() => setOpen(false)}
                   className={cn(
                     'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     active
@@ -113,6 +136,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={() => setOpen(false)}
                   className={cn(
                     'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     active
@@ -150,6 +174,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           </Button>
         </form>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

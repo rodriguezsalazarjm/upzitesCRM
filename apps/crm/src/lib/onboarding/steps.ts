@@ -12,6 +12,13 @@ import {
 import { prisma } from '../prisma';
 import { getEntitlements } from '../billing/usage';
 import type { PlanCapability } from '../billing/plans';
+import { isBusinessTypeConfigured } from './profile-input';
+import { isRuleSetUsable } from '../quotes/schema';
+import {
+  canShopifyCompleteCatalog,
+  getCatalogRequirement,
+  getCatalogSettingsHref,
+} from './catalog';
 
 /**
  * Wizard de onboarding.
@@ -65,7 +72,7 @@ type StepDefinition = {
   key: OnboardingStepKey;
   title: string;
   description: string;
-  href?: string;
+  href?: string | ((context: Context) => string);
   /** Por defecto obligatorio; un paso decide no serlo segun plan o rubro. */
   isRequired?: (context: Context) => boolean;
   check: (context: Context) => Promise<{ done: boolean; hint?: string }>;
@@ -126,34 +133,60 @@ const definitions: StepDefinition[] = [
   },
   {
     key: 'tipo-negocio',
-    title: 'Tipo de negocio',
-    description: 'Infoproducto, ecommerce o servicios. Decide que falta configurar.',
-    href: '/configuracion',
+    title: 'Modalidad de venta',
+    description: 'Indica si vendes servicios, productos físicos o productos digitales.',
+    href: '/configuracion#modalidad-venta',
     check: async ({ businessType }) => ({
-      done: businessType !== BusinessType.UNDEFINED,
-      hint: businessType === BusinessType.UNDEFINED ? 'Elige como vendes.' : undefined,
+      done: isBusinessTypeConfigured(businessType),
+      hint: isBusinessTypeConfigured(businessType) ? undefined : 'Elige como vendes.',
     }),
   },
   {
     key: 'catalogo',
     title: 'Catalogo o reglas de precio',
     description: 'Lo que el agente puede ofrecer y a que precio.',
-    href: '/productos',
+    href: ({ businessType }) => getCatalogSettingsHref(businessType),
     // Lo que hace falta depende de como vende el cliente, no de su rubro.
     check: async ({ workspaceId, businessType }) => {
-      if (businessType === BusinessType.SERVICES) {
-        const published = await prisma.pricingRuleSet.findFirst({
+      const requirement = getCatalogRequirement(businessType);
+
+      if (requirement === 'SERVICES_PRICING') {
+        const published = await prisma.pricingRuleSet.findMany({
           where: { workspaceId, status: PricingRuleSetStatus.PUBLISHED },
-          select: { id: true },
+          select: { intakeSchema: true, rules: true },
         });
+        const usable = published.some((set) => isRuleSetUsable(set.intakeSchema, set.rules));
         return {
-          done: published !== null,
-          hint: published ? undefined : 'Publica al menos un servicio cotizable.',
+          done: usable,
+          hint: usable ? undefined : 'Publica al menos un servicio con una regla de precio válida.',
         };
       }
 
-      const products = await prisma.product.count({ where: { workspaceId } });
+      const productType = requirement === 'DIGITAL_PRODUCTS' ? 'DIGITAL' : 'PHYSICAL';
+      const products = await prisma.product.count({
+        where: {
+          workspaceId,
+          type: productType,
+          status: 'ACTIVE',
+          variants: {
+            some: {
+              isActive: true,
+              OR: [{ inventory: null }, { inventory: { gt: 0 } }],
+            },
+          },
+          ...(productType === 'DIGITAL' ? { assets: { some: {} } } : {}),
+        },
+      });
       if (products > 0) return { done: true };
+
+      // Esta condición también protege el criterio si en el futuro cambia el
+      // orden de las ramas: Shopify nunca sustituye las reglas de Servicios.
+      if (!canShopifyCompleteCatalog(businessType)) {
+        return {
+          done: false,
+          hint: 'Publica al menos un servicio con una regla de precio válida.',
+        };
+      }
 
       const shopify = await prisma.commerceConnection.findFirst({
         where: { workspaceId, provider: CommerceProvider.SHOPIFY, status: 'CONNECTED' },
@@ -162,7 +195,7 @@ const definitions: StepDefinition[] = [
 
       return {
         done: shopify !== null,
-        hint: 'Carga productos o conecta tu tienda Shopify.',
+        hint: 'Agrega un producto disponible o conecta tu tienda Shopify.',
       };
     },
   },
@@ -314,7 +347,7 @@ export async function getOnboardingState(workspaceId: string): Promise<Onboardin
       key: definition.key,
       title: definition.title,
       description: definition.description,
-      href: definition.href,
+      href: typeof definition.href === 'function' ? definition.href(context) : definition.href,
       required,
       done: result.done,
       hint: result.hint,

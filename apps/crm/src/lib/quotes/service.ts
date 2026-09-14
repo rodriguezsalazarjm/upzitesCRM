@@ -4,13 +4,16 @@ import {
   ApprovalType,
   PricingRuleSetStatus,
   QuoteStatus,
-  UserRole,
+  type UserRole,
 } from '../../../generated/prisma/client';
 import { hasCapability } from '../billing/usage';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { calculateQuote } from './engine';
 import { parseIntakeSchema, parseRules, validateIntake } from './schema';
+import { canApproveQuotes } from './roles';
+
+export { canApproveQuotes } from './roles';
 
 /**
  * Ciclo de vida de una cotizacion.
@@ -30,10 +33,6 @@ export class QuoteError extends Error {
     super(message);
     this.name = 'QuoteError';
   }
-}
-
-export function canApproveQuotes(role: UserRole) {
-  return role === UserRole.OWNER || role === UserRole.ADMIN;
 }
 
 function pdfSecret() {
@@ -107,7 +106,10 @@ export async function createQuote(input: CreateQuoteInput) {
   const ruleSet = await getPublishedRuleSet(input.workspaceId, input.serviceKey);
 
   if (!ruleSet) {
-    throw new QuoteError(`No hay reglas publicadas para el servicio ${input.serviceKey}.`, 'NOT_FOUND');
+    throw new QuoteError(
+      `No hay reglas publicadas para el servicio ${input.serviceKey}.`,
+      'NOT_FOUND',
+    );
   }
 
   const intake = parseIntakeSchema(ruleSet.intakeSchema);
@@ -127,7 +129,12 @@ export async function createQuote(input: CreateQuoteInput) {
       // natural, no con la clave tecnica.
       fields: intake.fields
         .filter((field) => validation.missing.includes(field.key))
-        .map((field) => ({ key: field.key, label: field.label, unit: field.unit, help: field.help })),
+        .map((field) => ({
+          key: field.key,
+          label: field.label,
+          unit: field.unit,
+          help: field.help,
+        })),
     });
   }
 
@@ -255,7 +262,10 @@ export async function approveQuote(input: ReviewInput) {
 
   if (!quote) throw new QuoteError('Cotizacion no encontrada.', 'NOT_FOUND');
 
-  if (quote.status !== QuoteStatus.PENDING_HUMAN_REVIEW && quote.status !== QuoteStatus.CALCULATED) {
+  if (
+    quote.status !== QuoteStatus.PENDING_HUMAN_REVIEW &&
+    quote.status !== QuoteStatus.CALCULATED
+  ) {
     throw new QuoteError(
       `Una cotizacion en estado ${quote.status} no se puede aprobar. Crea una version nueva.`,
       'INVALID_STATE',
@@ -315,7 +325,10 @@ export async function rejectQuote(input: ReviewInput & { changesRequested?: bool
 
   if (!quote) throw new QuoteError('Cotizacion no encontrada.', 'NOT_FOUND');
   if (quote.status === QuoteStatus.APPROVED || quote.status === QuoteStatus.ACCEPTED) {
-    throw new QuoteError('Una cotizacion aprobada no se rechaza: crea una version nueva.', 'INVALID_STATE');
+    throw new QuoteError(
+      'Una cotizacion aprobada no se rechaza: crea una version nueva.',
+      'INVALID_STATE',
+    );
   }
 
   await prisma.$transaction([
@@ -358,7 +371,11 @@ export async function rejectQuote(input: ReviewInput & { changesRequested?: bool
 }
 
 /** Marca la cotizacion como enviada. Solo se envia lo aprobado. */
-export async function markQuoteSent(input: { workspaceId: string; quoteId: string; actorId?: string }) {
+export async function markQuoteSent(input: {
+  workspaceId: string;
+  quoteId: string;
+  actorId?: string;
+}) {
   const updated = await prisma.quote.updateMany({
     where: { id: input.quoteId, workspaceId: input.workspaceId, status: QuoteStatus.APPROVED },
     data: { status: QuoteStatus.SENT, sentAt: new Date() },
@@ -379,7 +396,11 @@ export async function markQuoteSent(input: { workspaceId: string; quoteId: strin
   return { sent: true };
 }
 
-export async function acceptQuote(input: { workspaceId: string; quoteId: string; actorId?: string }) {
+export async function acceptQuote(input: {
+  workspaceId: string;
+  quoteId: string;
+  actorId?: string;
+}) {
   const quote = await prisma.quote.findFirst({
     where: { id: input.quoteId, workspaceId: input.workspaceId },
     select: { id: true, status: true, total: true, contactId: true, opportunityId: true },

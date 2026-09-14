@@ -10,16 +10,22 @@ import { intakeSchemaSchema, rulesSchema } from '@/lib/quotes/schema';
 
 export const dynamic = 'force-dynamic';
 
-const createSchema = z.object({
-  serviceKey: z.string().min(1).regex(/^[a-z][a-z0-9-]*$/, 'Usa minusculas y guiones'),
-  name: z.string().min(1),
-  description: z.string().optional(),
-  currency: z.string().default('CLP'),
-  intakeSchema: intakeSchemaSchema,
-  rules: rulesSchema,
-  disclaimer: z.string().optional(),
-  validityDays: z.number().int().min(1).max(365).default(15),
-});
+const createSchema = z
+  .object({
+    serviceKey: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z][a-z0-9-]*$/, 'Usa minúsculas y guiones'),
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(1000).optional(),
+    currency: z.string().length(3).default('CLP'),
+    intakeSchema: intakeSchemaSchema,
+    rules: rulesSchema,
+    disclaimer: z.string().trim().max(500).optional(),
+    validityDays: z.number().int().min(1).max(365).default(15),
+  })
+  .strict();
 
 export async function GET() {
   const user = await requireCurrentUser();
@@ -52,36 +58,42 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
-  const last = await prisma.pricingRuleSet.findFirst({
-    where: { workspaceId: user.workspace.id, serviceKey: input.serviceKey },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
+  const ruleSet = await prisma.$transaction(async (tx) => {
+    const last = await tx.pricingRuleSet.findFirst({
+      where: { workspaceId: user.workspace.id, serviceKey: input.serviceKey },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const saved = await tx.pricingRuleSet.create({
+      data: {
+        workspaceId: user.workspace.id,
+        serviceKey: input.serviceKey,
+        name: input.name,
+        description: input.description,
+        currency: input.currency.toUpperCase(),
+        version: (last?.version ?? 0) + 1,
+        intakeSchema: input.intakeSchema as never,
+        rules: input.rules as never,
+        disclaimer: input.disclaimer,
+        validityDays: input.validityDays,
+        status: PricingRuleSetStatus.DRAFT,
+        createdById: user.id,
+      },
+    });
 
-  const ruleSet = await prisma.pricingRuleSet.create({
-    data: {
-      workspaceId: user.workspace.id,
-      serviceKey: input.serviceKey,
-      name: input.name,
-      description: input.description,
-      currency: input.currency,
-      version: (last?.version ?? 0) + 1,
-      intakeSchema: input.intakeSchema as never,
-      rules: input.rules as never,
-      disclaimer: input.disclaimer,
-      validityDays: input.validityDays,
-      status: PricingRuleSetStatus.DRAFT,
-      createdById: user.id,
-    },
-  });
+    await recordAudit(
+      {
+        workspaceId: user.workspace.id,
+        actorId: user.id,
+        action: 'pricing.rule_set_created',
+        entity: 'PricingRuleSet',
+        entityId: saved.id,
+        metadata: { serviceKey: saved.serviceKey, version: saved.version },
+      },
+      tx,
+    );
 
-  await recordAudit({
-    workspaceId: user.workspace.id,
-    actorId: user.id,
-    action: 'pricing.rule_set_created',
-    entity: 'PricingRuleSet',
-    entityId: ruleSet.id,
-    metadata: { serviceKey: ruleSet.serviceKey, version: ruleSet.version },
+    return saved;
   });
 
   return NextResponse.json({ data: ruleSet }, { status: 201 });

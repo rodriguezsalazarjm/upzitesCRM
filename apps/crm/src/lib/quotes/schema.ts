@@ -13,18 +13,23 @@ import { conditionGroupSchema } from '../automation/schema';
  */
 
 /** Campo que hay que pedirle al cliente antes de poder calcular. */
-export const intakeFieldSchema = z.object({
-  key: z.string().min(1).regex(/^[a-z][a-z0-9_]*$/, 'La clave debe ser snake_case'),
-  label: z.string().min(1),
-  type: z.enum(['number', 'text', 'select', 'boolean']),
-  /** Un campo requerido que falta BLOQUEA el calculo. */
-  required: z.boolean().default(true),
-  unit: z.string().optional(),
-  options: z.array(z.string()).optional(),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  help: z.string().optional(),
-}).strict();
+export const intakeFieldSchema = z
+  .object({
+    key: z
+      .string()
+      .min(1)
+      .regex(/^[a-z][a-z0-9_]*$/, 'La clave debe ser snake_case'),
+    label: z.string().min(1),
+    type: z.enum(['number', 'text', 'select', 'boolean']),
+    /** Un campo requerido que falta BLOQUEA el calculo. */
+    required: z.boolean().default(true),
+    unit: z.string().optional(),
+    options: z.array(z.string()).optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    help: z.string().optional(),
+  })
+  .strict();
 
 export type IntakeField = z.infer<typeof intakeFieldSchema>;
 
@@ -50,56 +55,66 @@ export const componentSchema = z.discriminatedUnion('type', [
   z.object({ ...baseComponent, type: z.literal('FIXED'), amountClp: z.number().int() }).strict(),
 
   /** Precio por unidad de un campo numerico. */
-  z.object({
-    ...baseComponent,
-    type: z.literal('PER_UNIT'),
-    unitPriceClp: z.number().int(),
-    quantityFrom: z.string().min(1),
-  }).strict(),
+  z
+    .object({
+      ...baseComponent,
+      type: z.literal('PER_UNIT'),
+      unitPriceClp: z.number().int(),
+      quantityFrom: z.string().min(1),
+    })
+    .strict(),
 
   /** Precio por area: dos campos numericos multiplicados. */
-  z.object({
-    ...baseComponent,
-    type: z.literal('PER_AREA'),
-    unitPriceClp: z.number().int(),
-    widthFrom: z.string().min(1),
-    heightFrom: z.string().min(1),
-  }).strict(),
+  z
+    .object({
+      ...baseComponent,
+      type: z.literal('PER_AREA'),
+      unitPriceClp: z.number().int(),
+      widthFrom: z.string().min(1),
+      heightFrom: z.string().min(1),
+    })
+    .strict(),
 
   /**
    * Precio por tramos sobre un campo numerico. El tramo se elige por el valor,
    * y el primero que calza manda: el orden importa y es responsabilidad de quien
    * configura.
    */
-  z.object({
-    ...baseComponent,
-    type: z.literal('TIERED'),
-    quantityFrom: z.string().min(1),
-    tiers: z
-      .array(
-        z.object({
-          upTo: z.number().nullable(),
-          unitPriceClp: z.number().int(),
-        }),
-      )
-      .min(1),
-  }).strict(),
+  z
+    .object({
+      ...baseComponent,
+      type: z.literal('TIERED'),
+      quantityFrom: z.string().min(1),
+      tiers: z
+        .array(
+          z.object({
+            upTo: z.number().nullable(),
+            unitPriceClp: z.number().int(),
+          }),
+        )
+        .min(1),
+    })
+    .strict(),
 
   /** Recargo: monto fijo o porcentaje del subtotal acumulado. */
-  z.object({
-    ...baseComponent,
-    type: z.literal('SURCHARGE'),
-    amountClp: z.number().int().optional(),
-    percent: z.number().optional(),
-  }).strict(),
+  z
+    .object({
+      ...baseComponent,
+      type: z.literal('SURCHARGE'),
+      amountClp: z.number().int().optional(),
+      percent: z.number().optional(),
+    })
+    .strict(),
 
   /** Descuento. Se guarda como monto negativo en el desglose. */
-  z.object({
-    ...baseComponent,
-    type: z.literal('DISCOUNT'),
-    amountClp: z.number().int().optional(),
-    percent: z.number().optional(),
-  }).strict(),
+  z
+    .object({
+      ...baseComponent,
+      type: z.literal('DISCOUNT'),
+      amountClp: z.number().int().optional(),
+      percent: z.number().optional(),
+    })
+    .strict(),
 ]);
 
 export type PricingComponent = z.infer<typeof componentSchema>;
@@ -137,6 +152,45 @@ export function parseRules(raw: unknown) {
 }
 
 /**
+ * Una regla publicada solo cuenta para onboarding si el motor puede leerla y
+ * todos los componentes variables apuntan a campos numéricos existentes.
+ */
+export function isRuleSetUsable(intakeRaw: unknown, rulesRaw: unknown) {
+  const intake = parseIntakeSchema(intakeRaw);
+  const rules = parseRules(rulesRaw);
+  if (!intake || !rules) return false;
+
+  const numericFields = new Set(
+    intake.fields.filter((field) => field.type === 'number').map((field) => field.key),
+  );
+  let canProducePrice = false;
+
+  for (const component of rules.components) {
+    if (component.type === 'PER_UNIT' || component.type === 'TIERED') {
+      if (!numericFields.has(component.quantityFrom)) return false;
+    }
+    if (component.type === 'PER_AREA') {
+      if (!numericFields.has(component.widthFrom) || !numericFields.has(component.heightFrom)) {
+        return false;
+      }
+    }
+
+    if (
+      (component.type === 'FIXED' && component.amountClp > 0) ||
+      (component.type === 'PER_UNIT' && component.unitPriceClp > 0) ||
+      (component.type === 'PER_AREA' && component.unitPriceClp > 0) ||
+      (component.type === 'TIERED' && component.tiers.some((tier) => tier.unitPriceClp > 0)) ||
+      (component.type === 'SURCHARGE' &&
+        ((component.amountClp ?? 0) > 0 || (component.percent ?? 0) > 0))
+    ) {
+      canProducePrice = true;
+    }
+  }
+
+  return canProducePrice || (rules.minimumClp ?? 0) > 0;
+}
+
+/**
  * Valida los datos del cliente contra el schema del servicio.
  *
  * Devuelve los campos que faltan por separado: el agente necesita saber QUE
@@ -146,7 +200,10 @@ export type IntakeValidation =
   | { ok: true; values: Record<string, string | number | boolean> }
   | { ok: false; missing: string[]; invalid: { field: string; reason: string }[] };
 
-export function validateIntake(schema: IntakeSchema, raw: Record<string, unknown>): IntakeValidation {
+export function validateIntake(
+  schema: IntakeSchema,
+  raw: Record<string, unknown>,
+): IntakeValidation {
   const values: Record<string, string | number | boolean> = {};
   const missing: string[] = [];
   const invalid: { field: string; reason: string }[] = [];
@@ -192,7 +249,10 @@ export function validateIntake(schema: IntakeSchema, raw: Record<string, unknown
       case 'select': {
         const text = String(value);
         if (field.options && !field.options.includes(text)) {
-          invalid.push({ field: field.key, reason: `debe ser uno de: ${field.options.join(', ')}` });
+          invalid.push({
+            field: field.key,
+            reason: `debe ser uno de: ${field.options.join(', ')}`,
+          });
           break;
         }
         values[field.key] = text;
