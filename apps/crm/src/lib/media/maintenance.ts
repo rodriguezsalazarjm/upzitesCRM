@@ -67,6 +67,103 @@ export async function purgeExpiredMedia(now = new Date()) {
 }
 
 /**
+ * Borra los archivos que quedaron sin dueno.
+ *
+ * Pasa cuando se borra un contacto: caen en cascada sus conversaciones y
+ * mensajes, y la fila del archivo queda con `messageId` nulo. Sin esto el
+ * objeto seguiria en el bucket para siempre, sin nada que lo apuntara: el
+ * contacto pidio que se borraran sus datos y su foto seguiria ahi.
+ */
+export async function purgeOrphanMedia() {
+  const orphans = await prisma.mediaAsset.findMany({
+    where: {
+      messageId: null,
+      status: MediaAssetStatus.STORED,
+      storageKey: { not: null },
+    },
+    select: { id: true, storageKey: true },
+    take: BATCH,
+  });
+
+  if (orphans.length === 0) return { purged: 0, failed: 0 };
+
+  let storage;
+  try {
+    storage = await resolveStorage();
+  } catch {
+    return { purged: 0, failed: orphans.length };
+  }
+
+  let purged = 0;
+  let failed = 0;
+
+  for (const asset of orphans) {
+    try {
+      await storage.remove(asset.storageKey as string);
+      // La fila se borra entera: ya no describe nada que exista, y conservarla
+      // solo dejaria el rastro de un archivo de alguien que pidio irse.
+      await prisma.mediaAsset.delete({ where: { id: asset.id } });
+      purged += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return { purged, failed };
+}
+
+/**
+ * Borra ya los archivos de un contacto que se esta eliminando.
+ *
+ * `purgeOrphanMedia` los alcanzaria igual en la siguiente pasada de
+ * mantenimiento, pero "manana" no es una respuesta aceptable cuando alguien
+ * pidio que borraran sus datos. Esto lo hace en el momento; la pasada diaria
+ * queda como red por si el almacenamiento no responde justo ahora.
+ */
+export async function purgeMediaForContact(workspaceId: string, contactId: string) {
+  const assets = await prisma.mediaAsset.findMany({
+    where: {
+      workspaceId,
+      storageKey: { not: null },
+      conversation: { contactId },
+    },
+    select: { id: true, storageKey: true },
+  });
+
+  if (assets.length === 0) return { purged: 0, failed: 0 };
+
+  let storage;
+  try {
+    storage = await resolveStorage();
+  } catch {
+    return { purged: 0, failed: assets.length };
+  }
+
+  let purged = 0;
+  let failed = 0;
+
+  for (const asset of assets) {
+    try {
+      await storage.remove(asset.storageKey as string);
+      await prisma.mediaAsset.update({
+        where: { id: asset.id },
+        data: {
+          status: MediaAssetStatus.PURGED,
+          storageKey: null,
+          purgedAt: new Date(),
+          error: 'Borrado junto con el contacto.',
+        },
+      });
+      purged += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return { purged, failed };
+}
+
+/**
  * Reencola lo que quedo detenido por falta de configuracion.
  *
  * Un archivo en `BLOCKED` no fallo: nunca se intento, porque no habia donde

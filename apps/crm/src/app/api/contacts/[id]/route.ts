@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ContactStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
 import { notFound, orNull, parseBody } from '@/lib/http';
+import { purgeMediaForContact } from '@/lib/media/maintenance';
 import { prisma } from '@/lib/prisma';
 
 const statusMap = {
@@ -77,6 +78,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const workspaceId = await getCurrentWorkspaceId();
 
+  // Los archivos que el contacto envio viven fuera de la base y la cascada no
+  // los alcanza. Se borran antes: despues de borrar el contacto ya no habria
+  // desde donde encontrarlos. Si el almacenamiento no responde, el borrado del
+  // contacto sigue —es su derecho— y el mantenimiento diario recoge lo que
+  // quedo huerfano.
+  const archivos = await purgeMediaForContact(workspaceId, id);
+
   const eliminado = await orNull(
     prisma.contact.delete({
       where: { id, workspaceId },
@@ -84,5 +92,5 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   );
   if (!eliminado) return notFound('Contacto');
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, archivosBorrados: archivos.purged });
 }

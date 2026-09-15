@@ -773,7 +773,11 @@ model MediaAsset {
 
   workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  message      Message?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // SetNull y no Cascade a proposito: si el mensaje desaparece —al borrar un
+  // contacto, por ejemplo— la fila tiene que sobrevivir para que alguien sepa
+  // que quedo un archivo en el bucket y pueda borrarlo. Con Cascade el archivo
+  // quedaria ahi para siempre sin nada que lo apunte.
+  message      Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status])
   @@index([status, expiresAt])

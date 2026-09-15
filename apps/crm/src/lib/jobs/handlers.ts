@@ -4,6 +4,7 @@ import {
   JobType,
   ScheduledActionStatus,
   ScheduledActionType,
+  WebhookEventStatus,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recalculateContactScore } from '../domain';
@@ -26,7 +27,7 @@ import { ageStaleScores, expireOverdueQuotes } from '../ops/maintenance';
 import { enqueue } from './queue';
 import { sendPushJob } from '../push/send';
 import { downloadWhatsAppMedia } from '../whatsapp/media';
-import { purgeExpiredMedia, requeueBlockedMedia } from '../media/maintenance';
+import { purgeExpiredMedia, purgeOrphanMedia, requeueBlockedMedia } from '../media/maintenance';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -318,9 +319,20 @@ const handlers: Record<JobType, JobHandler> = {
     const expiredQuotes = await expireOverdueQuotes();
     const agedScores = await ageStaleScores();
     const media = await purgeExpiredMedia();
+    const orphanMedia = await purgeOrphanMedia();
     const blockedMedia = await requeueBlockedMedia();
+    const prunedWebhookEvents = await pruneWebhookEvents();
 
-    return { prunedJobs, prunedWindows, expiredQuotes, agedScores, media, blockedMedia };
+    return {
+      prunedJobs,
+      prunedWindows,
+      prunedWebhookEvents,
+      expiredQuotes,
+      agedScores,
+      media,
+      orphanMedia,
+      blockedMedia,
+    };
   },
 
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
@@ -446,6 +458,30 @@ export async function enqueueRecurringJobs(now = new Date()) {
  * No se audita: el audit log es por workspace y esto es mantenimiento global.
  * Los trabajos DEAD nunca se borran, porque son justamente los que hay que mirar.
  */
+/**
+ * Borra los eventos de webhook ya procesados.
+ *
+ * El payload crudo de Meta lleva el telefono y el nombre de perfil de quien
+ * escribio. Se guarda porque permite reprocesar y depurar, pero conservarlo
+ * para siempre convierte una tabla tecnica en un archivo de datos personales
+ * que nadie recuerda que existe: borrar un contacto no lo tocaba.
+ *
+ * Reprocesar un evento viejo ya no era posible de todos modos: la idempotencia
+ * real esta en el `externalMessageId` unico de cada mensaje, y los estados solo
+ * avanzan. Los fallidos se conservan: ahi el payload todavia sirve.
+ */
+export async function pruneWebhookEvents(olderThanDays = 30) {
+  const threshold = new Date(Date.now() - olderThanDays * 24 * 3_600_000);
+  const result = await prisma.webhookEvent.deleteMany({
+    where: {
+      status: { in: [WebhookEventStatus.PROCESSED, WebhookEventStatus.IGNORED] },
+      createdAt: { lt: threshold },
+    },
+  });
+
+  return result.count;
+}
+
 export async function pruneFinishedJobs(olderThanDays = 7) {
   const threshold = new Date(Date.now() - olderThanDays * 24 * 3_600_000);
   const result = await prisma.job.deleteMany({
