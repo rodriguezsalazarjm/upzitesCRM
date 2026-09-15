@@ -327,7 +327,10 @@ console.log('\n== Activacion ==');
   });
 
   await prisma.product.create({
-    data: { workspaceId: A.workspaceId, name: 'Producto de prueba' },
+    data: {
+      workspaceId: A.workspaceId, name: 'Producto de prueba', type: 'PHYSICAL', status: 'ACTIVE',
+      variants: { create: { name: 'Unidad', priceClp: 10000, inventory: 10, isDefault: true } },
+    },
   });
 
   await prisma.integration.updateMany({

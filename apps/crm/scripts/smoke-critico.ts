@@ -1103,6 +1103,7 @@ console.log('\n== Deuda corregida ==');
   });
 
   // Una conversacion abierta para que el aviso pueda salir por WhatsApp.
+  await grantConsent({ workspaceId: A.workspaceId, contactId: comprador.id, channel: 'WHATSAPP', source: 'compra-de-prueba' });
   const conversacionEntrega = await prisma.conversation.create({
     data: {
       workspaceId: A.workspaceId,

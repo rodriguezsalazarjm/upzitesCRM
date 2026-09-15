@@ -12,10 +12,15 @@ const suites = [
   'smoke-fase8.ts',
   'smoke-fase9.ts',
   'smoke-critico.ts',
+  'smoke-beta.ts',
 ];
 
 const require = createRequire(import.meta.url);
-for (const suite of suites) {
+const requested = process.argv.slice(2);
+if (requested.some((suite) => !suites.includes(suite))) {
+  throw new Error('Suite desconocida. Usa el nombre de un archivo smoke registrado.');
+}
+for (const suite of requested.length ? [...new Set(requested)] : suites) {
   const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), `scripts/${suite}`], {
     cwd: process.cwd(),
     env: process.env,

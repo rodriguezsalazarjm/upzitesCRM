@@ -244,8 +244,12 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
   });
   check('Se crea el evento de outbox', outbox?.status === OutboxStatus.PENDING);
 
-  // Sin credenciales reales, el envio falla. Lo importante es que el fallo sea
-  // visible y no se pierda el mensaje.
+  // Este caso exige ausencia de token, no un token ficticio (que intentaria
+  // la red y produciria un fallo reintentable).
+  await prisma.whatsAppChannel.update({
+    where: { id: A.channelId },
+    data: { accessTokenEncrypted: null },
+  });
   const processed = await processOutbox(10);
   check('El outbox procesa el pendiente', processed.processed >= 1);
 

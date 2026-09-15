@@ -30,6 +30,7 @@ import {
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { grantConsent } from '../src/lib/domain/consent';
 import { activateForTests } from './fixtures/workspace';
 import { runAgent } from '../src/lib/agents/runner';
 import { ScriptedProvider, estimateCostClp, OpenAIProvider } from '../src/lib/agents/provider';
@@ -102,6 +103,7 @@ async function makeConversation(
     },
   });
 
+  await grantConsent({ workspaceId: ws.workspaceId, contactId: contact.id, channel: 'WHATSAPP', source: 'smoke-fase4' });
   const conversation = await prisma.conversation.create({
     data: {
       workspaceId: ws.workspaceId,
@@ -427,19 +429,32 @@ const B = await makeWorkspace('b');
 {
   const { conversationId } = await makeConversation(A, 'mensaje uno');
 
-  // Dos ejecuciones al mismo tiempo sobre la misma conversacion.
-  const [first, second] = await Promise.all([
-    runAgent({
-      workspaceId: A.workspaceId,
-      conversationId,
-      provider: new ScriptedProvider([{ text: 'respuesta A' }]),
-    }),
-    runAgent({
-      workspaceId: A.workspaceId,
-      conversationId,
-      provider: new ScriptedProvider([{ text: 'respuesta B' }]),
-    }),
-  ]);
+  // Mantener la primera dentro del proveedor demuestra solapamiento real.
+  // Promise.all solo puede terminar ejecutandolas una despues de otra.
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const scripted = new ScriptedProvider([{ text: 'respuesta A' }]);
+  const firstRun = runAgent({
+    workspaceId: A.workspaceId,
+    conversationId,
+    provider: {
+      name: 'scripted-gated',
+      async complete(input) {
+        entered();
+        await gate;
+        return scripted.complete(input);
+      },
+    },
+  });
+  await Promise.race([started, firstRun.then(() => { throw new Error('El primer agente no llego al proveedor'); })]);
+  const second = await runAgent({
+    workspaceId: A.workspaceId,
+    conversationId,
+    provider: new ScriptedProvider([{ text: 'respuesta B' }]),
+  }).finally(release);
+  const first = await firstRun;
 
   const completed = [first, second].filter((r) => r.status === AgentRunStatus.COMPLETED).length;
   const blocked = [first, second].filter((r) => r.skippedReason === 'otra ejecucion tiene la conversacion').length;
