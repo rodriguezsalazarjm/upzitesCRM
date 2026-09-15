@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { IntegrationStatus } from '../../../../../../generated/prisma/client';
+import { MercadoPagoConnectionStatus } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { canManageMercadoPago } from '@/lib/mercado-pago';
@@ -30,9 +30,12 @@ export async function POST() {
     await tx.mercadoPagoConnection.update({
       where: { workspaceId: user.workspace.id },
       data: {
-        status: IntegrationStatus.DISCONNECTED,
+        status: MercadoPagoConnectionStatus.DISCONNECTED,
         accessTokenEncrypted: null,
+        refreshTokenEncrypted: null,
         webhookSecretEncrypted: null,
+        accessTokenExpiresAt: null,
+        lastErrorCode: null,
         lastError: null,
       },
     });

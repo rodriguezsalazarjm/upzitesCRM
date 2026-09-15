@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { IntegrationStatus, MercadoPagoMode } from '../../../../../../generated/prisma/client';
+import {
+  MercadoPagoConnectionMethod,
+  MercadoPagoConnectionStatus,
+  MercadoPagoMode,
+} from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { EncryptionKeyMissingError, encryptSecret } from '@/lib/crypto';
 import { recordAudit } from '@/lib/domain/audit';
@@ -87,25 +91,38 @@ export async function POST(request: Request) {
       where: { workspaceId: user.workspace.id },
       create: {
         workspaceId: user.workspace.id,
+        connectionMethod: MercadoPagoConnectionMethod.MANUAL,
         mode: input.mode as MercadoPagoMode,
+        mercadoPagoUserId: profile.accountId !== null ? String(profile.accountId) : null,
         publicKey: input.publicKey ?? null,
         accessTokenEncrypted,
         webhookSecretEncrypted,
-        status: IntegrationStatus.CONNECTED,
+        status: MercadoPagoConnectionStatus.CONNECTED,
         connectedAt: now,
         lastVerifiedAt: now,
+        lastErrorCode: null,
         lastError: null,
       },
       update: {
+        connectionMethod: MercadoPagoConnectionMethod.MANUAL,
         mode: input.mode as MercadoPagoMode,
+        mercadoPagoUserId: profile.accountId !== null ? String(profile.accountId) : null,
         publicKey: input.publicKey ?? null,
         accessTokenEncrypted,
         webhookSecretEncrypted,
-        status: IntegrationStatus.CONNECTED,
+        status: MercadoPagoConnectionStatus.CONNECTED,
         lastVerifiedAt: now,
+        lastErrorCode: null,
         lastError: null,
       },
-      select: { mode: true, publicKey: true, status: true, connectedAt: true, lastVerifiedAt: true },
+      select: {
+        connectionMethod: true,
+        mode: true,
+        publicKey: true,
+        status: true,
+        connectedAt: true,
+        lastVerifiedAt: true,
+      },
     });
 
     await recordAudit(
