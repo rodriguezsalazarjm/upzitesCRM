@@ -1,16 +1,19 @@
 # Cierre tecnico de la beta — CRM Upzites
 
-Actualizado: 14 de septiembre de 2026
+Actualizado: 15 de septiembre de 2026
 
 Este documento cierra el trabajo de estabilizacion y dice, sin adornos, en que
 estado esta cada cosa. El detalle tecnico de cada bloque vive en
 [CRM_BETA_STABILIZATION.md](CRM_BETA_STABILIZATION.md); la operacion diaria en
 [OPERACION.md](OPERACION.md); los incidentes en [RUNBOOKS.md](RUNBOOKS.md).
 
-Una advertencia que vale para todo lo que sigue: **que el build pase y las
-pruebas esten en verde no significa que el sistema este probado**. Casi nada de
-lo que depende de un proveedor externo se ha ejercitado contra el proveedor
-real, y eso esta dicho tarea por tarea.
+**Validacion local completada:** 26 migraciones aplicadas en crm_pruebas,
+780/780 comprobaciones de integracion y 71/71 unitarias aprobadas. Cero fallos
+pendientes en las suites ejecutadas. Proveedores simulados; comunicaciones
+externas bloqueadas. No se uso produccion, no se migro Supabase y no se publico.
+
+Los datos de produccion/proveedores que siguen proceden del registro anterior;
+no se volvieron a comprobar durante esta validacion.
 
 ---
 
@@ -19,13 +22,13 @@ real, y eso esta dicho tarea por tarea.
 | Tarea | Estado | Evidencia | Pendiente del propietario |
 |---|---|---|---|
 | Despliegue automatico desde Git | **Funcionando** | Deployment Ready con alias `crm.upzites.com`, health HTTP 200 | Nada |
-| Entorno aislado de pruebas | Codigo listo, **sin ejecutar** | Cerco de seguridad con 6/6 unitarias | Contrasena de PostgreSQL local (ver §7) |
-| Toma de control humana | Implementado, **sin probar en carrera** | 20/20 unitarias de WhatsApp; migracion pendiente | Aplicar migracion; probar dos operadores a la vez |
-| Configuracion y cotizador | Invariantes reforzadas, **persistencia sin probar** | 4/4 unitarias de precios | Probar crear, versionar, publicar y aprobar con datos reales |
+| Entorno aislado de pruebas | **Validado localmente** | 26 migraciones, marcador correcto, HTTP bloqueado | Nada para ejecutar las suites |
+| Toma de control humana | **Carreras locales verificadas** | Cola, takeover, SENDING/fallo y aislamiento | Recorrido visual con dos operadores |
+| Configuracion y cotizador | **Persistencia y carreras locales verificadas** | Fase7 79/79 + casos beta de versionado, publicacion y aprobacion | Recorrer interfaz con datos locales |
 | Inbox movil y PWA | Web completa, **sin telefono real** | Manifest, service worker y pantalla offline verificados en navegador | Instalar en el Samsung y probar teclado, rotacion y reconexion |
-| Notificaciones push | Codigo completo, **nunca se entrego una** | 3/3 unitarias de politica y contenido | Generar claves VAPID; probar en pantalla bloqueada |
-| Archivos de WhatsApp | Codigo completo, **nunca se descargo uno** | 12/12 de politica, 8 de destinos permitidos, 7 de almacenamiento; 401 verificado en vivo | Crear bucket privado; recibir foto, audio y PDF reales |
-| Puesta en marcha | Codigo completo, **pantalla no vista con datos** | 19/19 unitarias, matriz completa de modalidades | Recorrerla como cliente nuevo |
+| Notificaciones push | **Persistencia/permisos locales verificados**; entrega real pendiente | Alta concurrente aislada, preferencias, roles, dedupe y expiracion | VAPID y telefono real en etapa autorizada |
+| Archivos de WhatsApp | **Descarga simulada y permisos locales verificados** | Estados, disco, 401/404/409, dedupe de Meta | Bucket y recepcion real de foto/audio/PDF en etapa autorizada |
+| Puesta en marcha | **Reglas persistidas verificadas**; pantalla pendiente | Fase9 78/78 + modalidades y plan sin cotizador | Recorrerla como cliente nuevo en local |
 | Exportacion y borrado por titular | **No existe** | — | Decidir alcance con el abogado (§6) |
 | Backups y restauracion | **Nunca se probo restaurar** | — | Hacer una restauracion de prueba (§5) |
 
@@ -36,8 +39,8 @@ confundirse en una sola palabra:
 
 - **Unitaria o simulada:** la regla hace lo que dice, con datos inventados.
   Cubre la logica, no la integracion.
-- **Base aislada:** el flujo completo contra una base real. **Ninguna tarea
-  llego a este nivel**, porque la base aislada no existe todavia.
+- **Base aislada:** los flujos anteriores se probaron contra PostgreSQL 18 local,
+  con proveedores simulados y handlers autenticados. No equivale a un navegador real.
 - **Proveedor real:** contra Meta, OpenAI, Mercado Pago, Resend o Shopify. Solo
   dos cosas llegaron aqui, y fueron manuales: recibir un mensaje de WhatsApp y
   responderlo desde la bandeja.
@@ -46,32 +49,33 @@ confundirse en una sola palabra:
 
 ## 2. Commits
 
-Nueve commits desde `eadd2b5`. Los seis primeros son de la sesion de Codex; los
-tres ultimos, de la continuacion.
+Todos los commits de esta validacion son locales, sin push:
 
-| Commit | Que hace | Publicado |
-|---|---|---|
-| `d100ae7` | Documento de estabilizacion | **Si** |
-| `2cf7a3b` | Cerco que impide correr smoke tests fuera de una base de pruebas | No |
-| `d50a22f` | La toma humana detiene las respuestas automaticas ya encoladas | No |
-| `65e0007` | Invariantes del cotizador de servicios | No |
-| `d8e9d68` | Inbox usable en telefono y PWA con cache segura | No |
-| `59db0fb` | Notificaciones push acotadas por persona y workspace | No |
-| `2c923a6` | Recepcion de archivos de WhatsApp | No |
-| `e28ef9f` | El driver de disco sale del paquete de produccion | No |
-| `c73ac86` | La puesta en marcha pide solo lo que el negocio necesita | No |
+| Commit local | Correccion |
+|---|---|
+| `f17d548` | Lanzadores Windows: Node directo, sin invocar pnpm.cmd con spawnSync |
+| `662a22a` | Marcador compartido, verificacion anterior a Prisma, claves ficticias y bloqueo HTTP/HTTPS/fetch |
+| `9f5a56e` | Fechas UTC en cola y bloqueo del agente, independientes de la zona de PostgreSQL |
+| `cf37bab` | Cierre de SENDING tras fallo de red y toma humana, sin reintentar la generacion anterior |
+| `4d4846d` | Alta push concurrente no reemplaza claves de otro usuario/workspace |
+| `018dc3b` | Versiones y publicacion de reglas serializadas por workspace |
+| `ff12f84` | Servicios sin capacidad QUOTES no completan onboarding aunque conserven reglas publicadas |
+| `d7594d0` | Suite beta con carreras y permisos; fixtures coherentes y reejecucion selectiva |
 
-**Publicado:** solo `d100ae7` y lo anterior a el. Produccion corre ese codigo.
-
-**Solo local:** los ocho restantes. Es deliberado: ninguno se publica sin
-autorizacion expresa, y tres de ellos no pueden desplegarse antes de aplicar su
-migracion.
+El commit documental de cierre acompana estos cambios. El historial anterior
+permanece en Git; el ultimo despliegue registrado era d100ae7. No se consulto
+ni cambio ese despliegue durante esta sesion.
 
 ---
 
 ## 3. Migraciones pendientes y orden de despliegue
 
-Hay **26 migraciones** en el repositorio y **22 aplicadas** en produccion. Las
+Hay **26 migraciones**, todas aplicadas en **crm_pruebas local**. No se agregaron
+migraciones en esta sesion. La verificacion final informa cero pendientes.
+El inventario completo esta en CRM_BETA_STABILIZATION.md.
+
+El registro anterior indica **22 aplicadas** en produccion, sin comprobarlo ni
+modificarlo ahora. Las
 cuatro que faltan se aplican en este orden:
 
 1. `20260914160000_human_takeover_outbox` — agrega `SENDING` y `CANCELLED` a los
@@ -185,28 +189,53 @@ Estas son decisiones tomadas y sus consecuencias, no defectos por corregir.
   contables. Conviene que la politica de privacidad lo diga.
 - **El consumo del plan se mide, pero no hay cobro automatico.** Los excedentes
   quedan registrados; cobrarlos es manual.
-- **Sin base aislada, los smoke tests no corren.** Existen y estan protegidos,
-  pero hoy son codigo sin ejecutar.
+- **La evidencia local no sustituye la entrega real ni la experiencia en telefono.**
+  Los proveedores permanecieron bloqueados.
 
 ---
 
-## 7. Pruebas no ejecutadas, y por que
+## 7. Pruebas ejecutadas y pendientes
 
-| Suite | Por que no corrio |
-|---|---|
-| `smoke-critico.ts` (matriz de lanzamiento) | Necesita una base aislada; la unica disponible es produccion |
-| `smoke-fase1` a `smoke-fase10` | Igual |
-| `carga.ts` | Igual |
-| Carreras de toma humana | Igual |
-| Persistencia del cotizador | Igual |
-| Estados de archivos recibidos | Base aislada **y** bucket |
-| Entrega de push en telefono | Claves VAPID y un telefono real |
-| Descarga de un archivo real | Bucket y un mensaje real con adjunto |
+| Suite | Aprobadas | Fallidas finales |
+|---|---:|---:|
+| smoke-fase1 | 41/41 | 0 |
+| smoke-fase2 | 46/46 | 0 |
+| smoke-fase3 | 46/46 | 0 |
+| smoke-fase4 | 74/74 | 0 |
+| smoke-fase5 | 70/70 | 0 |
+| smoke-fase6 | 74/74 | 0 |
+| smoke-fase7 | 79/79 | 0 |
+| smoke-fase8 | 142/142 | 0 |
+| smoke-fase9 | 78/78 | 0 |
+| smoke-critico | 116/116 | 0 |
+| smoke-beta | 14/14 | 0 |
+| **Total integracion** | **780/780** | **0** |
 
-**La base aislada esta a una contrasena de distancia.** Esta maquina ya tiene
-PostgreSQL 18 instalado y corriendo; no hace falta Docker ni un proveedor
-nuevo. El procedimiento exacto esta en
-[CRM_BETA_STABILIZATION.md](CRM_BETA_STABILIZATION.md#entorno-de-pruebas).
+- Unitarias: **71/71**; regresion posterior de las 52 pertinentes: **52/52**.
+- TypeScript y ESLint del codigo cambiado: correctos; diff sin errores.
+- `test:db:deploy`: 26 aplicadas y segunda verificacion sin pendientes.
+- `test:smoke` no se ejecuto por separado: ya esta en `test:smoke:all`.
+- Las suites se reanudaron selectivamente tras corregir cada fallo; el total
+  representa el ultimo resultado de cada una, no una sola pasada ininterrumpida.
+
+**Fallos resueltos:** lanzador Windows EINVAL; consulta equivocada del marcador;
+imports antes de verificar la base; UTC en cola/bloqueos; fixtures sin consentimiento,
+token ausente o producto vendible; concurrencia de agente sin solapamiento forzado;
+SENDING atascado tras takeover/fallo; alta push que sobrescribia otro propietario;
+colision de versiones de reglas; varias publicaciones vigentes simultaneas;
+onboarding que ignoraba la perdida de QUOTES con reglas publicadas.
+El detalle y los resultados iniciales fallidos estan en CRM_BETA_STABILIZATION.md.
+
+El marcador **ya estaba correcto**. La indicacion inicial de ausencia fue un
+fallo de consulta corregido; no se reinstalo ni se debilito la comprobacion.
+
+**Deduplicacion:** se repitio concurrentemente el mismo evento de Meta y se
+comprobo un solo mensaje/medio/trabajo. El mismo archivo enviado en otro mensaje
+produjo otro registro valido.
+
+**Pendientes:** prueba visual autenticada, Samsung/PWA/permisos del navegador,
+entrega real de push, Meta/Storage, pagos/IA y restauracion de backup. No se
+corrieron carga ni build en esta sesion. No hay un bloqueo de base local pendiente.
 
 ---
 
@@ -246,18 +275,12 @@ Ordenados por lo que cuesta si salen mal.
 
 ## 10. Proxima accion concreta
 
-Una sola, y desbloquea mas que ninguna otra:
+**Preparar un recorrido visual local con dos usuarios de workspaces distintos.**
+Usar crm_pruebas con datos de demostracion y proveedores bloqueados para revisar
+Inbox, toma humana, cotizaciones y onboarding; despues verificar PWA y permisos
+en el Samsung S24 Ultra. Los handlers ya se probaron con sesiones firmadas,
+pero el navegador y el telefono siguen pendientes.
 
-**Crear la base de pruebas local.** Necesita la contrasena del superusuario
-`postgres` de esta maquina. Con ella se pueden ejecutar por primera vez todas
-las suites que hoy son codigo sin correr, y recien ahi se sabra que de todo lo
-construido en estas dos sesiones funciona de verdad contra una base.
-
-Despues, en este orden:
-
-1. Aplicar las cuatro migraciones en produccion.
-2. Crear el bucket privado y cargar sus dos variables.
-3. Generar las claves VAPID.
-4. Publicar los ocho commits locales y verificar el health.
-5. Recibir una foto, un audio y un PDF reales con el numero de prueba.
-6. Cargar saldo en OpenAI y escuchar al agente responder de verdad.
+No publicar ni migrar produccion como parte de ese recorrido. La entrega real
+de push y archivos requiere otra etapa autorizada con VAPID, almacenamiento y
+numero de prueba de Meta. Las restricciones de esta sesion siguen vigentes.

@@ -1,6 +1,6 @@
 # Estabilizacion de CRM Upzites beta
 
-Actualizado: 14 de septiembre de 2026
+Actualizado: 15 de septiembre de 2026
 
 Este documento registra el avance verificable del cierre tecnico de la beta. No
 reemplaza `IMPLEMENTATION_STATUS.md`; distingue el codigo existente de las
@@ -22,13 +22,14 @@ pruebas realizadas con infraestructura o proveedores reales.
 - Embedded Signup, coexistencia, PWA, push y descarga de medios: pendientes al
   iniciar esta estabilizacion.
 
-## Migraciones creadas y no aplicadas en produccion
+## Migraciones nuevas: aplicadas localmente, pendientes en produccion
 
 En orden. Cada bloque funcional exige la suya antes de desplegarse.
 
 1. `20260914160000_human_takeover_outbox`
 2. `20260914170000_push_notifications`
 3. `20260914190000_whatsapp_media`
+4. `20260914200000_media_huerfanos`
 
 ## Progreso
 
@@ -63,72 +64,186 @@ El push de `d100ae7` disparó un despliegue Git automático. El deployment
 `dpl_7h9zYmS2CxdmNQckUMqRRLZssHah` quedó Ready, recibió el alias
 `crm.upzites.com` y respondió HTTP 200 en `/api/system/health`.
 
-### Entorno de pruebas
+### Validacion local del 15 de septiembre de 2026
 
-Estado: protecciones implementadas; ejecucion pendiente de una base aislada.
+**Resultado: 26 migraciones aplicadas, 780/780 comprobaciones de integracion
+aprobadas y 71/71 unitarias aprobadas. Ningun fallo pendiente en las suites
+ejecutadas.** Las 780 corresponden a 766 comprobaciones de las suites anteriores
+y 14 casos compuestos nuevos de beta; no incluyen repeticiones.
 
-**Hallazgo (14 de septiembre):** esta maquina ya tiene **PostgreSQL 18
-instalado y con el servicio corriendo**. La base aislada no necesita un
-proveedor nuevo ni Docker: se crea local en un minuto. Lo unico que falta es la
-contrasena del superusuario `postgres`, que no esta en el repositorio y que el
-`pg_hba.conf` exige (`scram-sha-256` para local y para `127.0.0.1`).
+Se cargaron TEST_DATABASE_URL y TEST_DIRECT_URL desde `apps/crm/.env.local`
+sin imprimir valores. Git confirma que el archivo esta ignorado. Ambas URL
+se comprobaron contra `127.0.0.1:5432/crm_pruebas`, sin parametros de redireccion.
+La base inicialmente tenia cero tablas de usuario. El marcador exacto ya
+estaba instalado: **no se creo ni modifico**.
 
-Con esa contrasena, la secuencia completa es:
+El primer despliegue fue bloqueado por un defecto del verificador:
+`obj_description` no lee comentarios de bases compartidas; corresponde
+`shobj_description`. La solicitud inicial de instalar el marcador quedo
+sin efecto al identificar y corregir ese fallo. Ademas, la espera asincrona
+permitia evaluar imports de Prisma antes de sustituir DATABASE_URL. Ahora un
+subproceso sincrono y con timeout verifica el marcador antes de cargar la
+aplicacion; la conexion entra por stdin y los errores no muestran secretos.
+
+Se retiraron credenciales externas y se bloquearon fetch, HTTP y HTTPS,
+incluido el transporte de web-push. Los proveedores usados son simulados en
+memoria. Los medios se guardaron en disco local de pruebas y se limpiaron.
+No se consulto produccion, no se migro Supabase y no se publicaron commits.
+
+`pnpm test:db:deploy` termino correctamente tras la correccion; la
+verificacion final devuelve **26 migraciones terminadas** y una segunda
+invocacion informa que no quedan migraciones pendientes. Las correcciones
+no agregan migraciones nuevas. La limpieza final confirma cero workspaces
+con prefijos de las suites.
+
+#### Pruebas ejecutadas
+
+`test:smoke:all` ya incluia `smoke-critico.ts`: no se ejecuto ademas
+`test:smoke`. Se avanzo hasta el primer fallo y se reanudaron solo las suites
+fallidas y las que aun no habian corrido. Los resultados siguientes son el
+ultimo resultado de cada suite, **no una unica pasada completa sin interrupciones**.
+El lanzador ahora admite nombres de suites para repetir solo las pertinentes
+e incluye tambien `smoke-beta.ts`.
+
+| Suite | Aprobadas | Fallidas finales |
+|---|---:|---:|
+| smoke-fase1 | 41/41 | 0 |
+| smoke-fase2 | 46/46 | 0 |
+| smoke-fase3 | 46/46 | 0 |
+| smoke-fase4 | 74/74 | 0 |
+| smoke-fase5 | 70/70 | 0 |
+| smoke-fase6 | 74/74 | 0 |
+| smoke-fase7 | 79/79 | 0 |
+| smoke-fase8 | 142/142 | 0 |
+| smoke-fase9 | 78/78 | 0 |
+| smoke-critico | 116/116 | 0 |
+| smoke-beta | 14/14 | 0 |
+| **Total integracion** | **780/780** | **0** |
+
+- Unitarias: WhatsApp 20, onboarding 19, cotizaciones 4, push 3, medios 12,
+  almacenamiento 7 y cerco 6: **71/71**. Tras las correcciones se repitieron las
+  52 pertinentes (WhatsApp, onboarding, cotizaciones, push y cerco): **52/52**.
+- Se repitieron fase2 (46/46) por el cambio de outbox y fase9 (78/78) por el
+  cambio de onboarding. La suite beta termino en 14/14.
+- TypeScript `tsc --noEmit`: sin errores.
+- ESLint de todos los archivos de codigo modificados/nuevos: sin errores ni
+  advertencias. `git diff --check`: correcto.
+- No se repitio build, carga ni pruebas con proveedores reales.
+
+#### Fallos encontrados y resueltos
+
+| Hallazgo | Evidencia inicial | Correccion |
+|---|---|---|
+| Lanzador Windows | spawnSync(pnpm.cmd) devolvia EINVAL | Ejecutar los CLI instalados con process.execPath |
+| Marcador y orden de imports | NULL aparente; despues DATABASE_URL ausente al cargar Prisma | shobj_description y verificacion sincrona |
+| Fixtures incompletos | Fase2 42/46; fase4 59/74; fase9 abortada; critica 113/116 | Claves ficticias, token realmente ausente, consentimiento explicito, producto activo con variante/stock |
+| Fechas SQL dependientes de zona | Fase3 39/45; no reclamaba trabajos vencidos | Comparar y guardar timestamps UTC explicitamente |
+| Prueba de concurrencia sin solapamiento garantizado | Fase4 72/74, dos ejecuciones consecutivas | Barrera dentro del proveedor: segundo agente intenta entrar con el primero retenido |
+| Takeover durante envio fallido | Mensaje seguia SENDING despues de terminar el worker | Cerrar mensaje y outbox sin reintento; conservar aviso mientras la llamada esta en curso |
+| Alta push concurrente | Dos respuestas 201 para el mismo endpoint de dos workspaces | WHERE con propietario y conflicto 409 al colisionar |
+| Borradores concurrentes | P2002 al asignar la misma version | Bloqueo por workspace antes de numerar |
+| Publicaciones concurrentes | Cuatro reglas PUBLISHED del mismo servicio | Publicar/archivar bajo el mismo bloqueo y volver a leer estado dentro de la transaccion |
+| Plan sin cotizador | Onboarding marcaba catalogo listo con reglas antiguas | Comprobar QUOTES tambien al evaluar si el paso esta completado |
+
+No se quitaron aserciones ni se relajaron permisos, consentimiento o condiciones
+de activacion. Los errores de construccion de los nuevos fixtures se corrigieron
+antes del resultado final; no representan evidencia de producto aprobado.
+
+#### Cobertura especial
+
+- Toma humana: PENDING y PROCESSING cancelados, humano y transaccional conservados,
+  carrera encolar/takeover, SENDING observado durante llamada simulada, fallo
+  posterior sin reintento y aislamiento entre workspaces.
+- Cotizaciones: borrador/publicacion/desactivacion, recarga de entradas y desglose,
+  regla original conservada, rechazo de contactos ajenos, aprobacion/rechazo
+  concurrentes, revision concurrente unica y version nueva sin aprobacion heredada.
+- Push: 503 sin configurar, persistencia, preferencias, bajas por propietario,
+  conflictos de otro usuario y workspace, carrera de altas forzada tras dos
+  lecturas reales, destinatarios OWNER frente a SALES, dedupe y expiracion.
+- Medios: repeticion concurrente del mismo evento Meta produce un mensaje, un
+  medio y un trabajo; mensaje nuevo con el mismo archivo produce otro medio valido.
+  BLOCKED, FAILED, EXPIRED, REJECTED y STORED; descarga concurrente unica; 401 sin
+  sesion, 404 de otro workspace, 409 no disponible y PDF con descarga segura.
+- Onboarding: tres modalidades con datos persistidos; pagos/correo segun modalidad,
+  falta de plan y plan sin QUOTES aunque existan reglas publicadas. Fase9 cubre
+  activacion, suspension, cupos y aislamiento.
+
+Los handlers se ejecutaron con contexto de peticion Next y sesiones firmadas;
+la consulta del usuario y la autorizacion son reales. Esto no equivale a probar
+el navegador ni los permisos push del sistema operativo.
+
+#### Commits de esta validacion
+
+| Commit local | Correccion |
+|---|---|
+| `f17d548` | Lanzadores Windows: Node directo, sin invocar pnpm.cmd con spawnSync |
+| `662a22a` | Marcador compartido, verificacion anterior a Prisma, claves ficticias y bloqueo HTTP/HTTPS/fetch |
+| `9f5a56e` | Fechas UTC en cola y bloqueo del agente, independientes de la zona de PostgreSQL |
+| `cf37bab` | Cierre de SENDING tras fallo de red y toma humana, sin reintentar la generacion anterior |
+| `4d4846d` | Alta push concurrente no reemplaza claves de otro usuario/workspace |
+| `018dc3b` | Versiones y publicacion de reglas serializadas por workspace |
+| `ff12f84` | Servicios sin capacidad QUOTES no completan onboarding aunque conserven reglas publicadas |
+| `d7594d0` | Suite beta con carreras y permisos; fixtures coherentes y reejecucion selectiva |
+
+#### Migraciones aplicadas en crm_pruebas
+
+- `20260614171000_init_crm`
+- `20260614182000_auth_workspaces`
+- `20260614190000_web_capture`
+- `20260614200000_integrations_ai_billing_ops`
+- `20260630220000_contact_owner`
+- `20260630220100_billing_mercadopago`
+- `20260907120000_fase1_dominio_comercial`
+- `20260907140000_fase2_mensajeria_whatsapp`
+- `20260907160000_fase3_cola_automatizaciones`
+- `20260907180000_fase4_agentes_ia`
+- `20260907190000_fase4_job_run_agent`
+- `20260908120000_fase5_comercio_entrega`
+- `20260908140000_fase6_shopify_sync`
+- `20260908150000_fase6_integration_shopify`
+- `20260908160000_fase6_job_shopify`
+- `20260908180000_fase7_cotizador`
+- `20260910120000_fase8_recuperacion_email`
+- `20260911120000_fase9_onboarding_planes`
+- `20260911130000_fase9_job_health`
+- `20260911140000_fase10_hardening`
+- `20260911160000_deuda_revoked_at`
+- `20260914120000_workspace_profile_industry`
+- `20260914160000_human_takeover_outbox`
+- `20260914170000_push_notifications`
+- `20260914190000_whatsapp_media`
+- `20260914200000_media_huerfanos`
+
+#### Bloqueos restantes y siguiente paso manual
+
+No quedan bloqueos de base local ni fallos en estas suites. Siguen pendientes
+la inspeccion visual del Inbox/onboarding autenticados, instalacion PWA y pruebas
+en Samsung S24 Ultra (teclado, reconexion, actualizacion y permisos push), y
+entrega real de push/medios/pagos/IA con proveedores. Restauracion de backup y
+requisitos legales siguen fuera de esta validacion.
+
+Siguiente paso: preparar dos usuarios y datos de demostracion en esta misma base
+local y recorrer Inbox, cotizaciones y onboarding en navegador/telefono, manteniendo
+los envios externos bloqueados. No publicar ni migrar produccion como parte de
+ese recorrido. Pruebas con proveedores reales requieren una etapa autorizada.
+
+Para futuras ejecuciones desde `apps/crm`:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -U postgres crm_pruebas
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d crm_pruebas -c "comment on database crm_pruebas is 'CRM_UPZITES_ISOLATED_TEST_DATABASE_V1'"
-```
-
-Despues, en `apps/crm/.env.local` (sin versionar):
-
-```text
-TEST_DATABASE_URL=postgresql://postgres:LA_CONTRASENA@localhost:5432/crm_pruebas
-TEST_DIRECT_URL=postgresql://postgres:LA_CONTRASENA@localhost:5432/crm_pruebas
-```
-
-Y entonces `pnpm test:db:deploy` y `pnpm test:smoke:all` pasan a ser
-ejecutables. Eso desbloquea de una vez las validaciones pendientes de las
-prioridades 2 a 8: carrera de toma humana, persistencia del cotizador, estados
-de archivos recibidos y la pantalla de puesta en marcha con datos reales.
-
-No existe `TEST_DATABASE_URL` ni una base aislada identificada. Los scripts
-`smoke-fase*` y `smoke-critico.ts` crean y eliminan datos; no deben ejecutarse
-con las variables normales de la aplicacion.
-
-Todos los smoke tests pasan ahora por un cerco que:
-
-- exige `TEST_DATABASE_URL` sin usar `DATABASE_URL` como respaldo;
-- compara endpoint, usuario, base y project ref de Supabase contra
-  `DATABASE_URL` y `DIRECT_URL`, reconociendo conexiones directas y poolers;
-- exige que `TEST_DIRECT_URL`, si existe, llegue al mismo proyecto aislado;
-- consulta un marcador independiente antes de importar el cliente Prisma;
-- retira credenciales de proveedores y bloquea trafico HTTP externo.
-
-En la base aislada, un administrador debe instalar una vez el marcador:
-
-```sql
-comment on database nombre_de_la_base_de_pruebas
-is 'CRM_UPZITES_ISOLATED_TEST_DATABASE_V1';
-```
-
-Luego se configuran localmente, sin versionar sus valores:
-
-```text
-TEST_DATABASE_URL=conexion_pooler_o_directa_de_pruebas
-TEST_DIRECT_URL=conexion_directa_del_mismo_proyecto_de_pruebas
-```
-
-Comandos seguros disponibles desde `apps/crm`:
-
-```powershell
+$env:DOTENV_CONFIG_PATH='.env.local'
+$env:DOTENV_CONFIG_QUIET='true'
 pnpm test:db:deploy
-pnpm test:smoke
+# Continuar solo si el comando anterior termino con estado 0.
 pnpm test:smoke:all
+# Ejemplo de regresion selectiva:
+pnpm test:smoke:all smoke-beta.ts
 ```
 
-`test:db:deploy` usa `prisma migrate deploy`. El mismo cerco se ejecuta incluso
-si alguien llama directamente a uno de los archivos `smoke-*.ts`.
+## Registro previo de implementacion (14 de septiembre)
+
+Las referencias a pruebas de base pendientes en el registro siguiente son
+historicas y quedan reemplazadas por los resultados del 15 de septiembre.
+La evidencia externa y visual pendiente sigue sin completarse.
 
 ### Toma de control humana
 
@@ -314,7 +429,7 @@ Protocolo de prueba pendiente, una vez exista el bucket y aplicada la migracion:
 4. Comprobar que el PDF se descarga y **no** se abre dentro del CRM.
 5. Abrir `/api/media/<id>` de un adjunto estando con sesion de otro workspace:
    debe responder 404, no 403.
-6. Reenviar el mismo archivo: no debe duplicarse la fila ni volver a descargarse.
+6. Repetir la entrega del mismo evento de Meta (mismo identificador de mensaje): no debe duplicarse la fila ni volver a descargarse. Un archivo enviado otra vez como mensaje distinto puede crear otro mensaje valido.
 
 ### Puesta en marcha
 
