@@ -104,12 +104,14 @@ export type ClaimedJob = {
  * consumidores sin coordinacion externa.
  */
 export async function claimJobs(limit = 10, workerId = randomUUID()): Promise<ClaimedJob[]> {
+  // Prisma guarda DateTime como timestamp UTC sin zona; now() es timestamptz.
+  // La conversion explicita evita desplazar vencimientos por la zona del servidor.
   const rows = await prisma.$queryRaw<
     { id: string; type: JobType; payload: unknown; workspace_id: string | null; attempts: number; max_attempts: number }[]
   >`
     WITH claimed AS (
       SELECT id FROM jobs
-      WHERE status = 'PENDING' AND run_at <= now()
+      WHERE status = 'PENDING' AND run_at <= (now() AT TIME ZONE 'UTC')
       ORDER BY priority ASC, run_at ASC
       FOR UPDATE SKIP LOCKED
       LIMIT ${limit}
@@ -117,9 +119,9 @@ export async function claimJobs(limit = 10, workerId = randomUUID()): Promise<Cl
     UPDATE jobs j
        SET status = 'PROCESSING',
            attempts = j.attempts + 1,
-           locked_at = now(),
+           locked_at = (now() AT TIME ZONE 'UTC'),
            locked_by = ${workerId},
-           updated_at = now()
+           updated_at = (now() AT TIME ZONE 'UTC')
       FROM claimed
      WHERE j.id = claimed.id
     RETURNING j.id, j.type, j.payload, j.workspace_id, j.attempts, j.max_attempts;

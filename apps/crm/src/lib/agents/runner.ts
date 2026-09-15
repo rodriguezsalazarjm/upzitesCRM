@@ -59,6 +59,7 @@ export type RunAgentResult = {
  * un proceso caido no deje la conversacion muda.
  */
 async function acquireLock(conversationId: string, owner: string) {
+  // Estas columnas son timestamp UTC sin zona, igual que los DateTime de Prisma.
   // Una sola sentencia atomica. Un `upsert` de Prisma NO sirve aqui: dos
   // ejecuciones simultaneas sobre una conversacion sin estado previo intentan
   // insertar las dos y una revienta contra el unique.
@@ -67,13 +68,13 @@ async function acquireLock(conversationId: string, owner: string) {
   // actualiza ninguna fila y no devuelve nada, que es justo "no lo obtuve".
   const rows = await prisma.$queryRaw<{ locked_by: string | null }[]>`
     INSERT INTO conversation_agent_states (id, conversation_id, locked_until, locked_by, updated_at)
-    VALUES (${randomUUID()}, ${conversationId}, now() + make_interval(secs => ${LOCK_MS / 1000}), ${owner}, now())
+    VALUES (${randomUUID()}, ${conversationId}, (now() AT TIME ZONE 'UTC') + make_interval(secs => ${LOCK_MS / 1000}), ${owner}, (now() AT TIME ZONE 'UTC'))
     ON CONFLICT (conversation_id) DO UPDATE
-       SET locked_until = now() + make_interval(secs => ${LOCK_MS / 1000}),
+       SET locked_until = (now() AT TIME ZONE 'UTC') + make_interval(secs => ${LOCK_MS / 1000}),
            locked_by = ${owner},
-           updated_at = now()
+           updated_at = (now() AT TIME ZONE 'UTC')
      WHERE conversation_agent_states.locked_until IS NULL
-        OR conversation_agent_states.locked_until <= now()
+        OR conversation_agent_states.locked_until <= (now() AT TIME ZONE 'UTC')
     RETURNING conversation_agent_states.locked_by;
   `;
 
