@@ -49,8 +49,9 @@ model Workspace {
   agentDefinitions AgentDefinition[]
   agentRuns        AgentRun[]
 
-  commerceConnections CommerceConnection[]
-  products            Product[]
+  commerceConnections   CommerceConnection[]
+  mercadoPagoConnection MercadoPagoConnection?
+  products              Product[]
   orders              CustomerOrder[]
   payments            Payment[]
   digitalAssets       DigitalAsset[]
@@ -1016,6 +1017,30 @@ model CommerceConnection {
 
   @@unique([workspaceId, provider])
   @@map("commerce_connections")
+}
+
+/// Credenciales de Mercado Pago de UN workspace, para cobrar SUS propios
+/// productos (CustomerOrder/Payment). No confundir con MERCADO_PAGO_ACCESS_TOKEN
+/// de entorno, que sigue siendo la cuenta de Upzites usada para cobrar la
+/// suscripcion del CRM (src/lib/mercado-pago.ts mantiene ambos caminos por
+/// separado a proposito).
+model MercadoPagoConnection {
+  id                      String            @id @default(cuid())
+  workspaceId             String            @unique @map("workspace_id")
+  mode                    MercadoPagoMode   @default(TEST)
+  publicKey               String?           @map("public_key")
+  accessTokenEncrypted    String?           @map("access_token_encrypted")
+  webhookSecretEncrypted  String?           @map("webhook_secret_encrypted")
+  status                  IntegrationStatus @default(DISCONNECTED)
+  connectedAt             DateTime?         @map("connected_at")
+  lastVerifiedAt          DateTime?         @map("last_verified_at")
+  lastError               String?           @map("last_error")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("mercado_pago_connections")
 }
 
 model Product {
@@ -2363,6 +2388,11 @@ enum PaymentProvider {
   MERCADO_PAGO
   SHOPIFY
   MANUAL
+}
+
+enum MercadoPagoMode {
+  TEST
+  PRODUCTION
 }
 
 enum FulfillmentType {
