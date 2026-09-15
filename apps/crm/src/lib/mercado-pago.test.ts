@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 import { createHmac } from 'node:crypto';
 import {
+  buildMercadoPagoAuthorizationUrl,
   canManageMercadoPago,
+  exchangeMercadoPagoOAuthCode,
+  getPlatformOAuthConfig,
   MercadoPagoCredentialError,
+  refreshMercadoPagoOAuthToken,
   verifyMercadoPagoAccessToken,
   verifyWebhookSignature,
   verifyWorkspaceWebhookSignature,
@@ -116,6 +120,138 @@ describe('verifyMercadoPagoAccessToken', () => {
 
     await assert.rejects(
       () => verifyMercadoPagoAccessToken('token-invalido'),
+      MercadoPagoCredentialError,
+    );
+  });
+});
+
+describe('getPlatformOAuthConfig', () => {
+  test('null si falta cualquiera de las tres variables de la aplicacion', () => {
+    delete process.env.MERCADO_PAGO_CLIENT_ID;
+    delete process.env.MERCADO_PAGO_CLIENT_SECRET;
+    delete process.env.MERCADO_PAGO_ACCESS_TOKEN;
+    assert.equal(getPlatformOAuthConfig(), null);
+
+    process.env.MERCADO_PAGO_CLIENT_ID = 'client-1';
+    process.env.MERCADO_PAGO_CLIENT_SECRET = 'secret-1';
+    assert.equal(getPlatformOAuthConfig(), null); // falta el access token de plataforma
+
+    process.env.MERCADO_PAGO_ACCESS_TOKEN = 'APP_USR-plataforma';
+    assert.deepEqual(getPlatformOAuthConfig(), {
+      clientId: 'client-1',
+      clientSecret: 'secret-1',
+      platformAccessToken: 'APP_USR-plataforma',
+    });
+  });
+});
+
+describe('buildMercadoPagoAuthorizationUrl', () => {
+  test('apunta a auth.mercadopago.com con client_id, state y redirect_uri', () => {
+    const url = buildMercadoPagoAuthorizationUrl({
+      config: { clientId: 'client-1', clientSecret: 'secret-1', platformAccessToken: 'token-1' },
+      state: 'state-firmado',
+      redirectUri: 'https://crm.test/api/integrations/mercado-pago/oauth/callback',
+    });
+    const parsed = new URL(url);
+    assert.equal(parsed.origin, 'https://auth.mercadopago.com');
+    assert.equal(parsed.searchParams.get('client_id'), 'client-1');
+    assert.equal(parsed.searchParams.get('state'), 'state-firmado');
+    assert.equal(
+      parsed.searchParams.get('redirect_uri'),
+      'https://crm.test/api/integrations/mercado-pago/oauth/callback',
+    );
+    assert.equal(parsed.searchParams.get('response_type'), 'code');
+  });
+});
+
+describe('exchangeMercadoPagoOAuthCode', () => {
+  const config = { clientId: 'client-1', clientSecret: 'secret-1', platformAccessToken: 'platform-token' };
+
+  test('canjea el code y devuelve access/refresh token, vendedor y modo', async () => {
+    let sentBody: Record<string, unknown> | undefined;
+    let sentAuth: string | null = null;
+    globalThis.fetch = (async (_input, init) => {
+      sentBody = JSON.parse(String(init?.body));
+      sentAuth = (init?.headers as Record<string, string> | undefined)?.Authorization ?? null;
+      return new Response(
+        JSON.stringify({
+          access_token: 'seller-access-token',
+          refresh_token: 'seller-refresh-token',
+          expires_in: 21600,
+          user_id: 555,
+          public_key: 'pub-key',
+          live_mode: false,
+          scope: 'read write',
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const tokens = await exchangeMercadoPagoOAuthCode({
+      config,
+      code: 'auth-code-1',
+      redirectUri: 'https://crm.test/callback',
+    });
+
+    assert.deepEqual(tokens, {
+      accessToken: 'seller-access-token',
+      refreshToken: 'seller-refresh-token',
+      expiresInSeconds: 21600,
+      mercadoPagoUserId: '555',
+      publicKey: 'pub-key',
+      liveMode: false,
+      scope: 'read write',
+    });
+    // Autentica con el Bearer de la PLATAFORMA (Upzites), no con nada del vendedor.
+    assert.equal(sentAuth, 'Bearer platform-token');
+    assert.equal(sentBody?.client_id, 'client-1');
+    assert.equal(sentBody?.client_secret, 'secret-1');
+    assert.equal(sentBody?.code, 'auth-code-1');
+    assert.equal(sentBody?.grant_type, 'authorization_code');
+  });
+
+  test('un code invalido/ya usado lanza MercadoPagoCredentialError sin guardar nada', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ message: 'invalid_grant' }), { status: 400 })) as typeof fetch;
+
+    await assert.rejects(
+      () => exchangeMercadoPagoOAuthCode({ config, code: 'code-ya-usado', redirectUri: 'https://crm.test/callback' }),
+      MercadoPagoCredentialError,
+    );
+  });
+});
+
+describe('refreshMercadoPagoOAuthToken', () => {
+  const config = { clientId: 'client-1', clientSecret: 'secret-1', platformAccessToken: 'platform-token' };
+
+  test('renueva con el refresh token guardado y devuelve credenciales nuevas', async () => {
+    let sentBody: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (_input, init) => {
+      sentBody = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({
+          access_token: 'nuevo-access-token',
+          refresh_token: 'nuevo-refresh-token',
+          expires_in: 21600,
+          user_id: 555,
+          live_mode: false,
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const tokens = await refreshMercadoPagoOAuthToken({ config, refreshToken: 'refresh-viejo' });
+    assert.equal(tokens.accessToken, 'nuevo-access-token');
+    assert.equal(sentBody?.refresh_token, 'refresh-viejo');
+    assert.equal(sentBody?.grant_type, 'refresh_token');
+  });
+
+  test('un refresh token revocado lanza MercadoPagoCredentialError', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ message: 'invalid_grant: token revoked' }), { status: 400 })) as typeof fetch;
+
+    await assert.rejects(
+      () => refreshMercadoPagoOAuthToken({ config, refreshToken: 'refresh-revocado' }),
       MercadoPagoCredentialError,
     );
   });

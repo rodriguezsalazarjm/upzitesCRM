@@ -18,7 +18,7 @@
     "test:onboarding": "tsx --test src/lib/onboarding/*.test.ts",
     "test:quotes": "tsx --test src/lib/quotes/*.test.ts",
     "test:push": "tsx --test src/lib/push/*.test.ts",
-    "test:mercado-pago": "tsx --test src/lib/mercado-pago.test.ts",
+    "test:mercado-pago": "tsx --test src/lib/mercado-pago.test.ts src/lib/commerce/mercado-pago-oauth-state.test.ts",
     "test:test-safety": "tsx --test src/lib/testing/*.test.ts",
     "test:smoke": "tsx scripts/smoke-critico.ts",
     "test:smoke:all": "tsx scripts/run-smoke.ts",

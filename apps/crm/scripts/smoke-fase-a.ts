@@ -14,7 +14,7 @@
 import './fixtures/test-environment';
 import { randomBytes, createHmac } from 'node:crypto';
 import {
-  IntegrationStatus,
+  MercadoPagoConnectionStatus,
   OrderStatus,
   ProductStatus,
   ProductType,
@@ -24,7 +24,7 @@ import { encryptSecret } from '../src/lib/crypto';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { createOrder } from '../src/lib/commerce/orders';
 import { createOrderCheckout, CheckoutError } from '../src/lib/commerce/checkout';
-import { getWorkspaceMercadoPagoConnection } from '../src/lib/commerce/mercado-pago-connection';
+import { getValidWorkspaceMercadoPagoToken } from '../src/lib/commerce/mercado-pago-connection';
 import { POST as billingWebhook } from '../src/app/api/billing/webhook/route';
 
 const results: { name: string; ok: boolean }[] = [];
@@ -54,7 +54,7 @@ async function connectMercadoPago(workspaceId: string, accessToken: string, webh
       mode: 'TEST',
       accessTokenEncrypted: encryptSecret(accessToken),
       webhookSecretEncrypted: encryptSecret(webhookSecret),
-      status: IntegrationStatus.CONNECTED,
+      status: MercadoPagoConnectionStatus.CONNECTED,
       connectedAt: new Date(),
       lastVerifiedAt: new Date(),
     },
@@ -123,8 +123,8 @@ await connectMercadoPago(A, tokenA, secretA);
 await connectMercadoPago(B, tokenB, secretB);
 
 {
-  const connA = await getWorkspaceMercadoPagoConnection(A);
-  const connB = await getWorkspaceMercadoPagoConnection(B);
+  const connA = await getValidWorkspaceMercadoPagoToken(A);
+  const connB = await getValidWorkspaceMercadoPagoToken(B);
   check('La conexion de A descifra el token de A', connA?.accessToken === tokenA);
   check('La conexion de B descifra el token de B', connB?.accessToken === tokenB);
   check('Los tokens de A y B nunca coinciden', connA?.accessToken !== connB?.accessToken);
@@ -133,13 +133,13 @@ await connectMercadoPago(B, tokenB, secretB);
 {
   await prisma.mercadoPagoConnection.update({
     where: { workspaceId: A },
-    data: { status: IntegrationStatus.NEEDS_ATTENTION },
+    data: { status: MercadoPagoConnectionStatus.NEEDS_ATTENTION },
   });
-  const conn = await getWorkspaceMercadoPagoConnection(A);
+  const conn = await getValidWorkspaceMercadoPagoToken(A);
   check('Una conexion NEEDS_ATTENTION no se usa para cobrar', conn === null);
   await prisma.mercadoPagoConnection.update({
     where: { workspaceId: A },
-    data: { status: IntegrationStatus.CONNECTED },
+    data: { status: MercadoPagoConnectionStatus.CONNECTED },
   });
 }
 
