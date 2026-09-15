@@ -31,6 +31,7 @@ import {
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace, ensureBetaPlans } from '../src/lib/subscription';
 import { grantConsent } from '../src/lib/domain/consent';
+import { encryptSecret } from '../src/lib/crypto';
 import {
   ALLOWANCE_METRICS,
   BETA_PLANS,
@@ -176,7 +177,7 @@ console.log('\n== Onboarding: el avance se calcula, no se guarda ==');
   const state = await getOnboardingState(A.workspaceId);
 
   check('Un workspace nuevo arranca en ONBOARDING', state.status === ActivationStatus.ONBOARDING);
-  check('Con los 10 pasos de la spec', state.steps.length === 10);
+  check('Con los 11 pasos de la puesta en marcha', state.steps.length === 11);
   check('Y no se puede activar todavia', !state.canActivate);
   check('Se dice exactamente que falta', state.blockers.length > 0, `${state.blockers.length} pendientes`);
 
@@ -216,7 +217,7 @@ console.log('\n== Onboarding: el avance se calcula, no se guarda ==');
   const catalogoServicios = servicios.steps.find((step) => step.key === 'catalogo')!;
   check(
     'Un negocio de servicios necesita reglas de precio publicadas',
-    (catalogoServicios.hint ?? '').includes('cotizable'),
+    (catalogoServicios.hint ?? '').includes('regla de precio'),
   );
 
   await prisma.workspaceProfile.update({
@@ -238,8 +239,8 @@ console.log('\n== Onboarding: el avance se calcula, no se guarda ==');
 
   const sinEmail = await getOnboardingState(A.workspaceId);
   check(
-    'Sin email en el plan, ese paso no es obligatorio',
-    sinEmail.steps.find((step) => step.key === 'email')?.required === false,
+    'Sin email en el plan, el paso se muestra como no incluido',
+    sinEmail.steps.find((step) => step.key === 'email')?.level === 'UNAVAILABLE',
   );
 
   await setPlan(A.workspaceId, {
@@ -247,10 +248,40 @@ console.log('\n== Onboarding: el avance se calcula, no se guarda ==');
     allowances: { users: 5, contacts: 100, whatsapp_numbers: 1, conversations: 10, ai_cost_clp: 1000, emails: 50, campaign_contacts: 50 },
   });
 
+  // Con el plan completo el paso aparece, pero para un ecommerce es opcional:
+  // WhatsApp alcanza para vender, y exigirlo seria pedir trabajo que no se usa.
   const conEmail = await getOnboardingState(A.workspaceId);
   check(
-    'Con email en el plan si lo es',
-    conEmail.steps.find((step) => step.key === 'email')?.required === true,
+    'Con email en el plan, para un ecommerce queda como opcional',
+    conEmail.steps.find((step) => step.key === 'email')?.level === 'OPTIONAL',
+  );
+
+  // Con producto digital si es obligatorio: el acceso comprado se envia por
+  // correo ademas de WhatsApp, y sin correo alguien paga y no recibe nada.
+  await prisma.workspaceProfile.update({
+    where: { workspaceId: A.workspaceId },
+    data: { businessType: BusinessType.INFOPRODUCT },
+  });
+  const digital = await getOnboardingState(A.workspaceId);
+  check(
+    'Vendiendo productos digitales, el correo pasa a ser obligatorio',
+    digital.steps.find((step) => step.key === 'email')?.level === 'REQUIRED',
+  );
+  check(
+    'Y se explica por que se pide',
+    (digital.steps.find((step) => step.key === 'email')?.why ?? '').length > 0,
+  );
+
+  // Vendiendo servicios, cobrar dentro del chat es una comodidad: el precio
+  // sale de una cotizacion y el cobro se acuerda fuera.
+  await prisma.workspaceProfile.update({
+    where: { workspaceId: A.workspaceId },
+    data: { businessType: BusinessType.SERVICES },
+  });
+  const servicios2 = await getOnboardingState(A.workspaceId);
+  check(
+    'Vendiendo servicios, los cobros no bloquean la activacion',
+    servicios2.steps.find((step) => step.key === 'pagos')?.level === 'OPTIONAL',
   );
 }
 
@@ -279,6 +310,9 @@ console.log('\n== Activacion ==');
     },
   });
 
+  // El canal tiene que quedar como queda uno de verdad: con credenciales, con
+  // salud comprobada y suscrito a los webhooks. Un numero solo marcado
+  // CONNECTED no alcanza, y ese es justamente el punto del paso.
   await prisma.whatsAppChannel.create({
     data: {
       workspaceId: A.workspaceId,
@@ -286,6 +320,9 @@ console.log('\n== Activacion ==');
       phoneNumberId: `phone-${stamp}`,
       displayPhoneNumber: '+56900000000',
       status: WhatsAppChannelStatus.CONNECTED,
+      accessTokenEncrypted: encryptSecret(`token-de-prueba-${stamp}`),
+      lastHealthCheckAt: new Date(),
+      webhookSubscribedAt: new Date(),
     },
   });
 

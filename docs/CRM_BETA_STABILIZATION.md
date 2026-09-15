@@ -62,6 +62,31 @@ El push de `d100ae7` disparó un despliegue Git automático. El deployment
 
 Estado: protecciones implementadas; ejecucion pendiente de una base aislada.
 
+**Hallazgo (14 de septiembre):** esta maquina ya tiene **PostgreSQL 18
+instalado y con el servicio corriendo**. La base aislada no necesita un
+proveedor nuevo ni Docker: se crea local en un minuto. Lo unico que falta es la
+contrasena del superusuario `postgres`, que no esta en el repositorio y que el
+`pg_hba.conf` exige (`scram-sha-256` para local y para `127.0.0.1`).
+
+Con esa contrasena, la secuencia completa es:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -U postgres crm_pruebas
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d crm_pruebas -c "comment on database crm_pruebas is 'CRM_UPZITES_ISOLATED_TEST_DATABASE_V1'"
+```
+
+Despues, en `apps/crm/.env.local` (sin versionar):
+
+```text
+TEST_DATABASE_URL=postgresql://postgres:LA_CONTRASENA@localhost:5432/crm_pruebas
+TEST_DIRECT_URL=postgresql://postgres:LA_CONTRASENA@localhost:5432/crm_pruebas
+```
+
+Y entonces `pnpm test:db:deploy` y `pnpm test:smoke:all` pasan a ser
+ejecutables. Eso desbloquea de una vez las validaciones pendientes de las
+prioridades 2 a 8: carrera de toma humana, persistencia del cotizador, estados
+de archivos recibidos y la pantalla de puesta en marcha con datos reales.
+
 No existe `TEST_DATABASE_URL` ni una base aislada identificada. Los scripts
 `smoke-fase*` y `smoke-critico.ts` crean y eliminan datos; no deben ejecutarse
 con las variables normales de la aplicacion.
@@ -286,14 +311,67 @@ Protocolo de prueba pendiente, una vez exista el bucket y aplicada la migracion:
    debe responder 404, no 403.
 6. Reenviar el mismo archivo: no debe duplicarse la fila ni volver a descargarse.
 
+### Puesta en marcha
+
+Estado: implementacion completa en codigo; falta verla con datos reales.
+
+El problema no era que faltaran pasos, sino que sobraban. Todo paso cuya
+funcion estuviera en el plan era obligatorio, sin mirar como vende el cliente:
+a quien vende servicios se le exigia conectar una pasarela de pago para poder
+activar, cuando cotiza y cobra por transferencia desde siempre. Pedir algo que
+no se usa no protege a nadie; hace que el cliente abandone o configure de
+mentira.
+
+- **Lo exigido sale de la modalidad de venta, nunca del rubro.** Servicios:
+  cobrar dentro del chat es opcional, porque el precio sale de una cotizacion.
+  Productos fisicos y digitales: obligatorio, porque sin medio de cobro la
+  compra no se termina. El correo con dominio propio solo es obligatorio para
+  productos digitales, que es donde el acceso comprado viaja tambien por correo.
+- **Cada requisito dice por que se pide.** Un requisito sin explicacion es
+  indistinguible de un capricho, y el cliente lo resuelve mal o no lo resuelve.
+- **Guardado, confirmado y probado dejan de ser lo mismo.** Un numero con las
+  credenciales cargadas pero sin confirmar por Meta ya no aparece como "falta
+  conectar" —el cliente sabe que lo hizo— sino como "a medias", diciendo que
+  falta la confirmacion. Un dominio registrado esperando DNS igual. WhatsApp
+  llega a "probado" solo cuando entro un mensaje real.
+- **Se separo en tres grupos**: necesario para empezar, se puede agregar
+  despues (cerrado por defecto) y no viene en tu plan. Lo opcional mostrado como
+  deber hacia parecer la puesta en marcha tres veces mas larga de lo que es.
+- **Se agrego el plan como paso.** Sin suscripcion, la lista de capacidades
+  llegaba vacia y eso volvia opcional casi todo: se podia activar sin WhatsApp
+  conectado. Ahora el plan es un requisito y, mientras no exista, los pasos que
+  dependen de el dicen "depende del plan que elijas", no "tu plan no lo
+  incluye", que seria falso.
+- **Vender servicios con un plan sin cotizaciones** no vuelve el paso opcional
+  —el agente seguiria sin poder ofrecer nada— sino que lo dice sin rodeos:
+  cambia de plan o cambia la modalidad.
+- **Publicar un seguimiento con pasos de correo** ahora exige dominio
+  verificado. Antes se publicaba sin problema y los correos fallaban en
+  silencio dias despues, sobre clientes reales, por `DOMAIN_NOT_VERIFIED`.
+- Se reviso el texto mostrado al cliente: nada de valores internos ni de
+  terminos de infraestructura. Una prueba automatica lo verifica.
+
+Validacion realizada: 19 pruebas unitarias de onboarding (10 nuevas, con la
+matriz completa de modalidades), TypeScript y ESLint sin errores, build de
+produccion. La pantalla no se inspecciono con datos reales: hacerlo exige
+iniciar sesion, y la unica base disponible es la de produccion. No se abrio.
+
+Tambien se corrigieron las comprobaciones de `smoke-fase9.ts`, que habian
+quedado desalineadas con el codigo: esperaban 10 pasos, un texto de ayuda que
+ya no existe, y creaban un canal de WhatsApp sin credenciales ni verificacion,
+que con las reglas actuales nunca habria permitido activar. **No se ejecutaron**:
+siguen dependiendo de la base aislada.
+
 ## Verificaciones de la linea base
 
 - Pruebas unitarias de WhatsApp: 20/20.
-- Pruebas unitarias de onboarding: 9/9.
+- Pruebas unitarias de onboarding: 19/19.
 - Pruebas unitarias de precios: 4/4.
 - Pruebas unitarias de push: 3/3.
 - Pruebas unitarias de archivos recibidos: 12/12.
 - Pruebas unitarias de almacenamiento: 7/7.
+- Pruebas unitarias del cerco de pruebas: 6/6.
+- Total: **71/71**, sin fallos.
 - ESLint: 0 errores, 2 advertencias de estilo en archivos de configuracion.
 - Build CRM: correcto con pnpm 11.3.0.
 - Health de produccion: HTTP 200, base operativa y sin trabajos, outbox o

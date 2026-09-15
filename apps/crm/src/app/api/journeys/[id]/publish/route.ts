@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { JourneyStatus } from '../../../../../../generated/prisma/client';
+import { EmailDomainStatus, JourneyStatus } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { prisma } from '@/lib/prisma';
@@ -51,6 +51,30 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       },
       { status: 409 },
     );
+  }
+
+  // Un paso de email sin dominio verificado no falla al publicar: falla en
+  // silencio dias despues, cuando el envio ya salio hacia un cliente real y
+  // `resolveSender` lo rechaza por DOMAIN_NOT_VERIFIED. Publicarlo asi es
+  // prometer una recuperacion de ventas que nunca va a ocurrir.
+  const sendsEmail = journey.steps.some((step) => step.action === 'SEND_EMAIL');
+
+  if (sendsEmail) {
+    const verifiedDomain = await prisma.emailDomain.findFirst({
+      where: { workspaceId: user.workspace.id, status: EmailDomainStatus.VERIFIED },
+      select: { id: true },
+    });
+
+    if (!verifiedDomain) {
+      return NextResponse.json(
+        {
+          message:
+            'Este seguimiento envia correos y todavia no tienes un dominio verificado. Verificalo primero, o quita los pasos de correo.',
+          code: 'NO_VERIFIED_DOMAIN',
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const updated = await prisma.journey.update({
