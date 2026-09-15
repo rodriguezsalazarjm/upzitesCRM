@@ -4,12 +4,28 @@ import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-web
 import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
 import { nextMonthlyRenewal, MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
-import { getPaymentClient, verifyWebhookSignature } from '@/lib/mercado-pago';
+import {
+  getPaymentClient,
+  getWorkspacePaymentClient,
+  verifyWebhookSignature,
+  verifyWorkspaceWebhookSignature,
+} from '@/lib/mercado-pago';
+import { getWorkspaceMercadoPagoConnection } from '@/lib/commerce/mercado-pago-connection';
 
 /**
  * Webhook publico de Mercado Pago. Es la UNICA fuente de verdad para activar
- * una suscripcion: valida la firma, re-consulta el pago server-to-server
- * (nunca confia en el body de la notificacion) y solo entonces activa.
+ * un pago: valida la firma, re-consulta el pago server-to-server (nunca
+ * confia en el body de la notificacion) y solo entonces actua.
+ *
+ * Atiende DOS cuentas de Mercado Pago distintas por el mismo endpoint:
+ *  - `?workspaceId=...` en la URL -> venta de un producto propio del
+ *    workspace (Fase A): se valida y recupera el pago con LA CUENTA DE ESE
+ *    WORKSPACE. El workspaceId llega sin firmar en la URL (lo puso
+ *    createOrderCheckout), asi que no es de fiar por si solo: sirve solo
+ *    para elegir que secreto usar, y la firma x-signature sobre ESE secreto
+ *    es la que de verdad autentica la notificacion.
+ *  - sin `workspaceId` -> suscripcion del CRM (flujo original, cuenta de
+ *    Upzites, sin cambios).
  *
  * Endpoint server-to-server (no CORS: no lo llama un navegador).
  */
@@ -21,6 +37,17 @@ export async function POST(request: Request) {
   const url = new URL(request.url);
   const dataId = url.searchParams.get('data.id') ?? url.searchParams.get('id');
   const type = url.searchParams.get('type');
+  const workspaceIdParam = url.searchParams.get('workspaceId');
+
+  if (workspaceIdParam) {
+    return handleWorkspaceOrderWebhook({
+      workspaceId: workspaceIdParam,
+      dataId,
+      type,
+      xSignature: request.headers.get('x-signature'),
+      xRequestId: request.headers.get('x-request-id'),
+    });
+  }
 
   const verification = verifyWebhookSignature({
     xSignature: request.headers.get('x-signature'),
@@ -55,6 +82,11 @@ export async function POST(request: Request) {
   // Solo se trata como pedido lo que viene marcado explicitamente: las
   // preferencias creadas antes de la Fase 5 no llevan `kind` y son de
   // suscripcion, asi que un pago en vuelo no cambia de significado.
+  //
+  // Esta rama (sin workspaceId en la URL) solo se alcanza para preferencias
+  // de pedido creadas ANTES de la Fase A, cuando todavia se cobraba con la
+  // cuenta de Upzites. Las nuevas ya traen workspaceId y van por
+  // handleWorkspaceOrderWebhook, con la cuenta propia del workspace.
   if (classifyPayment(metadata) === 'order') {
     const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
 
@@ -63,21 +95,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'orderId ausente' }, { status: 400 });
     }
 
-    const statusMap: Record<string, PaymentStatus> = {
-      approved: PaymentStatus.APPROVED,
-      pending: PaymentStatus.PENDING,
-      in_process: PaymentStatus.PENDING,
-      authorized: PaymentStatus.PENDING,
-      rejected: PaymentStatus.REJECTED,
-      cancelled: PaymentStatus.CANCELLED,
-      refunded: PaymentStatus.REFUNDED,
-      charged_back: PaymentStatus.REFUNDED,
-    };
-
     const result = await processOrderPayment({
       orderId,
       externalPaymentId: String(dataId),
-      status: statusMap[String(payment.status)] ?? PaymentStatus.PENDING,
+      status: mapPaymentStatus(payment.status),
       rawStatus: String(payment.status ?? 'unknown'),
       amount: Number(payment.transaction_amount ?? 0),
       currency: String(payment.currency_id ?? 'CLP'),
@@ -194,4 +215,114 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ ok: true });
+}
+
+function mapPaymentStatus(status: unknown): PaymentStatus {
+  const statusMap: Record<string, PaymentStatus> = {
+    approved: PaymentStatus.APPROVED,
+    pending: PaymentStatus.PENDING,
+    in_process: PaymentStatus.PENDING,
+    authorized: PaymentStatus.PENDING,
+    rejected: PaymentStatus.REJECTED,
+    cancelled: PaymentStatus.CANCELLED,
+    refunded: PaymentStatus.REFUNDED,
+    charged_back: PaymentStatus.REFUNDED,
+  };
+  return statusMap[String(status)] ?? PaymentStatus.PENDING;
+}
+
+/**
+ * Notificacion de venta de un producto propio de un workspace (Fase A):
+ * se valida y recupera el pago con la cuenta de Mercado Pago DE ESE
+ * workspace, nunca con la de Upzites ni con la de otro tenant.
+ */
+async function handleWorkspaceOrderWebhook(input: {
+  workspaceId: string;
+  dataId: string | null;
+  type: string | null;
+  xSignature: string | null;
+  xRequestId: string | null;
+}) {
+  const connection = await getWorkspaceMercadoPagoConnection(input.workspaceId);
+  if (!connection) {
+    console.error('order_webhook_workspace_not_connected', { workspaceId: input.workspaceId });
+    return NextResponse.json({ message: 'Workspace sin Mercado Pago conectado' }, { status: 404 });
+  }
+
+  const verification = verifyWorkspaceWebhookSignature({
+    xSignature: input.xSignature,
+    xRequestId: input.xRequestId,
+    dataId: input.dataId,
+    webhookSecret: connection.webhookSecret,
+  });
+
+  if (!verification.valid) {
+    console.warn('order_webhook_invalid_signature', {
+      workspaceId: input.workspaceId,
+      reason: verification.reason,
+      dataId: input.dataId,
+    });
+    await prisma.mercadoPagoConnection.update({
+      where: { workspaceId: input.workspaceId },
+      data: { lastError: `Firma invalida: ${verification.reason}` },
+    });
+    return NextResponse.json({ message: 'Firma invalida' }, { status: 401 });
+  }
+
+  // Solo procesamos notificaciones de pago; otros tipos se reconocen con 200
+  // para que Mercado Pago no reintente indefinidamente.
+  if (input.type !== 'payment' || !input.dataId) {
+    return NextResponse.json({ ok: true, ignored: true });
+  }
+
+  const paymentClient = getWorkspacePaymentClient(connection);
+  const payment = await paymentClient.get({ id: input.dataId });
+  const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
+
+  // Defensa en profundidad: el pago recuperado debe declararse a si mismo
+  // como de este workspace. Si no coincide, algo raro paso (preferencia mal
+  // formada, o un intento de usar la URL de un workspace para otro pago) y
+  // no se procesa.
+  if (metadata.workspaceId && metadata.workspaceId !== input.workspaceId) {
+    console.error('order_webhook_workspace_mismatch', {
+      urlWorkspaceId: input.workspaceId,
+      paymentWorkspaceId: metadata.workspaceId,
+      paymentId: input.dataId,
+    });
+    return NextResponse.json({ message: 'El pago no pertenece a este workspace' }, { status: 400 });
+  }
+
+  const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
+  if (!orderId) {
+    console.error('order_webhook_missing_order_id', { paymentId: input.dataId });
+    return NextResponse.json({ message: 'orderId ausente' }, { status: 400 });
+  }
+
+  const result = await processOrderPayment({
+    orderId,
+    externalPaymentId: String(input.dataId),
+    status: mapPaymentStatus(payment.status),
+    rawStatus: String(payment.status ?? 'unknown'),
+    amount: Number(payment.transaction_amount ?? 0),
+    currency: String(payment.currency_id ?? 'CLP'),
+    payerEmail: payment.payer?.email ?? null,
+    baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
+  });
+
+  await prisma.mercadoPagoConnection.update({
+    where: { workspaceId: input.workspaceId },
+    data: { lastVerifiedAt: new Date(), lastError: result.handled ? null : (result.reason ?? 'no procesado') },
+  });
+
+  if (!result.handled) {
+    console.error('order_webhook_rejected', {
+      workspaceId: input.workspaceId,
+      paymentId: input.dataId,
+      orderId,
+      reason: result.reason,
+    });
+    return NextResponse.json({ message: result.reason ?? 'no procesado' }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, kind: 'order', ...result });
 }

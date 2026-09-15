@@ -7,7 +7,8 @@ import {
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { cancelByKey, scheduleAction } from '../domain';
-import { getPreferenceClient } from '../mercado-pago';
+import { getWorkspacePreferenceClient } from '../mercado-pago';
+import { getWorkspaceMercadoPagoConnection } from './mercado-pago-connection';
 
 /**
  * Checkout de un pedido con Mercado Pago.
@@ -56,10 +57,14 @@ export async function createOrderCheckout(input: {
     throw new CheckoutError('El pedido ya esta pagado.', 'INVALID_STATE');
   }
 
-  const client = getPreferenceClient();
-  if (!client) {
-    throw new CheckoutError('Mercado Pago no esta configurado.', 'NOT_CONFIGURED');
+  const connection = await getWorkspaceMercadoPagoConnection(input.workspaceId);
+  if (!connection) {
+    throw new CheckoutError(
+      'Este workspace todavia no conecto su cuenta de Mercado Pago.',
+      'NOT_CONFIGURED',
+    );
   }
+  const client = getWorkspacePreferenceClient(connection);
 
   const url = baseUrl();
 
@@ -89,7 +94,10 @@ export async function createOrderCheckout(input: {
           failure: `${url}/checkout/${order.id}?status=failure`,
         },
         auto_return: 'approved',
-        notification_url: `${url}/api/billing/webhook`,
+        // El workspaceId en la URL es lo que permite al webhook elegir QUE
+        // conexion de Mercado Pago usar para validar la firma y recuperar el
+        // pago, antes de poder leer nada del cuerpo de la notificacion.
+        notification_url: `${url}/api/billing/webhook?workspaceId=${encodeURIComponent(input.workspaceId)}`,
       },
     });
   } catch (error) {
