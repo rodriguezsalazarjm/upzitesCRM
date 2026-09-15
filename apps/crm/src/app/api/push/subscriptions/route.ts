@@ -5,6 +5,7 @@ import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 import { getPushConfiguration } from '@/lib/push/send';
+import { Prisma } from '../../../../../generated/prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,7 +81,9 @@ export async function POST(request: Request) {
   }
 
   const saved = await prisma.pushSubscription.upsert({
-    where: { endpoint: parsed.data.endpoint },
+    // El chequeo anterior puede quedar obsoleto durante una alta concurrente.
+    // El update tambien debe exigir propietario; una colision al crear es 409.
+    where: { endpoint: parsed.data.endpoint, workspaceId: user.workspace.id, userId: user.id },
     create: {
       workspaceId: user.workspace.id,
       userId: user.id,
@@ -104,7 +107,16 @@ export async function POST(request: Request) {
       ...(parsed.data.preferences ?? {}),
     },
     select: { id: true, ...preferenceSelect },
+  }).catch((error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+    throw error;
   });
+  if (!saved) {
+    return NextResponse.json(
+      { message: 'Esta suscripción pertenece a otra sesión. Cierra sesión allí antes de continuar.' },
+      { status: 409 },
+    );
+  }
   await recordAudit({
     workspaceId: user.workspace.id,
     actorId: user.id,
