@@ -448,7 +448,9 @@ async function retryOrCancel(
         conversationMode: conversation.mode,
       })
     ) {
-      await cancelWithClient(tx, outboxId, payload.messageId);
+      // La llamada de red ya termino sin exito. Puede cerrar SENDING sin
+      // reintentar una respuesta que ahora pertenece a la generacion anterior.
+      await cancelWithClient(tx, outboxId, payload.messageId, true);
       return 'cancelled';
     }
 
@@ -468,9 +470,9 @@ async function retryOrCancel(
   });
 }
 
-async function cancelWithClient(tx: Prisma.TransactionClient, outboxId: string, messageId: string) {
+async function cancelWithClient(tx: Prisma.TransactionClient, outboxId: string, messageId: string, sendFinished = false) {
   await tx.outboxEvent.updateMany({
-    where: { id: outboxId, status: { in: [OutboxStatus.PENDING, OutboxStatus.PROCESSING] } },
+    where: { id: outboxId, status: { in: [OutboxStatus.PENDING, OutboxStatus.PROCESSING, ...(sendFinished ? [OutboxStatus.SENDING] : [])] } },
     data: {
       status: OutboxStatus.CANCELLED,
       processedAt: new Date(),
@@ -478,7 +480,7 @@ async function cancelWithClient(tx: Prisma.TransactionClient, outboxId: string, 
     },
   });
   await tx.message.updateMany({
-    where: { id: messageId, status: MessageStatus.QUEUED },
+    where: { id: messageId, status: { in: [MessageStatus.QUEUED, ...(sendFinished ? [MessageStatus.SENDING] : [])] } },
     data: { status: MessageStatus.CANCELLED, errorMessage: TAKEOVER_CANCEL_REASON },
   });
 }
