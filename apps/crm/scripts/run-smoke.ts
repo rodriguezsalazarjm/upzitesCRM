@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const suites = [
   'smoke-fase1.ts',
@@ -13,13 +14,14 @@ const suites = [
   'smoke-critico.ts',
 ];
 
-const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const require = createRequire(import.meta.url);
 for (const suite of suites) {
-  const result = spawnSync(pnpm, ['exec', 'tsx', `scripts/${suite}`], {
+  const result = spawnSync(process.execPath, [require.resolve('tsx/cli'), `scripts/${suite}`], {
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',
   });
 
+  if (result.error) console.error(`No se pudo iniciar ${suite}: ${result.error.message}`);
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
