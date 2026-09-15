@@ -290,10 +290,19 @@ const definitions: StepDefinition[] = [
     action: 'Configurar',
     need: ({ businessType, capabilities }) => catalogNeed(businessType, capabilities),
     // Lo que hace falta depende de como vende el cliente, no de su rubro.
-    check: async ({ workspaceId, businessType }) => {
+    check: async ({ workspaceId, businessType, capabilities }) => {
       const requirement = getCatalogRequirement(businessType);
 
       if (requirement === 'SERVICES_PRICING') {
+        if (!capabilities?.includes('QUOTES')) {
+          return {
+            done: false,
+            evidence: 'PENDIENTE',
+            hint: capabilities === null
+              ? 'Elige un plan que incluya cotizaciones para ofrecer servicios.'
+              : 'Tu plan no permite cotizar servicios. Cambia de plan o de modalidad de venta.',
+          };
+        }
         const sets = await prisma.pricingRuleSet.findMany({
           where: { workspaceId },
           select: { status: true, intakeSchema: true, rules: true },
