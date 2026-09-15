@@ -79,6 +79,8 @@ model Workspace {
   emailEvents        EmailEvent[]
   contactSendLogs    ContactSendLog[]
 
+  mediaAssets        MediaAsset[]
+
   @@map("workspaces")
 }
 
@@ -677,6 +679,7 @@ model Conversation {
   messages   Message[]
   agentRuns  AgentRun[]
   agentState ConversationAgentState?
+  mediaAssets MediaAsset[]
 
   @@unique([channelId, contactId])
   @@index([workspaceId, status, lastMessageAt])
@@ -708,10 +711,74 @@ model Message {
   workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User?        @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+  media        MediaAsset?
 
   @@index([conversationId, createdAt])
   @@index([workspaceId, status])
   @@map("messages")
+}
+
+/// Estado de un adjunto recibido por un canal de mensajeria.
+///
+/// El proveedor entrega un identificador, no el archivo: hay una descarga
+/// autenticada en medio que puede tardar, fallar o encontrarse con un medio ya
+/// caducado. Cada uno de esos finales tiene que ser visible en la bandeja, no
+/// un mensaje vacio.
+enum MediaAssetStatus {
+  PENDING
+  DOWNLOADING
+  STORED
+  /// Tipo o tamano fuera de politica: no se descarga y no se reintenta.
+  REJECTED
+  /// El proveedor ya no lo tiene. No se reintenta.
+  EXPIRED
+  /// Falta configurar el almacenamiento. Se reintenta cuando exista.
+  BLOCKED
+  FAILED
+  /// Borrado por politica de retencion; la fila queda como rastro.
+  PURGED
+}
+
+/// Un archivo recibido en una conversacion, ya descargado y guardado por
+/// nosotros. El identificador del proveedor caduca; el archivo no puede vivir
+/// solo alli.
+model MediaAsset {
+  id             String           @id @default(cuid())
+  workspaceId    String           @map("workspace_id")
+  conversationId String?          @map("conversation_id")
+  messageId      String?          @unique @map("message_id")
+  provider       String           @default("whatsapp")
+  externalMediaId String          @map("external_media_id")
+  kind           MessageType
+  status         MediaAssetStatus @default(PENDING)
+  /// Tipo declarado por el proveedor: sirve para decidir, nunca para servir.
+  declaredMime   String?          @map("declared_mime")
+  /// Tipo con el que se guardo y con el que se sirve.
+  mimeType       String?          @map("mime_type")
+  /// La firma de los bytes confirmo el tipo. Solo lo confirmado se muestra
+  /// dentro de la pagina; lo demas se descarga.
+  contentConfirmed Boolean        @default(false) @map("content_confirmed")
+  fileName       String?          @map("file_name")
+  sizeBytes      Int?             @map("size_bytes")
+  sha256         String?
+  storageDriver  String?          @map("storage_driver")
+  storageKey     String?          @map("storage_key")
+  attempts       Int              @default(0)
+  error          String?
+  downloadedAt   DateTime?        @map("downloaded_at")
+  expiresAt      DateTime?        @map("expires_at")
+  purgedAt       DateTime?        @map("purged_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message      Message?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([status, expiresAt])
+  @@index([provider, externalMediaId])
+  @@map("media_assets")
 }
 
 /// Evento crudo recibido de un proveedor. El webhook solo persiste y encola;
@@ -2216,6 +2283,7 @@ enum JobType {
   // Fase 10
   MAINTENANCE
   SEND_PUSH
+  DOWNLOAD_WHATSAPP_MEDIA
 }
 
 enum JobStatus {

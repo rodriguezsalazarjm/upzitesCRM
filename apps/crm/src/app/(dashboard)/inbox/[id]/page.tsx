@@ -27,9 +27,27 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     senderType: message.senderType,
     senderName: null,
     text: message.text,
+    type: message.type,
     status: message.status,
     errorMessage: message.errorMessage,
     createdAt: message.createdAt.toISOString(),
+    // El archivo no viaja al cliente: solo lo necesario para pintarlo y para
+    // pedirlo despues por una ruta que vuelve a comprobar la sesion.
+    media: message.media
+      ? {
+          id: message.media.id,
+          status: message.media.status,
+          kind: message.media.kind,
+          mimeType: message.media.mimeType,
+          fileName: message.media.fileName,
+          sizeBytes: message.media.sizeBytes,
+          inline:
+            message.media.contentConfirmed &&
+            ['image/', 'audio/', 'video/'].some((family) =>
+              (message.media?.mimeType ?? '').startsWith(family),
+            ),
+        }
+      : null,
   }));
 
   return (

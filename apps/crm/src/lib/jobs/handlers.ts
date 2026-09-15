@@ -25,6 +25,8 @@ import { pruneRateLimitWindows } from '../ops/rate-limit';
 import { ageStaleScores, expireOverdueQuotes } from '../ops/maintenance';
 import { enqueue } from './queue';
 import { sendPushJob } from '../push/send';
+import { downloadWhatsAppMedia } from '../whatsapp/media';
+import { purgeExpiredMedia, requeueBlockedMedia } from '../media/maintenance';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -35,6 +37,18 @@ export type JobHandler = (payload: Record<string, unknown>, workspaceId: string 
 
 const handlers: Record<JobType, JobHandler> = {
   [JobType.SEND_PUSH]: sendPushJob,
+
+  /**
+   * Descarga un archivo recibido por WhatsApp. Va por la cola y no por el
+   * webhook porque sale a internet y puede pesar megabytes: el webhook tiene
+   * que responder 200 antes de eso.
+   */
+  [JobType.DOWNLOAD_WHATSAPP_MEDIA]: async (payload) => {
+    const mediaAssetId = String(payload.mediaAssetId ?? '');
+    if (!mediaAssetId) throw new Error('DOWNLOAD_WHATSAPP_MEDIA requiere mediaAssetId.');
+    return downloadWhatsAppMedia(mediaAssetId);
+  },
+
   [JobType.PROCESS_WEBHOOK_EVENT]: async (payload) => {
     const eventId = String(payload.eventId ?? '');
     if (!eventId) throw new Error('PROCESS_WEBHOOK_EVENT requiere eventId.');
@@ -303,8 +317,10 @@ const handlers: Record<JobType, JobHandler> = {
     const prunedWindows = await pruneRateLimitWindows(24);
     const expiredQuotes = await expireOverdueQuotes();
     const agedScores = await ageStaleScores();
+    const media = await purgeExpiredMedia();
+    const blockedMedia = await requeueBlockedMedia();
 
-    return { prunedJobs, prunedWindows, expiredQuotes, agedScores };
+    return { prunedJobs, prunedWindows, expiredQuotes, agedScores, media, blockedMedia };
   },
 
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {

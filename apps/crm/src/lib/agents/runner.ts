@@ -20,6 +20,7 @@ import {
 } from './provider';
 import { toolByName, toolSpecsFor, type ToolContext } from './tools';
 import { refreshConversationSummary } from './summary';
+import { isMediaKind, mediaLabel } from '../media/policy';
 import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
 import { raiseAlert } from '../billing/alerts';
 import { checkAllowance, recordUsage } from '../billing/usage';
@@ -268,7 +269,7 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     where: { conversationId: conversation.id },
     orderBy: { createdAt: 'desc' },
     take: CONTEXT_MESSAGES,
-    select: { direction: true, text: true, senderType: true },
+    select: { direction: true, text: true, senderType: true, type: true },
   });
 
   const ordered = history.reverse();
@@ -290,10 +291,15 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
   }
 
   for (const message of ordered) {
-    if (!message.text) continue;
+    // Un adjunto sin texto se nombra en vez de omitirse. Saltarlo dejaba al
+    // agente contestando como si el cliente no hubiera mandado nada, que es
+    // justo el momento en que el cliente cree haber dicho lo importante.
+    // Se describe, no se interpreta: el modelo no ve el archivo.
+    const content = message.text ?? (isMediaKind(message.type) ? `[${mediaLabel(message.type)} recibido, sin texto]` : null);
+    if (!content) continue;
     messages.push({
       role: message.direction === 'INBOUND' ? 'user' : 'assistant',
-      content: message.text,
+      content,
     });
   }
 

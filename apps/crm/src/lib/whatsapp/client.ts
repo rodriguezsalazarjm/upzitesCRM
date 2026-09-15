@@ -16,7 +16,7 @@ export type ChannelCredentials = {
   accessTokenEncrypted: string | null;
 };
 
-function resolveToken(channel: ChannelCredentials) {
+export function resolveToken(channel: ChannelCredentials) {
   if (channel.accessTokenEncrypted) return decryptSecret(channel.accessTokenEncrypted);
   // Fallback para pilotos con onboarding manual: un token de sistema por env.
   return process.env.WHATSAPP_SYSTEM_ACCESS_TOKEN ?? null;

@@ -186,6 +186,7 @@ reemplaza el anterior.
 | `OPENAI_API_KEY` | No | El agente no puede responder |
 | `INTEGRATION_ENCRYPTION_KEY` | No | No se pueden guardar tokens |
 | `INTERNAL_WORKER_SECRET` | No | El cron no puede procesar la cola |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEDIA_STORAGE_BUCKET` | No | Los archivos recibidos quedan sin descargar y visibles como bloqueados |
 
 Una integración sin configurar **aparece inactiva; no tumba el CRM**. Solo la
 base de datos y la firma de sesión son obligatorias para arrancar.

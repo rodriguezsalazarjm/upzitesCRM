@@ -34,3 +34,6 @@ next-env.d.ts
 /generated/prisma
 
 .vercel
+
+# archivos recibidos guardados en disco local (driver filesystem, solo dev)
+.media/

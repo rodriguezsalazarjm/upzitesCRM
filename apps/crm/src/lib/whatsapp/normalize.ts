@@ -7,6 +7,16 @@ import { MessageStatus, MessageType } from '../../../generated/prisma/client';
  * evento que el resto del sistema entiende, sin que nada mas conozca la forma
  * del proveedor: cambiar de proveedor deberia tocar solo este archivo.
  */
+/**
+ * Un adjunto tal como lo anuncia Meta: un identificador, no el archivo.
+ * Resolverlo y descargarlo es trabajo posterior; aqui solo se recoge.
+ */
+export type NormalizedMedia = {
+  externalMediaId: string;
+  declaredMime?: string;
+  fileName?: string;
+};
+
 export type NormalizedInboundMessage = {
   kind: 'message';
   phoneNumberId: string;
@@ -16,6 +26,7 @@ export type NormalizedInboundMessage = {
   profileName?: string;
   type: MessageType;
   text?: string;
+  media?: NormalizedMedia;
   timestamp: Date;
   payload: Record<string, unknown>;
 };
@@ -106,6 +117,34 @@ function extractText(message: Json): string | undefined {
   return undefined;
 }
 
+/** Las claves del payload que contienen un adjunto descargable. */
+const MEDIA_KEYS = ['image', 'audio', 'video', 'document', 'sticker'] as const;
+
+/**
+ * Recoge el adjunto de un mensaje, si lo trae.
+ *
+ * Meta anida el medio bajo una clave distinta por tipo, y todas comparten la
+ * misma forma: `id`, `mime_type` y, en documentos, `filename`. Un sticker es un
+ * medio como cualquier otro aunque el CRM lo trate como imagen.
+ */
+function extractMedia(message: Json): NormalizedMedia | undefined {
+  for (const key of MEDIA_KEYS) {
+    const node = at(message, key);
+    if (!node) continue;
+
+    const externalMediaId = str(at(node, 'id'));
+    if (!externalMediaId) continue;
+
+    return {
+      externalMediaId,
+      declaredMime: str(at(node, 'mime_type')),
+      fileName: str(at(node, 'filename')),
+    };
+  }
+
+  return undefined;
+}
+
 /**
  * Convierte un payload de Meta en eventos normalizados.
  *
@@ -148,6 +187,7 @@ export function normalizeWebhookPayload(body: unknown): NormalizedEvent[] {
           profileName: profileByWaId.get(from),
           type: MESSAGE_TYPE_MAP[String(message.type)] ?? MessageType.TEXT,
           text: extractText(message),
+          media: extractMedia(message),
           timestamp: toDate(message.timestamp),
           payload: message,
         });

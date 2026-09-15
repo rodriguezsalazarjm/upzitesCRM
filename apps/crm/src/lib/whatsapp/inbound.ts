@@ -9,7 +9,10 @@ import {
   MessageStatus,
   WebhookEventStatus,
   AutomationTrigger,
+  JobType,
 } from '../../../generated/prisma/client';
+import { isMediaKind } from '../media/policy';
+import { enqueue } from '../jobs/queue';
 import { recordUsage } from '../billing/usage';
 import { prisma } from '../prisma';
 import { cancelForContact } from '../domain';
@@ -165,6 +168,8 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
   let countsAsNewConversation = false;
   let conversationWorkspaceId = '';
   let conversationId = '';
+  let mediaAssetPending = false;
+  let mediaMessageId = '';
 
   const contactId = await prisma.$transaction(async (tx) => {
     const before = await tx.contact.count({ where: { workspaceId: channel.workspaceId, phone } });
@@ -236,7 +241,7 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
       },
     });
 
-    await tx.message.create({
+    const message = await tx.message.create({
       data: {
         workspaceId: channel.workspaceId,
         conversationId: conversation.id,
@@ -251,6 +256,26 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
         deliveredAt: now,
       },
     });
+
+    // El adjunto se anota junto al mensaje, en la misma transaccion: si el
+    // mensaje existe, su archivo pendiente tambien. La descarga es otra cosa y
+    // ocurre despues, en la cola.
+    if (event.media && isMediaKind(event.type)) {
+      await tx.mediaAsset.create({
+        data: {
+          workspaceId: channel.workspaceId,
+          conversationId: conversation.id,
+          messageId: message.id,
+          provider: PROVIDER,
+          externalMediaId: event.media.externalMediaId,
+          kind: event.type,
+          declaredMime: event.media.declaredMime ?? null,
+          fileName: event.media.fileName ?? null,
+        },
+      });
+      mediaAssetPending = true;
+      mediaMessageId = message.id;
+    }
 
     await tx.contact.update({
       where: { id: contact.id },
@@ -275,6 +300,26 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
       referenceType: 'Conversation',
       referenceId: conversationId,
     });
+  }
+
+  // La descarga se encola fuera de la transaccion: tarda, sale a internet y no
+  // puede retener la fila del mensaje mientras tanto. El dedupe por mensaje
+  // hace inofensiva una reentrega del mismo evento.
+  if (mediaAssetPending) {
+    const asset = await prisma.mediaAsset.findUnique({
+      where: { messageId: mediaMessageId },
+      select: { id: true },
+    });
+
+    if (asset) {
+      await enqueue({
+        type: JobType.DOWNLOAD_WHATSAPP_MEDIA,
+        payload: { mediaAssetId: asset.id },
+        workspaceId: channel.workspaceId,
+        dedupeKey: `media:${asset.id}`,
+        priority: 40,
+      });
+    }
   }
 
   // El contacto respondio: se cancelan sus seguimientos pendientes. Va fuera de

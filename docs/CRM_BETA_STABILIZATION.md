@@ -17,6 +17,14 @@ pruebas realizadas con infraestructura o proveedores reales.
 - Embedded Signup, coexistencia, PWA, push y descarga de medios: pendientes al
   iniciar esta estabilizacion.
 
+## Migraciones creadas y no aplicadas en produccion
+
+En orden. Cada bloque funcional exige la suya antes de desplegarse.
+
+1. `20260914160000_human_takeover_outbox`
+2. `20260914170000_push_notifications`
+3. `20260914190000_whatsapp_media`
+
 ## Progreso
 
 ### Despliegue automatico de Vercel
@@ -204,12 +212,88 @@ preferencias, renovación, cierre de sesión y eliminación de endpoints en un
 dispositivo real conectado a una base aislada. No se generaron claves ni se
 contactó a ningún proveedor push.
 
+### Medios de WhatsApp
+
+Estado: implementacion completa en codigo; falta el bucket y una recepcion real.
+
+Meta no entrega el archivo en el webhook: entrega un identificador que caduca y
+que hay que resolver y descargar desde el servidor con el token del canal. De
+ahi salen las decisiones:
+
+- La descarga es un trabajo de la cola (`DOWNLOAD_WHATSAPP_MEDIA`), no parte del
+  webhook, que debe seguir respondiendo 200 rapido.
+- El navegador nunca ve el token ni una URL de Meta. El archivo se guarda en
+  almacenamiento propio y se sirve por `GET /api/media/[id]`, que vuelve a pedir
+  sesion y resuelve el workspace dentro del `where`.
+- La URL de descarga la propone Meta, o sea viene de fuera, y la peticion lleva
+  el token. Se valida contra una lista de destinos antes de pedirla, y cada
+  redireccion se sigue a mano para validarla tambien: seguirlas automaticamente
+  seria mandar el token a donde diga la cabecera `Location`.
+- El tipo lo declara quien envia, asi que se comprueba contra los primeros bytes
+  del archivo. Una contradiccion se rechaza. `image/svg+xml`, HTML y XML no se
+  guardan: son documentos con scripts, no imagenes.
+- Solo se muestra dentro de la pagina lo confirmado por firma y de familia
+  imagen, audio o video. Todo lo demas se descarga, con `nosniff`, CSP
+  restrictiva y `Cross-Origin-Resource-Policy: same-origin`.
+- Topes por tipo: imagen 5 MB, audio y video 16 MB, documento 25 MB. El tope de
+  documento es menor que el de WhatsApp (100 MB) porque el archivo se descarga
+  completo en memoria de una funcion antes de guardarlo.
+- Estados visibles en la bandeja: descargando, no admitido, caducado en el
+  proveedor, bloqueado por falta de configuracion, fallido y eliminado por
+  retencion. Fallido y bloqueado ofrecen reintento.
+- Retencion por defecto de 180 dias (`MEDIA_RETENTION_DAYS`). El mantenimiento
+  diario borra el archivo y deja la fila como `PURGED`, para que la conversacion
+  cuente que ahi hubo algo y por que ya no esta.
+- Un adjunto recibido no se convierte en consentimiento de marketing: el consentimiento
+  sigue siendo el de la conversacion y todo envio sigue pasando por `evaluateSend`.
+
+Almacenamiento: se agrego una capa con dos implementaciones, bucket privado de
+Supabase (REST, sin SDK nuevo) y disco local para desarrollo. El disco local se
+rechaza explicitamente en produccion: el sistema de archivos de Vercel es
+efimero y un archivo escrito ahi estaria perdido antes de que alguien lo abriera.
+
+La migracion `20260914190000_whatsapp_media` agrega la tabla `media_assets`, el
+enum `MediaAssetStatus` y el valor `DOWNLOAD_WHATSAPP_MEDIA`. No modifica datos
+existentes. Debe aplicarse antes de desplegar este bloque.
+
+Produccion necesita ademas `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y un
+bucket privado (`MEDIA_STORAGE_BUCKET`, por defecto `crm-media`). La clave de
+servicio es secreta y solo se usa en el servidor. Sin esas variables el sistema
+no se rompe: los adjuntos quedan en `BLOCKED` con el motivo escrito, y el
+mantenimiento los reencola solo en cuanto la configuracion exista.
+
+Validacion realizada: 27 pruebas unitarias nuevas (12 de politica de archivos,
+8 de destinos permitidos y extraccion desde el webhook, 7 de almacenamiento,
+incluyendo claves que intentan salir del directorio), Prisma validate,
+TypeScript y ESLint sin errores y build de produccion. No se descargo ningun
+archivo real: no hay bucket configurado ni se envio nada a Meta. Falta recibir
+una foto, un audio y un documento reales con el numero de prueba y comprobar la
+bandeja en el telefono.
+
+Fuera de alcance de este bloque: enviar archivos desde el CRM hacia el cliente.
+Solo se implemento la recepcion, que es lo que pedia el piloto.
+
+Protocolo de prueba pendiente, una vez exista el bucket y aplicada la migracion:
+
+1. Crear el bucket privado en Supabase (Storage > New bucket, **sin** acceso
+   publico) y cargar las tres variables en Vercel.
+2. Desde el telefono de prueba, enviar al numero de WhatsApp: una foto con
+   epigrafe, una foto sin epigrafe, un audio grabado y un PDF.
+3. En la bandeja: los cuatro deben verse: la foto incrustada, el audio con
+   reproductor, el PDF como descarga con su nombre y peso.
+4. Comprobar que el PDF se descarga y **no** se abre dentro del CRM.
+5. Abrir `/api/media/<id>` de un adjunto estando con sesion de otro workspace:
+   debe responder 404, no 403.
+6. Reenviar el mismo archivo: no debe duplicarse la fila ni volver a descargarse.
+
 ## Verificaciones de la linea base
 
-- Pruebas unitarias de WhatsApp: 12/12.
+- Pruebas unitarias de WhatsApp: 20/20.
 - Pruebas unitarias de onboarding: 9/9.
 - Pruebas unitarias de precios: 4/4.
 - Pruebas unitarias de push: 3/3.
+- Pruebas unitarias de archivos recibidos: 12/12.
+- Pruebas unitarias de almacenamiento: 7/7.
 - ESLint: 0 errores, 2 advertencias de estilo en archivos de configuracion.
 - Build CRM: correcto con pnpm 11.3.0.
 - Health de produccion: HTTP 200, base operativa y sin trabajos, outbox o

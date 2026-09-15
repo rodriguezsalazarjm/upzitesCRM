@@ -9,6 +9,7 @@ import {
   Check,
   CheckCheck,
   Clock,
+  Paperclip,
   RotateCw,
   Send,
   User,
@@ -16,16 +17,153 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+export type ThreadMedia = {
+  id: string;
+  status:
+    | 'PENDING'
+    | 'DOWNLOADING'
+    | 'STORED'
+    | 'REJECTED'
+    | 'EXPIRED'
+    | 'BLOCKED'
+    | 'FAILED'
+    | 'PURGED';
+  kind: string;
+  mimeType: string | null;
+  fileName: string | null;
+  sizeBytes: number | null;
+  /** Se puede mostrar dentro de la pagina; lo decidio el servidor, no el tipo declarado. */
+  inline: boolean;
+};
+
 export type ThreadMessage = {
   id: string;
   direction: 'INBOUND' | 'OUTBOUND';
   senderType: 'CONTACT' | 'USER' | 'AI' | 'SYSTEM';
   senderName: string | null;
   text: string | null;
+  type: string;
   status: 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED';
   errorMessage: string | null;
+  media: ThreadMedia | null;
   createdAt: string;
 };
+
+function formatSize(bytes: number | null) {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Que dice la bandeja cuando el archivo todavia no esta, o ya no va a estar. */
+const MEDIA_NOTICE: Record<ThreadMedia['status'], string | null> = {
+  PENDING: 'Descargando archivo…',
+  DOWNLOADING: 'Descargando archivo…',
+  STORED: null,
+  REJECTED: 'Archivo no admitido por politica de seguridad.',
+  EXPIRED: 'WhatsApp ya no conserva este archivo.',
+  BLOCKED: 'Falta configurar el almacenamiento de archivos.',
+  FAILED: 'No se pudo descargar el archivo.',
+  PURGED: 'Archivo eliminado por politica de retencion.',
+};
+
+const LABELS: Record<string, string> = {
+  IMAGE: 'Imagen',
+  AUDIO: 'Audio',
+  VIDEO: 'Video',
+  DOCUMENT: 'Documento',
+};
+
+/**
+ * El adjunto dentro de la burbuja.
+ *
+ * Un archivo que no llego nunca se muestra como una burbuja vacia: siempre dice
+ * en que estado quedo. Y solo se incrusta lo que el servidor marco como seguro
+ * de mostrar; el resto se ofrece para descargar.
+ */
+function MediaBubble({
+  media,
+  outbound,
+  onRetry,
+}: {
+  media: ThreadMedia;
+  outbound: boolean;
+  onRetry: (mediaId: string) => void;
+}) {
+  const href = `/api/media/${media.id}`;
+  const label = LABELS[media.kind] ?? 'Adjunto';
+  const size = formatSize(media.sizeBytes);
+  const notice = MEDIA_NOTICE[media.status];
+  const retryable = media.status === 'FAILED' || media.status === 'BLOCKED';
+
+  if (media.status === 'STORED' && media.inline) {
+    if (media.mimeType?.startsWith('image/')) {
+      return (
+        <a href={href} target="_blank" rel="noreferrer noopener" className="block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={href}
+            alt={media.fileName ?? label}
+            loading="lazy"
+            className="max-h-72 w-full rounded-xl object-cover"
+          />
+        </a>
+      );
+    }
+
+    if (media.mimeType?.startsWith('audio/')) {
+      return <audio controls preload="none" src={href} className="w-full max-w-[16rem]" />;
+    }
+
+    if (media.mimeType?.startsWith('video/')) {
+      return <video controls preload="none" src={href} className="max-h-72 w-full rounded-xl" />;
+    }
+  }
+
+  if (media.status === 'STORED') {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className={cn(
+          'flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs',
+          outbound ? 'bg-blue-500/40' : 'bg-slate-100',
+        )}
+      >
+        <Paperclip className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate font-medium">{media.fileName ?? label}</span>
+        {size && <span className="shrink-0 opacity-70">{size}</span>}
+      </a>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl px-2.5 py-2 text-[11px]',
+        outbound ? 'bg-blue-500/40' : 'bg-slate-100 text-slate-600',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Paperclip className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{media.fileName ?? label}</span>
+      </div>
+      {notice && <p className="mt-1 opacity-80">{notice}</p>}
+      {retryable && (
+        <button
+          type="button"
+          className="mt-1 flex items-center gap-1 font-semibold hover:underline"
+          onClick={() => onRetry(media.id)}
+        >
+          <RotateCw className="h-3 w-3" />
+          Reintentar descarga
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** Un icono por estado, para que el operador vea de un vistazo si llego. */
 function StatusIcon({ status }: { status: ThreadMessage['status'] }) {
@@ -124,6 +262,11 @@ export function ConversationClient({
     return true;
   }
 
+  async function retryMedia(mediaId: string) {
+    const ok = await post(`/api/media/${mediaId}/retry`);
+    if (ok) setNotice('La descarga del archivo se volvio a encolar.');
+  }
+
   async function send() {
     const value = text.trim();
     if (!value) return;
@@ -190,7 +333,26 @@ export function ConversationClient({
                   </p>
                 )}
 
-                <p className="whitespace-pre-wrap text-sm">{message.text ?? '(sin texto)'}</p>
+                {message.media && (
+                  <div className={cn(message.text && 'mb-1.5')}>
+                    <MediaBubble
+                      media={message.media}
+                      outbound={outbound}
+                      onRetry={retryMedia}
+                    />
+                  </div>
+                )}
+
+                {message.text ? (
+                  <p className="whitespace-pre-wrap text-sm">{message.text}</p>
+                ) : message.media ? null : (
+                  // Un mensaje sin texto y sin adjunto sigue siendo posible
+                  // (una ubicacion, un contacto compartido): se nombra en vez
+                  // de dejar la burbuja vacia.
+                  <p className="text-sm italic opacity-70">
+                    {LABELS[message.type] ?? '(sin texto)'}
+                  </p>
+                )}
 
                 <div
                   className={cn(

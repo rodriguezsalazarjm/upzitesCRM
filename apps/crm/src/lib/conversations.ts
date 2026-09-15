@@ -5,6 +5,7 @@ import { prisma } from './prisma';
 import { activateHumanControl } from './whatsapp/human-control';
 import { lockConversation } from './whatsapp/outbound';
 import { queuePushSafely } from './push/events';
+import { isMediaKind, mediaLabel } from './media/policy';
 
 /**
  * Consultas y acciones de la bandeja. Toda funcion resuelve el workspace desde
@@ -46,7 +47,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
     include: {
       contact: { select: { firstName: true, lastName: true, phone: true, temperature: true } },
       assignee: { select: { name: true } },
-      messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { text: true } },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { text: true, type: true } },
     },
   });
 
@@ -57,7 +58,13 @@ export async function listConversations(filters: ConversationFilters = {}) {
     contactName: `${conversation.contact.firstName} ${conversation.contact.lastName}`.trim(),
     contactPhone: conversation.contact.phone,
     lastMessageAt: conversation.lastMessageAt.toISOString(),
-    lastMessagePreview: conversation.messages[0]?.text ?? null,
+    // Una foto sin epigrafe dejaba la lista en blanco, como si la conversacion
+    // no tuviera nada nuevo. Se nombra el tipo de adjunto.
+    lastMessagePreview:
+      conversation.messages[0]?.text ??
+      (conversation.messages[0] && isMediaKind(conversation.messages[0].type)
+        ? mediaLabel(conversation.messages[0].type)
+        : null),
     mode: conversation.mode,
     status: conversation.status,
     unreadCount: conversation.unreadCount,
@@ -80,7 +87,24 @@ export async function getConversationDetail(conversationId: string) {
       contact: true,
       assignee: { select: { id: true, name: true } },
       channel: { select: { displayPhoneNumber: true, status: true } },
-      messages: { orderBy: { createdAt: 'asc' }, take: 200 },
+      messages: {
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+        include: {
+          media: {
+            select: {
+              id: true,
+              status: true,
+              kind: true,
+              mimeType: true,
+              fileName: true,
+              sizeBytes: true,
+              contentConfirmed: true,
+              error: true,
+            },
+          },
+        },
+      },
     },
   });
 
