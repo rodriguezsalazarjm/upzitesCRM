@@ -1024,23 +1024,60 @@ model CommerceConnection {
 /// de entorno, que sigue siendo la cuenta de Upzites usada para cobrar la
 /// suscripcion del CRM (src/lib/mercado-pago.ts mantiene ambos caminos por
 /// separado a proposito).
+///
+/// Dos formas de llegar a CONNECTED, coexistiendo (Fase A2):
+///  - OAUTH: el vendedor autoriza la aplicacion de Mercado Pago de Upzites
+///    Flow (marketplace). Trae accessToken + refreshToken + vencimiento;
+///    el webhook secret es el DE LA APLICACION (MERCADO_PAGO_WEBHOOK_SECRET),
+///    no uno por fila — por eso webhookSecretEncrypted queda null aqui.
+///  - MANUAL: el operador pega su propio access token y secreto de webhook
+///    (Fase A original). Sigue disponible como modo avanzado/legacy.
 model MercadoPagoConnection {
-  id                      String            @id @default(cuid())
-  workspaceId             String            @unique @map("workspace_id")
-  mode                    MercadoPagoMode   @default(TEST)
-  publicKey               String?           @map("public_key")
-  accessTokenEncrypted    String?           @map("access_token_encrypted")
-  webhookSecretEncrypted  String?           @map("webhook_secret_encrypted")
-  status                  IntegrationStatus @default(DISCONNECTED)
-  connectedAt             DateTime?         @map("connected_at")
-  lastVerifiedAt          DateTime?         @map("last_verified_at")
-  lastError               String?           @map("last_error")
-  createdAt               DateTime          @default(now()) @map("created_at")
-  updatedAt               DateTime          @updatedAt @map("updated_at")
+  id                      String                      @id @default(cuid())
+  workspaceId             String                      @unique @map("workspace_id")
+  connectionMethod        MercadoPagoConnectionMethod @default(MANUAL) @map("connection_method")
+  mode                    MercadoPagoMode             @default(TEST)
+  /// ID de usuario/vendedor de Mercado Pago (OAuth: `user_id` de la respuesta
+  /// de token; MANUAL: se resuelve con GET /users/me al conectar). Es lo que
+  /// el webhook compara contra `collector_id` del pago para atar cada
+  /// notificacion a la cuenta correcta, incluso si alguien manipula la URL.
+  mercadoPagoUserId       String?                     @map("mercado_pago_user_id")
+  publicKey               String?                     @map("public_key")
+  accessTokenEncrypted    String?                     @map("access_token_encrypted")
+  /// Solo OAuth: null en conexiones MANUAL (no hay refresh token que pedir).
+  refreshTokenEncrypted   String?                     @map("refresh_token_encrypted")
+  accessTokenExpiresAt    DateTime?                   @map("access_token_expires_at")
+  /// Solo MANUAL: en OAuth el secreto es el de la aplicacion (entorno), no de
+  /// esta fila.
+  webhookSecretEncrypted  String?                     @map("webhook_secret_encrypted")
+  scopes                  String?
+  status                  MercadoPagoConnectionStatus @default(DISCONNECTED)
+  connectedAt             DateTime?                   @map("connected_at")
+  lastRefreshAt           DateTime?                   @map("last_refresh_at")
+  lastVerifiedAt          DateTime?                   @map("last_verified_at")
+  lastErrorCode           String?                     @map("last_error_code")
+  lastError               String?                     @map("last_error")
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("mercado_pago_connections")
+}
+
+enum MercadoPagoConnectionMethod {
+  OAUTH
+  MANUAL
+}
+
+/// Distinto de IntegrationStatus (generico): REAUTH_REQUIRED no aplica a
+/// WhatsApp/Shopify y no queremos que un `switch` de esos providers tenga
+/// que contemplar un caso que nunca les corresponde.
+enum MercadoPagoConnectionStatus {
+  DISCONNECTED
+  CONNECTED
+  NEEDS_ATTENTION
+  REAUTH_REQUIRED
 }
 
 model Product {
