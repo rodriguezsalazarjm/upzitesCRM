@@ -40,7 +40,7 @@ export async function purgeExpiredMedia(now = new Date()) {
   // un dato se elimino cuando sigue ahi es la peor forma de equivocarse.
   let storage;
   try {
-    storage = resolveStorage();
+    storage = await resolveStorage();
   } catch {
     return { purged: 0, failed: expired.length };
   }

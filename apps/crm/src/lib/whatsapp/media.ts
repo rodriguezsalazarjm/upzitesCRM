@@ -289,7 +289,7 @@ export async function downloadWhatsAppMedia(mediaAssetId: string): Promise<Downl
       return fail(MediaAssetStatus.REJECTED, 'El archivo no coincide con su huella declarada.');
     }
 
-    const storage = resolveStorage();
+    const storage = await resolveStorage();
     const now = new Date();
     const key = [
       'workspaces',

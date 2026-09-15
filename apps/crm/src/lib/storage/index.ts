@@ -1,6 +1,3 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve, sep } from 'node:path';
-
 /**
  * Almacenamiento de archivos.
  *
@@ -37,7 +34,7 @@ export type StorageDriver = {
  */
 const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]{0,512}$/;
 
-function assertKey(key: string) {
+export function assertKey(key: string) {
   if (!KEY_PATTERN.test(key) || key.includes('..') || key.includes('//')) {
     throw new Error('Clave de almacenamiento invalida.');
   }
@@ -99,51 +96,6 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
       if (!response.ok && response.status !== 404) {
         throw new Error(`El almacenamiento rechazo el borrado (HTTP ${response.status}).`);
       }
-    },
-  };
-}
-
-// --- Disco local ------------------------------------------------------------
-
-/**
- * Solo para desarrollo y pruebas. En Vercel el sistema de archivos es efimero
- * y no se comparte entre invocaciones: un archivo escrito aqui en produccion
- * estaria perdido antes de que alguien lo abriera, asi que se rechaza.
- */
-function filesystemDriver(root: string): StorageDriver {
-  const base = resolve(process.cwd(), root);
-
-  const pathFor = (key: string) => {
-    assertKey(key);
-    const full = resolve(join(base, key));
-    if (full !== base && !full.startsWith(base + sep)) {
-      throw new Error('Clave de almacenamiento invalida.');
-    }
-    return full;
-  };
-
-  return {
-    name: 'filesystem',
-
-    async put(key, bytes) {
-      const path = pathFor(key);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, bytes);
-    },
-
-    async get(key) {
-      const path = pathFor(key);
-      try {
-        // El tipo con el que se sirve sale de la base, no del disco: es el que
-        // se verifico contra los bytes al guardarlo.
-        return { bytes: new Uint8Array(await readFile(path)), contentType: 'application/octet-stream' };
-      } catch {
-        return null;
-      }
-    },
-
-    async remove(key) {
-      await rm(pathFor(key), { force: true });
     },
   };
 }
@@ -216,7 +168,7 @@ export function storageStatus(): StorageStatus {
  * Lanzar y no devolver `null` es deliberado: un archivo que se cree guardado y
  * no lo este es peor que un fallo ruidoso.
  */
-export function resolveStorage(): StorageDriver {
+export async function resolveStorage(): Promise<StorageDriver> {
   const status = storageStatus();
   if (!status.configured) {
     throw new StorageNotConfiguredError(status.reason ?? 'Almacenamiento no configurado.');
@@ -227,5 +179,8 @@ export function resolveStorage(): StorageDriver {
     return supabaseDriver(url as string, key as string, bucket);
   }
 
-  return filesystemDriver(process.env.MEDIA_STORAGE_DIR?.trim() || '.media');
+  // Import dinamico: el driver de disco usa `process.cwd()` y no debe entrar
+  // en el paquete de produccion, donde ademas nunca se elige.
+  const { createFilesystemDriver } = await import('./filesystem');
+  return createFilesystemDriver(assertKey);
 }

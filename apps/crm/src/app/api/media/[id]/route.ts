@@ -62,7 +62,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   let stored;
   try {
-    stored = await resolveStorage().get(asset.storageKey);
+    stored = await (await resolveStorage()).get(asset.storageKey);
   } catch {
     return NextResponse.json(
       { message: 'No se pudo leer el archivo del almacenamiento.' },
