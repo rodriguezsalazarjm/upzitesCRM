@@ -23,6 +23,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!selected) return NextResponse.json({ message: 'Servicio no encontrado.' }, { status: 404 });
 
   const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM workspaces WHERE id = ${user.workspace.id} FOR UPDATE`;
     const archived = await tx.pricingRuleSet.updateMany({
       where: { workspaceId: user.workspace.id, serviceKey: selected.serviceKey },
       data: { status: 'ARCHIVED' },

@@ -59,6 +59,8 @@ export async function POST(request: Request) {
   const input = parsed.data;
 
   const ruleSet = await prisma.$transaction(async (tx) => {
+    // Serializa la numeracion de borradores dentro del workspace.
+    await tx.$queryRaw`SELECT id FROM workspaces WHERE id = ${user.workspace.id} FOR UPDATE`;
     const last = await tx.pricingRuleSet.findFirst({
       where: { workspaceId: user.workspace.id, serviceKey: input.serviceKey },
       orderBy: { version: 'desc' },

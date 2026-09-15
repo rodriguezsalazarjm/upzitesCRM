@@ -22,38 +22,41 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     );
   }
 
-  const ruleSet = await prisma.pricingRuleSet.findFirst({
-    where: { id, workspaceId: user.workspace.id },
-    select: {
-      id: true,
-      serviceKey: true,
-      version: true,
-      status: true,
-      intakeSchema: true,
-      rules: true,
-    },
-  });
-
-  if (!ruleSet) return NextResponse.json({ message: 'Reglas no encontradas' }, { status: 404 });
-  if (ruleSet.status === PricingRuleSetStatus.PUBLISHED) {
-    return NextResponse.json({ data: { alreadyPublished: true } });
-  }
-  if (ruleSet.status !== PricingRuleSetStatus.DRAFT) {
-    return NextResponse.json(
-      {
-        message: 'Este servicio está desactivado. Crea un borrador nuevo para volver a publicarlo.',
+  return prisma.$transaction(async (tx) => {
+    // Publicar y archivar comparten el bloqueo: nunca hay dos versiones vigentes.
+    await tx.$queryRaw`SELECT id FROM workspaces WHERE id = ${user.workspace.id} FOR UPDATE`;
+    const ruleSet = await tx.pricingRuleSet.findFirst({
+      where: { id, workspaceId: user.workspace.id },
+      select: {
+        id: true,
+        serviceKey: true,
+        version: true,
+        status: true,
+        intakeSchema: true,
+        rules: true,
       },
-      { status: 409 },
-    );
-  }
-  if (!isRuleSetUsable(ruleSet.intakeSchema, ruleSet.rules)) {
-    return NextResponse.json(
-      { message: 'Completa una regla de precio válida antes de publicar este servicio.' },
-      { status: 422 },
-    );
-  }
+    });
 
-  await prisma.$transaction(async (tx) => {
+    if (!ruleSet) return NextResponse.json({ message: 'Reglas no encontradas' }, { status: 404 });
+    if (ruleSet.status === PricingRuleSetStatus.PUBLISHED) {
+      return NextResponse.json({ data: { alreadyPublished: true } });
+    }
+    if (ruleSet.status !== PricingRuleSetStatus.DRAFT) {
+      return NextResponse.json(
+        {
+          message:
+            'Este servicio está desactivado. Crea un borrador nuevo para volver a publicarlo.',
+        },
+        { status: 409 },
+      );
+    }
+    if (!isRuleSetUsable(ruleSet.intakeSchema, ruleSet.rules)) {
+      return NextResponse.json(
+        { message: 'Completa una regla de precio válida antes de publicar este servicio.' },
+        { status: 422 },
+      );
+    }
+
     await tx.pricingRuleSet.updateMany({
       where: {
         workspaceId: user.workspace.id,
@@ -77,7 +80,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       },
       tx,
     );
+    return NextResponse.json({ data: { published: ruleSet.version } });
   });
-
-  return NextResponse.json({ data: { published: ruleSet.version } });
 }
