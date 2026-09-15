@@ -6,8 +6,15 @@ Este archivo se actualiza al cierre de cada fase. No reemplaza a `contexto.md`.
 - **Fase actual:** 10 — Hardening y lanzamiento beta
 - **Estado:** COMPLETADA. **Las 11 fases estan cerradas**, y ademas se corrigieron los seis
   defectos de la deuda que afectaban al comportamiento (D13, D22, D27, D29, D30, D41).
-  Lo que queda para vender la beta son tareas del propietario (seccion 9), no codigo.
-- **Ultima actualizacion:** 2026-09-11
+- **Despues de las 11 fases** se abrio un trabajo de estabilizacion (13-14 de septiembre)
+  que agrego despliegue automatico, cerco de pruebas, toma de control humana, inbox movil,
+  PWA, notificaciones push, recepcion de archivos de WhatsApp y una puesta en marcha que
+  pide solo lo que cada negocio necesita. Ese trabajo tiene sus propios documentos:
+  **[CIERRE-BETA.md](CIERRE-BETA.md)** (estado real, migraciones pendientes, riesgos y la
+  proxima accion) y [CRM_BETA_STABILIZATION.md](CRM_BETA_STABILIZATION.md) (detalle tecnico).
+- **Atencion:** hay **cuatro migraciones sin aplicar** en produccion y ocho commits sin
+  publicar. Ver CIERRE-BETA.md antes de desplegar.
+- **Ultima actualizacion:** 2026-09-14
 
 ---
 

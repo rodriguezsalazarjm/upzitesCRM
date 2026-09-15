@@ -111,16 +111,31 @@ los clientes del proveedor.
 |---|---|
 | Contactos, conversaciones, pedidos | Mientras el workspace exista |
 | Entradas de supresión | **Indefinidamente**, a propósito |
+| Archivos recibidos por WhatsApp | 180 días (`MEDIA_RETENTION_DAYS`) |
+| Eventos crudos de webhook ya procesados | 30 días |
+| Eventos de webhook fallidos | Hasta que alguien los resuelva |
 | Trabajos de la cola terminados | 7 días |
 | Ventanas de rate limiting | 24 horas |
+| Suscripciones push | Hasta cerrar sesión o que el navegador las caduque |
 | Registros de auditoría | Mientras el workspace exista |
 
 Borrar un workspace borra en cascada todos sus datos. La lista de supresión se
 va con él, que es correcto: es del negocio, no de la plataforma.
 
-> **Pendiente:** no hay un flujo de "borrar mis datos" para el titular ni
-> exportación por contacto. Es un requisito de la normativa chilena de datos
-> personales vigente desde 2026 y hay que resolverlo antes de la beta pública.
+**Borrar un contacto** borra además los archivos que esa persona envió, que
+viven fuera de la base y a los que la cascada no llega. Se borran en el momento;
+si el almacenamiento no responde justo entonces, el mantenimiento diario los
+recoge igual. Lo que **no** desaparece con el contacto son los registros de
+auditoría ni los pedidos ya facturados: son obligaciones contables y
+trazabilidad de decisiones, no datos de marketing.
+
+> **Pendiente:** no hay un flujo de "borrar mis datos" ni de exportación que el
+> **titular** pueda ejercer por sí mismo. Hoy solo el operador del workspace
+> puede borrar un contacto o exportar su lista completa en CSV, y no existe
+> una exportación de todo lo que el sistema sabe de **una** persona. La
+> normativa chilena de datos personales lo exige; la fecha exacta de exigibilidad
+> y el alcance concreto los tiene que confirmar el abogado (T24), no este
+> documento.
 
 ---
 
@@ -141,6 +156,7 @@ va con él, que es correcto: es del negocio, no de la plataforma.
 | Pendiente | Quién |
 |---|---|
 | Redacción legal de la política y los términos | Abogado (T24) |
-| Flujo de borrado y exportación por titular | Desarrollo |
+| Flujo de borrado y exportación **por titular** (no por operador) | Desarrollo |
+| Probar una restauración real desde backup de Supabase | Propietario |
 | Designar responsable de datos y canal de contacto | Propietario |
 | Acuerdos de encargado con Meta, Resend, Mercado Pago y OpenAI | Propietario |

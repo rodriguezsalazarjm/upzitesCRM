@@ -20,6 +20,7 @@ causa hace más daño que apagarlo y encenderlo después.
 6. [Se envió algo que no debía enviarse](#6-se-envio-algo-que-no-debia-enviarse)
 7. [La base de datos no responde](#7-la-base-de-datos-no-responde)
 8. [Se filtró un secreto](#8-se-filtro-un-secreto)
+9. [Los archivos recibidos no aparecen](#9-los-archivos-recibidos-no-aparecen)
 
 ---
 
@@ -281,6 +282,47 @@ En este orden:
 
 ---
 
+## 9. Los archivos recibidos no aparecen
+
+**Síntoma:** en la bandeja, un mensaje con foto o documento muestra el adjunto
+con un estado en vez del archivo.
+
+### Diagnosticar
+
+El estado que muestra la burbuja ya dice casi todo. No hay que adivinar:
+
+| Lo que dice | Qué pasó | Qué hacer |
+|---|---|---|
+| Descargando archivo… | El trabajo está encolado o corriendo | Esperar. Si lleva minutos, mirar si la cola avanza (runbook 4) |
+| Falta configurar el almacenamiento | No hay bucket ni claves | Cargar `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `MEDIA_STORAGE_BUCKET`. **Se reintenta solo** en el mantenimiento diario |
+| No se pudo descargar el archivo | Fallo de red o de Meta | Botón "Reintentar descarga" en la misma burbuja |
+| WhatsApp ya no conserva este archivo | Caducó en el proveedor | No se recupera. Pedirle al cliente que lo reenvíe |
+| Archivo no admitido | Tipo o tamaño fuera de política | Es correcto que no esté. Pedir otro formato |
+| Archivo eliminado por retención | Pasaron los días de `MEDIA_RETENTION_DAYS` | No se recupera |
+
+Consulta directa, si hace falta el panorama de un workspace:
+
+```sql
+select status, count(*), max(created_at)
+from media_assets
+where workspace_id = '<id>'
+group by status;
+```
+
+### Reparar
+
+Si son muchos y la causa era el almacenamiento, no hay que tocarlos uno a uno:
+el mantenimiento diario reencola todo lo que quedó bloqueado. Para adelantarlo,
+encolar un `MAINTENANCE` a mano.
+
+### Lo que NO hay que hacer
+
+No pedirle a Meta el archivo desde el navegador ni pegar una URL de
+`lookaside.fbsbx.com` en una pestaña: esas direcciones exigen el token del canal
+y compartirlas es filtrar la credencial. La descarga es siempre del servidor.
+
+---
+
 ## Contactos y accesos
 
 | Qué | Dónde |
@@ -290,3 +332,4 @@ En este orden:
 | Repositorio | `github.com/rodriguezsalazarjm/upzitesCRM` |
 | Estado de implementación | `docs/IMPLEMENTATION_STATUS.md` |
 | Operación diaria | `docs/OPERACION.md` |
+| Cierre de la beta y pendientes | `docs/CIERRE-BETA.md` |

@@ -6,6 +6,11 @@ Este documento registra el avance verificable del cierre tecnico de la beta. No
 reemplaza `IMPLEMENTATION_STATUS.md`; distingue el codigo existente de las
 pruebas realizadas con infraestructura o proveedores reales.
 
+> El resumen de entrega —estado por funcionalidad, migraciones pendientes,
+> variables nuevas, riesgos y la proxima accion concreta— esta en
+> [CIERRE-BETA.md](CIERRE-BETA.md). Este archivo es el detalle tecnico detras
+> de ese resumen.
+
 ## Linea base
 
 - Rama: `master`.
