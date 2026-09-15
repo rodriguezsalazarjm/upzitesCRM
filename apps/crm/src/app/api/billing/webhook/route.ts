@@ -10,7 +10,10 @@ import {
   verifyWebhookSignature,
   verifyWorkspaceWebhookSignature,
 } from '@/lib/mercado-pago';
-import { getWorkspaceMercadoPagoConnection } from '@/lib/commerce/mercado-pago-connection';
+import {
+  getValidWorkspaceMercadoPagoToken,
+  getWorkspaceMercadoPagoWebhookSecret,
+} from '@/lib/commerce/mercado-pago-connection';
 
 /**
  * Webhook publico de Mercado Pago. Es la UNICA fuente de verdad para activar
@@ -243,8 +246,11 @@ async function handleWorkspaceOrderWebhook(input: {
   xSignature: string | null;
   xRequestId: string | null;
 }) {
-  const connection = await getWorkspaceMercadoPagoConnection(input.workspaceId);
-  if (!connection) {
+  // El secreto se resuelve SIN tocar el access token ni intentar un refresh:
+  // verificar una firma no deberia poder gastar el cupo de refresh OAuth de
+  // un vendedor real solo porque alguien manda firmas invalidas.
+  const secret = await getWorkspaceMercadoPagoWebhookSecret(input.workspaceId);
+  if (!secret) {
     console.error('order_webhook_workspace_not_connected', { workspaceId: input.workspaceId });
     return NextResponse.json({ message: 'Workspace sin Mercado Pago conectado' }, { status: 404 });
   }
@@ -253,7 +259,7 @@ async function handleWorkspaceOrderWebhook(input: {
     xSignature: input.xSignature,
     xRequestId: input.xRequestId,
     dataId: input.dataId,
-    webhookSecret: connection.webhookSecret,
+    webhookSecret: secret.webhookSecret,
   });
 
   if (!verification.valid) {
@@ -264,7 +270,7 @@ async function handleWorkspaceOrderWebhook(input: {
     });
     await prisma.mercadoPagoConnection.update({
       where: { workspaceId: input.workspaceId },
-      data: { lastError: `Firma invalida: ${verification.reason}` },
+      data: { lastErrorCode: 'INVALID_SIGNATURE', lastError: `Firma invalida: ${verification.reason}` },
     });
     return NextResponse.json({ message: 'Firma invalida' }, { status: 401 });
   }
@@ -273,6 +279,14 @@ async function handleWorkspaceOrderWebhook(input: {
   // para que Mercado Pago no reintente indefinidamente.
   if (input.type !== 'payment' || !input.dataId) {
     return NextResponse.json({ ok: true, ignored: true });
+  }
+
+  // Firma ya validada: ahora si vale la pena resolver (y de ser necesario,
+  // refrescar) un access token utilizable para recuperar el pago real.
+  const connection = await getValidWorkspaceMercadoPagoToken(input.workspaceId);
+  if (!connection) {
+    console.error('order_webhook_token_unavailable', { workspaceId: input.workspaceId });
+    return NextResponse.json({ message: 'No se pudo obtener un token valido' }, { status: 409 });
   }
 
   const paymentClient = getWorkspacePaymentClient(connection);
@@ -290,6 +304,32 @@ async function handleWorkspaceOrderWebhook(input: {
       paymentId: input.dataId,
     });
     return NextResponse.json({ message: 'El pago no pertenece a este workspace' }, { status: 400 });
+  }
+
+  // Vinculo vendedor <-> workspace: el `collector_id` que Mercado Pago informa
+  // como dueno del pago debe ser la MISMA cuenta que este workspace conecto.
+  // Esto es lo que impide una asociacion cross-tenant incluso si alguien
+  // manipulara el workspaceId de la URL (el resto de los controles ya lo
+  // habrian rechazado, pero este ademas no depende de la URL en absoluto).
+  if (
+    connection.mercadoPagoUserId &&
+    payment.collector_id !== undefined &&
+    String(payment.collector_id) !== connection.mercadoPagoUserId
+  ) {
+    console.error('order_webhook_seller_mismatch', {
+      workspaceId: input.workspaceId,
+      expectedSeller: connection.mercadoPagoUserId,
+      paymentSeller: payment.collector_id,
+      paymentId: input.dataId,
+    });
+    await prisma.mercadoPagoConnection.update({
+      where: { workspaceId: input.workspaceId },
+      data: {
+        lastErrorCode: 'SELLER_MISMATCH',
+        lastError: 'Un pago llego con un vendedor de Mercado Pago distinto al conectado.',
+      },
+    });
+    return NextResponse.json({ message: 'El vendedor del pago no coincide con la conexion' }, { status: 409 });
   }
 
   const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
@@ -311,7 +351,11 @@ async function handleWorkspaceOrderWebhook(input: {
 
   await prisma.mercadoPagoConnection.update({
     where: { workspaceId: input.workspaceId },
-    data: { lastVerifiedAt: new Date(), lastError: result.handled ? null : (result.reason ?? 'no procesado') },
+    data: {
+      lastVerifiedAt: new Date(),
+      lastErrorCode: result.handled ? null : 'ORDER_WEBHOOK_REJECTED',
+      lastError: result.handled ? null : (result.reason ?? 'no procesado'),
+    },
   });
 
   if (!result.handled) {

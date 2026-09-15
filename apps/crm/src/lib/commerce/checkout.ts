@@ -8,7 +8,7 @@ import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { cancelByKey, scheduleAction } from '../domain';
 import { getWorkspacePreferenceClient } from '../mercado-pago';
-import { getWorkspaceMercadoPagoConnection } from './mercado-pago-connection';
+import { getValidWorkspaceMercadoPagoToken } from './mercado-pago-connection';
 
 /**
  * Checkout de un pedido con Mercado Pago.
@@ -57,7 +57,7 @@ export async function createOrderCheckout(input: {
     throw new CheckoutError('El pedido ya esta pagado.', 'INVALID_STATE');
   }
 
-  const connection = await getWorkspaceMercadoPagoConnection(input.workspaceId);
+  const connection = await getValidWorkspaceMercadoPagoToken(input.workspaceId);
   if (!connection) {
     throw new CheckoutError(
       'Este workspace todavia no conecto su cuenta de Mercado Pago.',
