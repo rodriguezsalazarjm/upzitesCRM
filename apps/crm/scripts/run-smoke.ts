@@ -11,6 +11,7 @@ const suites = [
   'smoke-fase7.ts',
   'smoke-fase8.ts',
   'smoke-fase9.ts',
+  'smoke-fase-a.ts',
   'smoke-critico.ts',
   'smoke-beta.ts',
 ];
