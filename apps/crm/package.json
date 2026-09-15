@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "visual:prepare": "node scripts/visual/run.mjs prepare",
+    "visual:dev": "node scripts/visual/run.mjs dev",
+    "visual:build": "node scripts/visual/run.mjs build",
+    "visual:worker": "node scripts/visual/run.mjs worker",
+    "visual:check": "node scripts/visual/run.mjs check",
     "dev": "next dev -p 3001",
     "prebuild": "prisma generate",
     "build": "next build",

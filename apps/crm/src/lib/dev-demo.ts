@@ -14,7 +14,7 @@ export const DEV_DEMO_USER = {
 };
 
 export function isDevDemoEnabled() {
-  return process.env.NODE_ENV !== 'production';
+  return process.env.NODE_ENV !== 'production' && process.env.LOCAL_VISUAL_TEST !== '1';
 }
 
 export function isDemoCredential(email: string, password: string) {

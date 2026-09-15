@@ -23,6 +23,7 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .codex-logs/
+apps/crm/.local-visual/
 
 # misc
 .DS_Store
