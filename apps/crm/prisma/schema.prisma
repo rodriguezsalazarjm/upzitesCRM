@@ -164,6 +164,9 @@ model Contact {
   utmCampaign    String?       @map("utm_campaign")
   value          Int           @default(0)
   tags           String[]      @default([])
+  /// Campos dinamicos por workspace (Flow Builder: nodo CONDITION/ACTION).
+  /// No hay UI de definicion de esquema todavia: es un mapa libre {key: value}.
+  customFields   Json?         @map("custom_fields")
   lastActivityAt DateTime?     @map("last_activity_at")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
@@ -2668,6 +2671,9 @@ enum JobType {
   MAINTENANCE
   SEND_PUSH
   DOWNLOAD_WHATSAPP_MEDIA
+  // Fase C
+  PROCESS_CHANNEL_EVENT
+  RUN_FLOW_STEP
 }
 
 enum JobStatus {

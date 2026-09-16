@@ -28,6 +28,8 @@ import { enqueue } from './queue';
 import { sendPushJob } from '../push/send';
 import { downloadWhatsAppMedia } from '../whatsapp/media';
 import { purgeExpiredMedia, purgeOrphanMedia, requeueBlockedMedia } from '../media/maintenance';
+import { processChannelEvent } from '../channels/process';
+import { advanceFlowRun } from '../automations/engine';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -333,6 +335,18 @@ const handlers: Record<JobType, JobHandler> = {
       orphanMedia,
       blockedMedia,
     };
+  },
+
+  [JobType.PROCESS_CHANNEL_EVENT]: async (payload) => {
+    const eventId = String(payload.eventId ?? '');
+    if (!eventId) throw new Error('PROCESS_CHANNEL_EVENT requiere eventId.');
+    return processChannelEvent(eventId);
+  },
+
+  [JobType.RUN_FLOW_STEP]: async (payload) => {
+    const runId = String(payload.runId ?? '');
+    if (!runId) throw new Error('RUN_FLOW_STEP requiere runId.');
+    return advanceFlowRun(runId);
   },
 
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
