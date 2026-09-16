@@ -1,9 +1,10 @@
+import { sendChannelMessage, ChannelOutboundError } from '@/lib/channels/outbound';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { MessageSenderType } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
-import { OutboundError, processOutbox, queueOutboundMessage } from '@/lib/whatsapp/outbound';
+import { OutboundError, processOutbox } from '@/lib/whatsapp/outbound';
 
 const sendSchema = z.object({
   text: z.string().min(1).max(4096),
@@ -24,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!parsed.ok) return parsed.response;
 
   try {
-    const message = await queueOutboundMessage({
+    const message = await sendChannelMessage({
       workspaceId: user.workspace.id,
       conversationId: id,
       text: parsed.data.text,
@@ -39,6 +40,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ data: { id: message.id } }, { status: 201 });
   } catch (error) {
+    if (error instanceof ChannelOutboundError) return NextResponse.json({ message: error.message }, { status: 409 });
     if (error instanceof OutboundError) {
       const status = error.code === 'NOT_FOUND' ? 404 : 409;
       return NextResponse.json({ message: error.message, code: error.code }, { status });

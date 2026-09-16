@@ -6,6 +6,8 @@ export type ChannelSendInput = {
   channelAccount: ChannelAccount;
   externalUserId: string;
   text: string;
+  delivery?: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY';
+  commentId?: string;
 };
 
 /** Contrato comun que cada proveedor de canal implementa. */

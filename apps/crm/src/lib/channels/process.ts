@@ -62,7 +62,7 @@ export async function processChannelEvent(eventId: string) {
       await prisma.conversation.update({ where: { id: conversation.id }, data: { status: ConversationStatus.OPEN } });
     }
 
-    if (event.type === 'DM_RECEIVED' && text) {
+    if (['DM_RECEIVED', 'STORY_REPLY', 'STORY_MENTION'].includes(event.type) && text) {
       await prisma.message.create({
         data: {
           workspaceId: event.workspaceId,
@@ -106,6 +106,9 @@ export async function processChannelEvent(eventId: string) {
 
     await matchAndStartFlowsForChannelEvent({
       eventId: event.id,
+      accountId: event.channelAccountId,
+      postId: typeof content.postId === 'string' ? content.postId : undefined,
+      commentId: typeof content.commentId === 'string' ? content.commentId : undefined,
       workspaceId: event.workspaceId,
       channel: event.channel,
       type: event.type,
