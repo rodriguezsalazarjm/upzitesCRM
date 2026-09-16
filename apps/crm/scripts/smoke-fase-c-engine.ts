@@ -125,6 +125,8 @@ const A = await makeWorkspace('a');
   check('Se encolo un Job para retomar el DELAY', job !== null && job.status === JobStatus.PENDING);
 
   // Simula que el reloj llego: se retoma directamente (como haria el worker).
+  // Simulate the durable deadline becoming due, without sleeping a real hour.
+  await prisma.automationFlowRun.update({ where: { id: runId }, data: { waitingUntil: new Date(Date.now() - 1) } });
   await advanceFlowRun(runId);
   const finished = await prisma.automationFlowRun.findUniqueOrThrow({ where: { id: runId } });
   check('Tras retomar, el run queda COMPLETED', finished.status === AutomationFlowRunStatus.COMPLETED);
