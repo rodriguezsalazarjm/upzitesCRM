@@ -191,7 +191,12 @@ function fakeWebhookRequest(params: { workspaceId: string; dataId: string; xSign
   const url = `http://localhost:3001/api/billing/webhook?workspaceId=${params.workspaceId}&type=payment&data.id=${params.dataId}`;
   return new Request(url, {
     method: 'POST',
-    headers: { 'x-signature': params.xSignature, 'x-request-id': params.xRequestId },
+    // Sin esto, todas las requests sinteticas de TODOS los scripts de smoke
+    // caen bajo el mismo identificador ('desconocido') del limitador de
+    // 'webhook' — un IP de prueba propio evita que un script agote el cupo
+    // de otro al correr en la misma ventana (test:smoke:all los corre
+    // seguidos, en la misma base).
+    headers: { 'x-signature': params.xSignature, 'x-request-id': params.xRequestId, 'x-forwarded-for': '203.0.113.10' },
   });
 }
 
@@ -286,6 +291,9 @@ function stubPaymentGet(paymentId: string, body: Record<string, unknown>) {
   const response = await billingWebhook(request);
   check('Un workspace sin Mercado Pago conectado responde 404 (no un 500)', response.status === 404);
 }
+
+const deleted = await prisma.workspace.deleteMany({ where: { slug: { startsWith: 'fasea-' } } });
+console.log(`\nLimpieza: ${deleted.count} workspaces de prueba eliminados (cascade: jobs, eventos, etc.).`);
 
 console.log(`\n== Resultado: ${results.length - failures}/${results.length} pruebas OK ==\n`);
 if (failures > 0) process.exitCode = 1;

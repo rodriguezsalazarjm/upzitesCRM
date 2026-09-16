@@ -31,7 +31,8 @@
     "db:studio": "prisma studio",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test:media": "tsx --test src/lib/media/*.test.ts",
-    "test:storage": "tsx --test src/lib/storage/*.test.ts"
+    "test:storage": "tsx --test src/lib/storage/*.test.ts",
+    "test:automations": "tsx --test src/lib/channels/*.test.ts src/lib/automations/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

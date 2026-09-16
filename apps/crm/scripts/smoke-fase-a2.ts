@@ -246,7 +246,9 @@ function fakeWebhookRequest(params: { workspaceId: string; dataId: string; xSign
   const url = `http://localhost:3001/api/billing/webhook?workspaceId=${params.workspaceId}&type=payment&data.id=${params.dataId}`;
   return new Request(url, {
     method: 'POST',
-    headers: { 'x-signature': params.xSignature, 'x-request-id': params.xRequestId },
+    // IP de prueba propio: evita compartir el cupo del limitador de 'webhook'
+    // con otros scripts de smoke que corren en la misma ventana.
+    headers: { 'x-signature': params.xSignature, 'x-request-id': params.xRequestId, 'x-forwarded-for': '203.0.113.11' },
   });
 }
 
@@ -361,6 +363,9 @@ function fakeWebhookRequest(params: { workspaceId: string; dataId: string; xSign
     response.status === 400 && body.message === 'pedido no encontrado',
   );
 }
+
+const deleted = await prisma.workspace.deleteMany({ where: { slug: { startsWith: 'fasea2-' } } });
+console.log(`\nLimpieza: ${deleted.count} workspaces de prueba eliminados (cascade: jobs, eventos, etc.).`);
 
 console.log(`\n== Resultado: ${results.length - failures}/${results.length} pruebas OK ==\n`);
 if (failures > 0) process.exitCode = 1;
