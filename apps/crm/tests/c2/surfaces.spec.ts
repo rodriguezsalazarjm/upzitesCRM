@@ -38,6 +38,10 @@ test('B: install sale template, edit on canvas, publish, confirm product and ful
   await page.getByRole('button', { name: 'Usar esta plantilla' }).click(); await expect(page).toHaveURL(/automatizaciones\/(?!nueva)[^/]+$/);
   await page.locator('.react-flow__node').first().click(); await expect(page.getByRole('heading', { name: 'Enviar mensaje' })).toBeVisible();
   await page.getByLabel('Texto', { exact: true }).fill('Venta C2: te ayudo con tu compra.');
+  await page.getByRole('button', { name: 'Guardar Draft', exact: true }).click(); await expect(page.getByRole('status')).toHaveText('Borrador guardado.');
+  await page.reload();
+  await page.locator('.react-flow__node').first().click(); await expect(page.getByRole('heading', { name: 'Enviar mensaje' })).toBeVisible();
+  await expect(page.getByLabel('Texto', { exact: true })).toHaveValue('Venta C2: te ayudo con tu compra.');
   await page.getByRole('button', { name: 'Publish', exact: true }).click(); await expect(page.getByRole('status')).toHaveText('Versión publicada.');
   await fire(page, 'DM_RECEIVED', 'Quiero información del producto'); await expect(page.getByText(/Demo: 5 Minutos con Dios/)).toBeVisible();
   await fire(page, 'DM_RECEIVED', 'confirmo'); await expect(page.getByText(/Checkout demo:/)).toBeVisible();
