@@ -1118,6 +1118,17 @@ console.log('\n== Journeys ==');
     source: 'prueba',
   });
 
+  // La politica por defecto tiene quiet hours reales (20:30-09:00): si esta
+  // prueba corre en ese horario, enroll() empujaria nextRunAt a manana ANTES
+  // de que la seccion de mas abajo fuerce quiet hours para su propia
+  // aseveracion, dejando el enrollment "no debido todavia" en vez de
+  // "en silencio ahora". Se abre la ventana aqui para que la inscripcion sea
+  // inmediata sin importar la hora real en que corra la suite.
+  await prisma.messagingPolicy.update({
+    where: { workspaceId: A.workspaceId },
+    data: { quietStartMinute: 0, quietEndMinute: 0 },
+  });
+
   const enBorrador = await enroll({
     workspaceId: A.workspaceId,
     journeyId: journey.id,
