@@ -5,6 +5,9 @@ import { flowGraphSchema, type FlowTrigger } from './schema';
 
 export type ChannelTriggerEvent = {
   eventId: string;
+  accountId?: string;
+  postId?: string;
+  commentId?: string;
   workspaceId: string;
   channel: Channel;
   type: string;
@@ -13,21 +16,23 @@ export type ChannelTriggerEvent = {
   conversationId: string | null;
 };
 
-function keywordMatches(keywords: string[] | undefined, text: string | null | undefined): boolean {
+function keywordMatches(keywords: string[] | undefined, text: string | null | undefined, match?: 'EXACT' | 'CONTAINS'): boolean {
   if (!keywords || keywords.length === 0) return true;
   if (!text) return false;
   const normalized = text.trim().toLowerCase();
-  return keywords.some((keyword) => normalized.includes(keyword.trim().toLowerCase()));
+  return keywords.some((keyword) => match === 'EXACT' ? normalized === keyword.trim().toLowerCase() : normalized.includes(keyword.trim().toLowerCase()));
 }
 
-function triggerMatchesEvent(trigger: FlowTrigger, event: ChannelTriggerEvent): boolean {
+export function triggerMatchesEvent(trigger: FlowTrigger, event: ChannelTriggerEvent): boolean {
+  if (trigger.accountId && trigger.accountId !== event.accountId) return false;
+  if (trigger.type === 'COMMENT' && trigger.postId && trigger.postId !== event.postId) return false;
   switch (trigger.type) {
     case 'MESSAGE_RECEIVED':
-      return event.type === 'DM_RECEIVED' && keywordMatches(trigger.keywords, event.text);
+      return event.type === 'DM_RECEIVED' && keywordMatches(trigger.keywords, event.text, trigger.match);
     case 'COMMENT':
-      return event.type === 'COMMENT' && keywordMatches(trigger.keywords, event.text);
+      return event.type === 'COMMENT' && keywordMatches(trigger.keywords, event.text, trigger.match);
     case 'LIVE_COMMENT':
-      return event.type === 'LIVE_COMMENT' && keywordMatches(trigger.keywords, event.text);
+      return event.type === 'LIVE_COMMENT' && keywordMatches(trigger.keywords, event.text, trigger.match);
     case 'STORY_REPLY':
       return event.type === 'STORY_REPLY';
     case 'STORY_MENTION':
@@ -80,6 +85,7 @@ export async function matchAndStartFlowsForChannelEvent(event: ChannelTriggerEve
       contactId: event.contactId,
       conversationId: event.conversationId,
       triggerDedupeKey: event.eventId,
+      state: { eventId: event.eventId, commentId: event.commentId ?? null, postId: event.postId ?? null },
     });
     if (result.started) started.push(result.runId);
   }

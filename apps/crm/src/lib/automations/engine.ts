@@ -7,7 +7,9 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { enqueue } from '../jobs/queue';
-import { recordAudit } from '../domain/audit';
+import { runAgent } from '../agents/runner';
+import { toolByName } from '../agents/tools';
+import type { ModelProvider } from '../agents/provider';
 import { getPolicy, nextAllowedInstant } from '../marketing/policy';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { sendChannelMessage } from '../channels/outbound';
@@ -68,6 +70,8 @@ export type StartFlowRunInput = {
   conversationId?: string | null;
   triggerDedupeKey?: string | null;
   depth?: number;
+  state?: Record<string, unknown>;
+  provider?: ModelProvider;
 };
 
 export type StartFlowRunResult =
@@ -87,7 +91,7 @@ function isUniqueConstraintError(error: unknown): boolean {
  */
 export async function startFlowRun(input: StartFlowRunInput): Promise<StartFlowRunResult> {
   const version = await prisma.automationFlowVersion.findFirst({
-    where: { id: input.flowVersionId, flowId: input.flowId, status: AutomationFlowStatus.PUBLISHED },
+    where: { id: input.flowVersionId, flowId: input.flowId, status: AutomationFlowStatus.PUBLISHED, flow: { workspaceId: input.workspaceId } },
   });
   if (!version) return { started: false, reason: 'VERSION_NOT_PUBLISHED' };
 
@@ -95,6 +99,9 @@ export async function startFlowRun(input: StartFlowRunInput): Promise<StartFlowR
     return { started: false, reason: 'MAX_DEPTH_EXCEEDED' };
   }
 
+  if (input.contactId && !await prisma.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId } })) throw new Error('Contacto fuera del workspace.');
+  if (input.conversationId && !await prisma.conversation.findFirst({ where: { id: input.conversationId, workspaceId: input.workspaceId, ...(input.contactId ? { contactId: input.contactId } : {}) } })) throw new Error('Conversación fuera del workspace.');
+  if (input.conversationId) await prisma.conversation.updateMany({ where: { id: input.conversationId, workspaceId: input.workspaceId, mode: 'WAITING' }, data: { mode: 'AI_ACTIVE' } });
   let run;
   try {
     run = await prisma.automationFlowRun.create({
@@ -107,6 +114,7 @@ export async function startFlowRun(input: StartFlowRunInput): Promise<StartFlowR
         conversationId: input.conversationId ?? null,
         triggerDedupeKey: input.triggerDedupeKey ?? null,
         depth: input.depth ?? 0,
+        state: (input.state ?? {}) as Prisma.InputJsonValue,
       },
     });
   } catch (error) {
@@ -124,7 +132,7 @@ export async function startFlowRun(input: StartFlowRunInput): Promise<StartFlowR
     data: { runsStarted: { increment: 1 } },
   });
 
-  await advanceFlowRun(run.id);
+  await advanceFlowRun(run.id, input.provider);
   return { started: true, runId: run.id };
 }
 
@@ -167,7 +175,7 @@ async function buildConditionContext(
 }
 
 /** Avanza un run desde donde quedo. Se usa tanto al arrancar como al retomar tras un DELAY. */
-export async function advanceFlowRun(runId: string): Promise<void> {
+export async function advanceFlowRun(runId: string, provider?: ModelProvider): Promise<void> {
   const run = await prisma.automationFlowRun.findUnique({ where: { id: runId } });
   if (!run) return;
   if (run.status !== AutomationFlowRunStatus.RUNNING && run.status !== AutomationFlowRunStatus.WAITING) return;
@@ -181,9 +189,11 @@ export async function advanceFlowRun(runId: string): Promise<void> {
 
   // Si veniamos de un DELAY, se avanza a la arista de salida de ese nodo
   // antes de seguir ejecutando.
+  if (run.status === AutomationFlowRunStatus.WAITING && run.waitingUntil && run.waitingUntil > new Date()) return;
   if (currentNodeId && run.status === AutomationFlowRunStatus.WAITING) {
     const edge = nextEdge(graph, currentNodeId);
     currentNodeId = edge?.to ?? null;
+    if (!currentNodeId) { await finishRun(run.id, version.id, AutomationFlowRunStatus.COMPLETED, undefined, stepsExecuted, state); return; }
   }
   if (!currentNodeId) {
     currentNodeId = graph.nodes[0]?.id ?? null;
@@ -216,6 +226,7 @@ export async function advanceFlowRun(runId: string): Promise<void> {
         channel: run.channel,
         depth: run.depth,
         state,
+        provider,
       });
     } catch (error) {
       await finishRun(
@@ -229,6 +240,8 @@ export async function advanceFlowRun(runId: string): Promise<void> {
       return;
     }
     state = result.state ?? state;
+    const timeline = Array.isArray(state.timeline) ? state.timeline : [];
+    state = { ...state, timeline: [...timeline, { nodeId: node.id, type: node.type, result: result.kind, at: new Date().toISOString() }] };
 
     if (result.kind === 'WAIT') {
       await prisma.automationFlowRun.update({
@@ -246,7 +259,7 @@ export async function advanceFlowRun(runId: string): Promise<void> {
         workspaceId: run.workspaceId,
         payload: { runId: run.id },
         runAt: result.until,
-        dedupeKey: `flow-step:${run.id}`,
+        dedupeKey: `flow-step:${run.id}:${stepsExecuted}`,
         priority: 60,
       });
       return;
@@ -270,7 +283,7 @@ export async function advanceFlowRun(runId: string): Promise<void> {
     const edge = nextEdge(graph, node.id, result.branch);
     await prisma.automationFlowRun.update({
       where: { id: run.id },
-      data: { currentNodeId: node.id, state: state as Prisma.InputJsonValue, stepsExecuted },
+      data: { currentNodeId: edge?.to ?? null, state: state as Prisma.InputJsonValue, stepsExecuted },
     });
     currentNodeId = edge?.to ?? null;
     if (!currentNodeId) {
@@ -314,6 +327,7 @@ type NodeExecutionContext = {
   channel: Channel | null;
   depth: number;
   state: Record<string, unknown>;
+  provider?: ModelProvider;
 };
 
 type NodeResult =
@@ -327,7 +341,7 @@ async function executeNode(node: FlowNode, ctx: NodeExecutionContext): Promise<N
   switch (node.type) {
     case 'MESSAGE': {
       if (ctx.conversationId) {
-        await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: node.text });
+        await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: node.text, delivery: node.delivery, commentId: typeof ctx.state.commentId === 'string' ? ctx.state.commentId : undefined });
         await prisma.automationFlowVersion.update({ where: { id: ctx.flowVersionId }, data: { messagesSent: { increment: 1 } } });
       }
       return { kind: 'CONTINUE' };
@@ -349,13 +363,12 @@ async function executeNode(node: FlowNode, ctx: NodeExecutionContext): Promise<N
     }
 
     case 'AI': {
-      // Contrato minimo: el paso de IA solo corre dentro de una conversacion
-      // (necesita a quien responderle). El enganche con un agente real
-      // (src/lib/agents/runner.ts) queda para cuando WhatsApp/el resto de
-      // canales tengan un agente real conectado — hoy solo se registra la
-      // intencion en el estado del run, para que la UI y los tests puedan
-      // verificar que el nodo corrio.
-      return { kind: 'CONTINUE', state: { ...ctx.state, lastAiGoal: node.goal } };
+      if (!ctx.conversationId || !node.agentVersionId) return { kind: 'ERROR', error: 'Falta conversación o agente publicado.' };
+      const result = await runAgent({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, agentVersionId: node.agentVersionId, goal: node.goal, allowedTools: node.allowedTools, exitConditions: node.exitConditions, maxTurns: node.maxTurns, trigger: `flow:${ctx.runId}:${node.id}`, provider: ctx.provider });
+      const state = { ...ctx.state, agentRunId: result.runId ?? null, aiStatus: result.status };
+      if (result.escalated) return { kind: 'HANDOFF', state };
+      if (result.status !== 'COMPLETED') return { kind: 'ERROR', error: result.skippedReason ?? result.status, state };
+      return { kind: 'CONTINUE', state };
     }
 
     case 'RANDOM_SPLIT': {
@@ -484,20 +497,12 @@ async function executeAction(
     }
 
     case 'CREATE_CHECKOUT': {
-      // Contrato minimo: registra la intencion de checkout en metricas y
-      // estado. El nodo NO crea la orden/preferencia de pago directamente
-      // (elegir producto/variante es un paso del editor visual que esta fuera
-      // del alcance de esta fase) — la Quick Automation "Vender producto"
-      // resuelve un caso completo end-to-end por su cuenta, fuera del engine
-      // generico.
+      const result = await toolByName('createCheckoutLink')!.execute({ productId: String(params.productId ?? '') }, { workspaceId: ctx.workspaceId, contactId: ctx.contactId, conversationId: ctx.conversationId, agentRunId: ctx.runId });
+      if (!result.ok) return { kind: 'ERROR', error: result.error };
       await prisma.automationFlowVersion.update({ where: { id: ctx.flowVersionId }, data: { checkoutsCreated: { increment: 1 } } });
-      await recordAudit({
-        workspaceId: ctx.workspaceId,
-        action: 'automation_flow.checkout_requested',
-        entity: 'AutomationFlowRun',
-        entityId: ctx.runId,
-      });
-      return { kind: 'CONTINUE', state: { ...ctx.state, checkoutRequested: true } };
+      const checkout = result.data as Record<string, unknown>;
+      if (ctx.conversationId && typeof checkout.checkoutUrl === 'string') await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: checkout.checkoutUrl });
+      return { kind: 'CONTINUE', state: { ...ctx.state, checkout } };
     }
 
     case 'REQUEST_HUMAN_HANDOFF': {

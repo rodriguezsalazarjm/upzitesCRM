@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -130,13 +131,11 @@ export default async function AutomatizacionesPage() {
         />
 
         <section>
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">Mis automatizaciones</h2><Link href="/automatizaciones/nueva" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">Nueva automatización / Plantillas</Link></div>
           <div className="mb-3">
             <h2 className="text-sm font-semibold text-slate-900">Flujos multicanal (Beta)</h2>
             <p className="text-xs text-slate-500">
-              Secuencias con pasos, condiciones y esperas — para Instagram, Messenger, TikTok y
-              WhatsApp. Vista de solo lectura por ahora: crear y publicar un flujo todavía requiere
-              construirlo por datos (ver informe de la Fase C); esta lista es donde vas a ver los
-              que ya existan.
+              Crea, configura y publica flujos desde el editor visual.
             </p>
           </div>
           {flows.length === 0 ? (
@@ -153,7 +152,7 @@ export default async function AutomatizacionesPage() {
                   <Card key={flow.id} className="border-0 shadow-sm">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between gap-3">
-                        <CardTitle className="text-sm">{flow.name}</CardTitle>
+                        <CardTitle className="text-sm"><Link href={`/automatizaciones/${flow.id}`} className="text-indigo-700">{flow.name} → Abrir Builder</Link></CardTitle>
                         <Badge variant={flow.status === 'PUBLISHED' ? 'success' : flow.status === 'DRAFT' ? 'outline' : 'warning'}>
                           {flow.status === 'PUBLISHED' ? 'Publicado' : flow.status === 'DRAFT' ? 'Borrador' : 'Archivado'}
                         </Badge>
