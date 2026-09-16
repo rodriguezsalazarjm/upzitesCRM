@@ -1,4 +1,7 @@
 import { Header } from '@/components/layout/header';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChannelBadge } from '@/components/channels/channel-badge';
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageChannels } from '@/lib/conversations';
 import { AUTOMATION_PRESETS } from '@/lib/automation/presets';
@@ -82,6 +85,15 @@ export default async function AutomatizacionesPage() {
     orderBy: { createdAt: 'asc' },
   });
 
+  const flows = await prisma.automationFlow.findMany({
+    where: { workspaceId: user.workspace.id },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      versions: { orderBy: { version: 'desc' }, take: 1 },
+      _count: { select: { runs: true } },
+    },
+  });
+
   const ruleViews: RuleView[] = rules.map((rule) => ({
     id: rule.id,
     name: rule.name,
@@ -110,12 +122,67 @@ export default async function AutomatizacionesPage() {
         title="Automatizaciones"
         subtitle="Reglas que corren solas: cuando pasa algo, el CRM actua"
       />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8">
         <AutomatizacionesClient
           rules={ruleViews}
           presets={presets}
           canManage={canManageChannels(user.role)}
         />
+
+        <section>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-slate-900">Flujos multicanal (Beta)</h2>
+            <p className="text-xs text-slate-500">
+              Secuencias con pasos, condiciones y esperas — para Instagram, Messenger, TikTok y
+              WhatsApp. Vista de solo lectura por ahora: crear y publicar un flujo todavía requiere
+              construirlo por datos (ver informe de la Fase C); esta lista es donde vas a ver los
+              que ya existan.
+            </p>
+          </div>
+          {flows.length === 0 ? (
+            <Card className="border-0 border-dashed shadow-sm">
+              <CardContent className="p-6 text-center text-xs text-slate-500">
+                Todavía no hay flujos multicanal creados en este workspace.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {flows.map((flow) => {
+                const version = flow.versions[0];
+                return (
+                  <Card key={flow.id} className="border-0 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <CardTitle className="text-sm">{flow.name}</CardTitle>
+                        <Badge variant={flow.status === 'PUBLISHED' ? 'success' : flow.status === 'DRAFT' ? 'outline' : 'warning'}>
+                          {flow.status === 'PUBLISHED' ? 'Publicado' : flow.status === 'DRAFT' ? 'Borrador' : 'Archivado'}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-xs text-slate-500">
+                      {flow.description && <p>{flow.description}</p>}
+                      <div className="flex flex-wrap gap-1.5">
+                        {flow.channelScope.length === 0 ? (
+                          <Badge variant="outline" className="text-[10px]">Cualquier canal</Badge>
+                        ) : (
+                          flow.channelScope.map((channel) => <ChannelBadge key={channel} channel={channel} />)
+                        )}
+                      </div>
+                      <p>Versión: {version ? `v${version.version} (${version.status === 'PUBLISHED' ? 'publicada' : 'borrador'})` : 'sin versiones'}</p>
+                      {version && (
+                        <p>
+                          Runs: {version.runsStarted} iniciados · {version.runsCompleted} completados ·{' '}
+                          {version.runsFailed} fallidos · {version.messagesSent} mensajes enviados
+                        </p>
+                      )}
+                      <p>Ejecuciones totales registradas: {flow._count.runs}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

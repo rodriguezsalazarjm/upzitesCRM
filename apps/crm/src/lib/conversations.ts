@@ -1,4 +1,4 @@
-import { ConversationMode, ConversationStatus, UserRole } from '../../generated/prisma/client';
+import { Channel, ConversationMode, ConversationStatus, UserRole } from '../../generated/prisma/client';
 import { requireCurrentUser } from './auth';
 import { recordAudit } from './domain/audit';
 import { prisma } from './prisma';
@@ -15,6 +15,7 @@ export type ConversationListItem = {
   id: string;
   contactName: string;
   contactPhone: string | null;
+  channel: Channel;
   lastMessageAt: string;
   lastMessagePreview: string | null;
   mode: ConversationMode;
@@ -30,6 +31,7 @@ export type ConversationFilters = {
   status?: ConversationStatus;
   assignedUserId?: string;
   onlyUnread?: boolean;
+  channel?: Channel;
 };
 
 export async function listConversations(filters: ConversationFilters = {}) {
@@ -40,6 +42,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
       workspaceId: user.workspace.id,
       status: filters.status ?? undefined,
       assignedUserId: filters.assignedUserId ?? undefined,
+      channelType: filters.channel ?? undefined,
       ...(filters.onlyUnread ? { unreadCount: { gt: 0 } } : {}),
     },
     orderBy: { lastMessageAt: 'desc' },
@@ -57,6 +60,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
     id: conversation.id,
     contactName: `${conversation.contact.firstName} ${conversation.contact.lastName}`.trim(),
     contactPhone: conversation.contact.phone,
+    channel: conversation.channelType,
     lastMessageAt: conversation.lastMessageAt.toISOString(),
     // Una foto sin epigrafe dejaba la lista en blanco, como si la conversacion
     // no tuviera nada nuevo. Se nombra el tipo de adjunto.

@@ -7,6 +7,10 @@ import { requireCurrentUser } from '@/lib/auth';
 import { listConversations } from '@/lib/conversations';
 import { prisma } from '@/lib/prisma';
 import { cn } from '@/lib/utils';
+import { ChannelBadge, CHANNEL_LABEL } from '@/components/channels/channel-badge';
+import type { Channel } from '../../../../generated/prisma/client';
+
+const CHANNEL_FILTERS: Array<Channel | 'ALL'> = ['ALL', 'WHATSAPP', 'INSTAGRAM', 'MESSENGER', 'TIKTOK'];
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +40,17 @@ function relativeTime(iso: string) {
   return `hace ${Math.floor(hours / 24)} d`;
 }
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ channel?: string }>;
+}) {
   const user = await requireCurrentUser();
+  const { channel: channelParam } = await searchParams;
+  const activeChannel = CHANNEL_FILTERS.includes(channelParam as Channel) ? (channelParam as Channel | 'ALL') : 'ALL';
+
   const [conversations, channelCount] = await Promise.all([
-    listConversations(),
+    listConversations(activeChannel === 'ALL' ? {} : { channel: activeChannel }),
     prisma.whatsAppChannel.count({
       where: { workspaceId: user.workspace.id, status: 'CONNECTED' },
     }),
@@ -47,7 +58,21 @@ export default async function InboxPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Header title="Inbox" subtitle="Conversaciones de WhatsApp del workspace" />
+      <Header title="Inbox" subtitle="Conversaciones de todos los canales del workspace" />
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b bg-white px-3 py-2 sm:px-6">
+        {CHANNEL_FILTERS.map((option) => (
+          <Link
+            key={option}
+            href={option === 'ALL' ? '/inbox' : `/inbox?channel=${option}`}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1 text-xs font-medium',
+              activeChannel === option ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+            )}
+          >
+            {option === 'ALL' ? 'Todos' : CHANNEL_LABEL[option]}
+          </Link>
+        ))}
+      </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-6">
         {channelCount === 0 && (
           <Card className="border-0 bg-blue-50 shadow-sm">
@@ -103,6 +128,7 @@ export default async function InboxPage() {
                 </div>
 
                 <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-1.5 sm:max-w-none">
+                  <ChannelBadge channel={conversation.channel} className="text-[9px]" />
                   <span
                     className={cn(
                       'max-w-full truncate rounded-md px-2 py-0.5 text-[10px] font-semibold',
