@@ -82,6 +82,12 @@ model Workspace {
 
   mediaAssets        MediaAsset[]
 
+  channelAccounts          ChannelAccount[]
+  contactChannelIdentities ContactChannelIdentity[]
+  channelEvents            ChannelEvent[]
+  automationFlows          AutomationFlow[]
+  automationFlowRuns       AutomationFlowRun[]
+
   @@map("workspaces")
 }
 
@@ -190,6 +196,8 @@ model Contact {
   campaignRecipients CampaignRecipient[]
   emailMessages      EmailMessage[]
   sendLogs           ContactSendLog[]
+  channelIdentities  ContactChannelIdentity[]
+  automationFlowRuns AutomationFlowRun[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
@@ -650,13 +658,168 @@ model WhatsAppChannel {
   @@map("whatsapp_channels")
 }
 
+// --- Fase C: gateway multicanal (Instagram/Messenger/TikTok + WhatsApp) ------
+//
+// WhatsApp se deja tal cual (WhatsAppChannel + Conversation.channelId siguen
+// funcionando sin cambios): es la unica migracion segura para no reescribir un
+// pipeline ya probado en produccion. Los canales nuevos entran por un camino
+// PARALELO — ChannelAccount + Conversation.channelAccountId — que Conversation
+// ya sabe distinguir por `channelType`. Unificar WhatsAppChannel dentro de
+// ChannelAccount queda como limpieza futura, no como parte de esta fase.
+
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  MESSENGER
+  TIKTOK
+}
+
+enum ChannelConnectionMethod {
+  OAUTH
+  MANUAL
+}
+
+/// Mismo vocabulario de estado que MercadoPagoConnection (Fase A2), no por
+/// capricho: es el mismo problema (token propio de un tercero, cifrado, que
+/// puede vencer o ser revocado) para un canal en vez de para un medio de pago.
+enum ChannelAccountStatus {
+  DISCONNECTED
+  CONNECTED
+  NEEDS_ATTENTION
+  REAUTH_REQUIRED
+}
+
+/// La cuenta de Instagram/Messenger/TikTok de UN workspace. `capabilities` NO
+/// es lo que la API del canal ofrece en general (eso es estatico, ver
+/// src/lib/channels/capabilities.ts) — es lo que ESTA conexion en particular
+/// tiene confirmado (beta features como follow-to-DM pueden estar disponibles
+/// para una cuenta y no para otra). La UI nunca debe ofrecer una automatizacion
+/// cuya capability no este en esta lista.
+model ChannelAccount {
+  id                    String                   @id @default(cuid())
+  workspaceId           String                   @map("workspace_id")
+  channel               Channel
+  connectionMethod      ChannelConnectionMethod  @default(MANUAL) @map("connection_method")
+  externalAccountId     String                   @map("external_account_id")
+  displayName           String?                  @map("display_name")
+  accessTokenEncrypted  String?                  @map("access_token_encrypted")
+  refreshTokenEncrypted String?                  @map("refresh_token_encrypted")
+  accessTokenExpiresAt  DateTime?                @map("access_token_expires_at")
+  scopes                String?
+  capabilities          String[]                 @default([])
+  status                ChannelAccountStatus     @default(DISCONNECTED)
+  connectedAt           DateTime?                @map("connected_at")
+  lastVerifiedAt        DateTime?                @map("last_verified_at")
+  lastErrorCode         String?                  @map("last_error_code")
+  lastError             String?                  @map("last_error")
+  metadata              Json?
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  identities    ContactChannelIdentity[]
+  events        ChannelEvent[]
+
+  // Una cuenta externa (una pagina de FB, una cuenta IG) solo puede estar
+  // conectada a UN workspace a la vez: igual que el dominio de Shopify o el
+  // vendedor de Mercado Pago, no se reasigna en silencio.
+  @@unique([channel, externalAccountId])
+  @@index([workspaceId, channel])
+  @@map("channel_accounts")
+}
+
+/// Vincula un Contact con su identidad EN UN canal concreto (IGSID, PSID,
+/// open id de TikTok...). Nunca se fusiona automaticamente solo por nombre
+/// visible: la spec es explicita en que un mismo Contact por dos canales
+/// necesita evidencia (email/telefono confirmado) o vinculo manual, no
+/// coincidencia de display name.
+model ContactChannelIdentity {
+  id               String   @id @default(cuid())
+  workspaceId      String   @map("workspace_id")
+  contactId        String   @map("contact_id")
+  channel          Channel
+  channelAccountId String   @map("channel_account_id")
+  externalUserId   String   @map("external_user_id")
+  displayName      String?  @map("display_name")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact        Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+
+  // La misma persona real vista desde dos cuentas conectadas distintas (dos
+  // paginas de FB, por ejemplo) es, a proposito, DOS identidades: cada una
+  // vive dentro de su propia cuenta externa.
+  @@unique([channelAccountId, externalUserId])
+  @@index([workspaceId, contactId])
+  @@map("contact_channel_identities")
+}
+
+enum ChannelEventType {
+  DM_RECEIVED
+  COMMENT
+  STORY_REPLY
+  STORY_MENTION
+  LIVE_COMMENT
+  FOLLOW
+  SHARE
+  AD_CONVERSATION_STARTED
+  REF_LINK
+  QR_SCAN
+}
+
+enum ChannelEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+/// El evento NORMALIZADO que sale del gateway hacia el motor de
+/// automatizaciones. Cada proveedor (Meta para IG/Messenger, TikTok) tiene su
+/// propio formato de webhook; nada al otro lado de este modelo deberia conocer
+/// esos formatos. `idempotencyKey` es la defensa contra reintentos/duplicados
+/// del proveedor, igual que WebhookEvent para WhatsApp/Shopify/email.
+model ChannelEvent {
+  id               String             @id @default(cuid())
+  workspaceId      String             @map("workspace_id")
+  channel          Channel
+  channelAccountId String             @map("channel_account_id")
+  type             ChannelEventType
+  externalUserId   String             @map("external_user_id")
+  contactId        String?            @map("contact_id")
+  conversationId   String?            @map("conversation_id")
+  content          Json?
+  rawMetadata      Json?              @map("raw_metadata")
+  idempotencyKey   String             @unique @map("idempotency_key")
+  status           ChannelEventStatus @default(PENDING)
+  processedAt      DateTime?          @map("processed_at")
+  error            String?
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, channel, createdAt])
+  @@index([workspaceId, status])
+  @@map("channel_events")
+}
+
 /// Hilo con un contacto en un canal. Estrategia de reapertura elegida: UNA
 /// conversacion por (canal, contacto). Un mensaje entrante sobre una cerrada la
 /// reabre en vez de crear otra, para no fragmentar el historial.
+///
+/// `channelId` (WhatsApp) y `channelAccountId` (Instagram/Messenger/TikTok) son
+/// dos caminos que conviven: cada conversacion usa exactamente uno, segun
+/// `channelType`. Ambas columnas son nullable porque cada fila solo llena la
+/// que le corresponde — nunca las dos, nunca ninguna.
 model Conversation {
   id                          String             @id @default(cuid())
   workspaceId                 String             @map("workspace_id")
-  channelId                   String             @map("channel_id")
+  channelType                 Channel            @default(WHATSAPP) @map("channel_type")
+  channelId                   String?            @map("channel_id")
+  channelAccountId            String?            @map("channel_account_id")
   contactId                   String             @map("contact_id")
   assignedUserId              String?            @map("assigned_user_id")
   mode                        ConversationMode   @default(WAITING)
@@ -673,18 +836,22 @@ model Conversation {
   createdAt                   DateTime           @default(now()) @map("created_at")
   updatedAt                   DateTime           @updatedAt @map("updated_at")
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  channel   WhatsAppChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel        WhatsAppChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount?  @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
   contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
   assignee   User?                    @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   messages   Message[]
   agentRuns  AgentRun[]
   agentState ConversationAgentState?
   mediaAssets MediaAsset[]
+  flowRuns   AutomationFlowRun[]
 
   @@unique([channelId, contactId])
+  @@unique([channelAccountId, contactId])
   @@index([workspaceId, status, lastMessageAt])
   @@index([workspaceId, assignedUserId])
+  @@index([workspaceId, channelType])
   @@map("conversations")
 }
 
@@ -885,6 +1052,153 @@ model AutomationExecution {
   @@unique([ruleId, dedupeKey])
   @@index([workspaceId, createdAt])
   @@map("automation_executions")
+}
+
+// --- Fase C: motor de flujos (Flow Builder) ---------------------------------
+//
+// AutomationRule (arriba) NO se toca ni se reemplaza: sigue siendo la via
+// correcta para "si X entonces Y", que cubre la mayoria de casos reales sin
+// necesitar un grafo. AutomationFlow es un segundo motor, para cuando la
+// automatizacion es realmente una SECUENCIA de pasos con espera, ramas y
+// pasos de IA — calcado del mismo patron de versionado que ya prueba
+// AgentDefinition/AgentVersion/AgentRun (Fase 4): definicion estable, N
+// versiones (DRAFT/PUBLISHED), y una tabla de ejecuciones que sobrevive un
+// restart del proceso porque vive en la base, no en memoria.
+
+enum AutomationFlowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AutomationFlowRunStatus {
+  RUNNING
+  WAITING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+/// La definicion estable. `status` aqui es solo "activo/archivado" — el
+/// DRAFT/PUBLISHED real vive en AutomationFlowVersion, exactamente como
+/// AgentDefinition.isActive vs AgentVersion.status.
+model AutomationFlow {
+  id            String               @id @default(cuid())
+  workspaceId   String               @map("workspace_id")
+  name          String
+  description   String?
+  status        AutomationFlowStatus @default(DRAFT)
+  channelScope  Channel[]            @default([]) @map("channel_scope")
+  createdById   String?              @map("created_by")
+  updatedById   String?              @map("updated_by")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions  AutomationFlowVersion[]
+  runs      AutomationFlowRun[]
+
+  @@index([workspaceId, status])
+  @@map("automation_flows")
+}
+
+/// Una version es INMUTABLE una vez PUBLISHED: editar crea una version nueva
+/// en DRAFT (ver AutomationFlowStatus de mas arriba, no confundir con este
+/// campo). `trigger`/`nodes`/`edges` son Json validados con Zod en
+/// src/lib/automations/schema.ts, no tipados aqui — el grafo es datos, igual
+/// que las reglas de PricingRuleSet o las condiciones de AutomationRule.
+model AutomationFlowVersion {
+  id               String                @id @default(cuid())
+  flowId           String                @map("flow_id")
+  version          Int
+  status           AutomationFlowStatus  @default(DRAFT)
+  trigger          Json
+  nodes            Json
+  edges            Json
+  publishedAt      DateTime?             @map("published_at")
+  // Metricas basicas (spec: "no analytics avanzados, pero registrar esto").
+  runsStarted      Int                   @default(0) @map("runs_started")
+  runsCompleted    Int                   @default(0) @map("runs_completed")
+  runsFailed       Int                   @default(0) @map("runs_failed")
+  messagesSent     Int                   @default(0) @map("messages_sent")
+  checkoutsCreated Int                   @default(0) @map("checkouts_created")
+  paymentsApproved Int                   @default(0) @map("payments_approved")
+  handoffs         Int                   @default(0)
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  flow AutomationFlow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  runs AutomationFlowRun[]
+
+  @@unique([flowId, version])
+  @@index([flowId, status])
+  @@map("automation_flow_versions")
+}
+
+/// El estado vivo de UNA ejecucion. Sobrevive un restart porque `currentNodeId`
+/// y `state` (variables recolectadas durante el flujo: respuestas, tags
+/// pendientes, etc.) se persisten en cada paso — el worker que retoma un run
+/// en espera no necesita memoria de la corrida anterior, solo esta fila.
+/// `depth` es la defensa contra loops de START_AUTOMATION (A llama a B que
+/// llama a A): cada nodo START_AUTOMATION crea un run hijo con depth+1, y el
+/// motor rechaza superar un limite fijo.
+model AutomationFlowRun {
+  id               String                  @id @default(cuid())
+  workspaceId      String                  @map("workspace_id")
+  flowId           String                  @map("flow_id")
+  flowVersionId    String                  @map("flow_version_id")
+  channel          Channel?
+  contactId        String?                 @map("contact_id")
+  conversationId   String?                 @map("conversation_id")
+  triggerDedupeKey String?                 @map("trigger_dedupe_key")
+  status           AutomationFlowRunStatus @default(RUNNING)
+  currentNodeId    String?                 @map("current_node_id")
+  state            Json?
+  stepsExecuted    Int                     @default(0) @map("steps_executed")
+  depth            Int                     @default(0)
+  startedAt        DateTime                @default(now()) @map("started_at")
+  waitingUntil     DateTime?               @map("waiting_until")
+  endedAt          DateTime?               @map("ended_at")
+  error            String?
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow        AutomationFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flowVersion AutomationFlowVersion @relation(fields: [flowVersionId], references: [id], onDelete: Cascade)
+  contact     Contact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  conversation Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  // Idempotencia de arranque: el mismo evento disparador nunca crea dos runs
+  // de la misma version. `triggerDedupeKey` puede ser null (un run manual/de
+  // prueba no tiene evento que deduplicar).
+  @@unique([flowVersionId, triggerDedupeKey])
+  @@index([workspaceId, status])
+  @@index([flowId, status])
+  @@map("automation_flow_runs")
+}
+
+/// Plantilla instalable. Instalar NUNCA muta la plantilla: crea un
+/// AutomationFlow + version DRAFT propios del workspace, con el mismo grafo
+/// copiado. `requiredCapabilities` se compara contra
+/// ChannelAccount.capabilities antes de permitir instalar/publicar.
+model AutomationTemplate {
+  id                   String   @id @default(cuid())
+  key                  String   @unique
+  name                 String
+  description          String?
+  supportedChannels    Channel[] @map("supported_channels")
+  requiredCapabilities String[] @default([]) @map("required_capabilities")
+  trigger              Json
+  nodes                Json
+  edges                Json
+  requiredFields       Json?    @map("required_fields")
+  tags                 String[] @default([])
+  settings             Json?
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("automation_templates")
 }
 
 // --- Fase 4: agentes IA ------------------------------------------------------
@@ -2069,6 +2383,10 @@ enum IntegrationProvider {
   GOOGLE_ADS
   // Fase 6
   SHOPIFY
+  // Fase C
+  INSTAGRAM
+  MESSENGER
+  TIKTOK
 }
 
 enum IntegrationStatus {

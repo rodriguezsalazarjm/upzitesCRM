@@ -100,7 +100,7 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
     if (conversation.status === 'CLOSED') {
       throw new OutboundError('La conversacion esta cerrada.', 'CONVERSATION_CLOSED');
     }
-    if (conversation.channel.status !== 'CONNECTED') {
+    if (!conversation.channel || conversation.channel.status !== 'CONNECTED') {
       throw new OutboundError(
         'El canal de WhatsApp requiere atencion antes de enviar.',
         'CONVERSATION_CLOSED',
@@ -290,6 +290,13 @@ async function prepareSend(
       where: { id: message.id, status: MessageStatus.QUEUED },
       data: { status: MessageStatus.SENDING },
     });
+
+    if (!message.conversation.channelId) {
+      // Este pipeline es exclusivo de WhatsApp; una conversacion de otro canal
+      // nunca deberia llegar aqui (queueOutboundMessage ya lo habria rechazado).
+      await markFailedWithClient(tx, outboxId, payload.messageId, 'La conversación no tiene canal de WhatsApp.');
+      return { kind: 'SKIPPED', cancelled: false };
+    }
 
     return { kind: 'READY', channelId: message.conversation.channelId, payload, origin };
   });

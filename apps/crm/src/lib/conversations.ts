@@ -87,6 +87,7 @@ export async function getConversationDetail(conversationId: string) {
       contact: true,
       assignee: { select: { id: true, name: true } },
       channel: { select: { displayPhoneNumber: true, status: true } },
+      channelAccount: { select: { displayName: true, externalAccountId: true, status: true } },
       messages: {
         orderBy: { createdAt: 'asc' },
         take: 200,

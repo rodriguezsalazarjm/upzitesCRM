@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getConversationDetail } from '@/lib/conversations';
 import { formatCurrency } from '@/lib/mock-data';
+import { ChannelBadge, channelIdentityLabel } from '@/components/channels/channel-badge';
 import { ConversationClient, type ThreadMessage } from './conversation-client';
 
 export const dynamic = 'force-dynamic';
@@ -61,14 +62,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-slate-900">
               {contact.firstName} {contact.lastName}
             </p>
             <p className="truncate text-[11px] text-slate-400">
-              {contact.phone} · via {conversation.channel.displayPhoneNumber}
+              {channelIdentityLabel(conversation.channelType, conversation.channel, conversation.channelAccount, contact.phone)}
             </p>
           </div>
+          <ChannelBadge channel={conversation.channelType} />
         </div>
 
         <ConversationClient
