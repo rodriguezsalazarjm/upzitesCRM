@@ -8,7 +8,9 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
-import { queueOutboundMessage } from '../whatsapp/outbound';
+import { sendChannelMessage } from '../channels/outbound';
+import { isLocalDemo } from '../testing/local-mode';
+import { LocalKnowledgeProvider } from './local-provider';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { buildInstructions, looksLikeHallucination, needsImmediateEscalation } from './guardrails';
 import {
@@ -40,6 +42,11 @@ export type RunAgentInput = {
   provider?: ModelProvider;
   /** Modo simulador: ejecuta y responde, pero no envia el mensaje al cliente. */
   dryRun?: boolean;
+  agentVersionId?: string;
+  goal?: string;
+  allowedTools?: string[];
+  exitConditions?: string[];
+  maxTurns?: number;
 };
 
 export type RunAgentResult = {
@@ -89,7 +96,11 @@ async function releaseLock(conversationId: string, owner: string) {
 }
 
 /** Version publicada del agente, o null si el workspace no publico ninguna. */
-async function publishedVersion(workspaceId: string, kind: AgentKind) {
+async function publishedVersion(workspaceId: string, kind: AgentKind, versionId?: string, draft = false) {
+  if (versionId) {
+    const version = await prisma.agentVersion.findFirst({ where: { id: versionId, ...(draft ? { status: { in: [AgentVersionStatus.DRAFT, AgentVersionStatus.PUBLISHED] } } : { status: AgentVersionStatus.PUBLISHED }), definition: { workspaceId, ...(draft ? {} : { isActive: true }) } }, include: { definition: true } });
+    return version ? { definition: version.definition, version } : null;
+  }
   const definition = await prisma.agentDefinition.findFirst({
     where: { workspaceId, key: kind, isActive: true },
     include: {
@@ -133,7 +144,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     return { status: AgentRunStatus.ABORTED, skippedReason: `conversacion en ${conversation.mode}` };
   }
 
-  const published = await publishedVersion(input.workspaceId, AgentKind.SALES);
+  const published = await publishedVersion(input.workspaceId, AgentKind.SALES, input.agentVersionId, input.dryRun);
   if (!published) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no tiene un agente publicado' };
   }
@@ -185,7 +196,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   }
 
   const startedAt = Date.now();
-  const provider = input.provider ?? new OpenAIProvider();
+  const provider = input.provider ?? (isLocalDemo() ? new LocalKnowledgeProvider() : new OpenAIProvider());
 
   const run = await prisma.agentRun.create({
     data: {
@@ -203,7 +214,11 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       run,
       provider,
       conversation,
-      version: published.version,
+      version: { ...published.version,
+        instructions: [published.version.instructions, input.goal ? `Objetivo de este paso: ${input.goal}` : '', input.exitConditions?.length ? `Condiciones de salida: ${input.exitConditions.join('; ')}` : ''].filter(Boolean).join('\n'),
+        allowedTools: input.allowedTools ? published.version.allowedTools.filter(t => input.allowedTools!.includes(t)) : published.version.allowedTools,
+        maxSteps: Math.min(published.version.maxSteps, input.maxTurns ?? published.version.maxSteps),
+      },
       dryRun: input.dryRun ?? false,
       startedAt,
     });
@@ -248,6 +263,7 @@ type LoopInput = {
   conversation: {
     id: string;
     summary: string | null;
+    lockVersion: number;
     contact: { id: string; firstName: string; lastName: string };
     workspace: { name: string };
   };
@@ -377,10 +393,18 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
         continue;
       }
 
-      const result = await tool.execute(call.arguments, toolContext);
+      const ownership = await prisma.conversation.findFirst({ where: { id: conversation.id, workspaceId: run.workspaceId }, select: { lockVersion: true, mode: true } });
+      if (!ownership || ownership.lockVersion !== conversation.lockVersion || ownership.mode !== 'AI_ACTIVE') {
+        await prisma.agentRun.update({ where: { id: run.id }, data: { status: AgentRunStatus.ABORTED, error: 'Control humano cambió durante la ejecución.' } });
+        return { status: AgentRunStatus.ABORTED, runId: run.id, skippedReason: 'Control humano cambió durante la ejecución.' };
+      }
+      const validated = tool.schema.safeParse(call.arguments);
+      const result = !validated.success ? { ok: false as const, error: 'Argumentos inválidos.' } : input.dryRun && tool.hasSideEffects
+        ? { ok: true as const, data: { simulated: true, tool: call.name } }
+        : await tool.execute(validated.data, toolContext);
       toolCalls.push({ name: call.name, ok: result.ok });
 
-      if (call.name === 'assign_to_human' && result.ok) escalated = true;
+      if (['assign_to_human', 'requestHumanHandoff'].includes(call.name) && result.ok) escalated = true;
 
       messages.push({
         role: 'tool',
@@ -409,14 +433,20 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     reply = null;
   }
 
+  const latest = await prisma.conversation.findFirst({ where: { id: conversation.id, workspaceId: run.workspaceId }, select: { lockVersion: true, mode: true } });
+  if (!escalated && (!latest || latest.lockVersion !== conversation.lockVersion || latest.mode !== 'AI_ACTIVE')) {
+    await prisma.agentRun.update({ where: { id: run.id }, data: { status: AgentRunStatus.ABORTED, error: 'Respuesta invalidada por toma humana.', output: null } });
+    return { status: AgentRunStatus.ABORTED, runId: run.id, skippedReason: 'Respuesta invalidada por toma humana.' };
+  }
   if (reply && !input.dryRun) {
-    await queueOutboundMessage({
+    await sendChannelMessage({
       workspaceId: run.workspaceId,
       conversationId: conversation.id,
       text: reply,
       senderType: MessageSenderType.AI,
       origin: 'AI',
       agentRunId: run.id,
+      expectedLockVersion: conversation.lockVersion,
     });
   }
 

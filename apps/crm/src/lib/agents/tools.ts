@@ -20,6 +20,7 @@ import { fetchLiveVariant, getShopifyConnection } from '../shopify/sync';
 import { createQuote, listQuotableServices, QuoteError, requestReview } from '../quotes/service';
 import { queuePushSafely } from '../push/events';
 import type { ToolSpec } from './provider';
+import { searchKnowledge } from './knowledge';
 
 /**
  * Herramientas del agente.
@@ -874,6 +875,44 @@ export const PENDING_TOOLS: readonly string[] = [];
  */
 export const OMITTED_BY_DESIGN = ['create_digital_delivery'] as const;
 
+AGENT_TOOLS.push(
+  { name: 'getBusinessInfo', description: 'Consulta información y políticas del negocio de este workspace.', schema: z.object({}).strict(), hasSideEffects: false, execute: async (_args, ctx) => ({ ok: true, data: await searchKnowledge(ctx.workspaceId) }) },
+  { name: 'searchKnowledge', description: 'Busca FAQ, políticas e información estructurada del workspace.', schema: z.object({ query: z.string().max(500) }).strict(), hasSideEffects: false, execute: async (args, ctx) => {
+    const parsed = z.object({ query: z.string().max(500) }).strict().safeParse(args);
+    if (!parsed.success) return { ok: false, error: 'Consulta inválida.' };
+    return { ok: true, data: await searchKnowledge(ctx.workspaceId, parsed.data.query) };
+  } },
+  { name: 'getServices', description: 'Servicios publicados del catálogo del workspace.', schema: z.object({}).strict(), hasSideEffects: false, execute: async (_args, ctx) => ({ ok: true, data: await listQuotableServices(ctx.workspaceId) }) },
+  { name: 'createCheckoutLink', description: 'Crea un checkout del producto confirmado por el cliente; el backend calcula precio y moneda.', schema: z.object({ productId: z.string().min(1) }).strict(), hasSideEffects: true, execute: async (args, ctx) => {
+    const parsed = z.object({ productId: z.string().min(1) }).strict().safeParse(args);
+    if (!parsed.success || !await requireContact(ctx)) return { ok: false, error: 'Producto o contacto inválido.' };
+    const product = await prisma.product.findFirst({ where: { id: parsed.data.productId, workspaceId: ctx.workspaceId, status: 'ACTIVE' }, include: { variants: { where: { isActive: true }, orderBy: { isDefault: 'desc' }, take: 1 } } });
+    const variant = product?.variants[0];
+    if (!product || !variant) return { ok: false, error: 'Producto no disponible en este workspace.' };
+    if (!ctx.conversationId || !await prisma.conversation.findFirst({ where: { id: ctx.conversationId, workspaceId: ctx.workspaceId, contactId: ctx.contactId! } })) return { ok: false, error: 'Conversación inválida.' };
+    const recent = await prisma.message.findMany({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId }, orderBy: { createdAt: 'desc' }, take: 12 });
+    const inbound = recent.find(m => m.direction === 'INBOUND');
+    const offer = recent.find(m => m.direction === 'OUTBOUND' && (m.text ?? '').includes(product.name) && (m.text ?? '').includes(String(variant.priceClp)));
+    if (!inbound || !/^(sí|si|confirmo|confirmar)(\b|\s)/i.test((inbound.text ?? '').trim()) || !offer || offer.createdAt >= inbound.createdAt) return { ok: false, error: 'Se requiere confirmación explícita después de presentar producto y precio actual.' };
+    const existing = await prisma.customerOrder.findFirst({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, status: 'PENDING_PAYMENT', lines: { some: { variantId: variant.id } } }, orderBy: { createdAt: 'desc' } });
+    if (existing && (existing.metadata as { checkoutUrl?: string } | null)?.checkoutUrl) return { ok: true, data: { checkoutUrl: (existing.metadata as { checkoutUrl: string }).checkoutUrl, orderId: existing.id, displayName: product.name, displayPrice: existing.total, currency: existing.currency } };
+    const result = await AGENT_TOOLS.find(t => t.name === 'create_checkout')!.execute({ variantId: variant.id, quantity: 1 }, ctx);
+    if (!result.ok) return result;
+    return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: variant.priceClp, currency: 'CLP' } };
+  } },
+  { name: 'updateLeadQualification', description: 'Registra necesidad y presupuesto aportados por el contacto.', schema: z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict(), hasSideEffects: true, execute: async (args, ctx) => {
+    const parsed = z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict().safeParse(args);
+    const contact = await requireContact(ctx);
+    if (!parsed.success || !contact) return { ok: false, error: 'Calificación inválida.' };
+    await prisma.contact.update({ where: { id: contact.id }, data: { customFields: { ...(contact.customFields as Record<string, string> ?? {}), ...parsed.data } } });
+    await audit(ctx, 'updateLeadQualification', parsed.data);
+    return { ok: true, data: parsed.data };
+  } },
+);
+for (const [alias, original] of [['getProducts', 'search_products'], ['getProduct', 'get_product'], ['requestHumanHandoff', 'assign_to_human']]) {
+  const tool = AGENT_TOOLS.find(t => t.name === original);
+  if (tool) AGENT_TOOLS.push({ ...tool, name: alias });
+}
 const BY_NAME = new Map(AGENT_TOOLS.map((tool) => [tool.name, tool]));
 
 export function toolByName(name: string) {

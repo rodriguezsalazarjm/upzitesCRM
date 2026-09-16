@@ -98,55 +98,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     },
   });
 
-  // La version en prueba se publica temporalmente: el runner usa la publicada.
-  // Se restaura el estado anterior pase lo que pase, para no dejar publicada
-  // por accidente una version que el owner no aprobo.
-  const previouslyPublished = await prisma.agentVersion.findFirst({
-    where: { agentDefinitionId: id, status: 'PUBLISHED' },
-    select: { id: true },
-  });
-
-  const originalStatus = version.status;
-
-  try {
-    await prisma.$transaction([
-      prisma.agentVersion.updateMany({
-        where: { agentDefinitionId: id, status: 'PUBLISHED' },
-        data: { status: 'ARCHIVED' },
-      }),
-      prisma.agentVersion.update({ where: { id: version.id }, data: { status: 'PUBLISHED' } }),
-    ]);
-
-    const result = await runAgent({
-      workspaceId: user.workspace.id,
-      conversationId: conversation.id,
-      trigger: 'simulador',
-      dryRun: true,
-    });
-
-    return NextResponse.json({
-      data: {
-        status: result.status,
-        reply: result.reply ?? null,
-        escalated: result.escalated ?? false,
-        toolCalls: result.toolCalls ?? [],
-        note:
-          result.status === AgentRunStatus.ABORTED
-            ? result.skippedReason
-            : 'Respuesta de prueba: no se envio nada al cliente.',
-      },
-    });
-  } finally {
-    await prisma.$transaction([
-      prisma.agentVersion.update({ where: { id: version.id }, data: { status: originalStatus } }),
-      ...(previouslyPublished
-        ? [
-            prisma.agentVersion.update({
-              where: { id: previouslyPublished.id },
-              data: { status: 'PUBLISHED' },
-            }),
-          ]
-        : []),
-    ]);
-  }
+  const result = await runAgent({ workspaceId: user.workspace.id, conversationId: conversation.id, trigger: 'simulador', dryRun: true, agentVersionId: version.id });
+  return NextResponse.json({ data: { status: result.status, reply: result.reply ?? null, escalated: result.escalated ?? false, toolCalls: result.toolCalls ?? [], note: result.status === AgentRunStatus.ABORTED ? result.skippedReason : 'Sandbox: no se enviaron mensajes ni se ejecutaron herramientas con efectos materiales.' } });
 }
