@@ -56,6 +56,9 @@ export default async function InboxPage({
     }),
   ]);
 
+  const showWhatsAppBanner =
+    channelCount === 0 && (activeChannel === 'ALL' || activeChannel === 'WHATSAPP');
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Inbox" subtitle="Conversaciones de todos los canales del workspace" />
@@ -74,7 +77,7 @@ export default async function InboxPage({
         ))}
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-6">
-        {channelCount === 0 && (
+        {showWhatsAppBanner && (
           <Card className="border-0 bg-blue-50 shadow-sm">
             <CardContent className="flex items-start gap-3 p-5">
               <PlugZap className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
@@ -94,7 +97,7 @@ export default async function InboxPage({
           </Card>
         )}
 
-        {conversations.length === 0 && channelCount > 0 && (
+        {conversations.length === 0 && !showWhatsAppBanner && (
           <Card className="border-0 shadow-sm">
             <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
               <MessageSquare className="h-8 w-8 text-slate-300" />
