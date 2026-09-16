@@ -1,3 +1,4 @@
+import { isLocalDemo } from '../testing/local-mode';
 import {
   OrderStatus,
   PaymentProvider,
@@ -57,6 +58,11 @@ export async function createOrderCheckout(input: {
     throw new CheckoutError('El pedido ya esta pagado.', 'INVALID_STATE');
   }
 
+  if (isLocalDemo()) {
+    const checkoutUrl = `/demo-checkout/${order.id}`;
+    await prisma.customerOrder.update({ where: { id: order.id }, data: { status: OrderStatus.PENDING_PAYMENT, metadata: { fake: true, checkoutUrl } } });
+    return { checkoutUrl, orderId: order.id };
+  }
   const connection = await getValidWorkspaceMercadoPagoToken(input.workspaceId);
   if (!connection) {
     throw new CheckoutError(
