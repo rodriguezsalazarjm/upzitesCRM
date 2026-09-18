@@ -32,7 +32,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test:media": "tsx --test src/lib/media/*.test.ts",
     "test:storage": "tsx --test src/lib/storage/*.test.ts",
-    "test:automations": "tsx --test src/lib/channels/*.test.ts src/lib/automations/*.test.ts"
+    "test:automations": "tsx --test src/lib/channels/*.test.ts src/lib/automations/*.test.ts",
+    "test:instagram": "tsx --test src/lib/instagram/*.test.ts src/lib/meta/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
