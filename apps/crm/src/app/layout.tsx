@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Bebas_Neue } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
 import { PwaStatus } from '@/components/pwa/pwa-status';
 
 // Tipografía de marca: Helvena para texto/UI, Bebas Neue para display
-// (títulos de página y cifras grandes). Mismos archivos que apps/web.
+// (títulos de página y cifras grandes). Ambas autoalojadas (sin red en runtime);
+// mismos archivos que ya están versionados en apps/web.
 const helvena = localFont({
   src: [
     { path: './fonts/Helvena-Regular.otf', weight: '400', style: 'normal' },
@@ -18,9 +18,8 @@ const helvena = localFont({
   variable: '--font-helvena',
 });
 
-const bebas = Bebas_Neue({
-  weight: '400',
-  subsets: ['latin'],
+const bebas = localFont({
+  src: [{ path: './fonts/BebasNeue-Regular.woff', weight: '400', style: 'normal' }],
   display: 'swap',
   variable: '--font-bebas',
 });
