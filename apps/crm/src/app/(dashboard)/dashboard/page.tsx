@@ -1,5 +1,7 @@
 import { Header } from '@/components/layout/header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import { StatCard } from '@/components/ui/stat-card';
 import {
   ArrowUpRight,
   Calendar,
@@ -9,8 +11,6 @@ import {
   Mail,
   Phone,
   Target,
-  TrendingDown,
-  TrendingUp,
   Users,
 } from 'lucide-react';
 import { getDashboardData } from '@/lib/crm-data';
@@ -37,51 +37,27 @@ const activityIcons = {
 };
 
 const activityColors = {
-  email: 'bg-blue-100 text-blue-600',
-  call: 'bg-violet-100 text-violet-600',
-  meeting: 'bg-amber-100 text-amber-600',
-  note: 'bg-slate-100 text-slate-600',
-  deal: 'bg-emerald-100 text-emerald-600',
+  email: 'bg-electric/10 text-electric',
+  call: 'bg-ink/10 text-ink',
+  meeting: 'bg-solar/30 text-amber-700',
+  note: 'bg-ivory text-slate-600',
+  deal: 'bg-lime/40 text-emerald-700',
 };
+
+function ViewAll({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      className="inline-flex items-center gap-1 text-[13px] font-semibold text-electric hover:text-blue-700"
+    >
+      {children} <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2} />
+    </a>
+  );
+}
 
 export default async function DashboardPage() {
   const { kpis: dashboardKpis, activities, opportunities, sourceData } = await getDashboardData();
   const activeOpportunities = opportunities.filter((o) => !['ganado', 'perdido'].includes(o.stage));
-
-  const kpis = [
-    {
-      label: 'Leads del mes',
-      value: dashboardKpis.totalLeads,
-      growth: dashboardKpis.leadsGrowth,
-      icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-    },
-    {
-      label: 'Oportunidades abiertas',
-      value: dashboardKpis.openOpportunities,
-      sub: formatCurrencyLocal(dashboardKpis.opportunitiesValue),
-      icon: Target,
-      color: 'text-violet-600',
-      bg: 'bg-violet-50',
-    },
-    {
-      label: 'Ingresos cerrados',
-      value: formatCurrencyLocal(dashboardKpis.revenue),
-      growth: dashboardKpis.revenueGrowth,
-      icon: DollarSign,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-    },
-    {
-      label: 'Tasa de conversion',
-      value: `${dashboardKpis.conversionRate}%`,
-      sub: `${dashboardKpis.closedWon} cierres`,
-      icon: CheckCircle,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-    },
-  ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -91,129 +67,68 @@ export default async function DashboardPage() {
         action={{ label: 'Nuevo contacto', href: '/contactos/nuevo' }}
       />
 
-      <div className="flex-1 space-y-6 overflow-y-auto p-6">
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {kpis.map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <Card key={kpi.label} className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500">{kpi.label}</p>
-                      <p className="mt-1.5 text-2xl font-bold text-slate-900">{kpi.value}</p>
-                      {kpi.growth !== undefined && (
-                        <div
-                          className={cn(
-                            'mt-1 flex items-center gap-1 text-xs font-medium',
-                            kpi.growth >= 0 ? 'text-emerald-600' : 'text-red-500',
-                          )}
-                        >
-                          {kpi.growth >= 0 ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {Math.abs(kpi.growth)}% vs mes anterior
-                        </div>
-                      )}
-                      {kpi.sub && <p className="mt-1 text-xs text-slate-400">{kpi.sub}</p>}
-                    </div>
-                    <div className={cn('rounded-lg p-2.5', kpi.bg)}>
-                      <Icon className={cn('h-5 w-5', kpi.color)} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+      <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Leads del mes"
+            value={dashboardKpis.totalLeads}
+            growth={dashboardKpis.leadsGrowth}
+            icon={Users}
+            accent="electric"
+          />
+          <StatCard
+            label="Oportunidades abiertas"
+            value={dashboardKpis.openOpportunities}
+            hint={formatCurrencyLocal(dashboardKpis.opportunitiesValue)}
+            icon={Target}
+          />
+          <StatCard
+            tone="dark"
+            label="Ingresos cerrados"
+            value={formatCurrencyLocal(dashboardKpis.revenue)}
+            growth={dashboardKpis.revenueGrowth}
+            icon={DollarSign}
+            accent="lime"
+          />
+          <StatCard
+            label="Tasa de conversión"
+            value={`${dashboardKpis.conversionRate}%`}
+            hint={`${dashboardKpis.closedWon} cierres`}
+            icon={CheckCircle}
+            accent="solar"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card className="border-0 shadow-sm lg:col-span-2">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold text-slate-800">
-                  Actividad reciente
-                </CardTitle>
-                <a href="/actividades" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                  Ver todo <ArrowUpRight className="h-3 w-3" />
-                </a>
+          <Card tone="dark" className="p-6 lg:col-span-2">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <Eyebrow>Pipeline</Eyebrow>
+                <h2 className="mt-1 text-lg font-bold tracking-tight">Oportunidades activas</h2>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {activities.map((act) => {
-                const Icon = activityIcons[act.type];
-                return (
-                  <div key={act.id} className="flex items-start gap-3">
-                    <div
-                      className={cn(
-                        'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs',
-                        activityColors[act.type],
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium leading-snug text-slate-800">{act.description}</p>
-                      <p className="mt-0.5 text-[10px] text-slate-400">
-                        {act.contactName} - {act.time}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-slate-800">Fuente de leads</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {sourceData.map((src) => (
-                <div key={src.source}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs text-slate-600">{src.source}</span>
-                    <span className="text-xs font-semibold text-slate-800">{src.leads}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-100">
-                    <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${src.percentage}%` }} />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold text-slate-800">
-                Oportunidades activas
-              </CardTitle>
-              <a href="/oportunidades" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                Ver pipeline <ArrowUpRight className="h-3 w-3" />
+              <a
+                href="/oportunidades"
+                className="inline-flex items-center gap-1 text-[13px] font-semibold text-lime hover:text-white"
+              >
+                Ver pipeline <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2} />
               </a>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y">
+            <div className="divide-y divide-white/10">
               {activeOpportunities.slice(0, 5).map((opp) => (
-                <div key={opp.id} className="flex items-center gap-4 py-2.5">
+                <div key={opp.id} className="flex items-center gap-4 py-3.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-slate-800">{opp.title}</p>
-                    <p className="text-[10px] text-slate-400">
-                      {opp.company} - {opp.owner}
+                    <p className="truncate text-sm font-semibold">{opp.title}</p>
+                    <p className="mt-0.5 truncate text-xs text-soft">
+                      {opp.company} · {opp.owner}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-800">{formatCurrencyLocal(opp.value)}</p>
-                    <p className="text-[10px] text-slate-400">{opp.probability}% prob.</p>
+                    <p className="tabular text-sm font-bold">{formatCurrencyLocal(opp.value)}</p>
+                    <p className="text-xs text-soft">{opp.probability}% prob.</p>
                   </div>
                   <span
                     className={cn(
-                      'shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold',
+                      'w-28 shrink-0 rounded-full px-2.5 py-1 text-center text-[11px] font-semibold',
                       stageBadgeColors[opp.stage],
                     )}
                   >
@@ -221,8 +136,65 @@ export default async function DashboardPage() {
                   </span>
                 </div>
               ))}
+              {activeOpportunities.length === 0 && (
+                <p className="py-6 text-sm text-soft">Sin oportunidades activas.</p>
+              )}
             </div>
-          </CardContent>
+          </Card>
+
+          <Card className="p-6">
+            <Eyebrow>Origen</Eyebrow>
+            <h2 className="mb-5 mt-1 text-lg font-bold tracking-tight">Fuente de leads</h2>
+            <div className="space-y-4">
+              {sourceData.map((src, index) => (
+                <div key={src.source}>
+                  <div className="mb-1.5 flex items-baseline justify-between">
+                    <span className="text-[13px] text-slate-600">{src.source}</span>
+                    <span className="tabular text-[13px] font-bold">{src.leads}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-ivory">
+                    <div
+                      className={cn('h-2 rounded-full', index === 0 ? 'bg-electric' : 'bg-carbon')}
+                      style={{ width: `${src.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <Card className="p-6">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <Eyebrow>Bitácora</Eyebrow>
+              <h2 className="mt-1 text-lg font-bold tracking-tight">Actividad reciente</h2>
+            </div>
+            <ViewAll href="/actividades">Ver todo</ViewAll>
+          </div>
+          <div className="grid gap-x-10 gap-y-4 md:grid-cols-2">
+            {activities.map((act) => {
+              const Icon = activityIcons[act.type];
+              return (
+                <div key={act.id} className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+                      activityColors[act.type],
+                    )}
+                  >
+                    <Icon className="h-4 w-4" strokeWidth={1.75} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium leading-snug text-carbon">{act.description}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {act.contactName} · {act.time}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </Card>
       </div>
     </div>

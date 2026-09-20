@@ -182,7 +182,7 @@ export function MercadoPagoIntegrationCard() {
   const needsReauth = connection?.status === 'REAUTH_REQUIRED';
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-sm">

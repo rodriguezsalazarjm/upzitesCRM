@@ -54,7 +54,7 @@ function Fact({ done, title, detail }: { done: boolean; title: string; detail: s
       )}
       <div>
         <p className="text-xs font-semibold text-slate-800">{title}</p>
-        <p className="text-[11px] text-slate-500">{detail}</p>
+        <p className="text-xs text-slate-500">{detail}</p>
       </div>
     </div>
   );
@@ -148,12 +148,12 @@ export function WhatsAppIntegrationCard() {
   );
 
   return (
-    <Card className="border-0 shadow-sm lg:col-span-2">
+    <Card className="lg:col-span-2">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-emerald-600" />
-            <CardTitle className="text-sm">WhatsApp Business</CardTitle>
+            <CardTitle>WhatsApp Business</CardTitle>
           </div>
           <Badge variant={operational ? 'success' : status?.data.length ? 'warning' : 'outline'}>
             {operational
@@ -189,7 +189,7 @@ export function WhatsAppIntegrationCard() {
                 <p className="text-sm font-semibold text-slate-900">
                   {channel.businessName || 'WhatsApp Business'} · {channel.displayPhoneNumber}
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   WABA {channel.wabaId} · Phone Number ID {channel.phoneNumberId}
                 </p>
               </div>
@@ -305,7 +305,7 @@ export function WhatsAppIntegrationCard() {
                   ? 'Conectar o actualizar un numero'
                   : 'Conectar numero de prueba'}
               </p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-slate-500">
                 El token no se muestra despues de guardarlo y nunca queda en el navegador.
               </p>
             </div>

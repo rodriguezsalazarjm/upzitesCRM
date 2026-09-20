@@ -26,21 +26,21 @@ export default async function IntegracionesPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Integraciones" subtitle="Canales y servicios conectados al CRM" />
-      <div className="grid flex-1 gap-4 overflow-y-auto p-6 lg:grid-cols-2">
+      <div className="grid flex-1 content-start gap-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:grid-cols-2">
         <IntegrationCards accounts={accounts} demo={isLocalDemo()} canManage={canManageChannels(user.role)} />
         <WhatsAppIntegrationCard />
         <MercadoPagoIntegrationCard />
         {integrations
           .filter((integration) => integration.provider !== 'WHATSAPP' && integration.provider !== 'MERCADO_PAGO')
           .map((integration) => (
-            <Card key={integration.id} className="border-0 shadow-sm">
+            <Card key={integration.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-sm">{integration.name}</CardTitle>
+                  <CardTitle>{integration.name}</CardTitle>
                   <Badge variant={statusVariant[integration.status]}>{integration.status}</Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2 text-xs text-slate-500">
+              <CardContent className="space-y-2 text-[13px] text-slate-500">
                 <p>Proveedor: {integration.provider}</p>
                 <p>
                   Ultima sincronizacion:{' '}

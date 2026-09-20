@@ -1,6 +1,29 @@
 import type { Metadata } from 'next';
+import { Bebas_Neue } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { PwaStatus } from '@/components/pwa/pwa-status';
+
+// Tipografía de marca: Helvena para texto/UI, Bebas Neue para display
+// (títulos de página y cifras grandes). Mismos archivos que apps/web.
+const helvena = localFont({
+  src: [
+    { path: './fonts/Helvena-Regular.otf', weight: '400', style: 'normal' },
+    { path: './fonts/Helvena-Medium.otf', weight: '500', style: 'normal' },
+    { path: './fonts/Helvena-Semibold.otf', weight: '600', style: 'normal' },
+    { path: './fonts/Helvena-Bold.otf', weight: '700', style: 'normal' },
+    { path: './fonts/Helvena-Extrabold.otf', weight: '800', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-helvena',
+});
+
+const bebas = Bebas_Neue({
+  weight: '400',
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-bebas',
+});
 
 export const metadata: Metadata = {
   title: 'CRM Upzites',
@@ -21,12 +44,12 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#2563eb',
+  themeColor: '#FAFBF5',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" className={`${helvena.variable} ${bebas.variable}`}>
       <body className="antialiased">
         {children}
         <PwaStatus />

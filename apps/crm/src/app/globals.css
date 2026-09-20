@@ -1,88 +1,276 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-    --sidebar-width: 240px;
-  }
+/* =====================================================================
+   UPZITES FLOW — Design tokens
+   "Tropical Underground convertido en SaaS".
+   Fuente única de verdad del CRM. Referencia: docs/design-system-crm.md
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-  }
+   Regla 70/20/10: 70% neutros claros · 20% Carbon/Ink · 10% color.
+   Electric = acción primaria · Lime = automatización/IA/éxito ·
+   Tomato = error/crítico · Solar = atención · Guava = acento excepcional.
+   ===================================================================== */
+
+:root {
+  /* Marca (crudos: no usar directo en pantallas, usar los semánticos) */
+  --upz-off-white: #fafbf5;
+  --upz-ivory: #f4f1e8;
+  --upz-paper: #ffffff;
+  --upz-carbon: #111111;
+  --upz-ink: #001b2a;
+  --upz-line: #e6e4dc;
+  --upz-electric: #0057ff;
+  --upz-lime: #a6ff00;
+  --upz-guava: #ff5cab;
+  --upz-solar: #ffd100;
+  --upz-tomato: #ff3b30;
+
+  /* Semánticos de superficie */
+  --canvas: var(--upz-off-white);
+  --surface: var(--upz-paper);
+  --surface-sunken: var(--upz-ivory);
+  --surface-dark: var(--upz-carbon);
+  --surface-ink: var(--upz-ink);
+  --hairline: var(--upz-line);
+
+  /* Semánticos de texto */
+  --text-1: var(--upz-carbon);
+  --text-2: #46443f;
+  --text-3: #6b6b6b; /* 5.0:1 sobre off-white */
+
+  /* Radios */
+  --radius-card: 20px;
+  --radius-control: 12px;
+
+  --sidebar-width: 248px;
+}
+
+@theme {
+  /* --- Tipografía ---------------------------------------------------- */
+  --font-sans: var(--font-helvena), "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-display: var(--font-bebas), "Arial Narrow", Impact, sans-serif;
+
+  /* --- Semánticos (shadcn-compatibles) ------------------------------- */
+  --color-background: #fafbf5;
+  --color-foreground: #111111;
+  --color-card: #ffffff;
+  --color-card-foreground: #111111;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #111111;
+  --color-primary: #0057ff;
+  --color-primary-foreground: #fafbf5;
+  --color-secondary: #f4f1e8;
+  --color-secondary-foreground: #111111;
+  --color-muted: #f4f1e8;
+  --color-muted-foreground: #6b6b6b;
+  --color-accent: #f4f1e8;
+  --color-accent-foreground: #111111;
+  --color-destructive: #d92b20;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e6e4dc;
+  --color-input: #e6e4dc;
+  --color-ring: #0057ff;
+
+  /* --- Marca ---------------------------------------------------------- */
+  --color-canvas: #fafbf5;
+  --color-ivory: #f4f1e8;
+  --color-paper: #ffffff;
+  --color-carbon: #111111;
+  --color-ink: #001b2a;
+  --color-line: #e6e4dc;
+  --color-electric: #0057ff;
+  --color-lime: #a6ff00;
+  --color-guava: #ff5cab;
+  --color-solar: #ffd100;
+  --color-tomato: #ff3b30;
+
+  /* --- Radios --------------------------------------------------------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+
+  /* --- Sombras: casi ninguna ------------------------------------------
+     shadow-xs/sm/"" dibujan un hairline (no una sombra). md es el único
+     lift permitido (hover de card). lg+ solo para popovers y modales. */
+  --shadow-2xs: none;
+  --shadow-xs: 0 1px 0 0 #e6e4dc;
+  --shadow-sm: 0 0 0 1px #e6e4dc;
+  --shadow-md: 0 0 0 1px #e6e4dc, 0 14px 28px -20px rgba(17, 17, 17, 0.28);
+  --shadow-lg: 0 24px 48px -28px rgba(17, 17, 17, 0.4);
+  --shadow-xl: 0 24px 48px -28px rgba(17, 17, 17, 0.4);
+  --shadow-2xl: 0 32px 64px -32px rgba(17, 17, 17, 0.45);
+
+  /* ======================================================================
+     Capa de compatibilidad: la paleta genérica de Tailwind se remapea a la
+     de marca para que las pantallas legacy (bg-slate-50, text-blue-600…)
+     hereden la identidad sin reescribirse. Los tonos NO son los de Tailwind.
+     Pantallas nuevas: usar tokens semánticos, no estas familias.
+     ====================================================================== */
+
+  /* slate → neutros cálidos (off-white / ivory / line / ash / carbon) */
+  --color-slate-50: #fafbf5;
+  --color-slate-100: #f4f1e8;
+  --color-slate-200: #e6e4dc;
+  --color-slate-300: #c9c6ba;
+  --color-slate-400: #767267;
+  --color-slate-500: #5e5c55;
+  --color-slate-600: #46443f;
+  --color-slate-700: #2e2d2a;
+  --color-slate-800: #1c1c1b;
+  --color-slate-900: #111111;
+  --color-slate-950: #0b0b0b;
+
+  /* blue / indigo → Electric (acción primaria e información) */
+  --color-blue-50: #eaf1ff;
+  --color-blue-100: #d6e4ff;
+  --color-blue-200: #b3ccff;
+  --color-blue-300: #80a9ff;
+  --color-blue-400: #4d85ff;
+  --color-blue-500: #1a63ff;
+  --color-blue-600: #0057ff;
+  --color-blue-700: #0046d1;
+  --color-blue-800: #0039ac;
+  --color-blue-900: #002b85;
+  --color-indigo-50: #eaf1ff;
+  --color-indigo-100: #d6e4ff;
+  --color-indigo-200: #b3ccff;
+  --color-indigo-300: #80a9ff;
+  --color-indigo-400: #4d85ff;
+  --color-indigo-500: #1a63ff;
+  --color-indigo-600: #0057ff;
+  --color-indigo-700: #0046d1;
+  --color-indigo-800: #0039ac;
+  --color-indigo-900: #002b85;
+
+  /* emerald → éxito (Lime pálido + verde oliva legible) */
+  --color-emerald-50: #f4ffd6;
+  --color-emerald-100: #e8ffab;
+  --color-emerald-200: #d4ff66;
+  --color-emerald-300: #bfff26;
+  --color-emerald-400: #a6ff00;
+  --color-emerald-500: #7fc400;
+  --color-emerald-600: #4f7a00;
+  --color-emerald-700: #3d6000;
+  --color-emerald-800: #2d4700;
+  --color-emerald-900: #1f3200;
+
+  /* violet → Ink (IA / estados intermedios, sobrio) */
+  --color-violet-50: #e9f1f5;
+  --color-violet-100: #d3e2ea;
+  --color-violet-200: #a9c5d3;
+  --color-violet-300: #6f9db3;
+  --color-violet-400: #3a6f8a;
+  --color-violet-500: #144a68;
+  --color-violet-600: #0a3a55;
+  --color-violet-700: #002d44;
+  --color-violet-800: #001b2a;
+  --color-violet-900: #001420;
+
+  /* amber → Solar (atención) */
+  --color-amber-50: #fff9db;
+  --color-amber-100: #fff1a8;
+  --color-amber-200: #ffe770;
+  --color-amber-300: #ffdd3d;
+  --color-amber-400: #ffd100;
+  --color-amber-500: #e6bc00;
+  --color-amber-600: #8a6a00;
+  --color-amber-700: #6e5400;
+  --color-amber-800: #574200;
+  --color-amber-900: #3f3000;
+
+  /* red → Tomato (error / crítico) */
+  --color-red-50: #ffedeb;
+  --color-red-100: #ffd9d5;
+  --color-red-200: #ffb8b1;
+  --color-red-300: #ff8e84;
+  --color-red-400: #ff6357;
+  --color-red-500: #ff3b30;
+  --color-red-600: #d92b20;
+  --color-red-700: #b81e15;
+  --color-red-800: #8f1710;
+  --color-red-900: #6b110c;
+
+  /* fuchsia → Guava (acento excepcional) */
+  --color-fuchsia-50: #ffeaf4;
+  --color-fuchsia-100: #ffd3e8;
+  --color-fuchsia-200: #ffadd3;
+  --color-fuchsia-300: #ff85bd;
+  --color-fuchsia-400: #ff5cab;
+  --color-fuchsia-500: #f0338f;
+  --color-fuchsia-600: #c81e73;
+  --color-fuchsia-700: #a01560;
+  --color-fuchsia-800: #7a1049;
+  --color-fuchsia-900: #560b33;
 }
 
 @layer base {
-  * {
-    border-color: hsl(var(--border));
+  html {
+    background: var(--canvas);
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: var(--canvas);
+    color: var(--text-1);
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    border-color: var(--hairline);
+  }
+
+  ::selection {
+    background: var(--upz-lime);
+    color: var(--upz-carbon);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--upz-electric);
+    outline-offset: 2px;
   }
 }
 
+/* Utilidades de sistema (composición tipográfica de marca) */
 @layer utilities {
-  .bg-background { background-color: hsl(var(--background)); }
-  .bg-card { background-color: hsl(var(--card)); }
-  .bg-primary { background-color: hsl(var(--primary)); }
-  .bg-secondary { background-color: hsl(var(--secondary)); }
-  .bg-muted { background-color: hsl(var(--muted)); }
-  .bg-accent { background-color: hsl(var(--accent)); }
-  .bg-destructive { background-color: hsl(var(--destructive)); }
+  /* Título/cifra display: Bebas Neue, mayúsculas, tracking apretado */
+  .type-display {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    line-height: 0.95;
+    font-weight: 400;
+  }
 
-  .text-foreground { color: hsl(var(--foreground)); }
-  .text-card-foreground { color: hsl(var(--card-foreground)); }
-  .text-primary { color: hsl(var(--primary)); }
-  .text-primary-foreground { color: hsl(var(--primary-foreground)); }
-  .text-secondary-foreground { color: hsl(var(--secondary-foreground)); }
-  .text-muted-foreground { color: hsl(var(--muted-foreground)); }
-  .text-accent-foreground { color: hsl(var(--accent-foreground)); }
-  .text-destructive { color: hsl(var(--destructive)); }
-  .text-destructive-foreground { color: hsl(var(--destructive-foreground)); }
+  /* Eyebrow: label pequeño en mayúsculas con tracking */
+  .type-eyebrow {
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
 
-  .border-input { border-color: hsl(var(--input)); }
-  .border-border { border-color: hsl(var(--border)); }
+  /* Texto secundario que se adapta a la superficie (claro: ash / oscuro: gris cálido) */
+  .text-soft {
+    color: var(--card-muted, var(--text-3));
+  }
 
-  .ring-ring { --tw-ring-color: hsl(var(--ring)); }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
 
-  .rounded-radius { border-radius: var(--radius); }
+/* Respeta reduced-motion sin matar el estado final de las transiciones */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

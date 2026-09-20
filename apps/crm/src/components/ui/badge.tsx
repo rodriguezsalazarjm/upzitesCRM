@@ -2,18 +2,31 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+/**
+ * Estados semánticos UPZITES FLOW (un estado = un color, siempre):
+ *  success → Lime   (conectado, ganado, ok)
+ *  warning → Solar  (requiere atención)
+ *  danger  → Tomato (error, reconexión, crítico)
+ *  info    → Electric (informativo / en curso)
+ *  ai      → Ink    (IA)
+ *  neutral / outline → sin estado
+ * `destructive` se mantiene como alias de `danger` por compatibilidad.
+ */
 const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-4 transition-colors',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
-        secondary: 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
-        outline: 'text-foreground',
-        success: 'border-transparent bg-emerald-100 text-emerald-700',
-        warning: 'border-transparent bg-amber-100 text-amber-700',
-        info: 'border-transparent bg-blue-100 text-blue-700',
+        default: 'border-transparent bg-carbon text-canvas',
+        neutral: 'border-transparent bg-ivory text-slate-700',
+        secondary: 'border-transparent bg-ivory text-slate-700',
+        outline: 'border-slate-300 bg-transparent text-slate-700',
+        success: 'border-transparent bg-lime/35 text-emerald-700',
+        warning: 'border-transparent bg-solar/30 text-amber-700',
+        danger: 'border-transparent bg-tomato/12 text-red-700',
+        destructive: 'border-transparent bg-tomato/12 text-red-700',
+        info: 'border-transparent bg-electric/10 text-blue-700',
+        ai: 'border-transparent bg-ink text-lime',
       },
     },
     defaultVariants: {

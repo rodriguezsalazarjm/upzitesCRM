@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   Activity,
+  ArrowUpRight,
   Bot,
-  ChevronRight,
   CreditCard,
   Gauge,
   Globe2,
@@ -23,11 +23,9 @@ import {
   Settings,
   TrendingUp,
   Users,
-  Zap,
   X,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import type { CurrentUser } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { LogoutForm } from './logout-form';
@@ -64,9 +62,58 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+function NavSection({ label, first }: { label: string; first?: boolean }) {
+  return (
+    <p
+      className={cn(
+        'mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8d8a80]',
+        !first && 'mt-7',
+      )}
+    >
+      {label}
+    </p>
+  );
+}
+
 export function Sidebar({ user }: { user: CurrentUser }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  function renderItems(items: typeof navItems, matchNested: boolean) {
+    return (
+      <ul className="space-y-0.5">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active =
+            pathname === item.href || (matchNested && pathname.startsWith(`${item.href}/`));
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                onClick={() => setOpen(false)}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  active
+                    ? 'bg-canvas text-carbon'
+                    : 'text-[#c9c6ba] hover:bg-white/[0.07] hover:text-white',
+                )}
+              >
+                <Icon
+                  className={cn(
+                    'h-4 w-4 shrink-0',
+                    active ? 'text-electric' : 'text-[#8d8a80] group-hover:text-white',
+                  )}
+                  strokeWidth={1.75}
+                />
+                <span className="flex-1">{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
 
   return (
     <>
@@ -75,7 +122,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
         aria-label={open ? 'Cerrar navegación' : 'Abrir navegación'}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-paper text-carbon outline-none focus-visible:ring-2 focus-visible:ring-electric md:hidden"
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
@@ -84,94 +131,56 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           type="button"
           aria-label="Cerrar navegación"
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-30 bg-slate-950/30 md:hidden"
+          className="fixed inset-0 z-30 bg-carbon/40 md:hidden"
         />
       )}
-      <aside className={cn('fixed inset-y-0 left-0 z-40 flex h-dvh w-[240px] shrink-0 flex-col border-r bg-white transition-transform md:static md:h-screen md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
-      <div className="flex h-16 items-center gap-3 border-b px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-          <Zap className="h-4 w-4 text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-bold text-slate-900">CRM Upzites</p>
-          <p className="text-[10px] leading-none text-slate-400">{user.workspace.name}</p>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Principal
-        </p>
-        <ul className="space-y-0.5">
-          {navItems.slice(0, 14).map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                    active
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-blue-600' : 'text-slate-400')} />
-                  <span className="flex-1">{item.label}</span>
-                  {active && <ChevronRight className="h-3 w-3 text-blue-400" />}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-
-        <p className="mb-2 mt-6 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Sistema
-        </p>
-        <ul className="space-y-0.5">
-          {navItems.slice(14).map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                    active
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-                  )}
-                >
-                  <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-blue-600' : 'text-slate-400')} />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      <div className="border-t p-4">
-        <div className="flex items-center gap-3 rounded-lg p-2">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-blue-100 text-xs font-semibold text-blue-700">
-              {getInitials(user.name)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-slate-800">{user.name}</p>
-            <p className="truncate text-[10px] text-slate-400">{user.email}</p>
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex h-dvh w-[248px] shrink-0 flex-col bg-carbon text-canvas transition-transform md:static md:h-screen md:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex h-20 items-center gap-3 px-6">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-electric">
+            <ArrowUpRight className="h-5 w-5 text-white" strokeWidth={2.5} />
           </div>
-          <Badge variant="success" className="px-1.5 py-0 text-[9px]">
-            {user.role}
-          </Badge>
+          <div className="min-w-0">
+            <p className="type-display flex items-center gap-1.5 text-[22px] leading-none text-canvas">
+              Upzites
+              <span className="rounded bg-lime px-1.5 pb-px pt-[3px] text-[11px] leading-none text-carbon">
+                Flow
+              </span>
+            </p>
+            <p className="mt-1 truncate text-[11px] leading-none text-[#8d8a80]">
+              {user.workspace.name}
+            </p>
+          </div>
         </div>
-        <LogoutForm />
-      </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
+          <NavSection label="Principal" first />
+          {renderItems(navItems.slice(0, 14), true)}
+          <NavSection label="Sistema" />
+          {renderItems(navItems.slice(14), false)}
+        </nav>
+
+        <div className="border-t border-white/10 p-4">
+          <div className="flex items-center gap-3 rounded-lg p-2">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-canvas text-xs font-bold text-carbon">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-semibold text-canvas">{user.name}</p>
+              <p className="truncate text-[11px] text-[#8d8a80]">{user.email}</p>
+            </div>
+            <span className="rounded-full bg-lime px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-carbon">
+              {user.role}
+            </span>
+          </div>
+          <LogoutForm />
+        </div>
       </aside>
     </>
   );

@@ -177,11 +177,11 @@ export function PushNotificationsButton() {
         aria-label={active ? 'Configurar notificaciones' : 'Activar notificaciones'}
         disabled={busy}
         onClick={() => (active ? setOpen((value) => !value) : void enable())}
-        className="relative flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-paper text-carbon transition-colors hover:border-carbon disabled:opacity-40"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
         {active && (
-          <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-lime ring-2 ring-paper" />
         )}
       </button>
 
