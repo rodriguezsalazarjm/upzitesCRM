@@ -39,7 +39,7 @@ export function LogoutForm() {
       <Button
         type="submit"
         variant="ghost"
-        className="h-8 w-full justify-start text-xs text-[#8d8a80] hover:bg-white/[0.07] hover:text-white"
+        className="h-8 w-full justify-start text-xs text-fog hover:bg-white/[0.07] hover:text-white"
       >
         {submitting ? 'Cerrando…' : 'Cerrar sesión'}
       </Button>

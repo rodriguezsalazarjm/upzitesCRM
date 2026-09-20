@@ -66,7 +66,7 @@ function NavSection({ label, first }: { label: string; first?: boolean }) {
   return (
     <p
       className={cn(
-        'mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8d8a80]',
+        'mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-fog',
         !first && 'mt-7',
       )}
     >
@@ -96,13 +96,13 @@ export function Sidebar({ user }: { user: CurrentUser }) {
                   'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   active
                     ? 'bg-canvas text-carbon'
-                    : 'text-[#c9c6ba] hover:bg-white/[0.07] hover:text-white',
+                    : 'text-mist hover:bg-white/[0.07] hover:text-white',
                 )}
               >
                 <Icon
                   className={cn(
                     'h-4 w-4 shrink-0',
-                    active ? 'text-electric' : 'text-[#8d8a80] group-hover:text-white',
+                    active ? 'text-electric' : 'text-fog group-hover:text-white',
                   )}
                   strokeWidth={1.75}
                 />
@@ -151,7 +151,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
                 Flow
               </span>
             </p>
-            <p className="mt-1 truncate text-[11px] leading-none text-[#8d8a80]">
+            <p className="mt-1 truncate text-[11px] leading-none text-fog">
               {user.workspace.name}
             </p>
           </div>
@@ -173,7 +173,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
             </Avatar>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold text-canvas">{user.name}</p>
-              <p className="truncate text-[11px] text-[#8d8a80]">{user.email}</p>
+              <p className="truncate text-[11px] text-fog">{user.email}</p>
             </div>
             <span className="rounded-full bg-lime px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-carbon">
               {user.role}

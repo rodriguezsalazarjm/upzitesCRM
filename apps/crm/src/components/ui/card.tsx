@@ -16,8 +16,8 @@ const cardVariants = cva('rounded-2xl border', {
     tone: {
       default: 'border-line bg-card text-card-foreground',
       sunken: 'border-transparent bg-ivory text-card-foreground',
-      dark: 'border-transparent bg-carbon text-canvas [--card-muted:#a8a69c]',
-      ink: 'border-transparent bg-ink text-canvas [--card-muted:#8fa7b3]',
+      dark: 'border-transparent bg-carbon text-canvas [--card-muted:var(--color-fog)]',
+      ink: 'border-transparent bg-ink text-canvas [--card-muted:var(--color-ink-muted)]',
     },
   },
   defaultVariants: { tone: 'default' },

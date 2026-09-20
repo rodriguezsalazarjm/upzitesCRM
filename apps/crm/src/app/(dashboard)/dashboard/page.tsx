@@ -2,6 +2,7 @@ import { Header } from '@/components/layout/header';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { StatCard } from '@/components/ui/stat-card';
+import { StatusBadge } from '@/components/ui/status-badge';
 import {
   ArrowUpRight,
   Calendar,
@@ -14,7 +15,8 @@ import {
   Users,
 } from 'lucide-react';
 import { getDashboardData } from '@/lib/crm-data';
-import { stageBadgeColors, stageLabels } from '@/lib/mock-data';
+import { stageLabels } from '@/lib/mock-data';
+import { stageTone } from '@/lib/status-tone';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -39,16 +41,16 @@ const activityIcons = {
 const activityColors = {
   email: 'bg-electric/10 text-electric',
   call: 'bg-ink/10 text-ink',
-  meeting: 'bg-solar/30 text-amber-700',
-  note: 'bg-ivory text-slate-600',
-  deal: 'bg-lime/40 text-emerald-700',
+  meeting: 'bg-solar/30 text-warning-ink',
+  note: 'bg-ivory text-graphite',
+  deal: 'bg-lime/40 text-success-ink',
 };
 
 function ViewAll({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a
       href={href}
-      className="inline-flex items-center gap-1 text-[13px] font-semibold text-electric hover:text-blue-700"
+      className="inline-flex items-center gap-1 text-[13px] font-semibold text-electric hover:text-electric-strong"
     >
       {children} <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2} />
     </a>
@@ -126,14 +128,9 @@ export default async function DashboardPage() {
                     <p className="tabular text-sm font-bold">{formatCurrencyLocal(opp.value)}</p>
                     <p className="text-xs text-soft">{opp.probability}% prob.</p>
                   </div>
-                  <span
-                    className={cn(
-                      'w-28 shrink-0 rounded-full px-2.5 py-1 text-center text-[11px] font-semibold',
-                      stageBadgeColors[opp.stage],
-                    )}
-                  >
+                  <StatusBadge variant="dot" onDark tone={stageTone[opp.stage]} className="w-32 shrink-0">
                     {stageLabels[opp.stage]}
-                  </span>
+                  </StatusBadge>
                 </div>
               ))}
               {activeOpportunities.length === 0 && (
@@ -149,7 +146,7 @@ export default async function DashboardPage() {
               {sourceData.map((src, index) => (
                 <div key={src.source}>
                   <div className="mb-1.5 flex items-baseline justify-between">
-                    <span className="text-[13px] text-slate-600">{src.source}</span>
+                    <span className="text-[13px] text-graphite">{src.source}</span>
                     <span className="tabular text-[13px] font-bold">{src.leads}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-ivory">
@@ -187,7 +184,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium leading-snug text-carbon">{act.description}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-ash">
                       {act.contactName} · {act.time}
                     </p>
                   </div>

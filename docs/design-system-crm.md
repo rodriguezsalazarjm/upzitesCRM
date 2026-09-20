@@ -55,37 +55,46 @@ en código nuevo usar tokens semánticos (`bg-canvas`, `text-carbon`, `bg-electr
 |---|---|
 | `Button` | `default` Electric · `dark` · `inverse` (sobre oscuro) · `outline` · `secondary` · `ghost` · `destructive` · `link` |
 | `Badge` | `success` `warning` `danger` `info` `ai` `neutral` `outline` `default` (pill) |
-| `Card` | `tone`: `default` · `sunken` · `dark` (Carbon) · `ink`; las oscuras reasignan el texto secundario |
-| `Input` | 40px, borde `slate-300`, foco Electric |
-| `StatCard` | Eyebrow + cifra display + variación (lime/tomato/neutra) + contexto |
-| `Eyebrow`, `SectionHeading` | Label y encabezado de sección |
-| `EmptyState` | Icono fino + mensaje corto |
-| `Header` (layout) | Título display + subtítulo, acciones a la derecha; misma API |
+| `StatusBadge` | Estado con tono fijo (`success/warning/danger/info/ai/ink/neutral/draft`). `variant="soft"` (pill) o `"dot"` (punto + texto neutro, para tablas y cards densas); `onDark` para Carbon. Mapas de dominio en `lib/status-tone.ts` |
+| `Card` | `tone`: `default` · `sunken` · `dark` (Carbon) · `ink`; las oscuras reasignan el texto secundario (`text-soft`) |
+| `Table` | Semántica HTML real; `tone` light/dark, `density` compact/comfortable, filas `interactive`/`selected` (teclado Enter/Espacio), `TableEmpty`, `TableSkeletonRows` |
+| `Tabs` | Control segmentado. `semantics="tabs"` (tablist, flechas/Home/End) o `"filter"` (aria-pressed); items con `count`, icono o `href` |
+| `Select` | `<select>` nativo con estilo de sistema |
+| `Toolbar`, `FilterBar`, `ToolbarSearch`, `ToolbarSpacer` | Fila de controles sobre el canvas / cabecera de módulo |
+| `PageHeader` | Título display + descripción + acciones. `Header` (layout) lo compone con búsqueda global y acción |
+| `Input`, `StatCard` (`size` sm/default), `Eyebrow`, `SectionHeading`, `EmptyState`, `Skeleton` | |
+| `AutomationRow`, `RuleChip`, `RunHealth` (`components/automations`) | Fila de regla/flujo; base visual para el Builder |
 | `Sidebar` (layout) | Carbon, item activo en canvas, wordmark "Upzites Flow" |
+
+**Neutros y tintas semánticos** (usar en código nuevo en vez de `slate-*`): `ash` `graphite` `stone` `fog`
+`mist` `ink-muted`; tintas de estado `success-ink` `warning-ink` `danger-ink` `info-ink`;
+`electric-strong` / `electric-press` (hover/press de acción primaria).
+
+**Estados de arrastre**: card de pipeline y columna exponen `data-dragging` / `data-over` ya estilizados.
+El tablero aún no es arrastrable (no había DnD): al añadirlo solo hay que setear esos atributos.
 
 ## 4. Plan
 
-**P0 — hecho**
-- Tokens, fuentes, remapeo de paleta, sombras y radios (`globals.css`, `layout.tsx`, `manifest.ts`).
-- Primitivas: Button, Badge, Card, Input. Nuevos: StatCard, Eyebrow/SectionHeading, EmptyState.
-- Shell: Sidebar Carbon, Header editorial, canvas.
-- Pantallas: Dashboard, Integraciones (page + tarjetas Meta/WhatsApp/Mercado Pago/canales), Inbox (lista).
+**P0 — hecho**: tokens, fuentes locales (Helvena + Bebas Neue), remapeo de paleta, primitivas, shell,
+Dashboard, Integraciones, Inbox (lista).
 
-**P1 — siguiente**
-- Contactos, Pipeline, Automatizaciones: barras de filtro `border-b bg-white` → canvas; tabla `Table`
-  (claro y variante Carbon densa); kanban con cards 20px; chips de etapa con `Badge`.
-- Detalle de inbox (`inbox/[id]`) y de contacto (`contactos/[id]`); flow builder (nodos, panel lateral).
-- Componente `Table` + `Tabs/SegmentedControl` + `Select`/`Textarea` de sistema (hoy hay `<select>` y `<textarea>` crudos).
-- Sustituir progresivamente `slate-*`/`blue-*` por tokens semánticos; formularios de Configuración, Productos, Cotizaciones.
-- Login/registro (hoy con degradado azul: fuera de marca).
+**P1 — hecho**: Pipeline (tablero + lista), Contactos (tabla, filtros, panel lateral, ficha completa),
+Automatizaciones (métricas, reglas, flujos, catálogo) y los primitives Table/Tabs/Select/Toolbar/
+PageHeader/StatusBadge. `loading.tsx` con skeleton en las tres rutas.
+
+**P1 — pendiente**
+- Detalle de inbox (`inbox/[id]`) y su panel de contacto; flow builder (nodos, panel lateral) — fuera de este alcance a propósito.
+- Formularios: Configuración, Productos, Cotizaciones, Pedidos, nueva oportunidad/contacto (usar `Input`/`Select`).
+- Login/registro (degradado azul fuera de marca).
+- Sustituir `slate-*`/`blue-*` legacy por tokens semánticos y retirar la capa de compatibilidad.
 
 **P2**
 - Sparklines/gráficas con paleta de marca; módulo de métricas dark en Uso y costos.
-- Skeletons y estados de carga; motion de entrada (slide 8px).
+- Motion de entrada (slide 8px); DnD real en pipeline.
 - Regla ESLint/Tailwind que prohíba familias genéricas de color y `text-[9-11px]`.
-- Regresión visual (Playwright) sobre las pantallas migradas; retirar la capa de compatibilidad.
+- Regresión visual (Playwright) sobre las pantallas migradas.
 
 ## 5. Cómo verificar
 `pnpm --filter @upzites/crm visual:prepare` y `visual:dev` (puerto 3101, BD local `crm_pruebas`, red externa
 bloqueada). No usar `pnpm dev` para revisar diseño: el `.env` local apunta a la base de producción.
-Nota: el guard bloquea Google Fonts, así que en ese modo Bebas Neue cae al fallback.
+Ambas tipografías están autoalojadas (`next/font/local`), así que el modo aislado las renderiza igual que producción.

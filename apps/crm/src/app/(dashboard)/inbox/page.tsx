@@ -26,10 +26,10 @@ const MODE_LABEL: Record<string, string> = {
 
 const MODE_STYLE: Record<string, string> = {
   AI_ACTIVE: 'bg-ink text-lime',
-  HUMAN_ACTIVE: 'bg-electric/10 text-blue-700',
-  WAITING: 'bg-solar/30 text-amber-700',
-  PAUSED: 'bg-ivory text-slate-600',
-  CLOSED: 'bg-ivory text-slate-500',
+  HUMAN_ACTIVE: 'bg-electric/10 text-info-ink',
+  WAITING: 'bg-solar/30 text-warning-ink',
+  PAUSED: 'bg-ivory text-graphite',
+  CLOSED: 'bg-ivory text-ash',
 };
 
 function relativeTime(iso: string) {
@@ -73,7 +73,7 @@ export default async function InboxPage({
               'shrink-0 rounded-full border px-4 py-1.5 text-[13px] font-semibold transition-colors',
               activeChannel === option
                 ? 'border-carbon bg-carbon text-canvas'
-                : 'border-slate-300 bg-paper text-slate-600 hover:border-carbon hover:text-carbon',
+                : 'border-mist bg-paper text-graphite hover:border-carbon hover:text-carbon',
             )}
           >
             {option === 'ALL' ? 'Todos' : CHANNEL_LABEL[option]}
@@ -131,10 +131,10 @@ export default async function InboxPage({
                       </span>
                     )}
                   </div>
-                  <p className="truncate text-[13px] text-slate-600">
+                  <p className="truncate text-[13px] text-graphite">
                     {conversation.lastMessagePreview ?? 'Sin mensajes'}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">{conversation.contactPhone}</p>
+                  <p className="mt-0.5 text-xs text-ash">{conversation.contactPhone}</p>
                 </div>
 
                 <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-1.5 sm:max-w-none">
@@ -147,7 +147,7 @@ export default async function InboxPage({
                   >
                     {MODE_LABEL[conversation.mode]}
                   </span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-ash">
                     {relativeTime(conversation.lastMessageAt)}
                   </span>
                   {!conversation.withinServiceWindow && (

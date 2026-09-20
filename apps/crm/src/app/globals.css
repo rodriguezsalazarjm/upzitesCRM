@@ -83,6 +83,22 @@
   --color-solar: #ffd100;
   --color-tomato: #ff3b30;
 
+  /* --- Neutros semánticos (texto, iconos y bordes de control) --------- */
+  --color-ash: #6b6b6b;       /* texto secundario (5.0:1 sobre canvas) */
+  --color-graphite: #46443f;  /* texto de apoyo fuerte */
+  --color-stone: #767267;     /* iconos, placeholders, hover de borde */
+  --color-fog: #8d8a80;       /* texto secundario sobre Carbon */
+  --color-mist: #c9c6ba;      /* borde de control, iconos deshabilitados */
+  --color-ink-muted: #8fa7b3; /* texto secundario sobre Ink */
+
+  /* --- Tintas de estado (texto sobre fondos tintados) ------------------ */
+  --color-success-ink: #3d6000;
+  --color-warning-ink: #6e5400;
+  --color-danger-ink: #b81e15;
+  --color-info-ink: #0046d1;
+  --color-electric-strong: #0046d1; /* hover de acción primaria */
+  --color-electric-press: #0039ac;  /* press de acción primaria */
+
   /* --- Radios --------------------------------------------------------- */
   --radius-xs: 6px;
   --radius-sm: 8px;

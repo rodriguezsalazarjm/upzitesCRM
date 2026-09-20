@@ -16,14 +16,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-electric text-white hover:bg-blue-700 active:bg-blue-800',
-        dark: 'bg-carbon text-canvas hover:bg-slate-800',
+        default: 'bg-electric text-white hover:bg-electric-strong active:bg-electric-press',
+        dark: 'bg-carbon text-canvas hover:bg-carbon/90',
         inverse: 'bg-canvas text-carbon hover:bg-white',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-red-700',
-        outline: 'border border-slate-300 bg-paper text-carbon hover:border-carbon hover:bg-canvas',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-danger-ink',
+        outline: 'border border-mist bg-paper text-carbon hover:border-carbon hover:bg-canvas',
         secondary: 'bg-ivory text-carbon hover:bg-line',
-        ghost: 'text-slate-600 hover:bg-ivory hover:text-carbon',
-        link: 'text-electric underline underline-offset-4 hover:text-blue-700',
+        ghost: 'text-graphite hover:bg-ivory hover:text-carbon',
+        link: 'text-electric underline underline-offset-4 hover:text-electric-strong',
       },
       size: {
         default: 'h-10 px-4',
