@@ -26,7 +26,7 @@ test('A: connect fake Instagram, create Quick Comment → public/private reply, 
   await page.getByRole('button', { name: 'Crear borrador y abrir Builder' }).click(); await expect(page).toHaveURL(/automatizaciones\/(?!nueva)[^/]+$/);
   const url = page.url();
   await page.getByRole('button', { name: 'Publish', exact: true }).click(); await expect(page.getByRole('status')).toHaveText('Versión publicada.');
-  await fire(page, 'COMMENT', 'GUIA'); await expect(page.getByText('Tu guía C2 está lista.', { exact: true })).toBeVisible();
+  await fire(page, 'COMMENT', 'GUIA'); await expect(page.getByRole('region', { name: 'Conversación' }).getByText('Tu guía C2 está lista.', { exact: true })).toBeVisible();
   await page.goto(url); await expect(page.locator('summary').filter({ hasText: 'COMPLETED' })).toBeVisible();
   await page.screenshot({ path: '.local-visual/c2-builder.png', fullPage: true });
 });
@@ -43,8 +43,8 @@ test('B: install sale template, edit on canvas, publish, confirm product and ful
   await page.locator('.react-flow__node').first().click(); await expect(page.getByRole('heading', { name: 'Enviar mensaje' })).toBeVisible();
   await expect(page.getByLabel('Texto', { exact: true })).toHaveValue('Venta C2: te ayudo con tu compra.');
   await page.getByRole('button', { name: 'Publish', exact: true }).click(); await expect(page.getByRole('status')).toHaveText('Versión publicada.');
-  await fire(page, 'DM_RECEIVED', 'Quiero información del producto'); await expect(page.getByText(/Demo: 5 Minutos con Dios/)).toBeVisible();
-  await fire(page, 'DM_RECEIVED', 'confirmo'); await expect(page.getByText(/Checkout demo:/)).toBeVisible();
+  await fire(page, 'DM_RECEIVED', 'Quiero información del producto'); await expect(page.getByRole('region', { name: 'Conversación' }).getByText(/Demo: 5 Minutos con Dios/)).toBeVisible();
+  await fire(page, 'DM_RECEIVED', 'confirmo'); await expect(page.getByRole('region', { name: 'Conversación' }).getByText(/Checkout demo:/)).toBeVisible();
   const text = await page.locator('body').innerText(); const checkout = text.match(/\/demo-checkout\/[a-z0-9-]+/i)?.[0]; expect(checkout).toBeTruthy();
   await page.goto(checkout!); await expect(page.getByText('Total del catálogo: 5900 CLP')).toBeVisible(); await page.getByRole('button', { name: 'Simular pago aprobado' }).click(); await expect(page.getByRole('status')).toContainText('Entregas: 1'); await expect(page.getByText('Estado: FULFILLED')).toBeVisible();
 });

@@ -10,8 +10,15 @@ export type TabItem = {
   label: string;
   count?: number;
   icon?: LucideIcon;
+  /**
+   * Icono ya renderizado (`<Icon />`). Obligatorio usarlo en vez de `icon` cuando
+   * los items se construyen en un Server Component: un componente no cruza a client.
+   */
+  iconElement?: React.ReactNode;
   /** Solo icono: `label` pasa a ser el nombre accesible. */
   iconOnly?: boolean;
+  /** Tooltip nativo; útil con `iconOnly`. */
+  title?: string;
   /** Si hay href, el item es un enlace (navegación por URL). */
   href?: string;
 };
@@ -82,7 +89,7 @@ export function Tabs({
         );
         const content = (
           <>
-            {Icon && <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />}
+            {item.iconElement ?? (Icon && <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />)}
             {item.iconOnly ? <span className="sr-only">{item.label}</span> : item.label}
             {item.count !== undefined && (
               <span
@@ -106,6 +113,7 @@ export function Tabs({
                 refs.current[index] = node;
               }}
               className={classes}
+              title={item.title}
               aria-current={selected ? 'page' : undefined}
             >
               {content}
@@ -120,6 +128,7 @@ export function Tabs({
               refs.current[index] = node;
             }}
             className={classes}
+            title={item.title}
             onClick={() => onValueChange?.(item.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             {...(isTabs

@@ -30,7 +30,7 @@ const DOT: Record<StatusTone, string> = {
   success: 'bg-lime ring-1 ring-success-ink/30',
   warning: 'bg-solar',
   danger: 'bg-tomato',
-  ai: 'bg-ink',
+  ai: 'bg-lime ring-1 ring-ink/40',
   ink: 'bg-ink',
   draft: 'border-[1.5px] border-stone bg-transparent',
 };

@@ -82,8 +82,12 @@ Dashboard, Integraciones, Inbox (lista).
 Automatizaciones (métricas, reglas, flujos, catálogo) y los primitives Table/Tabs/Select/Toolbar/
 PageHeader/StatusBadge. `loading.tsx` con skeleton en las tres rutas.
 
+**Inbox — hecho**: lista | conversación | contexto (`components/inbox`). ≥1400px tres columnas fijas; <1400px el contexto abre como panel lateral; <1024px la lista es la ruta `/inbox` y la conversación va a pantalla completa. Cliente = burbuja Paper con hairline, agente humano = Carbon, IA/automático = Ivory con punto Lime (única señal Lime, nunca fondo). Canal = icono + nombre (`ChannelLabel`), sin superficies de color. Estados: sin selección, vacío, skeleton (`loading.tsx`), error (`error.tsx`), envío/error/reintento, toma humana, canal con incidencia, offline. Lógica de mensajería intacta (`conversation-client.tsx` conserva efectos, `post`, `send`, reintentos y borradores).
+
+**Regla Server/Client**: un componente (función) no puede pasar de un Server Component a uno client. Para `Tabs` construido en servidor usar `iconElement={<Icon />}`, no `icon={Icon}`.
+
 **P1 — pendiente**
-- Detalle de inbox (`inbox/[id]`) y su panel de contacto; flow builder (nodos, panel lateral) — fuera de este alcance a propósito.
+- Flow builder (nodos, panel lateral) — fuera de este alcance a propósito.
 - Formularios: Configuración, Productos, Cotizaciones, Pedidos, nueva oportunidad/contacto (usar `Input`/`Select`).
 - Login/registro (degradado azul fuera de marca).
 - Sustituir `slate-*`/`blue-*` legacy por tokens semánticos y retirar la capa de compatibilidad.

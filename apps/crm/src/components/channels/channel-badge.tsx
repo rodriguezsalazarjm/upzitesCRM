@@ -11,7 +11,7 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
 
 // lucide-react no trae iconos de marca (Instagram/Facebook/TikTok): se usan
 // iconos genericos que evocan cada canal en vez de un logo con licencia ajena.
-const CHANNEL_ICON: Record<Channel, typeof MessageCircle> = {
+export const CHANNEL_ICON: Record<Channel, typeof MessageCircle> = {
   WHATSAPP: MessageCircle,
   INSTAGRAM: Camera,
   MESSENGER: Send,
@@ -33,6 +33,20 @@ export function ChannelBadge({ channel, className = '' }: { channel: Channel; cl
       <Icon className="h-3 w-3" />
       {CHANNEL_LABEL[channel]}
     </Badge>
+  );
+}
+
+/**
+ * Canal reconocible por icono + nombre, sin superficie de color. Para listas y
+ * cabeceras densas (Inbox); `ChannelBadge` queda para donde un chip tenga sentido.
+ */
+export function ChannelLabel({ channel, className = '' }: { channel: Channel; className?: string }) {
+  const Icon = CHANNEL_ICON[channel];
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-graphite ${className}`}>
+      <Icon className="h-3.5 w-3.5 text-carbon" strokeWidth={1.75} aria-hidden />
+      {CHANNEL_LABEL[channel]}
+    </span>
   );
 }
 
