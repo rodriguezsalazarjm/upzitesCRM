@@ -1,8 +1,7 @@
-import Link from 'next/link';
+import { Activity, AlertTriangle, Power, Workflow } from 'lucide-react';
 import { Header } from '@/components/layout/header';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChannelBadge } from '@/components/channels/channel-badge';
+import { StatCard } from '@/components/ui/stat-card';
+import { FlowsSection, type FlowView } from '@/components/automations/flows-section';
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageChannels } from '@/lib/conversations';
 import { AUTOMATION_PRESETS } from '@/lib/automation/presets';
@@ -117,71 +116,74 @@ export default async function AutomatizacionesPage() {
     alreadyAdded: existingNames.has(preset.name),
   }));
 
+  const flowViews: FlowView[] = flows.map((flow) => {
+    const version = flow.versions[0];
+    return {
+      id: flow.id,
+      name: flow.name,
+      description: flow.description,
+      status: flow.status,
+      channelScope: flow.channelScope,
+      version: version
+        ? {
+            version: version.version,
+            status: version.status,
+            runsStarted: version.runsStarted,
+            runsCompleted: version.runsCompleted,
+            runsFailed: version.runsFailed,
+            messagesSent: version.messagesSent,
+          }
+        : null,
+      totalRuns: flow._count.runs,
+    };
+  });
+
+  const activeRules = ruleViews.filter((rule) => rule.isActive).length;
+  const publishedFlows = flowViews.filter((flow) => flow.status === 'PUBLISHED').length;
+  const totalRuns =
+    ruleViews.reduce((sum, rule) => sum + rule.runCount, 0) + flowViews.reduce((sum, flow) => sum + flow.totalRuns, 0);
+  const failedRuns = flowViews.reduce((sum, flow) => sum + (flow.version?.runsFailed ?? 0), 0);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
         title="Automatizaciones"
         subtitle="Reglas que corren solas: cuando pasa algo, el CRM actua"
       />
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <StatCard
+            size="sm"
+            label="Reglas activas"
+            value={`${activeRules}/${ruleViews.length}`}
+            icon={Power}
+            accent={activeRules > 0 ? 'lime' : undefined}
+          />
+          <StatCard
+            size="sm"
+            label="Flujos publicados"
+            value={publishedFlows}
+            hint={`de ${flowViews.length}`}
+            icon={Workflow}
+          />
+          <StatCard size="sm" label="Ejecuciones" value={totalRuns} icon={Activity} />
+          <StatCard
+            size="sm"
+            tone={failedRuns > 0 ? 'dark' : 'default'}
+            label="Fallidas"
+            value={failedRuns}
+            icon={AlertTriangle}
+            accent={failedRuns > 0 ? 'tomato' : undefined}
+          />
+        </div>
+
         <AutomatizacionesClient
           rules={ruleViews}
           presets={presets}
           canManage={canManageChannels(user.role)}
         />
 
-        <section>
-          <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold">Mis automatizaciones</h2><Link href="/automatizaciones/nueva" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">Nueva automatización / Plantillas</Link></div>
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-slate-900">Flujos multicanal (Beta)</h2>
-            <p className="text-xs text-slate-500">
-              Crea, configura y publica flujos desde el editor visual.
-            </p>
-          </div>
-          {flows.length === 0 ? (
-            <Card className="border-0 border-dashed shadow-sm">
-              <CardContent className="p-6 text-center text-xs text-slate-500">
-                Todavía no hay flujos multicanal creados en este workspace.
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {flows.map((flow) => {
-                const version = flow.versions[0];
-                return (
-                  <Card key={flow.id} className="border-0 shadow-sm">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <CardTitle className="text-sm"><Link href={`/automatizaciones/${flow.id}`} className="text-indigo-700">{flow.name} → Abrir Builder</Link></CardTitle>
-                        <Badge variant={flow.status === 'PUBLISHED' ? 'success' : flow.status === 'DRAFT' ? 'outline' : 'warning'}>
-                          {flow.status === 'PUBLISHED' ? 'Publicado' : flow.status === 'DRAFT' ? 'Borrador' : 'Archivado'}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs text-slate-500">
-                      {flow.description && <p>{flow.description}</p>}
-                      <div className="flex flex-wrap gap-1.5">
-                        {flow.channelScope.length === 0 ? (
-                          <Badge variant="outline" className="text-[10px]">Cualquier canal</Badge>
-                        ) : (
-                          flow.channelScope.map((channel) => <ChannelBadge key={channel} channel={channel} />)
-                        )}
-                      </div>
-                      <p>Versión: {version ? `v${version.version} (${version.status === 'PUBLISHED' ? 'publicada' : 'borrador'})` : 'sin versiones'}</p>
-                      {version && (
-                        <p>
-                          Runs: {version.runsStarted} iniciados · {version.runsCompleted} completados ·{' '}
-                          {version.runsFailed} fallidos · {version.messagesSent} mensajes enviados
-                        </p>
-                      )}
-                      <p>Ejecuciones totales registradas: {flow._count.runs}</p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        <FlowsSection flows={flowViews} />
       </div>
     </div>
   );
