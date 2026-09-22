@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pause, Play } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 
 export type JourneyView = {
   id: string;
@@ -66,60 +66,56 @@ export function JourneysClient({
 
   if (journeys.length === 0) {
     return (
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">Todavia no hay journeys</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Se crean con <code>POST /api/journeys</code>.
-          </p>
-        </CardContent>
+      <Card className="p-8 text-center">
+        <p className="text-sm font-medium text-graphite">Todavia no hay journeys</p>
+        <p className="mt-1 text-xs text-soft">
+          Se crean con <code>POST /api/journeys</code>.
+        </p>
       </Card>
     );
   }
 
   return (
     <>
-      {error && <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      {error && <p className="mb-2 rounded-lg bg-tomato/12 px-3 py-2 text-xs text-danger-ink">{error}</p>}
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="divide-y p-0">
-          {journeys.map((journey) => (
-            <div key={journey.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-800">{journey.name}</p>
-                <p className="truncate text-[11px] text-slate-500">
-                  {TRIGGER_LABEL[journey.trigger] ?? journey.trigger} · {journey.steps} pasos
-                </p>
-              </div>
-
-              <div className="hidden w-56 text-right text-[11px] text-slate-500 md:block">
-                {journey.active} en curso · {journey.exited} recuperados
-                {journey.completed > 0 && ` · ${journey.completed} sin respuesta`}
-              </div>
-
-              <Badge variant={journey.statusVariant}>{journey.statusLabel}</Badge>
-
-              {canManage && (
-                <button
-                  type="button"
-                  disabled={busy === journey.id}
-                  onClick={() => toggle(journey)}
-                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 disabled:opacity-50"
-                >
-                  {journey.status === 'PUBLISHED' ? (
-                    <>
-                      <Pause className="h-3 w-3" /> Pausar
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-3 w-3" /> Activar
-                    </>
-                  )}
-                </button>
-              )}
+      <Card className="divide-y divide-line">
+        {journeys.map((journey) => (
+          <div key={journey.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-carbon">{journey.name}</p>
+              <p className="truncate text-[11px] text-soft">
+                {TRIGGER_LABEL[journey.trigger] ?? journey.trigger} · {journey.steps} pasos
+              </p>
             </div>
-          ))}
-        </CardContent>
+
+            <div className="hidden w-56 text-right text-[11px] text-soft md:block">
+              {journey.active} en curso · {journey.exited} recuperados
+              {journey.completed > 0 && ` · ${journey.completed} sin respuesta`}
+            </div>
+
+            <Badge variant={journey.statusVariant}>{journey.statusLabel}</Badge>
+
+            {canManage && (
+              <button
+                type="button"
+                disabled={busy === journey.id}
+                onClick={() => toggle(journey)}
+                className="flex items-center gap-1 text-[11px] text-soft hover:text-carbon disabled:opacity-50"
+              >
+                {journey.status === 'PUBLISHED' ? (
+                  <>
+                    <Pause className="h-3 w-3" /> Pausar
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3" /> Activar
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        ))}
       </Card>
     </>
   );

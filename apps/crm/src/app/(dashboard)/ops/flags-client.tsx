@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Power, PowerOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import type { FlagState } from '@/lib/ops/flags';
 
 /**
@@ -46,51 +46,47 @@ export function FlagsClient({ flags, canManage }: { flags: FlagState[]; canManag
 
   return (
     <>
-      {error && <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      {error && <p className="mb-2 rounded-lg bg-tomato/12 px-3 py-2 text-xs text-danger-ink">{error}</p>}
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="divide-y p-0">
-          {flags.map((flag) => (
-            <div key={flag.key} className="flex items-start gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-800">{flag.label}</p>
-                <p className="text-[11px] text-slate-500">{flag.effect}</p>
-                {flag.note && (
-                  <p className="mt-0.5 text-[11px] italic text-slate-400">{flag.note}</p>
-                )}
-              </div>
-
-              {flag.disabledBy === 'GLOBAL' && (
-                <Badge variant="destructive">Apagado por plataforma</Badge>
-              )}
-
-              <Badge variant={flag.enabled ? 'success' : 'outline'}>
-                {flag.enabled ? 'Activo' : 'Apagado'}
-              </Badge>
-
-              {/* Un corte global no se puede reencender desde aqui: si un
-                  workspace pudiera, el corte no serviria de nada. */}
-              {canManage && flag.disabledBy !== 'GLOBAL' && (
-                <button
-                  type="button"
-                  disabled={busy === flag.key}
-                  onClick={() => toggle(flag)}
-                  className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 disabled:opacity-50"
-                >
-                  {flag.enabled ? (
-                    <>
-                      <PowerOff className="h-3 w-3" /> Apagar
-                    </>
-                  ) : (
-                    <>
-                      <Power className="h-3 w-3" /> Encender
-                    </>
-                  )}
-                </button>
-              )}
+      <Card className="divide-y divide-line">
+        {flags.map((flag) => (
+          <div key={flag.key} className="flex items-start gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-carbon">{flag.label}</p>
+              <p className="text-[11px] text-soft">{flag.effect}</p>
+              {flag.note && <p className="mt-0.5 text-[11px] italic text-soft">{flag.note}</p>}
             </div>
-          ))}
-        </CardContent>
+
+            {flag.disabledBy === 'GLOBAL' && (
+              <Badge variant="destructive">Apagado por plataforma</Badge>
+            )}
+
+            <Badge variant={flag.enabled ? 'success' : 'outline'}>
+              {flag.enabled ? 'Activo' : 'Apagado'}
+            </Badge>
+
+            {/* Un corte global no se puede reencender desde aqui: si un
+                workspace pudiera, el corte no serviria de nada. */}
+            {canManage && flag.disabledBy !== 'GLOBAL' && (
+              <button
+                type="button"
+                disabled={busy === flag.key}
+                onClick={() => toggle(flag)}
+                className="flex shrink-0 items-center gap-1 text-[11px] text-soft hover:text-carbon disabled:opacity-50"
+              >
+                {flag.enabled ? (
+                  <>
+                    <PowerOff className="h-3 w-3" /> Apagar
+                  </>
+                ) : (
+                  <>
+                    <Power className="h-3 w-3" /> Encender
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        ))}
       </Card>
     </>
   );

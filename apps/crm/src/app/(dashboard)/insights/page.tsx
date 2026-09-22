@@ -13,17 +13,17 @@ export default async function InsightsPage() {
       <Header title="Insights IA" subtitle="Scoring, resumenes y siguiente mejor accion" />
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         {insights.map((insight) => (
-          <Card key={insight.id} className="border-0 shadow-sm">
+          <Card key={insight.id}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm">{insight.title}</CardTitle>
                 <div className="flex items-center gap-2">
-                  {insight.score !== null && <Badge variant="info">{insight.score}</Badge>}
+                  {insight.score !== null && <Badge variant="ai">{insight.score}</Badge>}
                   <Badge variant={insight.status === 'OPEN' ? 'warning' : 'outline'}>{insight.status}</Badge>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2 text-xs text-slate-500">
+            <CardContent className="space-y-2 text-xs text-soft">
               <p>{insight.description}</p>
               <p>
                 {insight.contact

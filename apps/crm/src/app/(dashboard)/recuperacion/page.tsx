@@ -1,6 +1,7 @@
 import { Header } from '@/components/layout/header';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
 import { campaignMetrics, journeyMetrics } from '@/lib/marketing/campaigns';
 import { getPolicy } from '@/lib/marketing/policy';
@@ -86,110 +87,89 @@ export default async function RecuperacionPage() {
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {!verifiedDomain && (
-          <Card className="border-0 bg-blue-50 shadow-sm">
-            <CardContent className="p-5">
-              <p className="text-sm font-semibold text-slate-900">
-                Sin dominio de envio verificado
-              </p>
-              <p className="mt-1 text-xs text-slate-600">
-                Las campanas de email no salen hasta que el dominio este verificado. Registralo en{' '}
-                <code>POST /api/email/domains</code> y publica los registros DNS que devuelve. Los
-                journeys de WhatsApp funcionan igual.
-              </p>
-            </CardContent>
-          </Card>
+          <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
+            Sin dominio de envio verificado. Las campanas de email no salen hasta que el dominio
+            este verificado. Registralo en <code>POST /api/email/domains</code> y publica los
+            registros DNS que devuelve. Los journeys de WhatsApp funcionan igual.
+          </p>
         )}
 
         {/* Los limites primero: son la razon por la que se puede confiar en lo
             que viene abajo. */}
         <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Limites de contacto
-          </p>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="grid grid-cols-2 gap-4 p-5 md:grid-cols-5">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Sin envios</p>
-                <p className="text-sm font-bold text-slate-900">
-                  {formatMinute(policy.quietStartMinute)} a {formatMinute(policy.quietEndMinute)}
-                </p>
-                <p className="text-[11px] text-slate-500">{policy.timezone}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">WhatsApp</p>
-                <p className="text-sm font-bold text-slate-900">{policy.maxWhatsappPerDay} / dia</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Email</p>
-                <p className="text-sm font-bold text-slate-900">{policy.maxEmailPerWeek} / semana</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Multicanal</p>
-                <p className="text-sm font-bold text-slate-900">
-                  {policy.allowSameDayMultichannel ? 'Permitido' : 'Bloqueado'}
-                </p>
-                <p className="text-[11px] text-slate-500">el mismo dia</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Suprimidos</p>
-                <p className="text-sm font-bold text-slate-900">{suppressed}</p>
-                <p className="text-[11px] text-slate-500">nunca reciben nada</p>
-              </div>
-            </CardContent>
+          <Eyebrow className="mb-2">Limites de contacto</Eyebrow>
+          <Card className="grid grid-cols-2 gap-4 p-5 md:grid-cols-5">
+            <div>
+              <Eyebrow>Sin envios</Eyebrow>
+              <p className="text-sm font-bold text-carbon">
+                {formatMinute(policy.quietStartMinute)} a {formatMinute(policy.quietEndMinute)}
+              </p>
+              <p className="text-[11px] text-soft">{policy.timezone}</p>
+            </div>
+            <div>
+              <Eyebrow>WhatsApp</Eyebrow>
+              <p className="text-sm font-bold text-carbon">{policy.maxWhatsappPerDay} / dia</p>
+            </div>
+            <div>
+              <Eyebrow>Email</Eyebrow>
+              <p className="text-sm font-bold text-carbon">{policy.maxEmailPerWeek} / semana</p>
+            </div>
+            <div>
+              <Eyebrow>Multicanal</Eyebrow>
+              <p className="text-sm font-bold text-carbon">
+                {policy.allowSameDayMultichannel ? 'Permitido' : 'Bloqueado'}
+              </p>
+              <p className="text-[11px] text-soft">el mismo dia</p>
+            </div>
+            <div>
+              <Eyebrow>Suprimidos</Eyebrow>
+              <p className="text-sm font-bold text-carbon">{suppressed}</p>
+              <p className="text-[11px] text-soft">nunca reciben nada</p>
+            </div>
           </Card>
         </section>
 
         <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Journeys ({journeys.length})
-          </p>
+          <Eyebrow className="mb-2">Journeys ({journeys.length})</Eyebrow>
           <JourneysClient journeys={journeyViews} canManage={canManageMarketing(user.role)} />
         </section>
 
         <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Segmentos ({segments.length})
-          </p>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="divide-y p-0">
-              {segments.map((segment) => (
-                <div key={segment.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-800">{segment.name}</p>
-                    <p className="truncate text-[11px] text-slate-500">{segment.description}</p>
-                  </div>
-                  {segment.source === 'PRESET' && <Badge variant="outline">De fabrica</Badge>}
-                  <span className="w-20 text-right text-xs font-bold text-slate-900">
-                    {segment.estimatedCount}
-                  </span>
+          <Eyebrow className="mb-2">Segmentos ({segments.length})</Eyebrow>
+          <Card className="divide-y divide-line">
+            {segments.map((segment) => (
+              <div key={segment.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-carbon">{segment.name}</p>
+                  <p className="truncate text-[11px] text-soft">{segment.description}</p>
                 </div>
-              ))}
-            </CardContent>
+                {segment.source === 'PRESET' && <Badge variant="outline">De fabrica</Badge>}
+                <span className="w-20 text-right text-xs font-bold text-carbon">
+                  {segment.estimatedCount}
+                </span>
+              </div>
+            ))}
           </Card>
         </section>
 
         {campaignStats.filter(Boolean).length > 0 && (
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Campanas
-            </p>
-            <Card className="border-0 shadow-sm">
-              <CardContent className="divide-y p-0">
-                {campaignStats.filter(Boolean).map((campaign) => (
-                  <div key={campaign!.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-slate-800">{campaign!.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {campaign!.sent} enviados · {campaign!.skipped} omitidos ·{' '}
-                        {campaign!.openRate}% apertura · {campaign!.unsubscribed} bajas
-                      </p>
-                    </div>
-                    <Badge variant={CAMPAIGN_STATUS[campaign!.status]?.variant ?? 'outline'}>
-                      {CAMPAIGN_STATUS[campaign!.status]?.label ?? campaign!.status}
-                    </Badge>
+            <Eyebrow className="mb-2">Campanas</Eyebrow>
+            <Card className="divide-y divide-line">
+              {campaignStats.filter(Boolean).map((campaign) => (
+                <div key={campaign!.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-carbon">{campaign!.name}</p>
+                    <p className="text-[11px] text-soft">
+                      {campaign!.sent} enviados · {campaign!.skipped} omitidos ·{' '}
+                      {campaign!.openRate}% apertura · {campaign!.unsubscribed} bajas
+                    </p>
                   </div>
-                ))}
-              </CardContent>
+                  <Badge variant={CAMPAIGN_STATUS[campaign!.status]?.variant ?? 'outline'}>
+                    {CAMPAIGN_STATUS[campaign!.status]?.label ?? campaign!.status}
+                  </Badge>
+                </div>
+              ))}
             </Card>
           </section>
         )}
