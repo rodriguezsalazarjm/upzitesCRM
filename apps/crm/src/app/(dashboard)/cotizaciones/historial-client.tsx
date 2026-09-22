@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, Link2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { ExternalLink, FileText, Link2 } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { StatusBadge, type StatusTone } from '@/components/ui/status-badge';
+import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export type HistoryQuoteView = {
   id: string;
@@ -12,11 +13,17 @@ export type HistoryQuoteView = {
   contactName: string;
   status: string;
   statusLabel: string;
-  statusVariant: 'success' | 'warning' | 'outline';
+  statusTone: StatusTone;
   total: number;
+  createdAt: string;
+  validUntil: string | null;
 };
 
 const SHAREABLE = ['APPROVED', 'SENT', 'ACCEPTED'];
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 /**
  * Historial con la opcion de recuperar el enlace del PDF.
@@ -54,52 +61,74 @@ export function HistorialClient({
 
   return (
     <>
-      {error && <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      {error && <p className="mb-2 rounded-lg bg-tomato/12 px-3 py-2 text-xs text-danger-ink">{error}</p>}
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="divide-y p-0">
-          {quotes.map((quote) => (
-            <div key={quote.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-800">
+      <Card className="overflow-hidden">
+        <Table density="compact">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Cliente</TableHead>
+              <TableHead className="hidden sm:table-cell">Folio</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead align="right">Monto</TableHead>
+              <TableHead className="hidden md:table-cell">Fecha</TableHead>
+              <TableHead className="hidden lg:table-cell">Vigencia</TableHead>
+              <TableHead>
+                <span className="sr-only">Acciones</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {quotes.map((quote) => (
+              <TableRow key={quote.id}>
+                <TableCell>
+                  <p className="truncate font-semibold text-carbon">{quote.contactName}</p>
+                </TableCell>
+                <TableCell className="hidden text-graphite sm:table-cell">
                   {quote.number}
-                  {quote.version > 1 && (
-                    <span className="ml-1 font-normal text-slate-400">v{quote.version}</span>
-                  )}
-                </p>
-                <p className="truncate text-[11px] text-slate-500">{quote.contactName}</p>
-              </div>
-
-              {canManage && SHAREABLE.includes(quote.status) && (
-                links[quote.id] ? (
-                  <a
-                    href={links[quote.id]}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-[11px] font-medium text-blue-700 underline"
-                  >
-                    Ver PDF <ExternalLink className="h-3 w-3" />
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy === quote.id}
-                    onClick={() => regenerate(quote.id)}
-                    className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 disabled:opacity-50"
-                  >
-                    <Link2 className="h-3 w-3" />
-                    {busy === quote.id ? 'Generando…' : 'Obtener enlace'}
-                  </button>
-                )
-              )}
-
-              <Badge variant={quote.statusVariant}>{quote.statusLabel}</Badge>
-              <span className="w-28 text-right text-xs font-bold text-slate-900">
-                ${quote.total.toLocaleString('es-CL')}
-              </span>
-            </div>
-          ))}
-        </CardContent>
+                  {quote.version > 1 && <span className="ml-1 text-soft">v{quote.version}</span>}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge tone={quote.statusTone}>{quote.statusLabel}</StatusBadge>
+                </TableCell>
+                <TableCell numeric>${quote.total.toLocaleString('es-CL')}</TableCell>
+                <TableCell muted className="hidden md:table-cell">
+                  {formatDate(quote.createdAt)}
+                </TableCell>
+                <TableCell muted className="hidden lg:table-cell">
+                  {quote.validUntil ? formatDate(quote.validUntil) : '—'}
+                </TableCell>
+                <TableCell className="w-32">
+                  {canManage && SHAREABLE.includes(quote.status) ? (
+                    links[quote.id] ? (
+                      <a
+                        href={links[quote.id]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-medium text-electric hover:underline"
+                      >
+                        Ver PDF <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy === quote.id}
+                        onClick={() => regenerate(quote.id)}
+                        className="flex items-center gap-1 text-[11px] text-soft hover:text-carbon disabled:opacity-50"
+                      >
+                        <Link2 className="h-3 w-3" />
+                        {busy === quote.id ? 'Generando…' : 'Obtener enlace'}
+                      </button>
+                    )
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            ))}
+            {quotes.length === 0 && (
+              <TableEmpty colSpan={7} icon={FileText} title="Sin cotizaciones" description="Aun no hay historial." />
+            )}
+          </TableBody>
+        </Table>
       </Card>
     </>
   );

@@ -1,25 +1,15 @@
 import { Header } from '@/components/layout/header';
-import { Card, CardContent } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canApproveQuotes, pendingApprovals } from '@/lib/quotes/service';
 import { parseIntakeSchema } from '@/lib/quotes/schema';
+import { quoteStatusLabel, quoteStatusTone } from '@/lib/status-tone';
 import { AprobacionesClient, type PendingQuoteView } from './aprobaciones-client';
 import { HistorialClient } from './historial-client';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'outline' }> = {
-  DRAFT: { label: 'Borrador', variant: 'outline' },
-  CALCULATED: { label: 'Calculada', variant: 'warning' },
-  PENDING_HUMAN_REVIEW: { label: 'En revision', variant: 'warning' },
-  APPROVED: { label: 'Aprobada', variant: 'success' },
-  SENT: { label: 'Enviada', variant: 'success' },
-  ACCEPTED: { label: 'Aceptada', variant: 'success' },
-  REJECTED: { label: 'Rechazada', variant: 'outline' },
-  EXPIRED: { label: 'Vencida', variant: 'outline' },
-};
 
 export default async function CotizacionesPage() {
   const user = await requireCurrentUser();
@@ -89,37 +79,23 @@ export default async function CotizacionesPage() {
       />
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {published.length === 0 && (
-          <Card className="border-0 bg-blue-50 shadow-sm">
-            <CardContent className="p-5">
-              <p className="text-sm font-semibold text-slate-900">
-                No hay servicios cotizables configurados
-              </p>
-              <p className="mt-1 text-xs text-slate-600">
-                Sin precios publicados, el CRM deriva la solicitud a una persona en vez de inventar
-                un valor. Agrega un servicio y revisa sus reglas antes de publicarlo.
-              </p>
-              <Link
-                href="/configuracion#servicios-precios"
-                className="mt-3 inline-flex text-xs font-semibold text-blue-700 underline"
-              >
-                Configurar servicios y precios
-              </Link>
-            </CardContent>
-          </Card>
+          <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
+            No hay servicios cotizables configurados. Sin precios publicados, el CRM deriva la
+            solicitud a una persona en vez de inventar un valor.{' '}
+            <Link href="/configuracion#servicios-precios" className="font-semibold underline">
+              Configurar servicios y precios
+            </Link>
+          </p>
         )}
 
         <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Esperando revision ({queue.length})
-          </p>
+          <Eyebrow className="mb-2">Esperando revision ({queue.length})</Eyebrow>
           <AprobacionesClient quotes={queue} canApprove={canApproveQuotes(user.role)} />
         </section>
 
         {recent.length > 0 && (
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Historial
-            </p>
+            <Eyebrow className="mb-2">Historial</Eyebrow>
             <HistorialClient
               quotes={recent.map((quote) => ({
                 id: quote.id,
@@ -129,9 +105,11 @@ export default async function CotizacionesPage() {
                   ? `${quote.contact.firstName} ${quote.contact.lastName}`.trim()
                   : 'Sin contacto',
                 status: quote.status,
-                statusLabel: STATUS[quote.status]?.label ?? quote.status,
-                statusVariant: STATUS[quote.status]?.variant ?? 'outline',
+                statusLabel: quoteStatusLabel[quote.status] ?? quote.status,
+                statusTone: quoteStatusTone[quote.status] ?? 'neutral',
                 total: quote.total,
+                createdAt: quote.createdAt.toISOString(),
+                validUntil: quote.validUntil?.toISOString() ?? null,
               }))}
               canManage={canApproveQuotes(user.role)}
             />
