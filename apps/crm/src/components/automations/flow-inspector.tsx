@@ -12,11 +12,25 @@ import { nodeTitle } from './flow-node-meta';
 import { missingCapabilities, type AccountView } from '@/lib/automations/catalog';
 import type { FlowNode } from '@/lib/automations/schema';
 
+export type FlowInspectorProps = {
+  current: FlowNode | undefined;
+  readonly: boolean;
+  onUpdate: (patch: Record<string, unknown>) => void;
+  channel: string;
+  account: AccountView | undefined;
+  agents: { id: string; label: string; allowedTools: string[] }[];
+  products: { id: string; name: string }[];
+  errors: string[];
+  onUseAsFirst: () => void;
+  onDelete: () => void;
+};
+
 /**
  * Panel de configuración del nodo seleccionado. Un solo nivel de card (sin
  * cards anidadas): header con tipo/estado, formulario por tipo, y la acción
  * destructiva al final, separada por un hairline. Recibe `current` y
- * `onUpdate` del padre — no toca `nodes`/`edges` directamente.
+ * `onUpdate` del padre — no toca `nodes`/`edges` directamente. Se reutiliza
+ * tal cual dentro del Drawer del viewer compact/mobile.
  */
 export function FlowInspector({
   current,
@@ -29,18 +43,7 @@ export function FlowInspector({
   errors,
   onUseAsFirst,
   onDelete,
-}: {
-  current: FlowNode | undefined;
-  readonly: boolean;
-  onUpdate: (patch: Record<string, unknown>) => void;
-  channel: string;
-  account: AccountView | undefined;
-  agents: { id: string; label: string; allowedTools: string[] }[];
-  products: { id: string; name: string }[];
-  errors: string[];
-  onUseAsFirst: () => void;
-  onDelete: () => void;
-}) {
+}: FlowInspectorProps) {
   return (
     <Card className="space-y-4 p-4">
       <div>

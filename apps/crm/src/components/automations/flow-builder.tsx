@@ -20,12 +20,19 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './flow-canvas.css';
+import { Blocks, PanelRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Drawer } from '@/components/ui/drawer';
+import { FlowEmptyState } from './flow-empty-state';
 import { FlowInspector } from './flow-inspector';
 import { FlowNodeCard } from './flow-node-card';
-import { FlowToolbar } from './flow-toolbar';
+import { FlowToolbar, type FlowAction } from './flow-toolbar';
 import { FlowTriggerCard } from './flow-trigger-card';
+import { MobileFlowViewer } from './mobile-flow-viewer';
 import { NodePalette } from './node-palette';
+import { buildFlowOutline } from './flow-outline';
 import { NODE_PALETTE, errorsForNode, isNodeIncomplete } from './flow-node-meta';
+import { useMediaQuery } from '@/lib/use-media-query';
 import type { FlowGraph, FlowNode } from '@/lib/automations/schema';
 import type { AccountView } from '@/lib/automations/catalog';
 import type { Channel } from '../../../generated/prisma/client';
@@ -111,12 +118,19 @@ function Editor(props: BuilderProps) {
   const [selected, setSelected] = useState<string>();
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<FlowAction | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const readonly = version.status !== 'DRAFT' || !props.canManage;
   const current = nodes.find((n) => n.id === selected)?.data.step;
   const account =
     props.accounts.find((a) => a.id === trigger.accountId) ??
     (props.channel === 'WHATSAPP' ? props.accounts.find((a) => a.channel === 'WHATSAPP') : undefined);
+
+  // >=1280: paleta/inspector fijos. 768-1279: mismo canvas, paleta/inspector en drawer.
+  // <768: sin React Flow — viewer topológico (mobile-flow-viewer.tsx). Ver reporte de P2.
+  const isDesktop = useMediaQuery('(min-width: 1280px)');
+  const isCanvasCapable = useMediaQuery('(min-width: 768px)');
 
   // Derivado por render, solo para pintar: no toca la posición/selección que administra useNodesState.
   const canvasNodes = nodes.map((n) => ({ ...n, data: { ...n.data, errors: errorsForNode(errors, n.id) } }));
@@ -127,8 +141,8 @@ function Editor(props: BuilderProps) {
     edges: edges.map((e) => ({ id: e.id, from: e.source, to: e.target, ...(e.sourceHandle ? { branch: e.sourceHandle } : {}) })),
   });
 
-  async function action(kind: 'save' | 'publish' | 'draft' | 'validate') {
-    setBusy(true);
+  async function action(kind: FlowAction) {
+    setBusyAction(kind);
     setErrors([]);
     setNotice('');
     try {
@@ -151,7 +165,7 @@ function Editor(props: BuilderProps) {
     } catch (error) {
       setErrors(String(error instanceof Error ? error.message : error).split('\n'));
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -175,6 +189,32 @@ function Editor(props: BuilderProps) {
     setNodes((all) => [...all, { id, type: 'step', position, data: { step: { ...structuredClone(step), id } } }]);
     setSelected(id);
   }
+  function select(id: string | undefined) {
+    setSelected(id);
+    if (id && !isDesktop) setInspectorOpen(true);
+  }
+  function useAsFirst() {
+    setNodes((all) => [...all.filter((n) => n.id === selected), ...all.filter((n) => n.id !== selected)]);
+  }
+  function remove() {
+    setNodes((all) => all.filter((n) => n.id !== selected));
+    setEdges((all) => all.filter((e) => e.source !== selected && e.target !== selected));
+    setSelected(undefined);
+    setInspectorOpen(false);
+  }
+
+  const inspectorProps = {
+    current,
+    readonly,
+    onUpdate: update,
+    channel: props.channel,
+    account,
+    agents: props.agents,
+    products: props.products,
+    errors: selected ? errorsForNode(errors, selected) : [],
+    onUseAsFirst: useAsFirst,
+    onDelete: remove,
+  };
 
   return (
     <section className="space-y-4">
@@ -183,8 +223,9 @@ function Editor(props: BuilderProps) {
         onNameChange={setName}
         readonly={readonly}
         canManage={props.canManage}
-        busy={busy}
+        busyAction={busyAction}
         version={version}
+        compact={!isDesktop}
         onValidate={() => action('validate')}
         onSaveDraft={() => action('save')}
         onPublish={() => action('publish')}
@@ -213,66 +254,100 @@ function Editor(props: BuilderProps) {
         account={account}
       />
 
-      <p className="rounded-lg bg-solar/20 p-3 text-sm text-warning-ink lg:hidden">
-        El canvas se puede consultar aquí. Para editar conexiones con precisión, usa una pantalla de escritorio.
-      </p>
+      {isCanvasCapable ? (
+        <>
+          {!isDesktop && (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPaletteOpen(true)}>
+                <Blocks aria-hidden />
+                Agregar nodo
+              </Button>
+              {current && (
+                <Button variant="outline" size="sm" onClick={() => setInspectorOpen(true)}>
+                  <PanelRight aria-hidden />
+                  Configuración
+                </Button>
+              )}
+            </div>
+          )}
 
-      <div className="grid min-h-[620px] gap-3 lg:grid-cols-[200px_minmax(0,1fr)_300px]">
-        <NodePalette readonly={readonly} onAppend={append} />
+          <div className="grid min-h-[620px] gap-3 xl:grid-cols-[200px_minmax(0,1fr)_300px]">
+            {isDesktop && <NodePalette readonly={readonly} onAppend={append} />}
 
-        {/* Canvas: Off-white con grid de puntos sutil, controles y minimapa reestilizados (ver flow-canvas.css). */}
-        <div
-          className="upz-flow-canvas h-[620px] min-w-0 overflow-hidden rounded-2xl border border-line bg-canvas"
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            const item = NODE_PALETTE[Number(e.dataTransfer.getData('application/upzites-node'))];
-            if (item) append(item[1], flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-          }}
-        >
-          <ReactFlow<CanvasNode>
-            nodes={canvasNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={readonly ? undefined : onNodesChange}
-            onEdgesChange={readonly ? undefined : onEdgesChange}
-            nodesDraggable={!readonly}
-            nodesConnectable={!readonly}
-            deleteKeyCode={readonly ? null : ['Backspace', 'Delete']}
-            onNodeClick={(_, n) => setSelected(n.id)}
-            onConnect={(c) => {
-              if (!readonly) setEdges((es) => addEdge({ ...c, label: c.sourceHandle }, es));
-            }}
-            defaultEdgeOptions={{ style: { strokeWidth: 1.5 } }}
-            connectionRadius={28}
-            fitView
-          >
-            <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--color-mist)" />
-            <Controls showInteractive={false} />
-            <MiniMap pannable zoomable nodeColor="var(--color-mist)" maskColor="rgba(17,17,17,0.04)" />
-          </ReactFlow>
-        </div>
+            {/* Canvas: Off-white con grid de puntos sutil, controles y minimapa reestilizados (ver flow-canvas.css). */}
+            <div
+              className="upz-flow-canvas relative h-[620px] min-w-0 overflow-hidden rounded-2xl border border-line bg-canvas"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const item = NODE_PALETTE[Number(e.dataTransfer.getData('application/upzites-node'))];
+                if (item) append(item[1], flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+              }}
+            >
+              {nodes.length === 0 && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
+                  <FlowEmptyState />
+                </div>
+              )}
+              <ReactFlow<CanvasNode>
+                nodes={canvasNodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={readonly ? undefined : onNodesChange}
+                onEdgesChange={readonly ? undefined : onEdgesChange}
+                nodesDraggable={!readonly}
+                nodesConnectable={!readonly}
+                deleteKeyCode={readonly ? null : ['Backspace', 'Delete']}
+                onNodeClick={(_, n) => select(n.id)}
+                onConnect={(c) => {
+                  if (!readonly) setEdges((es) => addEdge({ ...c, label: c.sourceHandle }, es));
+                }}
+                defaultEdgeOptions={{ style: { strokeWidth: 1.5 } }}
+                connectionRadius={28}
+                fitView
+              >
+                <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--color-mist)" />
+                <Controls showInteractive={false} />
+                <MiniMap pannable zoomable nodeColor="var(--color-mist)" maskColor="rgba(17,17,17,0.04)" />
+              </ReactFlow>
+            </div>
 
-        <FlowInspector
-          current={current}
-          readonly={readonly}
-          onUpdate={update}
-          channel={props.channel}
-          account={account}
-          agents={props.agents}
-          products={props.products}
-          errors={selected ? errorsForNode(errors, selected) : []}
-          onUseAsFirst={() => setNodes((all) => [...all.filter((n) => n.id === selected), ...all.filter((n) => n.id !== selected)])}
-          onDelete={() => {
-            setNodes((all) => all.filter((n) => n.id !== selected));
-            setEdges((all) => all.filter((e) => e.source !== selected && e.target !== selected));
-            setSelected(undefined);
-          }}
+            {isDesktop && <FlowInspector {...inspectorProps} />}
+          </div>
+
+          {!isDesktop && (
+            <>
+              <Drawer open={paletteOpen} onClose={() => setPaletteOpen(false)} title="Agregar nodo" side="left" id="flow-palette-drawer">
+                <NodePalette
+                  readonly={readonly}
+                  onAppend={(step) => {
+                    append(step);
+                    setPaletteOpen(false);
+                  }}
+                />
+              </Drawer>
+              <Drawer open={inspectorOpen} onClose={() => setInspectorOpen(false)} title="Configuración del nodo" side="right" id="flow-inspector-drawer">
+                <FlowInspector {...inspectorProps} />
+              </Drawer>
+            </>
+          )}
+        </>
+      ) : (
+        <MobileFlowViewer
+          {...buildFlowOutline(
+            nodes.map((n) => ({ id: n.id, step: n.data.step })),
+            edges.map((e) => ({ source: e.source, target: e.target, branch: e.sourceHandle ?? undefined })),
+            nodes[0]?.id,
+          )}
+          selected={selected}
+          onSelect={select}
+          errors={errors}
+          inspector={inspectorProps}
         />
-      </div>
+      )}
     </section>
   );
 }
