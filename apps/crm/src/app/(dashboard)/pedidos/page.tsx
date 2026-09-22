@@ -1,4 +1,3 @@
-import { Receipt } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -98,9 +97,7 @@ export default async function PedidosPage() {
                   </TableRow>
                 );
               })}
-              {orders.length === 0 && (
-                <TableEmpty colSpan={7} icon={Receipt} title="Sin pedidos todavia" />
-              )}
+              {orders.length === 0 && <TableEmpty colSpan={7} title="Sin pedidos todavia" />}
             </TableBody>
           </Table>
         </Card>
