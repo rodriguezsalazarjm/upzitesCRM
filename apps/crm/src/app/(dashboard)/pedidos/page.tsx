@@ -1,22 +1,14 @@
 import { Receipt } from 'lucide-react';
 import { Header } from '@/components/layout/header';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { requireCurrentUser } from '@/lib/auth';
 import { formatCurrency } from '@/lib/mock-data';
 import { prisma } from '@/lib/prisma';
+import { deliveryStatusLabel, deliveryStatusTone, orderStatusLabel, orderStatusTone, paymentStatusLabel, paymentStatusTone } from '@/lib/status-tone';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'outline' }> = {
-  DRAFT: { label: 'Borrador', variant: 'outline' },
-  PENDING_PAYMENT: { label: 'Esperando pago', variant: 'warning' },
-  CONFIRMED: { label: 'Pagado', variant: 'success' },
-  PROCESSING: { label: 'En proceso', variant: 'warning' },
-  FULFILLED: { label: 'Entregado', variant: 'success' },
-  CANCELLED: { label: 'Cancelado', variant: 'outline' },
-  REFUNDED: { label: 'Devuelto', variant: 'outline' },
-};
 
 export default async function PedidosPage() {
   const user = await requireCurrentUser();
@@ -27,6 +19,7 @@ export default async function PedidosPage() {
       lines: true,
       contact: { select: { firstName: true, lastName: true } },
       deliveries: { select: { id: true, status: true, downloadCount: true } },
+      payments: { orderBy: { createdAt: 'desc' }, take: 1, select: { status: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -35,54 +28,82 @@ export default async function PedidosPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Pedidos" subtitle="Compras, pagos y entregas digitales" />
-      <div className="flex-1 space-y-3 overflow-y-auto p-6">
-        {orders.length === 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-              <Receipt className="h-8 w-8 text-slate-300" />
-              <p className="text-sm font-medium text-slate-700">Sin pedidos todavia</p>
-            </CardContent>
-          </Card>
-        )}
+      <div className="flex-1 overflow-y-auto p-6">
+        <Card className="overflow-hidden">
+          <Table density="compact">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead className="hidden sm:table-cell">Pedido</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="hidden md:table-cell">Pago</TableHead>
+                <TableHead className="hidden lg:table-cell">Entrega</TableHead>
+                <TableHead align="right">Total</TableHead>
+                <TableHead className="hidden xl:table-cell">Fecha</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((order) => {
+                const payment = order.payments[0];
+                const deliveryStatus = order.deliveries.length
+                  ? order.deliveries.some((d) => d.status === 'ACCESSED')
+                    ? 'ACCESSED'
+                    : order.deliveries[0].status
+                  : null;
+                const downloads = order.deliveries.reduce((sum, delivery) => sum + delivery.downloadCount, 0);
 
-        {orders.map((order) => {
-          const status = STATUS[order.status] ?? { label: order.status, variant: 'outline' as const };
-          const downloads = order.deliveries.reduce((sum, delivery) => sum + delivery.downloadCount, 0);
-
-          return (
-            <Card key={order.id} className="border-0 shadow-sm">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {order.contact
-                        ? `${order.contact.firstName} ${order.contact.lastName}`
-                        : (order.customerName ?? 'Sin contacto')}
-                    </p>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </div>
-
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
-                    {order.lines.map((line) => `${line.quantity}× ${line.name}`).join(', ')}
-                  </p>
-
-                  {order.deliveries.length > 0 && (
-                    <p className="mt-0.5 text-[10px] text-slate-400">
-                      {order.deliveries.length} acceso(s) · {downloads} descarga(s)
-                    </p>
-                  )}
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-bold text-slate-900">{formatCurrency(order.total)}</p>
-                  <p className="text-[10px] text-slate-400">
-                    {order.createdAt.toLocaleDateString('es-CL')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                return (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <p className="truncate font-semibold text-carbon">
+                        {order.contact
+                          ? `${order.contact.firstName} ${order.contact.lastName}`
+                          : (order.customerName ?? 'Sin contacto')}
+                      </p>
+                      <p className="truncate text-xs text-soft">
+                        {order.lines.map((line) => `${line.quantity}× ${line.name}`).join(', ')}
+                      </p>
+                    </TableCell>
+                    <TableCell className="hidden text-graphite sm:table-cell">
+                      {order.id.slice(-8).toUpperCase()}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={orderStatusTone[order.status] ?? 'neutral'}>
+                        {orderStatusLabel[order.status] ?? order.status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {payment ? (
+                        <StatusBadge tone={paymentStatusTone[payment.status] ?? 'neutral'}>
+                          {paymentStatusLabel[payment.status] ?? payment.status}
+                        </StatusBadge>
+                      ) : (
+                        <span className="text-xs text-soft">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {deliveryStatus ? (
+                        <StatusBadge tone={deliveryStatusTone[deliveryStatus] ?? 'neutral'}>
+                          {deliveryStatusLabel[deliveryStatus] ?? deliveryStatus}
+                        </StatusBadge>
+                      ) : (
+                        <span className="text-xs text-soft">—</span>
+                      )}
+                      {downloads > 0 && <p className="mt-0.5 text-[10px] text-soft">{downloads} descarga(s)</p>}
+                    </TableCell>
+                    <TableCell numeric>{formatCurrency(order.total)}</TableCell>
+                    <TableCell muted className="hidden xl:table-cell">
+                      {order.createdAt.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {orders.length === 0 && (
+                <TableEmpty colSpan={7} icon={Receipt} title="Sin pedidos todavia" />
+              )}
+            </TableBody>
+          </Table>
+        </Card>
       </div>
     </div>
   );
