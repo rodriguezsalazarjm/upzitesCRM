@@ -1,5 +1,6 @@
 import { Header } from '@/components/layout/header';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
 import { openAlerts } from '@/lib/billing/alerts';
 import { getOnboardingState } from '@/lib/onboarding/steps';
@@ -26,28 +27,22 @@ export default async function OnboardingPage() {
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         {alerts.length > 0 && (
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Avisos ({alerts.length})
-            </p>
-            <Card className="border-0 shadow-sm">
-              <CardContent className="divide-y p-0">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="px-4 py-3">
-                    <p
-                      className={
-                        alert.severity === 'CRITICAL'
-                          ? 'text-xs font-semibold text-red-700'
-                          : 'text-xs font-semibold text-amber-700'
-                      }
-                    >
-                      {alert.title}
-                    </p>
-                    {alert.detail && (
-                      <p className="mt-0.5 text-[11px] text-slate-500">{alert.detail}</p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
+            <Eyebrow className="mb-2">Avisos ({alerts.length})</Eyebrow>
+            <Card className="divide-y divide-line">
+              {alerts.map((alert) => (
+                <div key={alert.id} className="px-4 py-3">
+                  <p
+                    className={
+                      alert.severity === 'CRITICAL'
+                        ? 'text-xs font-semibold text-danger-ink'
+                        : 'text-xs font-semibold text-warning-ink'
+                    }
+                  >
+                    {alert.title}
+                  </p>
+                  {alert.detail && <p className="mt-0.5 text-[11px] text-soft">{alert.detail}</p>}
+                </div>
+              ))}
             </Card>
           </section>
         )}
