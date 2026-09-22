@@ -18,19 +18,19 @@ export const CHANNEL_ICON: Record<Channel, typeof MessageCircle> = {
   TIKTOK: Music2,
 };
 
-const CHANNEL_BADGE_CLASS: Record<Channel, string> = {
-  WHATSAPP: 'bg-emerald-50 text-emerald-700',
-  INSTAGRAM: 'bg-fuchsia-50 text-fuchsia-700',
-  MESSENGER: 'bg-blue-50 text-blue-700',
-  TIKTOK: 'bg-slate-100 text-slate-700',
-};
-
-/** Insignia visual del canal. Un solo lugar para el icono/color de cada uno. */
+/**
+ * Insignia visual del canal: icono + nombre sobre superficie neutra, igual
+ * para los cuatro canales — el color no es la identidad del canal, el icono
+ * y el label sí. Antes cada canal tenía su propio fondo de marca
+ * (emerald/fuchsia/blue/slate); se retira para seguir la misma gramática que
+ * ya usa `ChannelLabel` y los nodos del Flow Builder ("icono + nombre + señal
+ * discreta", nunca una card entera del color de la plataforma).
+ */
 export function ChannelBadge({ channel, className = '' }: { channel: Channel; className?: string }) {
   const Icon = CHANNEL_ICON[channel];
   return (
-    <Badge className={`flex shrink-0 items-center gap-1 ${CHANNEL_BADGE_CLASS[channel]} ${className}`}>
-      <Icon className="h-3 w-3" />
+    <Badge variant="neutral" className={`flex shrink-0 items-center gap-1 ${className}`}>
+      <Icon className="h-3 w-3" aria-hidden />
       {CHANNEL_LABEL[channel]}
     </Badge>
   );
