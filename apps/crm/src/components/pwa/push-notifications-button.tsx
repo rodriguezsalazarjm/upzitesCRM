@@ -2,6 +2,7 @@
 
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 type Preferences = {
   notifyHumanAttention: boolean;
@@ -177,7 +178,7 @@ export function PushNotificationsButton() {
         aria-label={active ? 'Configurar notificaciones' : 'Activar notificaciones'}
         disabled={busy}
         onClick={() => (active ? setOpen((value) => !value) : void enable())}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-paper text-carbon transition-colors hover:border-carbon disabled:opacity-40"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-mist bg-paper text-carbon outline-none transition-colors hover:border-carbon focus-visible:ring-2 focus-visible:ring-electric disabled:opacity-40"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
         {active && (
@@ -186,55 +187,41 @@ export function PushNotificationsButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-x-3 top-16 z-[70] ml-auto w-auto max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-80">
+        <div className="fixed inset-x-3 top-16 z-[70] ml-auto w-auto max-w-sm rounded-xl border border-line bg-paper p-4 shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-80">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Notificaciones</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="text-sm font-semibold text-carbon">Notificaciones</p>
+              <p className="mt-1 text-xs leading-5 text-ash">
                 Elige qué avisos quieres recibir en este dispositivo.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-xs text-slate-500 underline"
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cerrar
-            </button>
+            </Button>
           </div>
 
           {active && (
             <div className="mt-3 space-y-2">
               {LABELS.map(([key, label]) => (
-                <label key={key} className="flex items-start gap-2 text-xs text-slate-700">
+                <label key={key} className="flex items-start gap-2 text-xs text-graphite">
                   <input
                     type="checkbox"
                     checked={preferences[key]}
                     onChange={(event) =>
                       setPreferences((current) => ({ ...current, [key]: event.target.checked }))
                     }
-                    className="mt-0.5"
+                    className="mt-0.5 accent-electric"
                   />
                   {label}
                 </label>
               ))}
               <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void savePreferences()}
-                  className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
-                >
-                  <Check className="h-3.5 w-3.5" /> Guardar
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void disable()}
-                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  <BellOff className="h-3.5 w-3.5" /> Desactivar
-                </button>
+                <Button type="button" size="sm" disabled={busy} onClick={() => void savePreferences()}>
+                  <Check /> Guardar
+                </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void disable()}>
+                  <BellOff /> Desactivar
+                </Button>
               </div>
             </div>
           )}
@@ -242,7 +229,7 @@ export function PushNotificationsButton() {
           {message && (
             <p
               role="status"
-              className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700"
+              className="mt-3 rounded-lg bg-ivory px-3 py-2 text-xs text-graphite"
             >
               {message}
             </p>

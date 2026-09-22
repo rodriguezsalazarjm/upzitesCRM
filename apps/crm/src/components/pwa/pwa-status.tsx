@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export function PwaStatus() {
   const [online, setOnline] = useState(true);
@@ -49,20 +50,16 @@ export function PwaStatus() {
   if (online && !waiting) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
-      <p className="flex-1 text-xs leading-5 text-slate-700">
+    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-md items-center gap-3 rounded-xl border border-line bg-paper px-4 py-3 shadow-lg">
+      <p role="status" className="flex-1 text-xs leading-5 text-graphite">
         {!online
           ? 'Estás sin conexión. Puedes leer esta pantalla, pero el CRM no enviará ni guardará cambios.'
           : 'Hay una actualización disponible. Tus borradores de Inbox se conservarán.'}
       </p>
       {online && waiting && (
-        <button
-          type="button"
-          onClick={applyUpdate}
-          className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
-        >
+        <Button type="button" size="sm" onClick={applyUpdate} className="shrink-0">
           Actualizar
-        </button>
+        </Button>
       )}
     </div>
   );
