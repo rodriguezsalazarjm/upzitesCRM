@@ -289,7 +289,7 @@ function Editor(props: BuilderProps) {
             >
               {nodes.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
-                  <FlowEmptyState />
+                  <FlowEmptyState variant="canvas" />
                 </div>
               )}
               <ReactFlow<CanvasNode>

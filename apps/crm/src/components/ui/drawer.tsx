@@ -25,16 +25,45 @@ export function Drawer({
   id: string;
   children: React.ReactNode;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<Element | null>(null);
 
   useEffect(() => {
-    if (open) closeRef.current?.focus();
+    if (open) {
+      triggerRef.current = document.activeElement;
+      closeRef.current?.focus();
+    } else if (triggerRef.current instanceof HTMLElement) {
+      // Devuelve el foco a quien abrió el drawer (el botón "Agregar nodo" /
+      // "Configuración" del toolbar compact) — si no, tras Escape el foco
+      // caía al <body>.
+      triggerRef.current.focus();
+    }
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      // Focus trap: el resto de la página queda `inert` (no tabulable), pero
+      // sin esto Tab podía salir del drawer por los extremos del documento.
+      if (event.key !== 'Tab' || !panelRef.current) return;
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -44,7 +73,10 @@ export function Drawer({
     <>
       {open && <div aria-hidden onClick={onClose} className="fixed inset-0 z-40 bg-carbon/40" />}
       <aside
+        ref={panelRef}
         id={id}
+        role="dialog"
+        aria-modal="true"
         aria-label={title}
         // `inert` (no solo pointer-events-none) saca todo el contenido del tab
         // order mientras está fuera de pantalla — si no, el foco podía "viajar"

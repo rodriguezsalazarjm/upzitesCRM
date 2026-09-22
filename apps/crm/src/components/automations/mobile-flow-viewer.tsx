@@ -41,7 +41,7 @@ export function MobileFlowViewer({
   return (
     <div className="space-y-3">
       {!root && orphans.length === 0 ? (
-        <FlowEmptyState />
+        <FlowEmptyState variant="canvas" />
       ) : (
         <>
           {root && (

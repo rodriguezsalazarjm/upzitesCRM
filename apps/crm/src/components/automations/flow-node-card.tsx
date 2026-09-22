@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, CircleDashed } from 'lucide-react';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { cn } from '@/lib/utils';
 import { NODE_META, TONE_CLASS, nodeSubtitle, nodeTitle } from './flow-node-meta';
@@ -36,7 +36,11 @@ export function FlowNodeCard({
           <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
         </span>
         <Eyebrow className="min-w-0 flex-1 truncate">{nodeTitle(step)}</Eyebrow>
-        {hasError && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-danger-ink" aria-label="Con error" />}
+        {hasError ? (
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-danger-ink" role="img" aria-label="Con error" />
+        ) : (
+          incomplete && <CircleDashed className="h-3.5 w-3.5 shrink-0 text-warning-ink" role="img" aria-label="Incompleto" />
+        )}
       </div>
 
       <p className="mt-2 truncate text-sm font-medium text-carbon">{nodeSubtitle(step)}</p>

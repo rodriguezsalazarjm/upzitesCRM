@@ -1,6 +1,6 @@
 'use client';
 
-import { CornerDownRight } from 'lucide-react';
+import { AlertTriangle, CircleDashed, CornerDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { errorsForNode, isNodeIncomplete, NODE_META, nodeSubtitle, nodeTitle } from './flow-node-meta';
 import type { OutlineEntry } from './flow-outline';
@@ -41,6 +41,11 @@ function OutlineRow({
         <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-soft">{nodeTitle(step)}</span>
         <span className="block truncate text-sm font-medium text-carbon">{nodeSubtitle(step)}</span>
       </span>
+      {hasError ? (
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-danger-ink" role="img" aria-label="Con error" />
+      ) : (
+        incomplete && <CircleDashed className="h-3.5 w-3.5 shrink-0 text-warning-ink" role="img" aria-label="Incompleto" />
+      )}
     </button>
   );
 }
