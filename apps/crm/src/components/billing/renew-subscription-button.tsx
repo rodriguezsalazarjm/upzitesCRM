@@ -34,7 +34,7 @@ export function RenewSubscriptionButton() {
         <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
         Renovar 30 dias
       </Button>
-      {error && <p className="text-[11px] font-medium text-red-600">{error}</p>}
+      {error && <p className="text-[11px] font-medium text-danger-ink">{error}</p>}
     </div>
   );
 }
