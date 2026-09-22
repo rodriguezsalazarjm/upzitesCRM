@@ -87,7 +87,7 @@ export function PushNotificationsButton() {
     }
     if (!configured || !publicKey) {
       setOpen(true);
-      setMessage('Falta configurar Web Push en el servidor.');
+      setMessage('Las notificaciones todavía no están disponibles en tu cuenta.');
       return;
     }
     setBusy(true);
