@@ -64,7 +64,7 @@ async function main() {
       where: { key: 'monthly' },
       create: {
         key: 'monthly',
-        name: 'CRM Upzites Mensual',
+        name: 'Upzites Flow Mensual',
         priceClp: 49000,
         maxUsers: 3,
         maxContacts: 1000,

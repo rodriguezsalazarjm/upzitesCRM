@@ -30,23 +30,23 @@ export function notificationForEvent(event: PushEvent) {
   const copy: Record<PushEventKind, { title: string; body: string }> = {
     HUMAN_ATTENTION: {
       title: 'Se necesita atención humana',
-      body: 'Abre CRM Upzites para revisar la conversación.',
+      body: 'Abre Upzites Flow para revisar la conversación.',
     },
     ASSIGNED: {
       title: 'Te asignaron una conversación',
-      body: 'Abre CRM Upzites para atenderla.',
+      body: 'Abre Upzites Flow para atenderla.',
     },
     QUOTE_APPROVAL: {
       title: 'Hay una cotización por revisar',
-      body: 'Abre CRM Upzites para aprobarla o pedir cambios.',
+      body: 'Abre Upzites Flow para aprobarla o pedir cambios.',
     },
     OPERATIONAL_ISSUE: {
       title: 'El CRM necesita atención',
-      body: 'Abre CRM Upzites para revisar el problema.',
+      body: 'Abre Upzites Flow para revisar el problema.',
     },
     INCOMING_MESSAGE: {
       title: 'Llegó un mensaje nuevo',
-      body: 'Abre CRM Upzites para leerlo.',
+      body: 'Abre Upzites Flow para leerlo.',
     },
   };
 

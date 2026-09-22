@@ -25,11 +25,11 @@ const bebas = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'CRM Upzites',
-  description: 'CRM web-first para crecimiento comercial de pymes chilenas',
+  title: 'Upzites Flow',
+  description: 'Plataforma de ventas, automatización y conversaciones multicanal.',
   manifest: '/manifest.webmanifest',
-  applicationName: 'CRM Upzites',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Upzites CRM' },
+  applicationName: 'Upzites Flow',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Upzites Flow' },
   icons: {
     icon: [
       { url: '/icons/upzites-192.png', sizes: '192x192', type: 'image/png' },

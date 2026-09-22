@@ -63,7 +63,7 @@ self.addEventListener('push', (event) => {
   } catch {
     data = {};
   }
-  const title = typeof data.title === 'string' ? data.title : 'CRM Upzites';
+  const title = typeof data.title === 'string' ? data.title : 'Upzites Flow';
   const body = typeof data.body === 'string' ? data.body : 'Hay una novedad por revisar.';
   const url =
     typeof data.url === 'string' && /^\/(inbox(?:\/[^/]+)?|cotizaciones|ops)$/.test(data.url)

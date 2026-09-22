@@ -53,7 +53,7 @@ export function nextTrialEnd(from = new Date()) {
  * factura de OpenAI esperando a ocurrir.
  */
 const MONTHLY_PLAN_TERMS = {
-  name: 'CRM Upzites Mensual',
+  name: 'Upzites Flow Mensual',
   priceClp: 49000,
   maxUsers: 3,
   maxContacts: 1000,

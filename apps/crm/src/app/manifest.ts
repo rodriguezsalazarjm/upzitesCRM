@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'CRM Upzites',
-    short_name: 'Upzites CRM',
-    description: 'Atiende conversaciones y gestiona tus ventas desde cualquier dispositivo.',
+    name: 'Upzites Flow',
+    short_name: 'Upzites Flow',
+    description: 'Plataforma de ventas, automatización y conversaciones multicanal.',
     start_url: '/inbox',
     scope: '/',
     display: 'standalone',

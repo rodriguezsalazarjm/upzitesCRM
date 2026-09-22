@@ -293,7 +293,7 @@ async function main() {
     where: { key: 'pilot' },
     create: {
       key: 'pilot',
-      name: 'Piloto Upzites CRM',
+      name: 'Piloto Upzites Flow',
       priceClp: 49000,
       maxUsers: 3,
       maxContacts: 1000,

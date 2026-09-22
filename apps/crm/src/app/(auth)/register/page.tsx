@@ -50,7 +50,7 @@ export default function RegisterPage() {
             <Zap className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-lg font-bold">CRM Upzites</p>
+            <p className="text-lg font-bold">Upzites Flow</p>
             <p className="text-xs text-slate-400">Sistema comercial mensual</p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <p className="text-xs text-slate-500">Upzites CRM · SaaS comercial para clientes</p>
+        <p className="text-xs text-slate-500">Upzites Flow · SaaS comercial para clientes</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center px-6 py-10">
@@ -86,7 +86,7 @@ export default function RegisterPage() {
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
               <Zap className="h-5 w-5" />
             </div>
-            <p className="font-bold text-slate-900">CRM Upzites</p>
+            <p className="font-bold text-slate-900">Upzites Flow</p>
           </div>
 
           <div className="mb-7">
