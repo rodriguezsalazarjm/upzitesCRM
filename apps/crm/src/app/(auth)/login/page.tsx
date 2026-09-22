@@ -23,21 +23,25 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    setLoading(false);
+      if (!response.ok) {
+        setError('Credenciales inválidas');
+        return;
+      }
 
-    if (!response.ok) {
-      setError('Credenciales invalidas');
-      return;
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      setError('Se perdió la conexión. Revisa tu conexión e intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
-
-    router.push('/dashboard');
-    router.refresh();
   };
 
   return (

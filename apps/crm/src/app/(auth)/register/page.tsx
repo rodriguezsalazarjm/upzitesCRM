@@ -34,22 +34,30 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
 
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
 
-    setLoading(false);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        setError(payload?.message ?? 'No pudimos crear la cuenta. Revisa los datos e intenta de nuevo.');
+        return;
+      }
 
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      setError(payload?.message ?? 'No pudimos crear la cuenta. Revisa los datos e intenta de nuevo.');
-      return;
+      router.push('/dashboard');
+      router.refresh();
+    } catch {
+      // Falla de red (sin conexión, cambio de red, timeout): el servidor puede
+      // haber creado la cuenta igual, así que el mensaje ofrece ambas salidas.
+      setError(
+        'Se perdió la conexión mientras creábamos la cuenta. Revisa tu conexión e intenta de nuevo; si el correo ya existe, ingresa con él.',
+      );
+    } finally {
+      setLoading(false);
     }
-
-    router.push('/dashboard');
-    router.refresh();
   }
 
   return (
