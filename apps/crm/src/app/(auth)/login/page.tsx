@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Zap, ArrowRight } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { Wordmark } from '@/components/ui/wordmark';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,6 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
+  const errorId = useId();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,118 +41,114 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {/* Panel izquierdo - Branding */}
-      <div className="hidden lg:flex w-1/2 flex-col justify-between bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-12 text-white">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-bold">Upzites Flow</span>
-        </div>
+    <div className="flex min-h-screen flex-col bg-canvas lg:flex-row">
+      {/* Zona principal: wordmark, headline corto, descripción y el formulario. */}
+      <div className="flex w-full flex-1 flex-col justify-center px-6 py-12 sm:px-10 lg:w-[55%] lg:px-16 xl:px-20">
+        <div className="mx-auto w-full max-w-sm">
+          <Wordmark size="lg" className="mb-10 lg:mb-12" />
 
-        <div>
-          <blockquote className="text-2xl font-light leading-relaxed text-blue-100">
-            &ldquo;El CRM que nació del sitio web: captura leads, conversa, cotiza y cobra.&rdquo;
-          </blockquote>
-          <div className="mt-8 grid grid-cols-3 gap-4">
-            {[
-              { label: 'Leads este mes', value: '+34' },
-              { label: 'Tasa de cierre', value: '32%' },
-              { label: 'Ingresos', value: '$31.7M' },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-xl bg-white/10 p-4 backdrop-blur">
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="mt-1 text-xs text-blue-200">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+          <h1 className="type-display text-[34px] leading-[0.92] text-carbon lg:text-[52px] xl:text-[56px]">
+            Captura. Conversa.
+            <br />
+            Cotiza. Cobra.
+          </h1>
+          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-slate-600 lg:mt-4">
+            Plataforma de ventas, automatización y conversaciones multicanal.
+          </p>
 
-        <p className="text-xs text-blue-300">© 2026 Upzites · Todos los derechos reservados</p>
-      </div>
-
-      {/* Panel derecho - Form */}
-      <div className="flex flex-1 flex-col items-center justify-center px-8">
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Zap className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold text-slate-900">Upzites Flow</span>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900">Bienvenido de vuelta</h2>
+          <div className="mt-9 lg:mt-11">
+            <h2 className="text-xl font-bold text-carbon">Bienvenido de vuelta</h2>
             <p className="mt-1.5 text-sm text-slate-500">Ingresa con el correo y contrasena de tu empresa</p>
-          </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">
-                Correo electronico
-              </label>
-              <Input
-                type="email"
-                placeholder="tu@empresa.cl"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-10"
-                required
-              />
-            </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium text-slate-700">Contrasena</label>
-                <Link href="#" className="text-xs text-blue-600 hover:underline">
-                  Olvidaste tu contrasena?
-                </Link>
-              </div>
-              <div className="relative">
+            <form onSubmit={handleLogin} className="mt-6 space-y-5">
+              <FormField label="Correo electronico" htmlFor="login-email">
                 <Input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="********"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-10 pr-10"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="tu@empresa.cl"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+              </FormField>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <label htmlFor="login-password" className="text-sm font-semibold text-carbon">
+                    Contrasena
+                  </label>
+                  <Link href="#" className="text-xs font-medium text-electric hover:text-electric-strong">
+                    Olvidaste tu contrasena?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="********"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pr-10"
+                    aria-describedby={error ? errorId : undefined}
+                    aria-invalid={error ? true : undefined}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone transition-colors hover:text-graphite"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
+
+              {error && (
+                <p id={errorId} role="alert" className="rounded-lg bg-tomato/12 px-3 py-2 text-xs font-medium text-danger-ink">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <>
+                    Iniciar sesion <ArrowRight className="h-4 w-4" aria-hidden />
+                  </>
+                )}
+              </Button>
+            </form>
+
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-line" />
+              <span className="type-eyebrow text-soft">o</span>
+              <div className="h-px flex-1 bg-line" />
             </div>
 
-            <Button type="submit" className="h-10 w-full gap-2" disabled={loading}>
-              {loading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <>Iniciar sesion <ArrowRight className="h-4 w-4" /></>
-              )}
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/register">Crear una cuenta</Link>
             </Button>
-            {error && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
-                {error}
-              </p>
-            )}
-          </form>
-
-          <div className="mt-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-[11px] uppercase tracking-wide text-slate-400">o</span>
-            <div className="h-px flex-1 bg-slate-200" />
           </div>
-
-          <Button asChild variant="outline" className="mt-4 h-10 w-full">
-            <Link href="/register">Crear una cuenta</Link>
-          </Button>
         </div>
+      </div>
+
+      {/* Superficie de apoyo: cita editorial, sin decoración adicional. */}
+      <div className="hidden bg-carbon lg:flex lg:w-[45%] lg:flex-col lg:justify-between lg:p-14 xl:p-16">
+        <Wordmark tone="dark" />
+
+        <blockquote className="max-w-md">
+          <p className="type-display text-[64px] leading-[0.5] text-lime" aria-hidden>
+            &ldquo;
+          </p>
+          <p className="mt-4 text-2xl font-semibold leading-snug text-canvas">
+            La plataforma que nació del sitio web: captura leads, conversa, cotiza y cobra.
+          </p>
+        </blockquote>
+
+        <p className="text-xs text-fog">© 2026 Upzites · Todos los derechos reservados</p>
       </div>
     </div>
   );

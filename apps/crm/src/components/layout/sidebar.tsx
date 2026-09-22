@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   Activity,
-  ArrowUpRight,
   Bot,
   CreditCard,
   Gauge,
@@ -26,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Wordmark } from '@/components/ui/wordmark';
 import type { CurrentUser } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { LogoutForm } from './logout-form';
@@ -140,21 +140,8 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-20 items-center gap-3 px-6">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-electric">
-            <ArrowUpRight className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="min-w-0">
-            <p className="type-display flex items-center gap-1.5 text-[22px] leading-none text-canvas">
-              Upzites
-              <span className="rounded bg-lime px-1.5 pb-px pt-[3px] text-[11px] leading-none text-carbon">
-                Flow
-              </span>
-            </p>
-            <p className="mt-1 truncate text-[11px] leading-none text-fog">
-              {user.workspace.name}
-            </p>
-          </div>
+        <div className="flex h-20 items-center px-6">
+          <Wordmark tone="dark" subtitle={user.workspace.name} />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-2">

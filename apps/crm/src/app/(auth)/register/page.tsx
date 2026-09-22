@@ -2,10 +2,19 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { ArrowRight, CheckCircle2, Eye, EyeOff, Zap } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { Wordmark } from '@/components/ui/wordmark';
+
+const FEATURES = [
+  'Workspace separado por cliente',
+  'Acceso con correo y contrasena',
+  'Suscripcion activa por 30 dias',
+  'Captura de leads desde web o formulario',
+];
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,6 +27,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
   });
+  const errorId = useId();
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -43,134 +53,130 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <div className="hidden w-1/2 flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-lg font-bold">Upzites Flow</p>
-            <p className="text-xs text-slate-400">Sistema comercial mensual</p>
-          </div>
-        </div>
+    <div className="flex min-h-screen flex-col bg-canvas lg:flex-row">
+      {/* Zona principal: wordmark, headline corto, descripción y el formulario. */}
+      <div className="flex w-full flex-1 flex-col justify-center px-6 py-12 sm:px-10 lg:w-[55%] lg:px-16 xl:px-20">
+        <div className="mx-auto w-full max-w-sm">
+          <Wordmark size="lg" className="mb-10 lg:mb-12" />
 
-        <div className="max-w-lg">
-          <p className="mb-5 text-sm font-semibold uppercase tracking-[0.2em] text-blue-300">
-            Venta mensual
-          </p>
-          <h1 className="text-4xl font-black tracking-tight">
-            Cada cliente entra a su propio CRM, con sus leads, fuentes y oportunidades.
+          <h1 className="type-display text-[34px] leading-[0.92] text-carbon lg:text-[48px] xl:text-[52px]">
+            Cada cliente,
+            <br />
+            su propio espacio.
           </h1>
-          <div className="mt-8 grid gap-3 text-sm text-slate-300">
-            {[
-              'Workspace separado por cliente',
-              'Acceso con correo y contrasena',
-              'Suscripcion activa por 30 dias',
-              'Captura de leads desde web o formulario',
-            ].map((item) => (
-              <div key={item} className="flex items-center gap-3">
-                <CheckCircle2 className="h-4 w-4 text-blue-400" />
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
+          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-slate-600 lg:mt-4">
+            Workspace separado, con tus leads, fuentes y oportunidades.
+          </p>
 
-        <p className="text-xs text-slate-500">Upzites Flow · SaaS comercial para clientes</p>
-      </div>
+          <div className="mt-9 lg:mt-11">
+            <h2 className="text-xl font-bold text-carbon">Crear acceso de cliente</h2>
+            <p className="mt-1.5 text-sm text-slate-500">Crea un espacio mensual con datos separados para esta empresa.</p>
 
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <Zap className="h-5 w-5" />
-            </div>
-            <p className="font-bold text-slate-900">Upzites Flow</p>
-          </div>
-
-          <div className="mb-7">
-            <h2 className="text-2xl font-bold text-slate-900">Crear acceso de cliente</h2>
-            <p className="mt-1.5 text-sm text-slate-500">
-              Crea un CRM mensual con datos separados para esta empresa.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Empresa</label>
-              <Input
-                value={form.companyName}
-                onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
-                placeholder="Nombre de la empresa"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Nombre del responsable</label>
-              <Input
-                value={form.ownerName}
-                onChange={(event) => setForm((current) => ({ ...current, ownerName: event.target.value }))}
-                placeholder="Ej: Camila Perez"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Correo de acceso</label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                placeholder="cliente@empresa.cl"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Contrasena inicial</label>
-              <div className="relative">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              <FormField label="Empresa" htmlFor="register-company">
                 <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  placeholder="Minimo 8 caracteres"
-                  className="pr-10"
-                  minLength={8}
+                  autoComplete="organization"
+                  value={form.companyName}
+                  onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
+                  placeholder="Nombre de la empresa"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+              </FormField>
+
+              <FormField label="Nombre del responsable" htmlFor="register-owner">
+                <Input
+                  autoComplete="name"
+                  value={form.ownerName}
+                  onChange={(event) => setForm((current) => ({ ...current, ownerName: event.target.value }))}
+                  placeholder="Ej: Camila Perez"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Correo de acceso" htmlFor="register-email">
+                <Input
+                  type="email"
+                  autoComplete="email"
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  placeholder="cliente@empresa.cl"
+                  required
+                />
+              </FormField>
+
+              <div>
+                <label htmlFor="register-password" className="mb-1.5 block text-sm font-semibold text-carbon">
+                  Contrasena inicial
+                </label>
+                <div className="relative">
+                  <Input
+                    id="register-password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                    placeholder="Minimo 8 caracteres"
+                    className="pr-10"
+                    aria-describedby={error ? errorId : undefined}
+                    aria-invalid={error ? true : undefined}
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone transition-colors hover:text-graphite"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {error && <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>}
-
-            <Button type="submit" className="h-10 w-full" disabled={loading}>
-              {loading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <>
-                  Crear CRM mensual <ArrowRight className="h-4 w-4" />
-                </>
+              {error && (
+                <p id={errorId} role="alert" className="rounded-lg bg-tomato/12 px-3 py-2 text-xs font-medium text-danger-ink">
+                  {error}
+                </p>
               )}
-            </Button>
-          </form>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Ya tienes acceso?{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:underline">
-              Ingresar
-            </Link>
-          </p>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <>
+                    Crear acceso mensual <ArrowRight className="h-4 w-4" aria-hidden />
+                  </>
+                )}
+              </Button>
+            </form>
+
+            <p className="mt-6 text-center text-xs text-slate-500">
+              Ya tienes acceso?{' '}
+              <Link href="/login" className="font-semibold text-electric hover:text-electric-strong">
+                Ingresar
+              </Link>
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Superficie de apoyo: checklist informativo, sin decoración adicional. */}
+      <div className="hidden bg-carbon lg:flex lg:w-[45%] lg:flex-col lg:justify-between lg:p-14 xl:p-16">
+        <Wordmark tone="dark" />
+
+        <div>
+          <p className="type-eyebrow text-lime">Venta mensual</p>
+          <ul className="mt-5 space-y-3 text-sm text-canvas">
+            {FEATURES.map((item) => (
+              <li key={item} className="flex items-center gap-3">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-lime" aria-hidden />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="text-xs text-fog">Upzites Flow · SaaS comercial para clientes</p>
       </div>
     </div>
   );
