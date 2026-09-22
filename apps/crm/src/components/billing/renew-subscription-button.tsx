@@ -16,8 +16,14 @@ export function RenewSubscriptionButton() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ planKey: 'monthly' }),
-    });
-    const result = await response.json().catch(() => null);
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
+
+    if (!response) {
+      setLoading(false);
+      setError('Se perdió la conexión. Revisa tu conexión e intenta de nuevo.');
+      return;
+    }
 
     if (!response.ok || !result?.checkoutUrl) {
       setLoading(false);
@@ -32,9 +38,9 @@ export function RenewSubscriptionButton() {
     <div className="flex flex-col gap-2">
       <Button type="button" size="sm" className="h-8 text-xs" onClick={renew} disabled={loading}>
         <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-        Renovar 30 dias
+        Renovar 30 días
       </Button>
-      {error && <p className="text-[11px] font-medium text-danger-ink">{error}</p>}
+      {error && <p role="alert" className="text-[11px] font-medium text-danger-ink">{error}</p>}
     </div>
   );
 }
