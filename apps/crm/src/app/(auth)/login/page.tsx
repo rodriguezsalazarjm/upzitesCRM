@@ -52,13 +52,13 @@ export default function LoginPage() {
             <br />
             Cotiza. Cobra.
           </h1>
-          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-slate-600 lg:mt-4">
+          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-ash lg:mt-4">
             Plataforma de ventas, automatización y conversaciones multicanal.
           </p>
 
           <div className="mt-9 lg:mt-11">
             <h2 className="text-xl font-bold text-carbon">Bienvenido de vuelta</h2>
-            <p className="mt-1.5 text-sm text-slate-500">Ingresa con el correo y contrasena de tu empresa</p>
+            <p className="mt-1.5 text-sm text-soft">Ingresa con el correo y contrasena de tu empresa</p>
 
             <form onSubmit={handleLogin} className="mt-6 space-y-5">
               <FormField label="Correo electronico" htmlFor="login-email">

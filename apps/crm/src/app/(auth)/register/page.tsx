@@ -64,13 +64,13 @@ export default function RegisterPage() {
             <br />
             su propio espacio.
           </h1>
-          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-slate-600 lg:mt-4">
+          <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-ash lg:mt-4">
             Workspace separado, con tus leads, fuentes y oportunidades.
           </p>
 
           <div className="mt-9 lg:mt-11">
             <h2 className="text-xl font-bold text-carbon">Crear acceso de cliente</h2>
-            <p className="mt-1.5 text-sm text-slate-500">Crea un espacio mensual con datos separados para esta empresa.</p>
+            <p className="mt-1.5 text-sm text-soft">Crea un espacio mensual con datos separados para esta empresa.</p>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <FormField label="Empresa" htmlFor="register-company">
@@ -150,7 +150,7 @@ export default function RegisterPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-xs text-slate-500">
+            <p className="mt-6 text-center text-xs text-soft">
               Ya tienes acceso?{' '}
               <Link href="/login" className="font-semibold text-electric hover:text-electric-strong">
                 Ingresar
