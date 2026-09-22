@@ -2,9 +2,14 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SaveBar } from '@/components/ui/save-bar';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 export function NewProductForm({
   preferredType,
@@ -84,11 +89,8 @@ export function NewProductForm({
   }
 
   if (!canEdit)
-    return (
-      <p className="text-sm text-slate-500">
-        Puedes revisar el catálogo. Una persona administradora puede agregar productos.
-      </p>
-    );
+    return <p className="text-sm text-soft">Puedes revisar el catálogo. Una persona administradora puede agregar productos.</p>;
+
   return (
     <div className="space-y-3">
       {!open && (
@@ -99,107 +101,56 @@ export function NewProductForm({
             setNotice(null);
           }}
         >
-          <Plus />
+          <Plus aria-hidden />
           Agregar mi primer producto
         </Button>
       )}
       {open && (
-        <form
-          onSubmit={submit}
-          className="space-y-4 rounded-xl border border-blue-200 bg-blue-50/40 p-4 sm:p-5"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-slate-800">
-              Tipo de producto
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as typeof type)}
-                className="mt-1 flex h-10 w-full rounded-md border border-slate-200 bg-white px-3"
-              >
-                <option value="PHYSICAL">Producto físico</option>
-                <option value="DIGITAL">Producto digital</option>
-              </select>
-            </label>
-            <label className="text-sm font-medium text-slate-800">
-              Nombre
-              <Input
-                className="mt-1"
-                value={name}
-                maxLength={120}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label className="text-sm font-medium text-slate-800">
-              Precio en pesos
-              <Input
-                className="mt-1"
-                type="number"
-                min="0"
-                step="1"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-              />
-            </label>
-            <label className="text-sm font-medium text-slate-800">
-              Código o SKU (opcional)
-              <Input
-                className="mt-1"
-                value={sku}
-                maxLength={80}
-                onChange={(e) => setSku(e.target.value)}
-              />
-            </label>
-            {type === 'PHYSICAL' ? (
-              <label className="text-sm font-medium text-slate-800">
-                Stock disponible
-                <Input
-                  className="mt-1"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={inventory}
-                  onChange={(e) => setInventory(e.target.value)}
-                />
-              </label>
-            ) : (
-              <label className="text-sm font-medium text-slate-800">
-                Enlace de entrega
-                <Input
-                  className="mt-1"
-                  type="url"
-                  value={deliveryUrl}
-                  placeholder="https://..."
-                  onChange={(e) => setDeliveryUrl(e.target.value)}
-                />
-              </label>
-            )}
-          </div>
-          <label className="block text-sm font-medium text-slate-800">
-            Descripción (opcional)
-            <textarea
-              className="mt-1 min-h-24 w-full rounded-md border border-slate-200 bg-white p-3 text-sm"
-              value={description}
-              maxLength={1000}
-              onChange={(e) => setDescription(e.target.value)}
+        <Card tone="sunken" className="p-4 sm:p-5">
+          <form onSubmit={submit} className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Tipo de producto" htmlFor="product-type">
+                <Select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+                  <option value="PHYSICAL">Producto físico</option>
+                  <option value="DIGITAL">Producto digital</option>
+                </Select>
+              </FormField>
+              <FormField label="Nombre" htmlFor="product-name">
+                <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+              </FormField>
+              <FormField label="Precio en pesos" htmlFor="product-price">
+                <Input type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </FormField>
+              <FormField label="Código o SKU (opcional)" htmlFor="product-sku">
+                <Input value={sku} maxLength={80} onChange={(e) => setSku(e.target.value)} />
+              </FormField>
+              {type === 'PHYSICAL' ? (
+                <FormField label="Stock disponible" htmlFor="product-inventory">
+                  <Input type="number" min="1" step="1" value={inventory} onChange={(e) => setInventory(e.target.value)} />
+                </FormField>
+              ) : (
+                <FormField label="Enlace de entrega" htmlFor="product-delivery-url">
+                  <Input type="url" value={deliveryUrl} placeholder="https://..." onChange={(e) => setDeliveryUrl(e.target.value)} />
+                </FormField>
+              )}
+            </div>
+            <FormField label="Descripción (opcional)" htmlFor="product-description">
+              <Textarea rows={4} value={description} maxLength={1000} onChange={(e) => setDescription(e.target.value)} />
+            </FormField>
+            <SaveBar
+              state={busy ? 'saving' : notice?.kind === 'error' ? 'error' : 'dirty'}
+              saveLabel="Guardar producto"
+              errorMessage={notice?.kind === 'error' ? notice.text : null}
+              onCancel={() => setOpen(false)}
             />
-          </label>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={busy}>
-              {busy && <Loader2 className="animate-spin" />}
-              {busy ? 'Guardando…' : 'Guardar producto'}
-            </Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
+          </form>
+        </Card>
       )}
-      {notice && (
+      {notice && !open && (
         <p
           role={notice.kind === 'error' ? 'alert' : 'status'}
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${notice.kind === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${notice.kind === 'error' ? 'bg-tomato/12 text-danger-ink' : 'bg-lime/25 text-success-ink'}`}
         >
-          {notice.kind === 'success' && <CheckCircle2 />}
           {notice.text}
         </p>
       )}

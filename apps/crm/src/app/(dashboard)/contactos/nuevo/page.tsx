@@ -2,12 +2,37 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { FormError, FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+
+type ContactField = { key: keyof ContactFormState; label: string; type?: string; required?: boolean };
+
+const FIELDS: ContactField[] = [
+  { key: 'firstName', label: 'Nombre', required: true },
+  { key: 'lastName', label: 'Apellido', required: true },
+  { key: 'email', label: 'Email', type: 'email' },
+  { key: 'phone', label: 'Telefono' },
+  { key: 'company', label: 'Empresa' },
+  { key: 'source', label: 'Fuente' },
+  { key: 'value', label: 'Valor estimado', type: 'number' },
+  { key: 'tags', label: 'Etiquetas separadas por coma' },
+];
+
+type ContactFormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  company: string;
+  source: string;
+  value: string;
+  tags: string;
+};
 
 export default function NuevoContactoPage() {
   const router = useRouter();
@@ -58,50 +83,36 @@ export default function NuevoContactoPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Nuevo contacto" subtitle="Carga un lead o cliente manualmente" />
-      <div className="flex-1 overflow-y-auto p-6">
-        <Card className="max-w-2xl border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Datos del contacto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-              {[
-                { key: 'firstName', label: 'Nombre', required: true },
-                { key: 'lastName', label: 'Apellido', required: true },
-                { key: 'email', label: 'Email', type: 'email' },
-                { key: 'phone', label: 'Telefono' },
-                { key: 'company', label: 'Empresa' },
-                { key: 'source', label: 'Fuente' },
-                { key: 'value', label: 'Valor estimado', type: 'number' },
-                { key: 'tags', label: 'Etiquetas separadas por coma' },
-              ].map((field) => (
-                <label key={field.key} className="space-y-1.5 text-xs font-medium text-slate-700">
-                  {field.label}
-                  <Input
-                    type={field.type ?? 'text'}
-                    value={form[field.key as keyof typeof form]}
-                    onChange={(event) => setForm((current) => ({ ...current, [field.key]: event.target.value }))}
-                    required={field.required}
-                  />
-                </label>
-              ))}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <Card className="max-w-2xl p-5 sm:p-6">
+          <h2 className="mb-5 text-base font-bold text-carbon">Datos del contacto</h2>
+          <form onSubmit={submit} className="grid gap-5 md:grid-cols-2">
+            {FIELDS.map((field) => (
+              <FormField key={field.key} label={field.label} htmlFor={`contact-${field.key}`}>
+                <Input
+                  type={field.type ?? 'text'}
+                  value={form[field.key]}
+                  onChange={(event) => setForm((current) => ({ ...current, [field.key]: event.target.value }))}
+                  required={field.required}
+                />
+              </FormField>
+            ))}
 
-              {error && <p className="md:col-span-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+            {error && <FormError className="md:col-span-2 mt-0">{error}</FormError>}
 
-              <div className="flex gap-2 md:col-span-2">
-                <Button type="submit" size="sm" disabled={loading}>
-                  <Save className="h-4 w-4" />
-                  Guardar contacto
-                </Button>
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <Link href="/contactos">
-                    <ArrowLeft className="h-4 w-4" />
-                    Volver
-                  </Link>
-                </Button>
-              </div>
-            </form>
-          </CardContent>
+            <div className="flex gap-2 border-t border-line pt-5 md:col-span-2">
+              <Button type="submit" size="sm" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Save aria-hidden />}
+                Guardar contacto
+              </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href="/contactos">
+                  <ArrowLeft aria-hidden />
+                  Volver
+                </Link>
+              </Button>
+            </div>
+          </form>
         </Card>
       </div>
     </div>

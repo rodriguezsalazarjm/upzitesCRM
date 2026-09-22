@@ -2,9 +2,15 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, Pencil, Plus, PowerOff, Send, ShieldCheck } from 'lucide-react';
+import { Pencil, Plus, PowerOff, Send, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SaveBar, type SaveState } from '@/components/ui/save-bar';
+import { Select } from '@/components/ui/select';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { ToggleRow } from '@/components/ui/toggle-row';
 
 const REFERENCE_NOTICE = 'Precio referencial sujeto a revisión y confirmación final.';
 
@@ -64,7 +70,7 @@ function amount(value: string) {
 function slugify(value: string) {
   return value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
@@ -318,12 +324,14 @@ export function ServicesPricing({
     }
   }
 
+  const editorSaveState: SaveState = busy ? 'saving' : notice?.kind === 'error' ? 'error' : 'dirty';
+
   return (
     <div id="servicios-precios" className="scroll-mt-6 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Servicios y precios</h3>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+          <h3 className="text-sm font-semibold text-carbon">Servicios y precios</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-soft">
             El cotizador calcula con estas reglas guardadas. La IA puede recopilar datos, pero no
             decide el precio ni envía una cotización sin aprobación humana.
           </p>
@@ -337,64 +345,48 @@ export function ServicesPricing({
               setNotice(null);
             }}
           >
-            <Plus aria-hidden="true" />
+            <Plus aria-hidden />
             Agregar servicio
           </Button>
         )}
       </div>
 
       {services.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-          <p className="text-sm font-medium text-slate-800">
-            Todavía no hay servicios disponibles para cotizar
-          </p>
-          <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-slate-600">
-            Agrega un servicio, define cómo se calcula su precio y publícalo. Un borrador no
-            completa la puesta en marcha.
-          </p>
-          {canEdit && (
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-4"
-              onClick={() => setEditor({ ...emptyEditor })}
-            >
-              Agregar mi primer servicio
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon={ShieldCheck}
+          title="Todavía no hay servicios disponibles para cotizar"
+          description="Agrega un servicio, define cómo se calcula su precio y publícalo. Un borrador no completa la puesta en marcha."
+          action={
+            canEdit ? (
+              <Button type="button" variant="outline" className="mt-2" onClick={() => setEditor({ ...emptyEditor })}>
+                Agregar mi primer servicio
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {services.map((service) => {
             const simpleEditor = readSimpleService(service);
             const available = service.status === 'PUBLISHED' || service.hasPublished;
             return (
-              <article
-                key={service.serviceKey}
-                className="rounded-xl border border-slate-200 bg-white p-4"
-              >
+              <article key={service.serviceKey} className="rounded-xl border border-line bg-paper p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900">{service.name}</h4>
-                    <p className="mt-1 text-xs text-slate-600">{priceSummary(service)}</p>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-carbon">{service.name}</h4>
+                    <p className="mt-1 text-xs text-soft">{priceSummary(service)}</p>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-semibold ${available ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                  >
+                  <StatusBadge tone={available ? 'success' : 'warning'} className="shrink-0">
                     {available
                       ? service.status === 'DRAFT'
                         ? 'Disponible · cambios en borrador'
                         : 'Disponible'
                       : 'Borrador'}
-                  </span>
+                  </StatusBadge>
                 </div>
-                {service.description && (
-                  <p className="mt-3 text-xs leading-5 text-slate-500">{service.description}</p>
-                )}
+                {service.description && <p className="mt-3 text-xs leading-5 text-soft">{service.description}</p>}
                 {service.disclaimer && (
-                  <p className="mt-2 text-xs font-medium text-blue-700">
-                    Precio identificado como referencial
-                  </p>
+                  <p className="mt-2 text-xs font-medium text-info-ink">Precio identificado como referencial</p>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {canEdit && (
@@ -408,18 +400,13 @@ export function ServicesPricing({
                         setNotice(null);
                       }}
                     >
-                      <Pencil aria-hidden="true" />
+                      <Pencil aria-hidden />
                       Editar
                     </Button>
                   )}
                   {canPublish && service.status === 'DRAFT' && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => publish(service)}
-                    >
-                      <Send aria-hidden="true" />
+                    <Button type="button" size="sm" disabled={busy} onClick={() => publish(service)}>
+                      <Send aria-hidden />
                       Publicar cambios
                     </Button>
                   )}
@@ -428,16 +415,17 @@ export function ServicesPricing({
                       type="button"
                       size="sm"
                       variant="ghost"
+                      className="text-danger-ink hover:bg-tomato/12"
                       disabled={busy}
                       onClick={() => archive(service)}
                     >
-                      <PowerOff aria-hidden="true" />
+                      <PowerOff aria-hidden />
                       Desactivar
                     </Button>
                   )}
                 </div>
                 {canEdit && !simpleEditor && (
-                  <p className="mt-3 text-xs text-amber-700">
+                  <p className="mt-3 text-xs text-warning-ink">
                     Este servicio usa reglas avanzadas. Aquí puedes editar su nombre, descripción,
                     vigencia y aviso referencial sin alterar el cálculo.
                   </p>
@@ -449,45 +437,29 @@ export function ServicesPricing({
       )}
 
       {editor && (
-        <form
-          onSubmit={save}
-          className="space-y-5 rounded-xl border border-blue-200 bg-blue-50/40 p-4 sm:p-5"
-        >
+        <form onSubmit={save} className="space-y-5 rounded-xl border border-electric/25 bg-electric/[0.03] p-4 sm:p-5">
           <div>
-            <h4 className="text-sm font-semibold text-slate-900">
-              {editor.id ? 'Editar servicio' : 'Nuevo servicio'}
-            </h4>
-            <p className="mt-1 text-xs text-slate-600">
-              Al editar se crea una nueva versión; la publicada sigue vigente hasta guardar y
-              publicar.
+            <h4 className="text-sm font-semibold text-carbon">{editor.id ? 'Editar servicio' : 'Nuevo servicio'}</h4>
+            <p className="mt-1 text-xs text-soft">
+              Al editar se crea una nueva versión; la publicada sigue vigente hasta guardar y publicar.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nombre del servicio">
-              <Input
-                value={editor.name}
-                maxLength={120}
-                onChange={(e) => change('name', e.target.value)}
-                disabled={busy}
-              />
-            </Field>
-            <Field label="Descripción breve">
-              <Input
-                value={editor.description}
-                maxLength={1000}
-                onChange={(e) => change('description', e.target.value)}
-                disabled={busy}
-              />
-            </Field>
+            <FormField label="Nombre del servicio" htmlFor="service-name">
+              <Input value={editor.name} maxLength={120} onChange={(e) => change('name', e.target.value)} disabled={busy} />
+            </FormField>
+            <FormField label="Descripción breve" htmlFor="service-description">
+              <Input value={editor.description} maxLength={1000} onChange={(e) => change('description', e.target.value)} disabled={busy} />
+            </FormField>
           </div>
           {editor.advanced ? (
-            <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+            <p className="rounded-lg bg-solar/20 p-3 text-xs leading-5 text-warning-ink">
               La regla de cálculo es avanzada y se conservará exactamente como está. Este formulario
               no añade ni elimina condiciones, tramos o descuentos.
             </p>
           ) : (
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium text-slate-800">¿Cómo se calcula?</legend>
+              <legend className="text-sm font-semibold text-carbon">¿Cómo se calcula?</legend>
               <div className="grid gap-2 sm:grid-cols-2">
                 {(
                   [
@@ -497,14 +469,9 @@ export function ServicesPricing({
                 ).map(([value, label]) => (
                   <label
                     key={value}
-                    className={`cursor-pointer rounded-lg border p-3 text-sm ${editor.pricingMode === value ? 'border-blue-500 bg-white text-blue-800' : 'border-slate-200 bg-white text-slate-700'}`}
+                    className={`cursor-pointer rounded-lg border p-3 text-sm ${editor.pricingMode === value ? 'border-electric bg-paper text-electric' : 'border-mist bg-paper text-graphite'}`}
                   >
-                    <input
-                      className="mr-2"
-                      type="radio"
-                      checked={editor.pricingMode === value}
-                      onChange={() => change('pricingMode', value)}
-                    />
+                    <input className="mr-2" type="radio" checked={editor.pricingMode === value} onChange={() => change('pricingMode', value)} />
                     {label}
                   </label>
                 ))}
@@ -513,156 +480,85 @@ export function ServicesPricing({
           )}
           {!editor.advanced && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field
+              <FormField
                 label={editor.pricingMode === 'FIXED' ? 'Precio base' : 'Base inicial (opcional)'}
-                help="Monto en pesos chilenos."
+                htmlFor="service-base-price"
+                description="Monto en pesos chilenos."
               >
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={editor.basePrice}
-                  onChange={(e) => change('basePrice', e.target.value)}
-                  disabled={busy}
-                />
-              </Field>
+                <Input type="number" min="0" step="1" value={editor.basePrice} onChange={(e) => change('basePrice', e.target.value)} disabled={busy} />
+              </FormField>
               {editor.pricingMode === 'PER_UNIT' && (
                 <>
-                  <Field label="Nombre de la unidad" help="Ejemplo: hora, metro o persona.">
-                    <Input
-                      value={editor.unitName}
-                      maxLength={40}
-                      onChange={(e) => change('unitName', e.target.value)}
-                      disabled={busy}
-                    />
-                  </Field>
-                  <Field label="Precio por unidad">
-                    <Input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={editor.unitPrice}
-                      onChange={(e) => change('unitPrice', e.target.value)}
-                      disabled={busy}
-                    />
-                  </Field>
+                  <FormField label="Nombre de la unidad" htmlFor="service-unit-name" description="Ejemplo: hora, metro o persona.">
+                    <Input value={editor.unitName} maxLength={40} onChange={(e) => change('unitName', e.target.value)} disabled={busy} />
+                  </FormField>
+                  <FormField label="Precio por unidad" htmlFor="service-unit-price">
+                    <Input type="number" min="1" step="1" value={editor.unitPrice} onChange={(e) => change('unitPrice', e.target.value)} disabled={busy} />
+                  </FormField>
                 </>
               )}
-              <Field label="Cobro mínimo (opcional)" help="El total nunca quedará bajo este monto.">
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={editor.minimum}
-                  onChange={(e) => change('minimum', e.target.value)}
-                  disabled={busy}
-                />
-              </Field>
-              <Field label="Adicional fijo (opcional)" help="Se suma siempre al cálculo.">
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={editor.additional}
-                  onChange={(e) => change('additional', e.target.value)}
-                  disabled={busy}
-                />
-              </Field>
-              <Field label="Redondear total">
-                <select
-                  className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
-                  value={editor.rounding}
-                  onChange={(e) => change('rounding', e.target.value)}
-                  disabled={busy}
-                >
+              <FormField label="Cobro mínimo (opcional)" htmlFor="service-minimum" description="El total nunca quedará bajo este monto.">
+                <Input type="number" min="0" step="1" value={editor.minimum} onChange={(e) => change('minimum', e.target.value)} disabled={busy} />
+              </FormField>
+              <FormField label="Adicional fijo (opcional)" htmlFor="service-additional" description="Se suma siempre al cálculo.">
+                <Input type="number" min="0" step="1" value={editor.additional} onChange={(e) => change('additional', e.target.value)} disabled={busy} />
+              </FormField>
+              <FormField label="Redondear total" htmlFor="service-rounding">
+                <Select value={editor.rounding} onChange={(e) => change('rounding', e.target.value)} disabled={busy}>
                   <option value="">Sin redondeo</option>
                   <option value="100">A $100</option>
                   <option value="1000">A $1.000</option>
-                </select>
-              </Field>
-              <Field label="Vigencia de la cotización">
-                <select
-                  className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
-                  value={editor.validityDays}
-                  onChange={(e) => change('validityDays', e.target.value)}
-                  disabled={busy}
-                >
+                </Select>
+              </FormField>
+              <FormField label="Vigencia de la cotización" htmlFor="service-validity">
+                <Select value={editor.validityDays} onChange={(e) => change('validityDays', e.target.value)} disabled={busy}>
                   <option value="7">7 días</option>
                   <option value="15">15 días</option>
                   <option value="30">30 días</option>
                   <option value="60">60 días</option>
-                </select>
-              </Field>
+                </Select>
+              </FormField>
             </div>
           )}
           {editor.advanced && (
-            <Field label="Vigencia de la cotización">
-              <select
-                className="mt-1 flex h-9 w-full max-w-xs rounded-md border border-slate-200 bg-white px-3 text-sm"
-                value={editor.validityDays}
-                onChange={(e) => change('validityDays', e.target.value)}
-                disabled={busy}
-              >
+            <FormField label="Vigencia de la cotización" htmlFor="service-validity-advanced" className="max-w-xs">
+              <Select value={editor.validityDays} onChange={(e) => change('validityDays', e.target.value)} disabled={busy}>
                 <option value="7">7 días</option>
                 <option value="15">15 días</option>
                 <option value="30">30 días</option>
                 <option value="60">60 días</option>
-              </select>
-            </Field>
+              </Select>
+            </FormField>
           )}
-          <label className="flex items-start gap-2 rounded-lg bg-white p-3 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={editor.reference}
-              onChange={(e) => change('reference', e.target.checked)}
-              className="mt-0.5"
-            />
-            Mostrar este precio como referencial en la cotización
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy}>
-              {busy && <Loader2 className="animate-spin" />}
-              {busy ? 'Guardando…' : 'Guardar borrador'}
-            </Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setEditor(null)}>
-              Cancelar
-            </Button>
-          </div>
+          <ToggleRow
+            id="service-reference"
+            label="Mostrar este precio como referencial en la cotización"
+            checked={editor.reference}
+            onCheckedChange={(value) => change('reference', value)}
+            disabled={busy}
+          />
+          <SaveBar
+            state={editorSaveState}
+            saveLabel="Guardar borrador"
+            errorMessage={notice?.kind === 'error' ? notice.text : null}
+            onCancel={() => setEditor(null)}
+          />
         </form>
       )}
 
-      {notice && (
+      {notice && !editor && (
         <p
           role={notice.kind === 'error' ? 'alert' : 'status'}
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${notice.kind === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${notice.kind === 'error' ? 'bg-tomato/12 text-danger-ink' : 'bg-lime/25 text-success-ink'}`}
         >
-          {notice.kind === 'success' && <CheckCircle2 aria-hidden="true" />}
           {notice.text}
         </p>
       )}
-      <p className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+      <p className="flex items-start gap-2 rounded-lg bg-ivory p-3 text-xs leading-5 text-soft">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-graphite" aria-hidden />
         Cada cotización calculada queda esperando revisión. Solo una persona autorizada puede
         aprobarla y recién entonces puede enviarse al cliente.
       </p>
     </div>
-  );
-}
-
-function Field({
-  label,
-  help,
-  children,
-}: {
-  label: string;
-  help?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-sm font-medium text-slate-800">
-      {label}
-      {help && <span className="mb-1 mt-0.5 block text-xs font-normal text-slate-500">{help}</span>}
-      {children}
-    </label>
   );
 }

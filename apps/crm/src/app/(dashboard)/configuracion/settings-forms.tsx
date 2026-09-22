@@ -2,13 +2,16 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
   BusinessType,
   type BusinessType as BusinessTypeValue,
 } from '../../../../generated/prisma/browser';
-import { Button } from '@/components/ui/button';
+import { FormField, FormSection } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SaveBar, type SaveState } from '@/components/ui/save-bar';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 const INDUSTRIES = [
   ['MARKETING_DESIGN_DEVELOPMENT', 'Agencia de marketing, diseño o desarrollo'],
@@ -90,38 +93,22 @@ async function saveProfile(payload: Record<string, unknown>) {
   if (!response.ok) throw new Error(body.message ?? 'No pudimos guardar los cambios.');
 }
 
-function SaveNotice({ notice }: { notice: Notice }) {
-  if (!notice) return null;
+/** Traduce (busy, dirty, notice) al estado único que entiende SaveBar. */
+function saveState(busy: boolean, dirty: boolean, notice: Notice): SaveState {
+  if (busy) return 'saving';
+  if (notice?.kind === 'error') return 'error';
+  if (notice?.kind === 'success') return 'saved';
+  if (dirty) return 'dirty';
+  return 'idle';
+}
+
+function ReadOnlyMessage() {
   return (
-    <p
-      role={notice.kind === 'error' ? 'alert' : 'status'}
-      aria-live="polite"
-      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-        notice.kind === 'error'
-          ? 'bg-red-50 text-red-700'
-          : 'bg-emerald-50 text-emerald-700'
-      }`}
-    >
-      {notice.kind === 'success' && <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-      {notice.message}
+    <p className="text-sm text-soft">
+      Puedes revisar esta información. Para editarla, solicita ayuda a una persona administradora del CRM.
     </p>
   );
 }
-
-function SaveButton({ busy, dirty, label }: { busy: boolean; dirty: boolean; label: string }) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button type="submit" disabled={busy || !dirty}>
-        {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
-        {busy ? 'Guardando…' : label}
-      </Button>
-      {dirty && !busy && <span className="text-xs text-amber-700">Tienes cambios pendientes</span>}
-    </div>
-  );
-}
-
-const fieldClass =
-  'mt-1 flex min-h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
 
 export function BusinessSettingsForm({
   initial,
@@ -187,42 +174,98 @@ export function BusinessSettingsForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <div>
-        <label htmlFor="business-name" className="text-sm font-medium text-slate-800">Nombre del negocio</label>
-        <Input id="business-name" value={businessName} maxLength={120} disabled={!canEdit || busy} onChange={(event) => { setBusinessName(event.target.value); setNotice(null); }} className="mt-1" />
-      </div>
+      <FormField label="Nombre del negocio" htmlFor="business-name">
+        <Input
+          value={businessName}
+          maxLength={120}
+          disabled={!canEdit || busy}
+          onChange={(event) => {
+            setBusinessName(event.target.value);
+            setNotice(null);
+          }}
+        />
+      </FormField>
 
-      <div>
-        <label htmlFor="industry" className="text-sm font-medium text-slate-800">Rubro del negocio</label>
-        <p id="industry-help" className="mt-1 text-xs text-slate-500">Elige la opción que mejor describe lo que haces. Esto no cambia las funciones del CRM.</p>
-        <select id="industry" aria-describedby="industry-help" value={industry} disabled={!canEdit || busy} onChange={(event) => { setIndustry(event.target.value); setNotice(null); }} className={fieldClass}>
+      <FormField
+        label="Rubro del negocio"
+        htmlFor="industry"
+        description="Elige la opción que mejor describe lo que haces. Esto no cambia las funciones del CRM."
+      >
+        <Select
+          value={industry}
+          disabled={!canEdit || busy}
+          onChange={(event) => {
+            setIndustry(event.target.value);
+            setNotice(null);
+          }}
+        >
           <option value="">Selecciona un rubro</option>
-          {INDUSTRIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        {industry === 'OTHER' && (
-          <div className="mt-3">
-            <label htmlFor="industry-other" className="text-sm font-medium text-slate-800">¿Cuál es tu rubro?</label>
-            <Input id="industry-other" value={industryOther} maxLength={120} disabled={!canEdit || busy} onChange={(event) => { setIndustryOther(event.target.value); setNotice(null); }} className="mt-1" />
-          </div>
-        )}
-      </div>
+          {INDUSTRIES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </FormField>
 
-      <fieldset id="modalidad-venta" className="scroll-mt-24 space-y-3">
-        <legend className="text-sm font-medium text-slate-800">Modalidad de venta</legend>
-        <p className="text-xs text-slate-500">Elige la forma principal en que vendes. Esta opción define los pasos comerciales de la puesta en marcha.</p>
-        <div className="grid gap-3 lg:grid-cols-3">
+      {industry === 'OTHER' && (
+        <FormField label="¿Cuál es tu rubro?" htmlFor="industry-other">
+          <Input
+            value={industryOther}
+            maxLength={120}
+            disabled={!canEdit || busy}
+            onChange={(event) => {
+              setIndustryOther(event.target.value);
+              setNotice(null);
+            }}
+          />
+        </FormField>
+      )}
+
+      <FormSection
+        legend="Modalidad de venta"
+        description="Elige la forma principal en que vendes. Esta opción define los pasos comerciales de la puesta en marcha."
+      >
+        <div id="modalidad-venta" className="scroll-mt-24 grid gap-3 lg:grid-cols-3">
           {SALE_MODES.map((mode) => (
-            <label key={mode.value} className={`cursor-pointer rounded-xl border p-4 transition ${businessType === mode.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-slate-300'} ${!canEdit ? 'cursor-not-allowed opacity-70' : ''}`}>
-              <input type="radio" name="businessType" value={mode.value} checked={businessType === mode.value} disabled={!canEdit || busy} onChange={() => { setBusinessType(mode.value); setNotice(null); }} className="sr-only" />
-              <span className="block text-sm font-semibold text-slate-900">{mode.label}</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-600">{mode.detail}</span>
+            <label
+              key={mode.value}
+              className={cn(
+                'cursor-pointer rounded-xl border p-4 transition-colors',
+                businessType === mode.value
+                  ? 'border-electric bg-electric/[0.06] ring-1 ring-electric'
+                  : 'border-mist bg-paper hover:border-stone',
+                !canEdit && 'cursor-not-allowed opacity-70',
+              )}
+            >
+              <input
+                type="radio"
+                name="businessType"
+                value={mode.value}
+                checked={businessType === mode.value}
+                disabled={!canEdit || busy}
+                onChange={() => {
+                  setBusinessType(mode.value);
+                  setNotice(null);
+                }}
+                className="sr-only"
+              />
+              <span className="block text-sm font-semibold text-carbon">{mode.label}</span>
+              <span className="mt-1 block text-xs leading-5 text-soft">{mode.detail}</span>
             </label>
           ))}
         </div>
-      </fieldset>
+      </FormSection>
 
-      <SaveNotice notice={notice} />
-      {canEdit ? <SaveButton busy={busy} dirty={dirty} label="Guardar mi negocio" /> : <ReadOnlyMessage />}
+      {canEdit ? (
+        <SaveBar
+          state={saveState(busy, dirty, notice)}
+          saveLabel="Guardar mi negocio"
+          errorMessage={notice?.kind === 'error' ? notice.message : null}
+        />
+      ) : (
+        <ReadOnlyMessage />
+      )}
     </form>
   );
 }
@@ -238,7 +281,15 @@ function toMinutes(value: string) {
 
 export function HoursSettingsForm({ initial, timezone, canEdit }: { initial: ProfileValues; timezone: string; canEdit: boolean }) {
   const router = useRouter();
-  const initialState = useMemo(() => ({ days: [...initial.businessDays].sort(), start: toTime(initial.businessStartMinute), end: toTime(initial.businessEndMinute), timezone }), [initial.businessDays, initial.businessEndMinute, initial.businessStartMinute, timezone]);
+  const initialState = useMemo(
+    () => ({
+      days: [...initial.businessDays].sort(),
+      start: toTime(initial.businessStartMinute),
+      end: toTime(initial.businessEndMinute),
+      timezone,
+    }),
+    [initial.businessDays, initial.businessEndMinute, initial.businessStartMinute, timezone],
+  );
   const [days, setDays] = useState(initialState.days);
   const [start, setStart] = useState(initialState.start);
   const [end, setEnd] = useState(initialState.end);
@@ -262,36 +313,70 @@ export function HoursSettingsForm({ initial, timezone, canEdit }: { initial: Pro
       router.refresh();
     } catch (error) {
       setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'No pudimos guardar los horarios.' });
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   const zones = TIMEZONES.some(([value]) => value === zone) ? TIMEZONES : [[zone, zone] as const, ...TIMEZONES];
   return (
-    <form onSubmit={submit} className="space-y-5">
-      <fieldset>
-        <legend className="text-sm font-medium text-slate-800">Días de atención</legend>
-        <div className="mt-2 flex flex-wrap gap-2">
+    <form onSubmit={submit} className="space-y-6">
+      <FormSection legend="Días de atención">
+        <div className="flex flex-wrap gap-2">
           {DAYS.map(([value, label]) => (
-            <label key={value} className={`flex h-10 min-w-12 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium ${days.includes(value) ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-600'} ${!canEdit ? 'cursor-not-allowed opacity-70' : ''}`}>
-              <input type="checkbox" checked={days.includes(value)} disabled={!canEdit || busy} onChange={() => { setDays((currentDays) => currentDays.includes(value) ? currentDays.filter((day) => day !== value) : [...currentDays, value]); setNotice(null); }} className="sr-only" />
+            <label
+              key={value}
+              className={cn(
+                'flex h-10 min-w-12 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors',
+                days.includes(value) ? 'border-electric bg-electric/[0.06] text-electric' : 'border-mist bg-paper text-graphite',
+                !canEdit && 'cursor-not-allowed opacity-70',
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={days.includes(value)}
+                disabled={!canEdit || busy}
+                onChange={() => {
+                  setDays((currentDays) => (currentDays.includes(value) ? currentDays.filter((day) => day !== value) : [...currentDays, value]));
+                  setNotice(null);
+                }}
+                className="sr-only"
+              />
               {label}
             </label>
           ))}
         </div>
-      </fieldset>
+      </FormSection>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div><label htmlFor="opening-time" className="text-sm font-medium text-slate-800">Desde</label><Input id="opening-time" type="time" value={start} disabled={!canEdit || busy} onChange={(event) => { setStart(event.target.value); setNotice(null); }} className="mt-1" /></div>
-        <div><label htmlFor="closing-time" className="text-sm font-medium text-slate-800">Hasta</label><Input id="closing-time" type="time" value={end} disabled={!canEdit || busy} onChange={(event) => { setEnd(event.target.value); setNotice(null); }} className="mt-1" /></div>
+        <FormField label="Desde" htmlFor="opening-time">
+          <Input type="time" value={start} disabled={!canEdit || busy} onChange={(event) => { setStart(event.target.value); setNotice(null); }} />
+        </FormField>
+        <FormField label="Hasta" htmlFor="closing-time">
+          <Input type="time" value={end} disabled={!canEdit || busy} onChange={(event) => { setEnd(event.target.value); setNotice(null); }} />
+        </FormField>
       </div>
-      <div>
-        <label htmlFor="timezone" className="text-sm font-medium text-slate-800">Zona horaria</label>
-        <p id="timezone-help" className="mt-1 text-xs text-slate-500">Se usa para interpretar estos horarios y evitar contactos fuera de hora.</p>
-        <select id="timezone" aria-describedby="timezone-help" value={zone} disabled={!canEdit || busy} onChange={(event) => { setZone(event.target.value); setNotice(null); }} className={fieldClass}>
-          {zones.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </div>
-      <SaveNotice notice={notice} />
-      {canEdit ? <SaveButton busy={busy} dirty={dirty} label="Guardar horarios" /> : <ReadOnlyMessage />}
+      <FormField
+        label="Zona horaria"
+        htmlFor="timezone"
+        description="Se usa para interpretar estos horarios y evitar contactos fuera de hora."
+      >
+        <Select value={zone} disabled={!canEdit || busy} onChange={(event) => { setZone(event.target.value); setNotice(null); }}>
+          {zones.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+      {canEdit ? (
+        <SaveBar
+          state={saveState(busy, dirty, notice)}
+          saveLabel="Guardar horarios"
+          errorMessage={notice?.kind === 'error' ? notice.message : null}
+        />
+      ) : (
+        <ReadOnlyMessage />
+      )}
     </form>
   );
 }
@@ -304,9 +389,14 @@ export function InformationSettingsForm({ initial, canEdit }: { initial: Profile
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const dirty = JSON.stringify(values) !== JSON.stringify(saved);
-  function field(name: keyof typeof values, value: string) { setValues((current) => ({ ...current, [name]: value })); setNotice(null); }
+  function field(name: keyof typeof values, value: string) {
+    setValues((current) => ({ ...current, [name]: value }));
+    setNotice(null);
+  }
   async function submit(event: FormEvent) {
-    event.preventDefault(); setNotice(null); setBusy(true);
+    event.preventDefault();
+    setNotice(null);
+    setBusy(true);
     try {
       await saveProfile(values);
       setSaved(values);
@@ -314,7 +404,9 @@ export function InformationSettingsForm({ initial, canEdit }: { initial: Profile
       router.refresh();
     } catch (error) {
       setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'No pudimos guardar la información.' });
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
   const fields: { name: keyof typeof values; label: string; help: string; placeholder: string }[] = [
     { name: 'about', label: 'Sobre el negocio', help: 'Describe qué ofreces y a quién ayudas.', placeholder: 'Ejemplo: Instalamos y mantenemos sistemas de seguridad para hogares y empresas.' },
@@ -323,24 +415,32 @@ export function InformationSettingsForm({ initial, canEdit }: { initial: Profile
     { name: 'returnsPolicy', label: 'Cambios y devoluciones', help: 'Explica en qué casos aceptas cambios o devoluciones.', placeholder: 'Plazos y condiciones para solicitar un cambio.' },
   ];
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-6">
       <div className="grid gap-5 lg:grid-cols-2">
         {fields.map((item) => (
-          <div key={item.name}>
-            <label htmlFor={item.name} className="text-sm font-medium text-slate-800">{item.label}</label>
-            <p id={`${item.name}-help`} className="mt-1 text-xs text-slate-500">{item.help}</p>
-            <textarea id={item.name} aria-describedby={`${item.name}-help`} value={values[item.name]} maxLength={4000} rows={5} placeholder={item.placeholder} disabled={!canEdit || busy} onChange={(event) => field(item.name, event.target.value)} className={fieldClass} />
-          </div>
+          <FormField key={item.name} label={item.label} htmlFor={item.name} description={item.help}>
+            <Textarea
+              value={values[item.name]}
+              maxLength={4000}
+              rows={5}
+              placeholder={item.placeholder}
+              disabled={!canEdit || busy}
+              onChange={(event) => field(item.name, event.target.value)}
+            />
+          </FormField>
         ))}
       </div>
-      <SaveNotice notice={notice} />
-      {canEdit ? <SaveButton busy={busy} dirty={dirty} label="Guardar información" /> : <ReadOnlyMessage />}
+      {canEdit ? (
+        <SaveBar
+          state={saveState(busy, dirty, notice)}
+          saveLabel="Guardar información"
+          errorMessage={notice?.kind === 'error' ? notice.message : null}
+        />
+      ) : (
+        <ReadOnlyMessage />
+      )}
     </form>
   );
-}
-
-function ReadOnlyMessage() {
-  return <p className="text-sm text-slate-500">Puedes revisar esta información. Para editarla, solicita ayuda a una persona administradora del CRM.</p>;
 }
 
 export type { ProfileValues };

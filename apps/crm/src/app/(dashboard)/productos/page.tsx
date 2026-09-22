@@ -1,7 +1,8 @@
 import { Package, PackageOpen } from 'lucide-react';
 import { Header } from '@/components/layout/header';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { requireCurrentUser } from '@/lib/auth';
 import { formatCurrency } from '@/lib/mock-data';
 import { prisma } from '@/lib/prisma';
@@ -15,6 +16,12 @@ const TYPE_LABEL: Record<string, string> = {
   DIGITAL: 'Digital',
   PHYSICAL: 'Fisico',
   SERVICE: 'Servicio',
+};
+
+const STATUS_TONE: Record<string, 'success' | 'draft' | 'neutral'> = {
+  ACTIVE: 'success',
+  DRAFT: 'draft',
+  ARCHIVED: 'neutral',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -42,78 +49,67 @@ export default async function ProductosPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Productos" subtitle="Catalogo interno: lo que el agente puede vender" />
-      <div className="flex-1 space-y-3 overflow-y-auto p-6">
-        <Card className="border-0 shadow-sm">
-          <CardContent className="space-y-3 p-5">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Catálogo manual</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Puedes vender desde este catálogo sin conectar Shopify. Los precios guardados aquí
-                son los que utiliza el sistema.
-              </p>
-            </div>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <Card className="p-5">
+          <p className="text-sm font-bold text-carbon">Catálogo manual</p>
+          <p className="mt-1 text-xs leading-5 text-soft">
+            Puedes vender desde este catálogo sin conectar Shopify. Los precios guardados aquí son
+            los que utiliza el sistema.
+          </p>
+          <div className="mt-4">
             <NewProductForm preferredType={preferredType} canEdit={canManageChannels(user.role)} />
-          </CardContent>
+          </div>
         </Card>
+
         {products.length === 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-              <PackageOpen className="h-8 w-8 text-slate-300" />
-              <p className="text-sm font-medium text-slate-700">Catalogo vacio</p>
-              <p className="max-w-sm text-xs text-slate-500">
-                Agrega tu primer producto con su precio y disponibilidad. Mientras el catálogo esté
-                vacío, el sistema deriva la consulta a una persona en vez de inventar precios.
-              </p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={PackageOpen}
+            title="Catalogo vacio"
+            description="Agrega tu primer producto con su precio y disponibilidad. Mientras el catálogo esté vacío, el sistema deriva la consulta a una persona en vez de inventar precios."
+          />
         )}
 
-        {products.map((product) => (
-          <Card key={product.id} className="border-0 shadow-sm">
-            <CardContent className="flex items-start gap-4 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                <Package className="h-4 w-4" />
-              </div>
+        <div className="space-y-3">
+          {products.map((product) => (
+            <Card key={product.id} className="p-4">
+              <div className="flex items-start gap-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ivory text-graphite">
+                  <Package className="h-4 w-4" aria-hidden />
+                </span>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">{product.name}</p>
-                  <Badge variant={product.status === 'ACTIVE' ? 'success' : 'outline'}>
-                    {STATUS_LABEL[product.status] ?? product.status}
-                  </Badge>
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                    {TYPE_LABEL[product.type]}
-                  </span>
-                </div>
-
-                {product.description && (
-                  <p className="mt-0.5 truncate text-xs text-slate-500">{product.description}</p>
-                )}
-
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
-                  {product.variants.map((variant) => (
-                    <span key={variant.id}>
-                      {variant.name}:{' '}
-                      <strong className="text-slate-800">{formatCurrency(variant.priceClp)}</strong>
-                      {variant.inventory !== null && ` · stock ${variant.inventory}`}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-carbon">{product.name}</p>
+                    <StatusBadge tone={STATUS_TONE[product.status] ?? 'neutral'}>
+                      {STATUS_LABEL[product.status] ?? product.status}
+                    </StatusBadge>
+                    <span className="rounded-md bg-ivory px-2 py-0.5 text-[11px] font-medium text-graphite">
+                      {TYPE_LABEL[product.type]}
                     </span>
-                  ))}
-                </div>
+                  </div>
 
-                {product.assets.length > 0 && (
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    {product.assets.length} entregable(s) digital(es) configurado(s)
-                  </p>
-                )}
-                {product.type === 'DIGITAL' && product.assets.length === 0 && (
-                  <p className="mt-1 text-[10px] text-amber-600">
-                    Sin entregable: al pagarse, este producto no envia nada.
-                  </p>
-                )}
+                  {product.description && <p className="mt-0.5 truncate text-xs text-soft">{product.description}</p>}
+
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-soft">
+                    {product.variants.map((variant) => (
+                      <span key={variant.id}>
+                        {variant.name}: <strong className="font-semibold text-carbon">{formatCurrency(variant.priceClp)}</strong>
+                        {variant.inventory !== null && ` · stock ${variant.inventory}`}
+                      </span>
+                    ))}
+                  </div>
+
+                  {product.assets.length > 0 && (
+                    <p className="mt-1 text-xs text-soft">{product.assets.length} entregable(s) digital(es) configurado(s)</p>
+                  )}
+                  {product.type === 'DIGITAL' && product.assets.length === 0 && (
+                    <p className="mt-1 text-xs text-warning-ink">Sin entregable: al pagarse, este producto no envia nada.</p>
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

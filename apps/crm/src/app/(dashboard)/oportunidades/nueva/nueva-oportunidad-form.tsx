@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { FormError, FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import type { Contact, OpportunityStage } from '@/lib/mock-data';
 import type { PipelineStageRecord } from '@/lib/crm-data';
 
@@ -73,100 +75,85 @@ export function NuevaOportunidadForm({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Nueva oportunidad" subtitle="Agrega un negocio al pipeline comercial" />
-      <div className="flex-1 overflow-y-auto p-6">
-        <Card className="max-w-2xl border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Datos de la oportunidad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-1.5 text-xs font-medium text-slate-700 md:col-span-2">
-                Titulo
-                <Input
-                  value={form.title}
-                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Ej: Sitio web + CRM"
-                  required
-                />
-              </label>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <Card className="max-w-2xl p-5 sm:p-6">
+          <h2 className="mb-5 text-base font-bold text-carbon">Datos de la oportunidad</h2>
+          <form onSubmit={submit} className="grid gap-5 md:grid-cols-2">
+            <FormField label="Título" htmlFor="opp-title" className="md:col-span-2">
+              <Input
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Ej: Sitio web + CRM"
+                required
+              />
+            </FormField>
 
-              <label className="space-y-1.5 text-xs font-medium text-slate-700">
-                Contacto
-                <select
-                  value={form.contactId}
-                  onChange={(event) => setForm((current) => ({ ...current, contactId: event.target.value }))}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                >
-                  <option value="">Sin contacto</option>
-                  {contacts.map((contact) => (
-                    <option key={contact.id} value={contact.id}>
-                      {contact.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <FormField label="Contacto" htmlFor="opp-contact">
+              <Select
+                value={form.contactId}
+                onChange={(event) => setForm((current) => ({ ...current, contactId: event.target.value }))}
+              >
+                <option value="">Sin contacto</option>
+                {contacts.map((contact) => (
+                  <option key={contact.id} value={contact.id}>
+                    {contact.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
 
-              <label className="space-y-1.5 text-xs font-medium text-slate-700">
-                Etapa
-                <select
-                  value={form.stage}
-                  onChange={(event) => updateStage(event.target.value as OpportunityStage)}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                >
-                  {stages.map((stage) => (
-                    <option key={stage.id} value={stage.key}>
-                      {stage.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <FormField label="Etapa" htmlFor="opp-stage">
+              <Select value={form.stage} onChange={(event) => updateStage(event.target.value as OpportunityStage)}>
+                {stages.map((stage) => (
+                  <option key={stage.id} value={stage.key}>
+                    {stage.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
 
-              <label className="space-y-1.5 text-xs font-medium text-slate-700">
-                Valor
-                <Input
-                  type="number"
-                  value={form.value}
-                  onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))}
-                  min={0}
-                />
-              </label>
+            <FormField label="Valor" htmlFor="opp-value">
+              <Input
+                type="number"
+                value={form.value}
+                onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))}
+                min={0}
+              />
+            </FormField>
 
-              <label className="space-y-1.5 text-xs font-medium text-slate-700">
-                Probabilidad
-                <Input
-                  type="number"
-                  value={form.probability}
-                  onChange={(event) => setForm((current) => ({ ...current, probability: event.target.value }))}
-                  min={0}
-                  max={100}
-                />
-              </label>
+            <FormField label="Probabilidad" htmlFor="opp-probability">
+              <Input
+                type="number"
+                value={form.probability}
+                onChange={(event) => setForm((current) => ({ ...current, probability: event.target.value }))}
+                min={0}
+                max={100}
+              />
+            </FormField>
 
-              <label className="space-y-1.5 text-xs font-medium text-slate-700">
-                Fecha estimada de cierre
-                <Input
-                  type="date"
-                  value={form.expectedCloseDate}
-                  onChange={(event) => setForm((current) => ({ ...current, expectedCloseDate: event.target.value }))}
-                />
-              </label>
+            <FormField label="Fecha estimada de cierre" htmlFor="opp-close-date">
+              <Input
+                type="date"
+                value={form.expectedCloseDate}
+                onChange={(event) => setForm((current) => ({ ...current, expectedCloseDate: event.target.value }))}
+              />
+            </FormField>
 
-              {error && <p className="md:col-span-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+            {error && <FormError className="md:col-span-2 mt-0">{error}</FormError>}
 
-              <div className="flex gap-2 md:col-span-2">
-                <Button type="submit" size="sm" disabled={loading}>
-                  <Save className="h-4 w-4" />
-                  Guardar oportunidad
-                </Button>
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <Link href="/oportunidades">
-                    <ArrowLeft className="h-4 w-4" />
-                    Volver
-                  </Link>
-                </Button>
-              </div>
-            </form>
-          </CardContent>
+            <div className="flex gap-2 border-t border-line pt-5 md:col-span-2">
+              <Button type="submit" size="sm" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Save aria-hidden />}
+                Guardar oportunidad
+              </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href="/oportunidades">
+                  <ArrowLeft aria-hidden />
+                  Volver
+                </Link>
+              </Button>
+            </div>
+          </form>
         </Card>
       </div>
     </div>

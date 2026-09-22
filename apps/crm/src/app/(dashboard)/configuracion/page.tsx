@@ -9,8 +9,8 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { Header } from '@/components/layout/header';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { SettingsSection } from '@/components/ui/settings-card';
 import { requireCurrentUser } from '@/lib/auth';
 import { getPipelineStages } from '@/lib/crm-data';
 import { isDatabaseUnavailable, isDevDemoEnabled } from '@/lib/dev-demo';
@@ -56,7 +56,7 @@ export default async function ConfiguracionPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <Header title="Configuración" subtitle="Información y preferencias de tu negocio" />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-6 sm:px-6 xl:grid-cols-[220px_minmax(0,1fr)] xl:px-8">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-6 sm:px-6 xl:grid-cols-[200px_minmax(0,1fr)] xl:px-8">
           <aside className="min-w-0 self-start xl:sticky xl:top-6">
             <nav
               aria-label="Secciones de configuración"
@@ -66,7 +66,7 @@ export default async function ConfiguracionPage() {
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="shrink-0 rounded-lg px-3 py-2 text-sm text-slate-600 outline-none hover:bg-white hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-graphite outline-none transition-colors hover:bg-ivory hover:text-carbon focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric"
                 >
                   {label}
                 </a>
@@ -74,7 +74,7 @@ export default async function ConfiguracionPage() {
             </nav>
           </aside>
 
-          <main className="min-w-0 space-y-8 pb-10">
+          <main className="min-w-0 space-y-5 pb-10">
             <SettingsSection
               id="mi-negocio"
               icon={BriefcaseBusiness}
@@ -99,9 +99,9 @@ export default async function ConfiguracionPage() {
                   />
                 ) : profile.businessType === BusinessType.ECOMMERCE ||
                   profile.businessType === BusinessType.INFOPRODUCT ? (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                    <h3 className="text-sm font-semibold text-slate-900">Catálogo de productos</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                  <div className="rounded-xl bg-ivory p-4">
+                    <h3 className="text-sm font-semibold text-carbon">Catálogo de productos</h3>
+                    <p className="mt-1 text-xs leading-5 text-soft">
                       Puedes mantener un catálogo manual en el CRM. Shopify es una alternativa
                       disponible desde Integraciones, pero no es obligatorio.
                     </p>
@@ -111,35 +111,28 @@ export default async function ConfiguracionPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+                  <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
                     Elige primero tu modalidad de venta en «Mi negocio» para mostrar la
                     configuración correspondiente.
                   </p>
                 )}
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                   <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-slate-900">Etapas de venta</h3>
-                    <div className="divide-y rounded-xl border border-slate-200 bg-white">
+                    <h3 className="text-sm font-semibold text-carbon">Etapas de venta</h3>
+                    <div className="divide-y divide-line rounded-xl border border-line bg-paper">
                       {stages.map((stage) => (
-                        <div
-                          key={stage.id}
-                          className="flex items-center justify-between gap-4 px-4 py-3"
-                        >
-                          <span className="text-sm font-medium text-slate-800">{stage.name}</span>
-                          <Badge
-                            variant={
-                              stage.isWon ? 'success' : stage.isLost ? 'destructive' : 'outline'
-                            }
-                          >
+                        <div key={stage.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                          <span className="text-sm font-medium text-carbon">{stage.name}</span>
+                          <StatusBadge tone={stage.isWon ? 'success' : stage.isLost ? 'danger' : 'neutral'}>
                             {stage.probability}% de probabilidad
-                          </Badge>
+                          </StatusBadge>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-3 rounded-xl bg-slate-50 p-4">
-                    <h3 className="text-sm font-semibold text-slate-900">Administrar ventas</h3>
-                    <p className="text-xs leading-5 text-slate-600">
+                  <div className="space-y-3 rounded-xl bg-ivory p-4">
+                    <h3 className="text-sm font-semibold text-carbon">Administrar ventas</h3>
+                    <p className="text-xs leading-5 text-soft">
                       Los productos, servicios y cotizaciones se administran en sus módulos para
                       conservar todas sus herramientas.
                     </p>
@@ -184,26 +177,18 @@ export default async function ConfiguracionPage() {
               title="Configuración avanzada"
               description="Datos técnicos para integraciones y soporte."
             >
-              <details className="group rounded-xl border border-slate-200 bg-white">
-                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <details className="group rounded-xl border border-line bg-ivory">
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-carbon outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric">
                   Ver identificadores técnicos
                 </summary>
-                <dl className="grid gap-4 border-t border-slate-200 p-4 sm:grid-cols-2">
+                <dl className="grid gap-4 border-t border-line p-4 sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs font-medium text-slate-500">
-                      Identificador del espacio de trabajo
-                    </dt>
-                    <dd className="mt-1 break-all font-mono text-xs text-slate-800">
-                      {user.workspace.slug}
-                    </dd>
+                    <dt className="text-xs font-medium text-soft">Identificador del espacio de trabajo</dt>
+                    <dd className="mt-1 break-all font-mono text-xs text-carbon">{user.workspace.slug}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-medium text-slate-500">
-                      Clave pública para el sitio web
-                    </dt>
-                    <dd className="mt-1 break-all font-mono text-xs text-slate-800">
-                      {workspacePublicKey}
-                    </dd>
+                    <dt className="text-xs font-medium text-soft">Clave pública para el sitio web</dt>
+                    <dd className="mt-1 break-all font-mono text-xs text-carbon">{workspacePublicKey}</dd>
                   </div>
                 </dl>
               </details>
@@ -215,47 +200,14 @@ export default async function ConfiguracionPage() {
   );
 }
 
-function SettingsSection({
-  id,
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  id: string;
-  icon: typeof BriefcaseBusiness;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-6">
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="border-b border-slate-100 p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-              <Icon className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div>
-              <CardTitle className="text-base text-slate-900">{title}</CardTitle>
-              <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-5 sm:p-6">{children}</CardContent>
-      </Card>
-    </section>
-  );
-}
-
 function SettingsLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 outline-none hover:border-blue-300 focus-visible:ring-2 focus-visible:ring-blue-500"
+      className="flex items-center justify-between rounded-lg border border-mist bg-paper px-3 py-2 text-sm font-semibold text-electric outline-none transition-colors hover:border-electric focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric"
     >
       {children}
-      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      <ArrowRight className="h-4 w-4" aria-hidden />
     </Link>
   );
 }
