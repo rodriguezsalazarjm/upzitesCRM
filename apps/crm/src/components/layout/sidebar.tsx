@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   Bot,
@@ -78,6 +78,19 @@ function NavSection({ label, first }: { label: string; first?: boolean }) {
 export function Sidebar({ user }: { user: CurrentUser }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // Escape cierra el drawer móvil y devuelve el foco al botón que lo abrió.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   function renderItems(items: typeof navItems, matchNested: boolean) {
     return (
@@ -118,6 +131,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
   return (
     <>
       <button
+        ref={toggleRef}
         type="button"
         aria-label={open ? 'Cerrar navegación' : 'Abrir navegación'}
         aria-expanded={open}
@@ -127,9 +141,11 @@ export function Sidebar({ user }: { user: CurrentUser }) {
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
       {open && (
+        // Solo es el área de click fuera del drawer: el botón accesible es el toggle.
         <button
           type="button"
-          aria-label="Cerrar navegación"
+          aria-hidden="true"
+          tabIndex={-1}
           onClick={() => setOpen(false)}
           className="fixed inset-0 z-30 bg-carbon/40 md:hidden"
         />
@@ -140,7 +156,8 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-20 items-center px-6">
+        {/* En móvil el toggle fijo (left-3, 40px) queda sobre esta franja: pl-16 deja el wordmark a su derecha. */}
+        <div className="flex h-20 items-center pl-16 pr-6 md:px-6">
           <Wordmark tone="dark" subtitle={user.workspace.name} />
         </div>
 
