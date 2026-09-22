@@ -11,8 +11,8 @@ import { Wordmark } from '@/components/ui/wordmark';
 
 const FEATURES = [
   'Workspace separado por cliente',
-  'Acceso con correo y contrasena',
-  'Suscripcion activa por 30 dias',
+  'Acceso con correo y contraseña',
+  'Suscripción activa por 30 días',
   'Captura de leads desde web o formulario',
 ];
 
@@ -96,7 +96,7 @@ export default function RegisterPage() {
                   autoComplete="name"
                   value={form.ownerName}
                   onChange={(event) => setForm((current) => ({ ...current, ownerName: event.target.value }))}
-                  placeholder="Ej: Camila Perez"
+                  placeholder="Ej: Camila Pérez"
                   required
                 />
               </FormField>
@@ -114,7 +114,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="register-password" className="mb-1.5 block text-sm font-semibold text-carbon">
-                  Contrasena inicial
+                  Contraseña inicial
                 </label>
                 <div className="relative">
                   <Input
@@ -123,7 +123,7 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     value={form.password}
                     onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                    placeholder="Minimo 8 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     className="pr-10"
                     aria-describedby={error ? errorId : undefined}
                     aria-invalid={error ? true : undefined}
@@ -133,7 +133,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((current) => !current)}
-                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-stone transition-colors hover:text-graphite"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -159,7 +159,7 @@ export default function RegisterPage() {
             </form>
 
             <p className="mt-6 text-center text-xs text-soft">
-              Ya tienes acceso?{' '}
+              ¿Ya tienes acceso?{' '}
               <Link href="/login" className="font-semibold text-electric hover:text-electric-strong">
                 Ingresar
               </Link>

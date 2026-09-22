@@ -195,7 +195,7 @@ export function MercadoPagoIntegrationCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-xs text-slate-500">
-        <p>Cobra los productos y servicios propios de este workspace. No afecta la suscripcion del CRM.</p>
+        <p>Cobra los productos y servicios propios de este workspace. No afecta la suscripción del CRM.</p>
 
         {busy === 'load' && !status ? (
           <p className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export function MercadoPagoIntegrationCard() {
         ) : connected ? (
           <div className="space-y-2">
             <p>
-              Conexion:{' '}
+              Conexión:{' '}
               <span className="font-semibold text-slate-700">
                 {connection?.connectionMethod === 'OAUTH' ? 'Mercado Pago Connect (OAuth)' : 'Manual'}
               </span>
@@ -213,7 +213,7 @@ export function MercadoPagoIntegrationCard() {
               Modo: <span className="font-semibold text-slate-700">{connection?.mode === 'PRODUCTION' ? 'Produccion' : 'Prueba'}</span>
             </p>
             <p>Conectado: {date(connection?.connectedAt ?? null) ?? '—'}</p>
-            <p>Ultima verificacion: {date(connection?.lastVerifiedAt ?? null) ?? '—'}</p>
+            <p>Última verificación: {date(connection?.lastVerifiedAt ?? null) ?? '—'}</p>
             {connection?.lastError && (
               <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-amber-800">
                 <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />

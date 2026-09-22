@@ -43,14 +43,14 @@ const navItems = [
   { href: '/fuentes', label: 'Fuentes', icon: Globe2 },
   { href: '/integraciones', label: 'Integraciones', icon: PlugZap },
   { href: '/automatizaciones', label: 'Automatizaciones', icon: Bot },
-  { href: '/recuperacion', label: 'Recuperacion', icon: Send },
+  { href: '/recuperacion', label: 'Recuperación', icon: Send },
   { href: '/ia/agente', label: 'IA · Agente', icon: Bot },
   { href: '/ia/conocimiento', label: 'IA · Conocimiento', icon: FileText },
   { href: '/insights', label: 'Insights IA', icon: Bot },
   { href: '/uso', label: 'Uso y costos', icon: Gauge },
   { href: '/billing', label: 'Billing', icon: CreditCard },
   { href: '/ops', label: 'Ops', icon: ShieldCheck },
-  { href: '/configuracion', label: 'Configuracion', icon: Settings },
+  { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
 function getInitials(name: string) {

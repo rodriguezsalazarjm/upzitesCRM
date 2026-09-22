@@ -73,9 +73,9 @@ export function ConversationList({
               <PlugZap className="h-4 w-4" strokeWidth={1.75} aria-hidden />
             </span>
             <div className="min-w-0">
-              <p className="text-[13px] font-bold">Todavia no hay un numero de WhatsApp conectado</p>
+              <p className="text-[13px] font-bold">Todavía no hay un número de WhatsApp conectado</p>
               <p className="mt-1 text-xs text-ink-muted">
-                Conecta el numero del cliente desde{' '}
+                Conecta el número del cliente desde{' '}
                 <Link href="/integraciones" className="font-semibold text-lime underline underline-offset-4">
                   Integraciones
                 </Link>
@@ -89,8 +89,8 @@ export function ConversationList({
           <div className="px-4">
             <EmptyState
               icon={MessageSquare}
-              title="Sin conversaciones todavia"
-              description="Apareceran aqui apenas alguien escriba al numero conectado."
+              title="Sin conversaciones todavía"
+              description="Aparecerán aquí apenas alguien escriba al número conectado."
             />
           </div>
         )}

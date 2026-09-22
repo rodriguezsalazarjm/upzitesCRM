@@ -13,12 +13,12 @@ const CHECKOUT_BANNERS: Record<string, { tone: StatusTone; title: string; body: 
   success: {
     tone: 'warning',
     title: 'Verificando tu pago',
-    body: 'Mercado Pago confirmo el pago de tu lado. Estamos esperando la confirmacion final — tu plan se activa automaticamente en cuanto llegue (normalmente en segundos). Refresca esta pagina en un momento.',
+    body: 'Mercado Pago confirmó el pago de tu lado. Estamos esperando la confirmación final — tu plan se activa automáticamente en cuanto llegue (normalmente en segundos). Refresca esta página en un momento.',
   },
   pending: {
     tone: 'warning',
     title: 'Pago pendiente',
-    body: 'Tu pago quedo en revision en Mercado Pago. Te avisamos apenas se confirme; no necesitas hacer nada mas por ahora.',
+    body: 'Tu pago quedó en revisión en Mercado Pago. Te avisamos apenas se confirme; no necesitas hacer nada más por ahora.',
   },
   failure: {
     tone: 'danger',
@@ -43,13 +43,13 @@ export default async function BillingPage({
     { label: 'Precio', value: subscription ? `$${subscription.plan.priceClp.toLocaleString('es-CL')}` : '-' },
     { label: 'Usuarios', value: `${users}/${subscription?.plan.maxUsers ?? 0}` },
     { label: 'Contactos', value: `${contacts}/${subscription?.plan.maxContacts ?? 0}` },
-    { label: 'Vence en', value: `${status.daysLeft} dias` },
-    { label: 'Proxima renovacion', value: status.expiresAt ? status.expiresAt.toLocaleDateString('es-CL') : '-' },
+    { label: 'Vence en', value: `${status.daysLeft} días` },
+    { label: 'Próxima renovación', value: status.expiresAt ? status.expiresAt.toLocaleDateString('es-CL') : '-' },
   ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Header title="Billing" subtitle="Plan, limites y piloto comercial" />
+      <Header title="Billing" subtitle="Plan, límites y piloto comercial" />
       <div className="max-w-3xl flex-1 space-y-4 overflow-y-auto p-6">
         {banner && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-paper p-4">

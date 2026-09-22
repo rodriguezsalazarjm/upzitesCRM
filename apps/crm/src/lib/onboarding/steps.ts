@@ -120,12 +120,12 @@ const definitions: StepDefinition[] = [
   {
     key: 'negocio',
     title: 'Datos del negocio',
-    description: 'Nombre, pais y moneda con la que cobras.',
+    description: 'Nombre, país y moneda con la que cobras.',
     href: '/configuracion',
     action: 'Completar',
     need: () => ({
       level: 'REQUIRED',
-      why: 'La moneda define como se muestran todos los precios que vera tu cliente.',
+      why: 'La moneda define cómo se muestran todos los precios que verá tu cliente.',
     }),
     check: async ({ workspaceId }) => {
       const workspace = await prisma.workspace.findUnique({
@@ -143,13 +143,13 @@ const definitions: StepDefinition[] = [
   },
   {
     key: 'horarios',
-    title: 'Horario de atencion',
-    description: 'Cuando se atiende y en que horas no se le escribe a nadie.',
+    title: 'Horario de atención',
+    description: 'Cuándo se atiende y en qué horas no se le escribe a nadie.',
     href: '/configuracion',
     action: 'Completar',
     need: () => ({
       level: 'REQUIRED',
-      why: 'Fuera de ese horario no se envia nada automatico. Es lo que evita que a un cliente le llegue una promocion a las tres de la manana.',
+      why: 'Fuera de ese horario no se envía nada automático. Es lo que evita que a un cliente le llegue una promoción a las tres de la mañana.',
     }),
     check: async ({ workspaceId }) => {
       const policy = await prisma.messagingPolicy.findUnique({
@@ -165,26 +165,26 @@ const definitions: StepDefinition[] = [
       return {
         done,
         evidence: done ? 'GUARDADO' : 'PENDIENTE',
-        hint: done ? undefined : 'Falta definir los dias de atencion.',
+        hint: done ? undefined : 'Falta definir los días de atención.',
       };
     },
   },
   {
     key: 'plan',
     title: 'Plan contratado',
-    description: 'Define cuanto puedes usar y que funciones tienes disponibles.',
+    description: 'Define cuánto puedes usar y qué funciones tienes disponibles.',
     href: '/billing',
     action: 'Elegir plan',
     need: () => ({
       level: 'REQUIRED',
-      why: 'De el dependen los limites y las funciones que aparecen mas abajo.',
+      why: 'De él dependen los límites y las funciones que aparecen más abajo.',
     }),
     check: async ({ workspaceId, hasPlan }) => {
       if (!hasPlan) {
         return {
           done: false,
           evidence: 'PENDIENTE',
-          hint: 'Elige un plan para saber con que funciones cuentas.',
+          hint: 'Elige un plan para saber con qué funciones cuentas.',
         };
       }
 
@@ -194,14 +194,14 @@ const definitions: StepDefinition[] = [
         : {
             done: false,
             evidence: 'GUARDADO',
-            hint: 'Tu plan figura, pero la suscripcion no esta al dia.',
+            hint: 'Tu plan figura, pero la suscripción no está al día.',
           };
     },
   },
   {
     key: 'whatsapp',
     title: 'Conectar WhatsApp',
-    description: 'El numero por el que conversas con tus clientes.',
+    description: 'El número por el que conversas con tus clientes.',
     href: '/integraciones',
     action: 'Conectar',
     need: ({ capabilities }) => whatsappNeed(capabilities),
@@ -225,7 +225,7 @@ const definitions: StepDefinition[] = [
         return {
           done: false,
           evidence: 'PENDIENTE',
-          hint: 'Conecta tu numero de WhatsApp Business.',
+          hint: 'Conecta tu número de WhatsApp Business.',
         };
       }
 
@@ -239,7 +239,7 @@ const definitions: StepDefinition[] = [
         return {
           done: false,
           evidence: 'GUARDADO',
-          hint: 'El numero quedo guardado, pero WhatsApp todavia no confirmo la conexion. Vuelve a Integraciones y verificalo.',
+          hint: 'El número quedó guardado, pero WhatsApp todavía no confirmó la conexión. Vuelve a Integraciones y verifícalo.',
         };
       }
 
@@ -259,14 +259,14 @@ const definitions: StepDefinition[] = [
         evidence: received ? 'PROBADO' : 'VERIFICADO',
         hint: received
           ? undefined
-          : 'Conectado. Escribele al numero desde tu telefono para verlo llegar a la bandeja.',
+          : 'Conectado. Escríbele al número desde tu teléfono para verlo llegar a la bandeja.',
       };
     },
   },
   {
     key: 'tipo-negocio',
-    title: 'Como vendes',
-    description: 'Servicios a medida, productos fisicos o productos digitales.',
+    title: 'Cómo vendes',
+    description: 'Servicios a medida, productos físicos o productos digitales.',
     href: '/configuracion#modalidad-venta',
     action: 'Elegir',
     need: () => ({
@@ -278,13 +278,13 @@ const definitions: StepDefinition[] = [
       return {
         done,
         evidence: done ? 'GUARDADO' : 'PENDIENTE',
-        hint: done ? undefined : 'Elige como vendes.',
+        hint: done ? undefined : 'Elige cómo vendes.',
       };
     },
   },
   {
     key: 'catalogo',
-    title: 'Que ofreces y a que precio',
+    title: 'Qué ofreces y a qué precio',
     description: 'Lo que el agente puede proponer sin inventar.',
     href: ({ businessType }) => getCatalogSettingsHref(businessType),
     action: 'Configurar',
@@ -323,7 +323,7 @@ const definitions: StepDefinition[] = [
           evidence: sets.length > 0 ? 'GUARDADO' : 'PENDIENTE',
           hint:
             sets.length > 0
-              ? 'Tienes un servicio a medio configurar. Publicalo para que el agente pueda cotizar con el.'
+              ? 'Tienes un servicio a medio configurar. Publícalo para que el agente pueda cotizar con él.'
               : 'Crea un servicio y su regla de precio.',
         };
       }
@@ -371,7 +371,7 @@ const definitions: StepDefinition[] = [
         evidence: anyProduct > 0 ? 'GUARDADO' : 'PENDIENTE',
         hint:
           anyProduct > 0
-            ? 'Tienes productos cargados, pero ninguno disponible para vender. Revisa que esten activos y con stock.'
+            ? 'Tienes productos cargados, pero ninguno disponible para vender. Revisa que estén activos y con stock.'
             : 'Carga tus productos a mano, o conecta tu tienda si ya vendes en Shopify.',
       };
     },
@@ -379,7 +379,7 @@ const definitions: StepDefinition[] = [
   {
     key: 'pagos',
     title: 'Cobrar dentro del chat',
-    description: 'Para que el cliente pague sin salir de la conversacion.',
+    description: 'Para que el cliente pague sin salir de la conversación.',
     href: '/integraciones',
     action: 'Conectar',
     need: ({ businessType, capabilities }) => paymentsNeed(businessType, capabilities),
@@ -406,7 +406,7 @@ const definitions: StepDefinition[] = [
         done: false,
         evidence: mercadoPago ? 'GUARDADO' : 'PENDIENTE',
         hint: mercadoPago
-          ? 'Las credenciales de cobro estan cargadas, pero la conexion no quedo confirmada.'
+          ? 'Las credenciales de cobro están cargadas, pero la conexión no quedó confirmada.'
           : 'Conecta Mercado Pago, o usa el checkout de tu tienda si vendes en Shopify.',
       };
     },
@@ -433,20 +433,20 @@ const definitions: StepDefinition[] = [
         done: false,
         evidence: domain ? 'GUARDADO' : 'PENDIENTE',
         hint: domain
-          ? 'Tu dominio esta registrado y esperando. Falta pegar los datos que te damos donde compraste el dominio.'
+          ? 'Tu dominio está registrado y esperando. Falta pegar los datos que te damos donde compraste el dominio.'
           : 'Registra el dominio desde el que quieres enviar correos.',
       };
     },
   },
   {
     key: 'informacion',
-    title: 'Que puede contar el agente',
-    description: 'Como describes tu negocio y tus condiciones.',
+    title: 'Qué puede contar el agente',
+    description: 'Cómo describes tu negocio y tus condiciones.',
     href: '/configuracion',
     action: 'Escribir',
     need: () => ({
       level: 'REQUIRED',
-      why: 'Es lo unico que el agente puede afirmar. Lo que no este aqui, no lo dira, y esa es la idea.',
+      why: 'Es lo único que el agente puede afirmar. Lo que no esté aquí, no lo dirá, y esa es la idea.',
     }),
     check: async ({ workspaceId }) => {
       const profile = await prisma.workspaceProfile.findUnique({
@@ -463,7 +463,7 @@ const definitions: StepDefinition[] = [
         done: false,
         evidence: about || policies ? 'GUARDADO' : 'PENDIENTE',
         hint: about
-          ? 'Falta escribir tus condiciones: despacho, garantia, devoluciones.'
+          ? 'Falta escribir tus condiciones: despacho, garantía, devoluciones.'
           : 'Describe tu negocio y tus condiciones.',
       };
     },
@@ -471,7 +471,7 @@ const definitions: StepDefinition[] = [
   {
     key: 'prueba-agente',
     title: 'Probar el agente',
-    description: 'Conversar con el antes de que le hable un cliente.',
+    description: 'Conversar con él antes de que le hable un cliente.',
     href: '/automatizaciones',
     action: 'Probar',
     need: ({ capabilities }) => agentNeed(capabilities),
@@ -490,7 +490,7 @@ const definitions: StepDefinition[] = [
         return {
           done: false,
           evidence: published ? 'GUARDADO' : 'PENDIENTE',
-          hint: 'Escribele al agente en el simulador y mira como responde.',
+          hint: 'Escríbele al agente en el simulador y mira cómo responde.',
         };
       }
 
@@ -498,7 +498,7 @@ const definitions: StepDefinition[] = [
         return {
           done: false,
           evidence: 'PROBADO',
-          hint: 'Ya lo probaste. Falta publicar esa version para que sea la que atienda.',
+          hint: 'Ya lo probaste. Falta publicar esa versión para que sea la que atienda.',
         };
       }
 
@@ -508,7 +508,7 @@ const definitions: StepDefinition[] = [
   {
     key: 'activacion',
     title: 'Activar',
-    description: 'A partir de aqui el agente atiende de verdad.',
+    description: 'A partir de aquí el agente atiende de verdad.',
     check: async ({ workspaceId }) => {
       const activation = await prisma.workspaceActivation.findUnique({
         where: { workspaceId },

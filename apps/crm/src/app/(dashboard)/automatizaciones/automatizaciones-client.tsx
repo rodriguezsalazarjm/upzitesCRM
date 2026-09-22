@@ -42,8 +42,8 @@ const TRIGGER_LABEL: Record<string, string> = {
   CONVERSATION_ASSIGNED: 'Conversacion asignada',
   CONTACT_SCORE_CHANGED: 'Cambio de score',
   CHECKOUT_STARTED: 'Checkout iniciado',
-  QUOTE_CREATED: 'Cotizacion creada',
-  QUOTE_ACCEPTED: 'Cotizacion aceptada',
+  QUOTE_CREATED: 'Cotización creada',
+  QUOTE_ACCEPTED: 'Cotización aceptada',
   ORDER_FULFILLED: 'Pedido despachado',
 };
 
@@ -96,7 +96,7 @@ export function AutomatizacionesClient({
         {rules.length === 0 ? (
           <EmptyState
             icon={Zap}
-            title="Sin automatizaciones todavia"
+            title="Sin automatizaciones todavía"
             description="Activa una del catalogo de abajo para empezar."
           />
         ) : (
@@ -132,7 +132,7 @@ export function AutomatizacionesClient({
                     <>
                       <span className="tabular">Ejecuciones: {rule.runCount}</span>
                       <span>
-                        Ultima: {rule.lastRunAt ? new Date(rule.lastRunAt).toLocaleString('es-CL') : 'nunca'}
+                        Última: {rule.lastRunAt ? new Date(rule.lastRunAt).toLocaleString('es-CL') : 'nunca'}
                       </span>
                       {rule.dedupeMinutes > 0 && (
                         <span>No repetir por contacto: {Math.round(rule.dedupeMinutes / 60)} h</span>

@@ -62,10 +62,10 @@ export default function LoginPage() {
 
           <div className="mt-9 lg:mt-11">
             <h2 className="text-xl font-bold text-carbon">Bienvenido de vuelta</h2>
-            <p className="mt-1.5 text-sm text-soft">Ingresa con el correo y contrasena de tu empresa</p>
+            <p className="mt-1.5 text-sm text-soft">Ingresa con el correo y contraseña de tu empresa</p>
 
             <form onSubmit={handleLogin} className="mt-6 space-y-5">
-              <FormField label="Correo electronico" htmlFor="login-email">
+              <FormField label="Correo electrónico" htmlFor="login-email">
                 <Input
                   type="email"
                   autoComplete="email"
@@ -79,10 +79,10 @@ export default function LoginPage() {
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <label htmlFor="login-password" className="text-sm font-semibold text-carbon">
-                    Contrasena
+                    Contraseña
                   </label>
                   <Link href="#" className="text-xs font-medium text-electric hover:text-electric-strong">
-                    Olvidaste tu contrasena?
+                    ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
                 <div className="relative">
@@ -101,7 +101,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((current) => !current)}
-                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-stone transition-colors hover:text-graphite"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -120,7 +120,7 @@ export default function LoginPage() {
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 ) : (
                   <>
-                    Iniciar sesion <ArrowRight className="h-4 w-4" aria-hidden />
+                    Iniciar sesión <ArrowRight className="h-4 w-4" aria-hidden />
                   </>
                 )}
               </Button>

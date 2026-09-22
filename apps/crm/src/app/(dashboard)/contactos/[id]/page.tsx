@@ -30,7 +30,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
   const info = [
     { icon: Mail, label: 'Email', value: contact.email },
-    { icon: Phone, label: 'Telefono', value: contact.phone },
+    { icon: Phone, label: 'Teléfono', value: contact.phone },
     { icon: Building2, label: 'Empresa', value: contact.company },
     { icon: Globe2, label: 'Fuente', value: contact.source },
     {
@@ -82,7 +82,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             </Card>
 
             <Card className="p-6">
-              <Eyebrow className="mb-4">Informacion</Eyebrow>
+              <Eyebrow className="mb-4">Información</Eyebrow>
               <dl className="space-y-3.5">
                 {info.map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-center gap-3">

@@ -16,7 +16,7 @@ const FIELDS: ContactField[] = [
   { key: 'firstName', label: 'Nombre', required: true },
   { key: 'lastName', label: 'Apellido', required: true },
   { key: 'email', label: 'Email', type: 'email' },
-  { key: 'phone', label: 'Telefono' },
+  { key: 'phone', label: 'Teléfono' },
   { key: 'company', label: 'Empresa' },
   { key: 'source', label: 'Fuente' },
   { key: 'value', label: 'Valor estimado', type: 'number' },

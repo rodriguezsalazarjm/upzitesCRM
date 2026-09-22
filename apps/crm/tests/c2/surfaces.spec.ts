@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' });
 async function login(page: Page, key = 'a') {
   const proof = await page.request.get('/api/local-validation');
   expect(await proof.json()).toEqual({ database: 'crm_pruebas', markerValid: true, externalNetworkBlocked: true });
-  await page.goto('/login'); await page.locator('input[type=email]').fill(fixtures[key].email); await page.locator('input[type=password]').fill(password); await page.getByRole('button', { name: 'Iniciar sesion' }).click(); await expect(page).toHaveURL(/dashboard/);
+  await page.goto('/login'); await page.locator('input[type=email]').fill(fixtures[key].email); await page.locator('input[type=password]').fill(password); await page.getByRole('button', { name: 'Iniciar sesión' }).click(); await expect(page).toHaveURL(/dashboard/);
 }
 async function fire(page: Page, type: string, text: string) {
   await page.goto('/integraciones'); await page.getByLabel('Evento', { exact: true }).selectOption(type); await page.getByLabel('Texto', { exact: true }).fill(text);

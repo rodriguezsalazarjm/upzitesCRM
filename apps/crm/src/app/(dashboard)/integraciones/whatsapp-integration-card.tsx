@@ -132,7 +132,7 @@ export function WhatsAppIntegrationCard() {
     const ok = await action('/api/integrations/whatsapp/connect', form, 'connect');
     if (ok) {
       setForm(emptyForm);
-      setNotice('Meta valido el numero, la WABA y la suscripcion del webhook.');
+      setNotice('Meta validó el número, la WABA y la suscripción del webhook.');
     }
   }
 
@@ -171,7 +171,7 @@ export function WhatsAppIntegrationCard() {
           </Badge>
         </div>
         <p className="text-xs text-slate-500">
-          Conecta un numero de Cloud API y comprueba por separado credenciales, webhook y recepcion.
+          Conecta un número de Cloud API y comprueba por separado credenciales, webhook y recepción.
         </p>
       </CardHeader>
 
@@ -227,13 +227,13 @@ export function WhatsAppIntegrationCard() {
               <Fact
                 done={channel.credentialsVerified}
                 title="Credenciales verificadas"
-                detail={date(channel.lastHealthCheckAt) ?? 'Pendiente de validacion contra Meta.'}
+                detail={date(channel.lastHealthCheckAt) ?? 'Pendiente de validación contra Meta.'}
               />
               <Fact
                 done={channel.webhookSubscribed}
                 title="App suscrita a la WABA"
                 detail={
-                  date(channel.webhookSubscribedAt) ?? 'Meta no ha confirmado la suscripcion.'
+                  date(channel.webhookSubscribedAt) ?? 'Meta no ha confirmado la suscripción.'
                 }
               />
               <Fact
@@ -257,7 +257,7 @@ export function WhatsAppIntegrationCard() {
                         `verify:${channel.id}`,
                       )
                     ) {
-                      setNotice('Credenciales y suscripcion verificadas nuevamente con Meta.');
+                      setNotice('Credenciales y suscripción verificadas nuevamente con Meta.');
                     }
                   }}
                 >
@@ -309,8 +309,8 @@ export function WhatsAppIntegrationCard() {
             <div>
               <p className="text-sm font-semibold text-slate-900">
                 {status.data.length > 0
-                  ? 'Conectar o actualizar un numero'
-                  : 'Conectar numero de prueba'}
+                  ? 'Conectar o actualizar un número'
+                  : 'Conectar número de prueba'}
               </p>
               <p className="text-xs text-slate-500">
                 El token no se muestra despues de guardarlo y nunca queda en el navegador.
@@ -333,7 +333,7 @@ export function WhatsAppIntegrationCard() {
               />
               <Input
                 required
-                placeholder="Numero visible, por ejemplo +1 555…"
+                placeholder="Número visible, por ejemplo +1 555…"
                 value={form.displayPhoneNumber}
                 onChange={(event) => setForm({ ...form, displayPhoneNumber: event.target.value })}
               />

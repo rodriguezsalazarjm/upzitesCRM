@@ -128,7 +128,7 @@ export function OnboardingClient({
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-carbon">
-              {active ? 'Tu cuenta esta activa' : 'Todavia en configuracion'}
+              {active ? 'Tu cuenta está activa' : 'Todavía en configuración'}
             </p>
             <p className="mt-0.5 text-xs text-soft">
               {active
@@ -202,7 +202,7 @@ export function OnboardingClient({
             <p className="text-sm font-semibold text-carbon">Activar</p>
             <p className="mt-0.5 text-xs text-soft">
               {state.canActivate
-                ? 'Desde aqui el agente conversa con clientes reales sin que nadie mire.'
+                ? 'Desde aquí el agente conversa con clientes reales sin que nadie mire.'
                 : state.blockers.length === 1
                   ? 'Falta una cosa de la lista de arriba.'
                   : `Faltan ${state.blockers.length} cosas de la lista de arriba.`}

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   const preferenceClient = getPreferenceClient();
   if (!preferenceClient) {
     return NextResponse.json(
-      { message: 'Mercado Pago no esta configurado todavia. Contacta a soporte.' },
+      { message: 'Mercado Pago no está configurado todavía. Contacta a soporte.' },
       { status: 503 },
     );
   }
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
   const checkoutUrl = preferenceCheckoutUrl(preference, process.env.MERCADO_PAGO_ACCESS_TOKEN);
   if (!checkoutUrl) {
-    return NextResponse.json({ message: 'Mercado Pago no devolvio una URL de pago.' }, { status: 502 });
+    return NextResponse.json({ message: 'Mercado Pago no devolvió una URL de pago.' }, { status: 502 });
   }
 
   return NextResponse.json({ checkoutUrl });
