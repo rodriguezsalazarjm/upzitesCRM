@@ -81,11 +81,11 @@ export function SubscriptionExpired({
           )}
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button onClick={renew} disabled={loading} className="flex-1">
+            <Button onClick={renew} disabled={loading} className="w-full sm:flex-1">
               {loading ? <RefreshCw className="animate-spin" /> : <ArrowRight />}
               Renovar 30 días
             </Button>
-            <Button onClick={logout} variant="outline" className="flex-1">
+            <Button onClick={logout} variant="outline" className="w-full sm:flex-1">
               <LogOut />
               Salir
             </Button>
