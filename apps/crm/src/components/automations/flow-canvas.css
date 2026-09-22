@@ -34,8 +34,42 @@
 
 .upz-flow-canvas .react-flow__edge-path {
   stroke: var(--color-mist) !important;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
 }
 
-.upz-flow-canvas .react-flow__edge.selected .react-flow__edge-path {
+/* Reposo → Mist, hover → un poco más de presencia, selected → Electric.
+   El error (Tomato) por nodo ya lo pinta FlowNodeCard con datos reales del
+   validador; no hay señal real de "conexión inválida" por edge individual
+   (el validador reporta por nodo, no por arista) — ver reporte de P1. */
+.upz-flow-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-stone) !important;
+  stroke-width: 2px !important;
+}
+
+.upz-flow-canvas .react-flow__edge.selected .react-flow__edge-path,
+.upz-flow-canvas .react-flow__edge:focus .react-flow__edge-path,
+.upz-flow-canvas .react-flow__edge:focus-visible .react-flow__edge-path {
   stroke: var(--color-electric) !important;
+  stroke-width: 2px !important;
+}
+
+.upz-flow-canvas .react-flow__connection-path {
+  stroke: var(--color-electric) !important;
+  stroke-width: 2px !important;
+}
+
+/* Foco de teclado: React Flow ya hace los nodos/edges focuseables y respeta
+   Tab/Delete/flechas (no se toca esa lógica); solo se hace visible el foco. */
+.upz-flow-canvas .react-flow__node:focus-visible {
+  outline: 2px solid var(--color-electric);
+  outline-offset: 2px;
+  border-radius: 1rem;
+}
+
+.upz-flow-canvas .react-flow__handle {
+  transition: transform 0.1s ease;
+}
+
+.upz-flow-canvas .react-flow__handle:hover {
+  transform: scale(1.4);
 }

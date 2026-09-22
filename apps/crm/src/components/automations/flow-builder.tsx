@@ -25,12 +25,12 @@ import { FlowNodeCard } from './flow-node-card';
 import { FlowToolbar } from './flow-toolbar';
 import { FlowTriggerCard } from './flow-trigger-card';
 import { NodePalette } from './node-palette';
-import { NODE_PALETTE } from './flow-node-meta';
+import { NODE_PALETTE, errorsForNode, isNodeIncomplete } from './flow-node-meta';
 import type { FlowGraph, FlowNode } from '@/lib/automations/schema';
 import type { AccountView } from '@/lib/automations/catalog';
 import type { Channel } from '../../../generated/prisma/client';
 
-type CanvasNode = Node<{ step: FlowNode }, 'step'>;
+type CanvasNode = Node<{ step: FlowNode; errors?: string[] }, 'step'>;
 
 /** Registrado en `nodeTypes`: sólo este componente conoce los `Handle` reales que usa el engine. */
 function StepNode({ data, selected }: NodeProps<CanvasNode>) {
@@ -43,7 +43,12 @@ function StepNode({ data, selected }: NodeProps<CanvasNode>) {
     <div>
       <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-2 !border-paper !bg-mist" />
 
-      <FlowNodeCard step={step} selected={Boolean(selected)} hasError={false} incomplete={false} />
+      <FlowNodeCard
+        step={step}
+        selected={Boolean(selected)}
+        hasError={(data.errors?.length ?? 0) > 0}
+        incomplete={isNodeIncomplete(step)}
+      />
 
       {!terminal && (
         <div className="mt-3 flex justify-around">
@@ -112,6 +117,9 @@ function Editor(props: BuilderProps) {
   const account =
     props.accounts.find((a) => a.id === trigger.accountId) ??
     (props.channel === 'WHATSAPP' ? props.accounts.find((a) => a.channel === 'WHATSAPP') : undefined);
+
+  // Derivado por render, solo para pintar: no toca la posición/selección que administra useNodesState.
+  const canvasNodes = nodes.map((n) => ({ ...n, data: { ...n.data, errors: errorsForNode(errors, n.id) } }));
 
   const graph = (): FlowGraph => ({
     trigger,
@@ -226,7 +234,7 @@ function Editor(props: BuilderProps) {
           }}
         >
           <ReactFlow<CanvasNode>
-            nodes={nodes}
+            nodes={canvasNodes}
             edges={edges}
             nodeTypes={nodeTypes}
             onNodesChange={readonly ? undefined : onNodesChange}
@@ -239,6 +247,7 @@ function Editor(props: BuilderProps) {
               if (!readonly) setEdges((es) => addEdge({ ...c, label: c.sourceHandle }, es));
             }}
             defaultEdgeOptions={{ style: { strokeWidth: 1.5 } }}
+            connectionRadius={28}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--color-mist)" />
@@ -255,7 +264,7 @@ function Editor(props: BuilderProps) {
           account={account}
           agents={props.agents}
           products={props.products}
-          errors={[]}
+          errors={selected ? errorsForNode(errors, selected) : []}
           onUseAsFirst={() => setNodes((all) => [...all.filter((n) => n.id === selected), ...all.filter((n) => n.id !== selected)])}
           onDelete={() => {
             setNodes((all) => all.filter((n) => n.id !== selected));
