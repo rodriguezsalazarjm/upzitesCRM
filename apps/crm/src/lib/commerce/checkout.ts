@@ -8,7 +8,7 @@ import {
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { cancelByKey, scheduleAction } from '../domain';
-import { getWorkspacePreferenceClient } from '../mercado-pago';
+import { getWorkspacePreferenceClient, preferenceCheckoutUrl } from '../mercado-pago';
 import { getValidWorkspaceMercadoPagoToken } from './mercado-pago-connection';
 
 /**
@@ -113,7 +113,7 @@ export async function createOrderCheckout(input: {
     );
   }
 
-  const checkoutUrl = preference.sandbox_init_point ?? preference.init_point;
+  const checkoutUrl = preferenceCheckoutUrl(preference, connection.accessToken);
   if (!checkoutUrl) throw new CheckoutError('Mercado Pago no devolvio URL de pago.', 'PROVIDER');
 
   await prisma.customerOrder.update({

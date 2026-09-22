@@ -7,6 +7,7 @@ import {
   exchangeMercadoPagoOAuthCode,
   getPlatformOAuthConfig,
   MercadoPagoCredentialError,
+  preferenceCheckoutUrl,
   refreshMercadoPagoOAuthToken,
   verifyMercadoPagoAccessToken,
   verifyWebhookSignature,
@@ -254,5 +255,21 @@ describe('refreshMercadoPagoOAuthToken', () => {
       () => refreshMercadoPagoOAuthToken({ config, refreshToken: 'refresh-revocado' }),
       MercadoPagoCredentialError,
     );
+  });
+});
+
+describe('preferenceCheckoutUrl', () => {
+  const preference = { init_point: 'https://mp/prod', sandbox_init_point: 'https://mp/sandbox' };
+
+  test('credencial productiva usa init_point aunque venga sandbox_init_point', () => {
+    assert.equal(preferenceCheckoutUrl(preference, 'APP_USR-123'), 'https://mp/prod');
+  });
+
+  test('credencial de prueba usa sandbox_init_point', () => {
+    assert.equal(preferenceCheckoutUrl(preference, 'TEST-123'), 'https://mp/sandbox');
+  });
+
+  test('sin token no cae al sandbox', () => {
+    assert.equal(preferenceCheckoutUrl(preference, undefined), 'https://mp/prod');
   });
 });

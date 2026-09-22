@@ -4,7 +4,7 @@ import { UserRole } from '../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
-import { getPreferenceClient } from '@/lib/mercado-pago';
+import { getPreferenceClient, preferenceCheckoutUrl } from '@/lib/mercado-pago';
 import { parseBody } from '@/lib/http';
 
 const checkoutSchema = z.object({
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const checkoutUrl = preference.sandbox_init_point ?? preference.init_point;
+  const checkoutUrl = preferenceCheckoutUrl(preference, process.env.MERCADO_PAGO_ACCESS_TOKEN);
   if (!checkoutUrl) {
     return NextResponse.json({ message: 'Mercado Pago no devolvio una URL de pago.' }, { status: 502 });
   }

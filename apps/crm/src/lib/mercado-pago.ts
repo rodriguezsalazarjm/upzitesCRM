@@ -44,6 +44,21 @@ export function getPreferenceClient() {
   return cfg ? new Preference(cfg) : null;
 }
 
+/**
+ * URL de checkout de una preferencia. Mercado Pago devuelve SIEMPRE ambas
+ * (`init_point` y `sandbox_init_point`), tambien con credenciales productivas:
+ * elegir por presencia mandaria a los clientes reales al checkout de pruebas.
+ * Solo un access token de prueba (`TEST-...`) usa el sandbox.
+ */
+export function preferenceCheckoutUrl(
+  preference: { init_point?: string; sandbox_init_point?: string },
+  accessToken: string | undefined,
+) {
+  return accessToken?.startsWith('TEST-')
+    ? preference.sandbox_init_point ?? preference.init_point
+    : preference.init_point;
+}
+
 /** Cliente de pagos de la cuenta de Upzites (suscripcion del CRM). */
 export function getPaymentClient() {
   const cfg = getPlatformConfig();
