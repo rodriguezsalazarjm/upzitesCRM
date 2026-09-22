@@ -44,6 +44,13 @@ function date(value: string | null) {
   return value ? new Date(value).toLocaleString('es-CL') : null;
 }
 
+const WHATSAPP_STATUS_LABEL = {
+  PENDING: 'Pendiente',
+  CONNECTED: 'Conectado',
+  DISCONNECTED: 'No conectado',
+  NEEDS_ATTENTION: 'Requiere atención',
+} as const;
+
 function Fact({ done, title, detail }: { done: boolean; title: string; detail: string }) {
   return (
     <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2.5">
@@ -173,8 +180,8 @@ export function WhatsAppIntegrationCard() {
 
         {status && !configured && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            El servidor aun no tiene toda la configuracion de cifrado, firma y verificacion del
-            webhook.
+            WhatsApp todavía no está disponible para tu cuenta. Te avisaremos cuando puedas
+            conectarlo.
           </p>
         )}
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
@@ -206,8 +213,8 @@ export function WhatsAppIntegrationCard() {
               >
                 {channel.status === 'CONNECTED' &&
                 (!channel.credentialsVerified || !channel.webhookSubscribed)
-                  ? 'SIN VERIFICAR'
-                  : channel.status}
+                  ? 'Sin verificar'
+                  : WHATSAPP_STATUS_LABEL[channel.status]}
               </Badge>
             </div>
 
@@ -232,7 +239,7 @@ export function WhatsAppIntegrationCard() {
               <Fact
                 done={Boolean(channel.lastInboundAt)}
                 title="Recepcion comprobada"
-                detail={date(channel.lastInboundAt) ?? 'Aun no hay un mensaje entrante asociado.'}
+                detail={date(channel.lastInboundAt) ?? 'Aún no hay un mensaje entrante asociado.'}
               />
             </div>
 

@@ -46,8 +46,8 @@ function date(value: string | null) {
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   CONNECTED: 'Conectado',
   DISCONNECTED: 'No conectado',
-  NEEDS_ATTENTION: 'Requiere atencion',
-  REAUTH_REQUIRED: 'Reconexion necesaria',
+  NEEDS_ATTENTION: 'Requiere atención',
+  REAUTH_REQUIRED: 'Reconexión necesaria',
 };
 
 const STATUS_VARIANT: Record<ConnectionStatus, 'success' | 'warning' | 'outline'> = {
@@ -114,7 +114,7 @@ export function MercadoPagoIntegrationCard() {
     if (!result) return;
     queueMicrotask(() => {
       if (result === 'conectado') setNotice('Cuenta de Mercado Pago conectada.');
-      if (result === 'error') setError('No se pudo completar la conexion con Mercado Pago.');
+      if (result === 'error') setError('No se pudo completar la conexión con Mercado Pago.');
     });
     fetch('/api/integrations/mercado-pago/status', { cache: 'no-store' })
       .then(async (response) => {
@@ -249,8 +249,8 @@ export function MercadoPagoIntegrationCard() {
               </Button>
             ) : (
               <p className="rounded-lg bg-slate-50 px-2 py-1.5">
-                La conexion con un clic todavia no esta configurada en esta instalacion (faltan las
-                credenciales de la aplicacion). Usa la opcion manual mientras tanto.
+                La conexión con un clic todavía no está disponible. Mientras tanto puedes conectar tu
+                cuenta manualmente.
               </p>
             )}
 
@@ -259,7 +259,7 @@ export function MercadoPagoIntegrationCard() {
               className="text-[11px] font-medium text-slate-500 underline-offset-2 hover:underline"
               onClick={() => setShowManual((value) => !value)}
             >
-              {showManual ? 'Ocultar conexion manual' : 'Conectar manualmente (avanzado)'}
+              {showManual ? 'Ocultar conexión manual' : 'Conectar manualmente (avanzado)'}
             </button>
 
             {showManual && (

@@ -10,13 +10,13 @@ async function login(page: Page, key = 'a') {
 }
 async function fire(page: Page, type: string, text: string) {
   await page.goto('/integraciones'); await page.getByLabel('Evento', { exact: true }).selectOption(type); await page.getByLabel('Texto', { exact: true }).fill(text);
-  const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'INSTAGRAM', exact: true }) });
+  const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Instagram', exact: true }) });
   await card.getByRole('button', { name: 'Disparar evento fake' }).click(); await expect(page.getByRole('status')).toContainText('Evento simulado procesado');
   await page.getByRole('link', { name: 'Abrir Inbox' }).click();
 }
 test('A: connect fake Instagram, create Quick Comment → public/private reply, tag and inspect run', async ({ page }) => {
   await login(page); await page.goto('/integraciones');
-  await page.locator('section').filter({ has: page.getByRole('heading', { name: 'INSTAGRAM', exact: true }) }).getByRole('button', { name: 'Fake Connect' }).click();
+  await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Instagram', exact: true }) }).getByRole('button', { name: 'Fake Connect' }).click();
   await expect(page.getByRole('status')).toContainText('actualizada');
   await page.goto('/automatizaciones/nueva'); await page.getByRole('button', { name: 'Automatización rápida', exact: true }).click();
   await page.getByLabel('Nombre', { exact: true }).fill('E2E C2 GUIA');

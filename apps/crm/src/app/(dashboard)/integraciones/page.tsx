@@ -17,6 +17,11 @@ const statusVariant = {
   [IntegrationStatus.NEEDS_ATTENTION]: 'warning',
   [IntegrationStatus.DISCONNECTED]: 'outline',
 } as const;
+const statusLabel = {
+  [IntegrationStatus.CONNECTED]: 'Conectado',
+  [IntegrationStatus.NEEDS_ATTENTION]: 'Requiere atención',
+  [IntegrationStatus.DISCONNECTED]: 'No conectado',
+} as const;
 
 export default async function IntegracionesPage() {
   const user = await requireCurrentUser();
@@ -37,13 +42,12 @@ export default async function IntegracionesPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle>{integration.name}</CardTitle>
-                  <Badge variant={statusVariant[integration.status]}>{integration.status}</Badge>
+                  <Badge variant={statusVariant[integration.status]}>{statusLabel[integration.status]}</Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2 text-[13px] text-slate-500">
-                <p>Proveedor: {integration.provider}</p>
+              <CardContent className="space-y-2 text-[13px] text-ash">
                 <p>
-                  Ultima sincronizacion:{' '}
+                  Última sincronización:{' '}
                   {integration.lastSyncAt
                     ? integration.lastSyncAt.toLocaleString('es-CL')
                     : 'Sin sincronizar'}
