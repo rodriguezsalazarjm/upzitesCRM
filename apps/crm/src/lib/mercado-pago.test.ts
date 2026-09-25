@@ -17,9 +17,13 @@ import { UserRole } from '../../generated/prisma/client';
 
 /**
  * Reproduce exactamente el manifest que arma el validador del SDK. `ts` va en
- * MILISEGUNDOS (Date.now()): el validador lo compara tal cual contra
- * Date.now() para el chequeo de tolerancia, no contra epoch en segundos.
+ * SEGUNDOS (10 digitos), como lo manda Mercado Pago en `x-signature`:
+ * mercadopago@3.3.0 lo multiplica por 1000 para la tolerancia. Hasta 3.1.0 el
+ * SDK lo comparaba como milisegundos y rechazaba toda notificacion real con
+ * TimestampOutOfTolerance.
  */
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
 function sign(secret: string, dataId: string, requestId: string, ts: number) {
   const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
   const hash = createHmac('sha256', secret).update(manifest).digest('hex');
@@ -37,39 +41,86 @@ afterEach(() => {
 describe('verifyWebhookSignature (cuenta de Upzites)', () => {
   test('acepta una firma valida contra MERCADO_PAGO_WEBHOOK_SECRET', () => {
     process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
-    const ts = Date.now();
-    const xSignature = sign('secreto-plataforma', 'PAY-1', 'req-1', ts);
+    const ts = nowSeconds();
+    const xSignature = sign('secreto-plataforma', '123456', 'req-1', ts);
 
-    const result = verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: 'PAY-1' });
+    const result = verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: '123456' });
     assert.deepEqual(result, { valid: true });
   });
 
   test('rechaza si el secreto no esta configurado', () => {
     delete process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-    const result = verifyWebhookSignature({ xSignature: 'ts=1,v1=x', xRequestId: 'r', dataId: 'PAY-1' });
+    const result = verifyWebhookSignature({ xSignature: 'ts=1,v1=x', xRequestId: 'r', dataId: '123456' });
     assert.equal(result.valid, false);
   });
 
   test('rechaza una firma calculada con un secreto distinto', () => {
     process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
-    const ts = Date.now();
-    const xSignature = sign('otro-secreto', 'PAY-1', 'req-1', ts);
+    const ts = nowSeconds();
+    const xSignature = sign('otro-secreto', '123456', 'req-1', ts);
 
-    const result = verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: 'PAY-1' });
+    const result = verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: '123456' });
     assert.equal(result.valid, false);
+  });
+
+  // Forma real capturada del simulador de Mercado Pago (TEST): data.id
+  // numerico en la query, x-request-id UUID de 36 caracteres, ts de 10 digitos.
+  test('acepta una notificacion realista de Mercado Pago (ts en segundos)', () => {
+    process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
+    const ts = nowSeconds();
+    assert.equal(String(ts).length, 10);
+    const xRequestId = '3f2b6c1e-8d4a-4b7e-9c21-5a6d7e8f9a0b';
+    const xSignature = sign('secreto-plataforma', '123456', xRequestId, ts);
+
+    assert.deepEqual(verifyWebhookSignature({ xSignature, xRequestId, dataId: '123456' }), { valid: true });
+  });
+
+  test('rechaza un ts en segundos fuera de la tolerancia (replay)', () => {
+    process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
+    const ts = nowSeconds() - 600;
+    const xSignature = sign('secreto-plataforma', '123456', 'req-1', ts);
+
+    assert.deepEqual(verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: '123456' }), {
+      valid: false,
+      reason: 'TimestampOutOfTolerance',
+    });
+  });
+
+  test('rechaza una firma alterada', () => {
+    process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
+    const valid = sign('secreto-plataforma', '123456', 'req-1', nowSeconds());
+    const last = valid.at(-1) === '0' ? '1' : '0';
+    const tampered = valid.slice(0, -1) + last;
+
+    assert.deepEqual(verifyWebhookSignature({ xSignature: tampered, xRequestId: 'req-1', dataId: '123456' }), {
+      valid: false,
+      reason: 'SignatureMismatch',
+    });
+  });
+
+  // 3.3.0 ya no acepta ts en milisegundos. Mercado Pago nunca los envia, asi
+  // que se documenta el comportamiento en vez de mantener compatibilidad.
+  test('un ts en milisegundos queda fuera de tolerancia con el SDK 3.3.0', () => {
+    process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
+    const xSignature = sign('secreto-plataforma', '123456', 'req-1', Date.now());
+
+    assert.deepEqual(verifyWebhookSignature({ xSignature, xRequestId: 'req-1', dataId: '123456' }), {
+      valid: false,
+      reason: 'TimestampOutOfTolerance',
+    });
   });
 });
 
 describe('verifyWorkspaceWebhookSignature (cuenta de un workspace)', () => {
   test('valida contra el secreto DE ESE workspace, no el de plataforma', () => {
     process.env.MERCADO_PAGO_WEBHOOK_SECRET = 'secreto-plataforma';
-    const ts = Date.now();
-    const xSignature = sign('secreto-workspace-a', 'PAY-2', 'req-2', ts);
+    const ts = nowSeconds();
+    const xSignature = sign('secreto-workspace-a', '654321', 'req-2', ts);
 
     const okForA = verifyWorkspaceWebhookSignature({
       xSignature,
       xRequestId: 'req-2',
-      dataId: 'PAY-2',
+      dataId: '654321',
       webhookSecret: 'secreto-workspace-a',
     });
     assert.deepEqual(okForA, { valid: true });
@@ -79,7 +130,7 @@ describe('verifyWorkspaceWebhookSignature (cuenta de un workspace)', () => {
     const rejectedForB = verifyWorkspaceWebhookSignature({
       xSignature,
       xRequestId: 'req-2',
-      dataId: 'PAY-2',
+      dataId: '654321',
       webhookSecret: 'secreto-workspace-b',
     });
     assert.equal(rejectedForB.valid, false);
@@ -89,7 +140,7 @@ describe('verifyWorkspaceWebhookSignature (cuenta de un workspace)', () => {
     const rejectedForPlatform = verifyWorkspaceWebhookSignature({
       xSignature,
       xRequestId: 'req-2',
-      dataId: 'PAY-2',
+      dataId: '654321',
       webhookSecret: 'secreto-plataforma',
     });
     assert.equal(rejectedForPlatform.valid, false);

@@ -63,8 +63,8 @@ importers:
         specifier: ^1.16.0
         version: 1.17.0(react@19.2.4)
       mercadopago:
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.3.0
+        version: 3.3.0
       next:
         specifier: ^16.0.0
         version: 16.2.6(@babel/core@7.29.7)(@playwright/test@1.63.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -2917,8 +2917,8 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  mercadopago@3.1.0:
-    resolution: {integrity: sha512-3VB8AFpE8eZgm67e22kVbR19k9JC/1j66voLSh7m9tPvkASuRKNH2Y7yb793rO+fIpMtvl+wBj27UY4jIItWYA==}
+  mercadopago@3.3.0:
+    resolution: {integrity: sha512-TVtMopL6+CQOzU9hIVGVYxTO1DwOL9x3OmSdh7Qi/tawoLMSooQM0m/ttCC67vYsje+rjgZqNPoT9ItDQPm6Pg==}
     engines: {node: '>=18'}
 
   merge2@1.4.1:
@@ -6515,7 +6515,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  mercadopago@3.1.0: {}
+  mercadopago@3.3.0: {}
 
   merge2@1.4.1: {}
 
