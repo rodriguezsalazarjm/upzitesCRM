@@ -82,7 +82,7 @@ async function connectOAuth(input: {
 }
 
 function signWebhook(secret: string, dataId: string, requestId: string) {
-  const ts = Date.now();
+  const ts = Math.floor(Date.now() / 1000); // segundos, como Mercado Pago
   const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
   const hash = createHmac('sha256', secret).update(manifest).digest('hex');
   return `ts=${ts},v1=${hash}`;
