@@ -49,9 +49,11 @@ const navItems = [
   { href: '/insights', label: 'Insights IA', icon: Bot },
   { href: '/uso', label: 'Uso y costos', icon: Gauge },
   { href: '/billing', label: 'Billing', icon: CreditCard },
-  { href: '/ops', label: 'Ops', icon: ShieldCheck },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
+
+/** Solo operadores de plataforma: vista global del sistema (ver lib/platform-admin). */
+const platformItems = [{ href: '/ops', label: 'Ops plataforma', icon: ShieldCheck }];
 
 function getInitials(name: string) {
   return name
@@ -75,7 +77,7 @@ function NavSection({ label, first }: { label: string; first?: boolean }) {
   );
 }
 
-export function Sidebar({ user }: { user: CurrentUser }) {
+export function Sidebar({ user, isPlatformAdmin = false }: { user: CurrentUser; isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -166,6 +168,12 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           {renderItems(navItems.slice(0, 14), true)}
           <NavSection label="Sistema" />
           {renderItems(navItems.slice(14), false)}
+          {isPlatformAdmin && (
+            <>
+              <NavSection label="Plataforma" />
+              {renderItems(platformItems, false)}
+            </>
+          )}
         </nav>
 
         <div className="border-t border-white/10 p-4">

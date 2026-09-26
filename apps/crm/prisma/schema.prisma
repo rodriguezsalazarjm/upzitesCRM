@@ -111,10 +111,32 @@ model User {
   assignedConversations Conversation[]     @relation("ConversationAssignee")
   sentMessages          Message[]          @relation("MessageSender")
   pushSubscriptions     PushSubscription[]
+  platformAdmin         PlatformAdmin?
 
   @@unique([workspaceId, email])
   @@index([workspaceId])
   @@map("users")
+}
+
+/// Operador de la PLATAFORMA (Upzites), no de un workspace.
+///
+/// Es un concepto aparte de `UserRole` a proposito: OWNER y ADMIN mandan dentro
+/// de su workspace; esto habilita ver datos de todos los tenants (cola global,
+/// trabajos muertos). Confundirlos le daria acceso cross-tenant al primer
+/// cliente que se nombre admin de su propio workspace.
+///
+/// Se concede y revoca solo por CLI (`scripts/platform-admin.ts`), nunca desde
+/// la web, y se consulta en cada request: revocar es inmediato.
+model PlatformAdmin {
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  grantedById String?  @map("granted_by")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("platform_admins")
 }
 
 model PasswordResetToken {

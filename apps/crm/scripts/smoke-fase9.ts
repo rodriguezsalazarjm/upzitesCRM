@@ -114,7 +114,14 @@ async function setPlan(
 
   await prisma.workspaceSubscription.updateMany({
     where: { workspaceId },
-    data: { planId: plan.id, status: SubscriptionStatus.ACTIVE, trialEndsAt: null },
+    // Pagado y vigente, como lo deja el webhook: un ACTIVE sin renewsAt no
+    // existe en datos reales y el resolver unico lo trata como vencido.
+    data: {
+      planId: plan.id,
+      status: SubscriptionStatus.ACTIVE,
+      trialEndsAt: null,
+      renewsAt: new Date(Date.now() + 30 * 86_400_000),
+    },
   });
 
   return plan;
@@ -747,7 +754,12 @@ console.log('\n== Suscripcion vencida ==');
 {
   await prisma.workspaceSubscription.updateMany({
     where: { workspaceId: B.workspaceId },
-    data: { status: SubscriptionStatus.PAST_DUE, trialEndsAt: new Date(Date.now() - 86_400_000) },
+    // Vencida de verdad: periodo pagado terminado y gracia agotada.
+    data: {
+      status: SubscriptionStatus.PAST_DUE,
+      trialEndsAt: new Date(Date.now() - 86_400_000),
+      renewsAt: new Date(Date.now() - 30 * 86_400_000),
+    },
   });
 
   const entitlements = await getEntitlements(B.workspaceId);
@@ -910,7 +922,12 @@ console.log('\n== La recuperacion espera a la activacion ==');
   const existing = await prisma.workspaceSubscription.findFirst({ where: { workspaceId } });
   if (!existing) {
     await prisma.workspaceSubscription.create({
-      data: { workspaceId, planId: plan.id, status: SubscriptionStatus.ACTIVE },
+      data: {
+        workspaceId,
+        planId: plan.id,
+        status: SubscriptionStatus.ACTIVE,
+        renewsAt: new Date(Date.now() + 30 * 86_400_000),
+      },
     });
   }
 

@@ -1,4 +1,5 @@
 import { MessageDirection, MessageSenderType, MessageStatus, MessageType } from '../../../generated/prisma/client';
+import { canWorkspaceConsume } from '../billing/subscription-access';
 import { prisma } from '../prisma';
 import { lockConversation, queueOutboundMessage } from '../whatsapp/outbound';
 import { sendChannelDirectMessage } from './providers';
@@ -14,6 +15,13 @@ export class ChannelOutboundError extends Error {}
  * (ver informe de la Fase C).
  */
 export async function sendChannelMessage(input: { workspaceId: string; conversationId: string; text: string; senderType?: 'AI' | 'USER'; senderUserId?: string; origin?: 'AI' | 'HUMAN' | 'AUTOMATION'; agentRunId?: string; expectedLockVersion?: number; delivery?: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY'; commentId?: string }) {
+  // Enviar por un canal cuesta (WhatsApp cobra por conversacion). Un workspace
+  // vencido no envia, venga el mensaje de una persona, del agente o de una
+  // automatizacion encolada antes de vencer.
+  if (!(await canWorkspaceConsume(input.workspaceId))) {
+    throw new ChannelOutboundError('La suscripción del workspace no está vigente: no se envían mensajes.');
+  }
+
   const conversation = await prisma.conversation.findFirst({
     where: { id: input.conversationId, workspaceId: input.workspaceId },
     include: { channelAccount: true, contact: { include: { channelIdentities: true } } },

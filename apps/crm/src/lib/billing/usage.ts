@@ -9,6 +9,8 @@ import {
   type PlanCapability,
   type PlanTerms,
 } from './plans';
+import { latestSubscription } from './subscription-access';
+import { resolveSubscriptionState, type SubscriptionState } from './subscription-state';
 
 /**
  * Consumo y limites.
@@ -98,7 +100,9 @@ export async function recordUsage(input: RecordUsageInput, db: Db = prisma) {
 export type WorkspaceEntitlements = {
   plan: PlanTerms;
   status: SubscriptionStatus;
-  /** Un plan vencido conserva las capacidades pero no deja consumir mas. */
+  /** Estado resuelto (ver subscription-state.ts). */
+  state: SubscriptionState;
+  /** Puede consumir: un plan vencido conserva las capacidades pero no deja gastar. */
   active: boolean;
 };
 
@@ -107,34 +111,34 @@ export type WorkspaceEntitlements = {
  *
  * Devuelve null cuando no hay suscripcion: el llamador decide si eso bloquea.
  * Inventar un plan por defecto aqui seria regalar capacidades a quien no pago.
+ *
+ * `active` sale del mismo resolver que usa la interfaz: antes un `ACTIVE`
+ * vencido seguia consumiendo aqui mientras la app mostraba "vencido".
  */
 export async function getEntitlements(
   workspaceId: string,
   db: Db = prisma,
 ): Promise<WorkspaceEntitlements | null> {
-  const subscription = await db.workspaceSubscription.findFirst({
-    where: { workspaceId },
-    orderBy: { createdAt: 'desc' },
-    include: { plan: true },
-  });
-
+  const subscription = await latestSubscription(workspaceId, db);
   if (!subscription) return null;
 
-  const active =
-    subscription.status === SubscriptionStatus.ACTIVE ||
-    (subscription.status === SubscriptionStatus.TRIAL &&
-      (!subscription.trialEndsAt || subscription.trialEndsAt > new Date()));
-
-  return { plan: planTerms(subscription.plan), status: subscription.status, active };
+  const resolved = resolveSubscriptionState(subscription);
+  return {
+    plan: planTerms(subscription.plan),
+    status: subscription.status,
+    state: resolved.state,
+    active: resolved.canConsume,
+  };
 }
 
+/** El plan incluye la capacidad Y la suscripcion esta vigente. */
 export async function hasCapability(
   workspaceId: string,
   capability: PlanCapability,
   db: Db = prisma,
 ) {
   const entitlements = await getEntitlements(workspaceId, db);
-  return entitlements?.plan.capabilities.includes(capability) ?? false;
+  return Boolean(entitlements?.active && entitlements.plan.capabilities.includes(capability));
 }
 
 export type AllowanceCheck = {

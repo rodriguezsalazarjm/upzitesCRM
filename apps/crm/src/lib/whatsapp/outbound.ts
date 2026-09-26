@@ -8,6 +8,7 @@ import {
   OutboxType,
   Prisma,
 } from '../../../generated/prisma/client';
+import { canWorkspaceConsume } from '../billing/subscription-access';
 import { recordAudit } from '../domain/audit';
 import { prisma } from '../prisma';
 import { sendTextMessage } from './client';
@@ -342,6 +343,24 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
       });
       if (!channel) {
         await markFailed(event.id, payload.messageId, 'El canal de WhatsApp ya no existe.');
+        result.failed += 1;
+        continue;
+      }
+
+      // Lo encolado antes de vencer (journeys, reglas, acciones programadas) no
+      // sale despues: se marca fallido en vez de esperar, para que renovar no
+      // dispare de golpe mensajes que ya perdieron su momento. Sin push por
+      // mensaje: el vencimiento ya se avisa por su cuenta.
+      if (!(await canWorkspaceConsume(channel.workspaceId))) {
+        await prisma.$transaction((tx) =>
+          markFailedWithClient(
+            tx,
+            event.id,
+            payload.messageId,
+            'La suscripción del workspace no está vigente.',
+            'SUBSCRIPTION_INACTIVE',
+          ),
+        );
         result.failed += 1;
         continue;
       }

@@ -25,7 +25,7 @@ export function notificationForEvent(event: PushEvent) {
     ? `/inbox/${encodeURIComponent(event.conversationId)}`
     : event.quoteId
       ? '/cotizaciones'
-      : '/ops';
+      : '/configuracion#operacion';
 
   const copy: Record<PushEventKind, { title: string; body: string }> = {
     HUMAN_ATTENTION: {

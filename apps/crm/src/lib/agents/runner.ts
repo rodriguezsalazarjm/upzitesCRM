@@ -25,6 +25,7 @@ import { refreshConversationSummary } from './summary';
 import { isMediaKind, mediaLabel } from '../media/policy';
 import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
 import { raiseAlert } from '../billing/alerts';
+import { canWorkspaceConsume } from '../billing/subscription-access';
 import { checkAllowance, recordUsage } from '../billing/usage';
 import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
@@ -147,6 +148,13 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const published = await publishedVersion(input.workspaceId, AgentKind.SALES, input.agentVersionId, input.dryRun);
   if (!published) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no tiene un agente publicado' };
+  }
+
+  // Suscripcion vencida: no se gasta IA, tampoco en el simulador (que llama al
+  // mismo proveedor). Va antes del cupo para no avisar "se agoto la IA" cuando
+  // lo que paso es que el plan no esta al dia.
+  if (!(await canWorkspaceConsume(input.workspaceId))) {
+    return { status: AgentRunStatus.ABORTED, skippedReason: 'la suscripcion no esta vigente' };
   }
 
   // Fase 9: la IA no atiende sola hasta que el workspace se activa, y no pasa

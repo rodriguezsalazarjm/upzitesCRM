@@ -9,6 +9,7 @@ import {
 } from '../../../generated/prisma/client';
 import type { ModelProvider } from '../agents/provider';
 import { recordAudit } from '../domain/audit';
+import { canWorkspaceConsume } from '../billing/subscription-access';
 import { checkAllowance, hasCapability, recordUsage } from '../billing/usage';
 import { evaluateSend, recordSend, type ContactPolicy } from '../marketing/policy';
 import { isEnabled } from '../ops/flags';
@@ -139,6 +140,11 @@ export async function sendEmail(request: SendEmailRequest): Promise<SendResult> 
   // parar es el envio entero.
   if (!(await isEnabled('EMAIL_SENDING', request.workspaceId))) {
     return { status: 'SKIPPED', reason: 'EMAIL_DISABLED' };
+  }
+
+  // Todo email cuesta, operacional o no: un workspace vencido no envia.
+  if (!(await canWorkspaceConsume(request.workspaceId))) {
+    return { status: 'SKIPPED', reason: 'SUBSCRIPTION_INACTIVE' };
   }
 
   const sender = await resolveSender(request.workspaceId, category);

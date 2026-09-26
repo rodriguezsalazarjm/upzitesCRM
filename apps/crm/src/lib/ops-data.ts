@@ -252,59 +252,74 @@ export async function getBillingSummary() {
   }
 }
 
-export async function getOpsSummary() {
-  const workspaceId = await getCurrentWorkspaceId();
+/**
+ * Operacion de UN workspace: su auditoria y sus propios trabajos fallidos.
+ *
+ * Todo filtrado por `workspaceId`. La cola global y los trabajos de otros
+ * tenants (con sus `lastError`, que pueden traer datos de sus clientes) viven
+ * en `getPlatformOpsSummary`, que solo ve un operador de plataforma.
+ */
+export async function getWorkspaceOperations(workspaceId: string) {
   try {
-    const [auditLogs, openInsights, disconnectedIntegrations, queue, deadJobs, failedOutbox] = await Promise.all([
+    const [auditLogs, deadJobs, failedOutbox] = await Promise.all([
       prisma.auditLog.findMany({
         where: { workspaceId },
         orderBy: { createdAt: 'desc' },
         take: 25,
       }),
-      prisma.aiInsight.count({ where: { workspaceId, status: InsightStatus.OPEN } }),
-      prisma.integration.count({ where: { workspaceId, status: IntegrationStatus.DISCONNECTED } }),
-      // La cola es global, no por workspace: los trabajos recurrentes no
-      // pertenecen a ningun tenant. Se muestra el estado del sistema.
-      prisma.job.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.job.findMany({
-        where: { status: 'DEAD' },
+        where: { workspaceId, status: 'DEAD' },
         orderBy: { updatedAt: 'desc' },
         take: 5,
         select: { id: true, type: true, lastError: true, updatedAt: true },
       }),
-      prisma.outboxEvent.count({ where: { status: 'FAILED' } }),
+      prisma.outboxEvent.count({ where: { workspaceId, status: 'FAILED' } }),
     ]);
 
-    const queueByStatus = Object.fromEntries(queue.map((row) => [row.status, row._count._all]));
-
-    return {
-      auditLogs,
-      openInsights,
-      disconnectedIntegrations,
-      queue: {
-        pending: queueByStatus.PENDING ?? 0,
-        processing: queueByStatus.PROCESSING ?? 0,
-        done: queueByStatus.DONE ?? 0,
-        dead: queueByStatus.DEAD ?? 0,
-      },
-      deadJobs,
-      failedOutbox,
-    };
+    return { auditLogs, deadJobs, failedOutbox };
   } catch (error) {
-    if (shouldUseDemo(error)) {
-      return {
-        auditLogs: demoAuditLogs,
-        openInsights: demoAiInsights.filter((insight) => insight.status === InsightStatus.OPEN).length,
-        disconnectedIntegrations: demoIntegrations.filter(
-          (integration) => integration.status === IntegrationStatus.DISCONNECTED,
-        ).length,
-        queue: { pending: 0, processing: 0, done: 0, dead: 0 },
-        deadJobs: [],
-        failedOutbox: 0,
-      };
-    }
+    if (shouldUseDemo(error)) return { auditLogs: demoAuditLogs, deadJobs: [], failedOutbox: 0 };
     throw error;
   }
+}
+
+/**
+ * Salud GLOBAL del sistema: cola de todos los tenants, trabajos muertos y
+ * envios fallidos. Cross-tenant por definicion: el llamador DEBE haber pasado
+ * por `requirePlatformAdmin()`.
+ */
+export async function getPlatformOpsSummary() {
+  const [queue, deadJobs, failedOutbox, workspaces] = await Promise.all([
+    prisma.job.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.job.findMany({
+      where: { status: 'DEAD' },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        type: true,
+        lastError: true,
+        updatedAt: true,
+        workspace: { select: { name: true } },
+      },
+    }),
+    prisma.outboxEvent.count({ where: { status: 'FAILED' } }),
+    prisma.workspace.count(),
+  ]);
+
+  const queueByStatus = Object.fromEntries(queue.map((row) => [row.status, row._count._all]));
+
+  return {
+    queue: {
+      pending: queueByStatus.PENDING ?? 0,
+      processing: queueByStatus.PROCESSING ?? 0,
+      done: queueByStatus.DONE ?? 0,
+      dead: queueByStatus.DEAD ?? 0,
+    },
+    deadJobs,
+    failedOutbox,
+    workspaces,
+  };
 }
 
 export {

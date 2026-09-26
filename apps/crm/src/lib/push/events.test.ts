@@ -50,6 +50,6 @@ test('una aprobación abre la cola y un fallo abre operaciones', () => {
       kind: 'OPERATIONAL_ISSUE',
       dedupeKey: 'failure-1',
     }).url,
-    '/ops',
+    '/configuracion#operacion',
   );
 });

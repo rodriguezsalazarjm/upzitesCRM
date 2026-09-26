@@ -12,6 +12,8 @@ import { DEFAULT_SALES_AGENT } from './agents/presets';
 import { bootstrapMarketing } from './marketing/bootstrap';
 import { hashPassword } from './password';
 import { BETA_PLANS } from './billing/plans';
+import { latestSubscription } from './billing/subscription-access';
+import { resolveSubscriptionState } from './billing/subscription-state';
 import { prisma } from './prisma';
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30;
@@ -130,40 +132,40 @@ export async function ensureBetaPlans() {
   });
 }
 
+/**
+ * Estado de la suscripcion para la interfaz. Delega en el resolver unico
+ * (`billing/subscription-state.ts`), el mismo que decide el consumo.
+ */
 export async function getSubscriptionStatus(workspaceId: string) {
   let subscription;
 
   try {
-    subscription = await prisma.workspaceSubscription.findFirst({
-      where: { workspaceId },
-      include: { plan: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    subscription = await latestSubscription(workspaceId);
   } catch (error) {
     if (isDevDemoEnabled() && isDatabaseUnavailable(error)) {
       const expiresAt = nextMonthlyRenewal();
-      return { subscription: null, isActive: true, daysLeft: 30, expiresAt };
+      return {
+        subscription: null,
+        isActive: true,
+        state: 'ACTIVE' as const,
+        daysLeft: 30,
+        expiresAt,
+        graceEndsAt: null,
+      };
     }
 
     throw error;
   }
 
-  if (!subscription) {
-    return { subscription: null, isActive: false, daysLeft: 0, expiresAt: null };
-  }
-
-  const expiresAt = subscription.renewsAt ?? subscription.trialEndsAt;
-  const isRenewableStatus =
-    subscription.status === SubscriptionStatus.ACTIVE || subscription.status === SubscriptionStatus.TRIAL;
-  const isActive =
-    isRenewableStatus &&
-    Boolean(expiresAt) &&
-    expiresAt!.getTime() > Date.now();
-  const daysLeft = expiresAt
-    ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : 0;
-
-  return { subscription, isActive, daysLeft, expiresAt };
+  const resolved = resolveSubscriptionState(subscription);
+  return {
+    subscription,
+    isActive: resolved.hasAccess,
+    state: resolved.state,
+    daysLeft: resolved.daysLeft,
+    expiresAt: resolved.expiresAt,
+    graceEndsAt: resolved.graceEndsAt,
+  };
 }
 
 function slugify(value: string) {

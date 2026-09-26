@@ -6,6 +6,7 @@ import {
   FileText,
   Globe2,
   Settings2,
+  ShieldCheck,
   ShoppingCart,
 } from 'lucide-react';
 import { Header } from '@/components/layout/header';
@@ -15,8 +16,11 @@ import { requireCurrentUser } from '@/lib/auth';
 import { getPipelineStages } from '@/lib/crm-data';
 import { isDatabaseUnavailable, isDevDemoEnabled } from '@/lib/dev-demo';
 import { canManageMarketing } from '@/lib/marketing/roles';
+import { flagStates } from '@/lib/ops/flags';
+import { getWorkspaceOperations } from '@/lib/ops-data';
 import { prisma } from '@/lib/prisma';
 import { BusinessType, UserRole } from '../../../../generated/prisma/client';
+import { FlagsClient } from './flags-client';
 import { BusinessSettingsForm, HoursSettingsForm, InformationSettingsForm } from './settings-forms';
 import { ServicesPricing, type ServiceRuleSetView } from './services-pricing';
 import { WebsiteConnection } from './website-connection';
@@ -32,6 +36,9 @@ const navigation = [
   ['avanzada', 'Configuración avanzada'],
 ] as const;
 
+/** Interruptores y auditoria del workspace: no los ve un vendedor. */
+const operationsNavigation = [['operacion', 'Operación']] as const;
+
 export default async function ConfiguracionPage() {
   const user = await requireCurrentUser();
   const baseUrl = process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001';
@@ -44,6 +51,11 @@ export default async function ConfiguracionPage() {
       getWorkspaceTimezone(user.workspace.id),
       getPricingRuleSets(user.workspace.id),
     ]);
+  const canSeeOperations = user.role === UserRole.OWNER || user.role === UserRole.ADMIN;
+  const [operations, flags] = canSeeOperations
+    ? await Promise.all([getWorkspaceOperations(user.workspace.id), flagStates(user.workspace.id)])
+    : [null, null];
+  const sections = canSeeOperations ? [...navigation, ...operationsNavigation] : navigation;
 
   const profile = { ...storedProfile, businessName: user.workspace.name };
   const canEdit = canManageMarketing(user.role);
@@ -62,7 +74,7 @@ export default async function ConfiguracionPage() {
               aria-label="Secciones de configuración"
               className="-mx-1 flex flex-wrap gap-1 px-1 pb-2 xl:flex-col xl:pb-0"
             >
-              {navigation.map(([id, label]) => (
+              {sections.map(([id, label]) => (
                 <a
                   key={id}
                   href={`#${id}`}
@@ -193,6 +205,61 @@ export default async function ConfiguracionPage() {
                 </dl>
               </details>
             </SettingsSection>
+
+            {operations && flags && (
+              <SettingsSection
+                id="operacion"
+                icon={ShieldCheck}
+                title="Operación"
+                description="Interruptores de emergencia y auditoría de tu workspace."
+              >
+                <div className="space-y-6">
+                  <FlagsClient flags={flags} canManage={user.role === UserRole.OWNER} />
+                  {operations.deadJobs.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-danger-ink">
+                        Tareas que agotaron sus reintentos
+                      </h3>
+                      <div className="divide-y divide-line rounded-xl border border-line bg-paper">
+                        {operations.deadJobs.map((job) => (
+                          <div key={job.id} className="px-4 py-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-carbon">{job.type}</span>
+                              <span className="text-[10px] text-soft">
+                                {job.updatedAt.toLocaleString('es-CL')}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] text-danger-ink">{job.lastError}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-carbon">Auditoría reciente</h3>
+                    <div className="divide-y divide-line rounded-xl border border-line bg-paper">
+                      {operations.auditLogs.map((log) => (
+                        <div key={log.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-carbon">{log.action}</p>
+                            <p className="text-[10px] text-soft">
+                              {log.entity}
+                              {log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[10px] text-soft">
+                            {log.createdAt.toLocaleString('es-CL')}
+                          </span>
+                        </div>
+                      ))}
+                      {operations.auditLogs.length === 0 && (
+                        <p className="px-4 py-3 text-xs text-soft">Sin registros todavía.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </SettingsSection>
+            )}
           </main>
         </div>
       </div>

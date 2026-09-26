@@ -1,42 +1,34 @@
-import { AlertTriangle, Database, Layers, PlugZap, PowerOff, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Building2, Database, Layers } from 'lucide-react';
 import { Header } from '@/components/layout/header';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eyebrow } from '@/components/ui/eyebrow';
 import { StatCard } from '@/components/ui/stat-card';
-import { requireCurrentUser } from '@/lib/auth';
-import { getOpsSummary } from '@/lib/ops-data';
-import { flagStates } from '@/lib/ops/flags';
-import { FlagsClient } from './flags-client';
+import { getPlatformOpsSummary } from '@/lib/ops-data';
+import { requirePlatformAdmin } from '@/lib/platform-admin';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Salud global de la plataforma. Muestra datos de TODOS los tenants, asi que
+ * solo la ve un operador de plataforma (404 para cualquier otro usuario, incluido
+ * el owner de un workspace). Lo propio de cada workspace —interruptores y
+ * auditoria— vive en Configuracion.
+ */
 export default async function OpsPage() {
-  const user = await requireCurrentUser();
+  await requirePlatformAdmin();
 
-  const [summary, flags] = await Promise.all([
-    getOpsSummary(),
-    flagStates(user.workspace.id),
-  ]);
-
-  const { auditLogs, openInsights, disconnectedIntegrations, queue, deadJobs, failedOutbox } =
-    summary;
-
-  const apagadas = flags.filter((flag) => !flag.enabled).length;
+  const { queue, deadJobs, failedOutbox, workspaces } = await getPlatformOpsSummary();
 
   const cards = [
+    { label: 'Workspaces', value: workspaces, icon: Building2, alert: false },
     { label: 'Cola pendiente', value: queue.pending, icon: Layers, alert: queue.pending > 100 },
     { label: 'En proceso', value: queue.processing, icon: Database, alert: false },
     { label: 'Trabajos muertos', value: queue.dead, icon: AlertTriangle, alert: queue.dead > 0 },
-    { label: 'Envios fallidos', value: failedOutbox, icon: AlertTriangle, alert: failedOutbox > 0 },
-    { label: 'Insights abiertos', value: openInsights, icon: ShieldCheck, alert: false },
-    { label: 'Integraciones sin conectar', value: disconnectedIntegrations, icon: PlugZap, alert: false },
-    { label: 'Funciones apagadas', value: apagadas, icon: PowerOff, alert: apagadas > 0 },
+    { label: 'Envíos fallidos', value: failedOutbox, icon: AlertTriangle, alert: failedOutbox > 0 },
   ];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Header title="Ops" subtitle="Salud del sistema, cola de trabajos y auditoria" />
+      <Header title="Ops plataforma" subtitle="Salud global del sistema: cola de trabajos de todos los workspaces" />
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => (
@@ -51,11 +43,6 @@ export default async function OpsPage() {
           ))}
         </div>
 
-        <section>
-          <Eyebrow className="mb-2">Interruptores</Eyebrow>
-          <FlagsClient flags={flags} canManage={user.role === 'OWNER'} />
-        </section>
-
         {deadJobs.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
@@ -67,7 +54,10 @@ export default async function OpsPage() {
               {deadJobs.map((job) => (
                 <div key={job.id} className="py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-carbon">{job.type}</span>
+                    <span className="text-xs font-semibold text-carbon">
+                      {job.type}
+                      <span className="ml-2 font-normal text-soft">{job.workspace?.name ?? 'Sistema'}</span>
+                    </span>
                     <span className="text-[10px] text-soft">
                       {job.updatedAt.toLocaleString('es-CL')}
                     </span>
@@ -78,29 +68,6 @@ export default async function OpsPage() {
             </CardContent>
           </Card>
         )}
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Auditoria reciente</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y divide-line">
-            {auditLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-carbon">{log.action}</p>
-                  <p className="text-[10px] text-soft">
-                    {log.entity}
-                    {log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ''}
-                  </p>
-                </div>
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  {log.createdAt.toLocaleString('es-CL')}
-                </Badge>
-              </div>
-            ))}
-            {auditLogs.length === 0 && <p className="py-3 text-xs text-soft">Sin registros todavia.</p>}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

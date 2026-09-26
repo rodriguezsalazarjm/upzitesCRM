@@ -43,7 +43,12 @@ export default async function BillingPage({
     { label: 'Precio', value: subscription ? `$${subscription.plan.priceClp.toLocaleString('es-CL')}` : '-' },
     { label: 'Usuarios', value: `${users}/${subscription?.plan.maxUsers ?? 0}` },
     { label: 'Contactos', value: `${contacts}/${subscription?.plan.maxContacts ?? 0}` },
-    { label: 'Vence en', value: `${status.daysLeft} días` },
+    {
+      label: status.state === 'GRACE' ? 'Acceso hasta' : 'Vence en',
+      value: status.state === 'GRACE' && status.graceEndsAt
+        ? status.graceEndsAt.toLocaleDateString('es-CL')
+        : `${status.daysLeft} días`,
+    },
     { label: 'Próxima renovación', value: status.expiresAt ? status.expiresAt.toLocaleDateString('es-CL') : '-' },
   ];
 
