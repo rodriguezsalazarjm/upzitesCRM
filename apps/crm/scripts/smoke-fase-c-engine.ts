@@ -8,7 +8,7 @@
  */
 import './fixtures/test-environment';
 import { AutomationFlowRunStatus, AutomationFlowStatus, JobStatus, JobType } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { startFlowRun, advanceFlowRun } from '../src/lib/automations/engine';
 import { matchAndStartFlowsForChannelEvent } from '../src/lib/automations/triggers';
@@ -121,7 +121,7 @@ const A = await makeWorkspace('a');
   // conversacion asociada): se verifica que no revienta, no que envie.
   check('El nodo MESSAGE sin conversationId no falla el run', afterFirstPass.error === null);
 
-  const job = await prisma.job.findFirst({ where: { type: JobType.RUN_FLOW_STEP, payload: { path: ['runId'], equals: runId } } });
+  const job = await crossTenantPrisma.job.findFirst({ where: { type: JobType.RUN_FLOW_STEP, payload: { path: ['runId'], equals: runId } } });
   check('Se encolo un Job para retomar el DELAY', job !== null && job.status === JobStatus.PENDING);
 
   // Simula que el reloj llego: se retoma directamente (como haria el worker).

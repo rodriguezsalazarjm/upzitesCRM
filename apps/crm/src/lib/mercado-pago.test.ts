@@ -13,7 +13,7 @@ import {
   verifyWebhookSignature,
   verifyWorkspaceWebhookSignature,
 } from './mercado-pago';
-import { UserRole } from '../../generated/prisma/client';
+import { WorkspaceRole } from '../../generated/prisma/client';
 
 /**
  * Reproduce exactamente el manifest que arma el validador del SDK. `ts` va en
@@ -149,9 +149,9 @@ describe('verifyWorkspaceWebhookSignature (cuenta de un workspace)', () => {
 
 describe('canManageMercadoPago', () => {
   test('solo OWNER y ADMIN pueden conectar/desconectar', () => {
-    assert.equal(canManageMercadoPago(UserRole.OWNER), true);
-    assert.equal(canManageMercadoPago(UserRole.ADMIN), true);
-    assert.equal(canManageMercadoPago(UserRole.SALES), false);
+    assert.equal(canManageMercadoPago(WorkspaceRole.OWNER), true);
+    assert.equal(canManageMercadoPago(WorkspaceRole.ADMIN), true);
+    assert.equal(canManageMercadoPago(WorkspaceRole.MEMBER), false);
   });
 });
 

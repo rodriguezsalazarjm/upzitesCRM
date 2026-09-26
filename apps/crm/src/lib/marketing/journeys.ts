@@ -20,7 +20,7 @@ import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
 import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { queueOutboundMessage } from '../whatsapp/outbound';
 import { exitEnrollments } from './enrollments';
 import { evaluateSend, getPolicy, nextAllowedInstant, recordSend } from './policy';
@@ -501,7 +501,7 @@ export async function advanceEnrollment(enrollmentId: string, now = new Date()):
 
 /** Ejecuta las inscripciones vencidas. Lo llama el worker y el cron. */
 export async function processDueEnrollments(limit = 100, now = new Date()) {
-  const due = await prisma.journeyEnrollment.findMany({
+  const due = await crossTenantPrisma.journeyEnrollment.findMany({
     where: { status: JourneyEnrollmentStatus.ACTIVE, nextRunAt: { lte: now } },
     orderBy: { nextRunAt: 'asc' },
     take: limit,
@@ -559,7 +559,7 @@ const TRIGGER_AUDIENCE: Record<JourneyTrigger, SegmentDefinition | null> = {
  * o desde una automatizacion, nunca solos.
  */
 export async function scanJourneyEntries(limit = 200, now = new Date()) {
-  const journeys = await prisma.journey.findMany({
+  const journeys = await crossTenantPrisma.journey.findMany({
     where: { status: JourneyStatus.PUBLISHED, trigger: { not: JourneyTrigger.MANUAL } },
     select: { id: true, workspaceId: true, trigger: true, segmentId: true },
   });

@@ -18,7 +18,7 @@ await prisma.workspace.deleteMany({ where: { id: { in: existing.map((u) => u.wor
 try {
   const A = await createCustomerWorkspace({ companyName: 'Visual Flow A', ownerName: 'Ana Owner A', email: emails[0], password: credentials.password });
   const B = await createCustomerWorkspace({ companyName: 'Visual Flow B', ownerName: 'Bruno Owner B', email: emails[2], password: credentials.password });
-  const operator = await prisma.user.create({ data: { workspaceId: A.workspace.id, name: 'Olivia Operadora A', email: emails[1], passwordHash: hashPassword(credentials.password), role: 'SALES' } });
+  const operator = await prisma.user.create({ data: { workspaceId: A.workspace.id, name: 'Olivia Operadora A', email: emails[1], passwordHash: hashPassword(credentials.password), role: 'SALES', memberships: { create: { workspaceId: A.workspace.id, role: 'MEMBER' } } } });
   const links: Record<string, string> = {};
   for (const [key, ws] of [['a', A], ['b', B]] as const) {
     await prisma.workspaceProfile.update({ where: { workspaceId: ws.workspace.id }, data: {

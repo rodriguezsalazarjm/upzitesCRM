@@ -12,6 +12,7 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
+import { isActiveMember } from '../membership';
 import {
   canContact,
   cancelByKey,
@@ -413,11 +414,10 @@ async function executeAction(action: AutomationActionConfig, event: DomainEvent)
 
     case 'ASSIGN_CONVERSATION': {
       if (!event.conversationId) return;
-      const assignee = await prisma.user.findFirst({
-        where: { id: action.userId, workspaceId },
-        select: { id: true },
-      });
-      if (!assignee) throw new Error('El usuario a asignar no pertenece al workspace.');
+      if (!(await isActiveMember(workspaceId, action.userId))) {
+        throw new Error('El usuario a asignar no pertenece al workspace.');
+      }
+      const assignee = { id: action.userId };
 
       const result = await activateHumanControl({
         conversationId: event.conversationId,

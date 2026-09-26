@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PaymentStatus, SubscriptionStatus } from '../../../../../generated/prisma/client';
 import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-webhook';
 import { enforce } from '@/lib/ops/rate-limit';
+import { isKnownLegacySaasPreference, resolvePaymentPreferenceId } from '@/lib/billing/saas-payments';
 import { prisma } from '@/lib/prisma';
 import { nextMonthlyRenewal, MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
 import {
@@ -27,8 +28,14 @@ import {
  *    createOrderCheckout), asi que no es de fiar por si solo: sirve solo
  *    para elegir que secreto usar, y la firma x-signature sobre ESE secreto
  *    es la que de verdad autentica la notificacion.
- *  - sin `workspaceId` -> suscripcion del CRM (flujo original, cuenta de
- *    Upzites, sin cambios).
+ *  - sin `workspaceId` -> suscripcion del CRM (cuenta de Upzites).
+ *
+ * FAIL-CLOSED (P0-FOUNDATION): un pago solo toca un libro si se identifica
+ * explicitamente — `kind: 'order'` → Commerce; `kind: 'saas_subscription'` (o
+ * preferencia SaaS legacy conocida) → Billing SaaS. Todo lo demas responde
+ * 200 y se registra en el log, sin modificar WorkspaceSubscription, Payment
+ * ni CustomerOrder. Asi es seguro aunque la misma cuenta legal de Mercado Pago
+ * cobre el SaaS y venda en un workspace propio.
  *
  * Endpoint server-to-server (no CORS: no lo llama un navegador).
  */
@@ -78,6 +85,36 @@ export async function POST(request: Request) {
   const payment = await paymentClient.get({ id: dataId });
   const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
 
+  let paymentClass = classifyPayment(metadata);
+  if (paymentClass === 'unknown') {
+    // Sin marca: solo cuenta como SaaS si su preferencia es un checkout SaaS
+    // legacy que este sistema creo para ese mismo workspace.
+    let knownLegacySaasPreference = false;
+    try {
+      const preferenceId = await resolvePaymentPreferenceId(payment);
+      const workspaceRef = payment.external_reference;
+      knownLegacySaasPreference = Boolean(
+        preferenceId && workspaceRef && (await isKnownLegacySaasPreference(preferenceId, workspaceRef)),
+      );
+    } catch (error) {
+      console.error('billing_webhook_legacy_lookup_failed', {
+        paymentId: dataId,
+        error: error instanceof Error ? error.message : 'unknown',
+      });
+      return NextResponse.json({ message: 'No se pudo verificar el origen del pago' }, { status: 503 });
+    }
+    paymentClass = classifyPayment(metadata, { knownLegacySaasPreference });
+  }
+
+  if (paymentClass === 'unknown') {
+    console.warn('billing_webhook_unclassified_payment', {
+      paymentId: dataId,
+      kind: typeof metadata.kind === 'string' ? metadata.kind : null,
+      status: payment.status ?? null,
+    });
+    return NextResponse.json({ ok: true, ignored: true, reason: 'unclassified_payment' });
+  }
+
   // Bifurcacion critica (Fase 5): este webhook atiende DOS cosas distintas —
   // la suscripcion al CRM y la compra de un producto. Sin distinguirlas, el
   // primer infoproducto vendido regalaria una suscripcion mensual.
@@ -90,7 +127,7 @@ export async function POST(request: Request) {
   // de pedido creadas ANTES de la Fase A, cuando todavia se cobraba con la
   // cuenta de Upzites. Las nuevas ya traen workspaceId y van por
   // handleWorkspaceOrderWebhook, con la cuenta propia del workspace.
-  if (classifyPayment(metadata) === 'order') {
+  if (paymentClass === 'order') {
     const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
 
     if (!orderId) {
@@ -126,6 +163,14 @@ export async function POST(request: Request) {
   if (!workspaceId) {
     console.error('billing_webhook_missing_external_reference', { paymentId: dataId });
     return NextResponse.json({ message: 'external_reference ausente' }, { status: 400 });
+  }
+
+  // La preferencia SaaS declara su workspace en la metadata; si no coincide
+  // con external_reference, no se activa nada.
+  const declaredWorkspace = metadata.workspaceId ?? metadata.workspace_id;
+  if (typeof declaredWorkspace === 'string' && declaredWorkspace !== workspaceId) {
+    console.warn('billing_webhook_workspace_mismatch', { paymentId: dataId, workspaceId, declaredWorkspace });
+    return NextResponse.json({ ok: true, ignored: true, reason: 'workspace_mismatch' });
   }
 
   const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
@@ -293,6 +338,18 @@ async function handleWorkspaceOrderWebhook(input: {
   const payment = await paymentClient.get({ id: input.dataId });
   const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
 
+  // Commerce del workspace: solo pagos marcados como pedido. Cualquier otro
+  // (incluido uno de suscripcion SaaS si la cuenta legal fuera la misma) se
+  // ignora sin tocar Payment ni CustomerOrder.
+  if (classifyPayment(metadata) !== 'order') {
+    console.warn('order_webhook_unclassified_payment', {
+      workspaceId: input.workspaceId,
+      paymentId: input.dataId,
+      kind: typeof metadata.kind === 'string' ? metadata.kind : null,
+    });
+    return NextResponse.json({ ok: true, ignored: true, reason: 'unclassified_payment' });
+  }
+
   // Defensa en profundidad: el pago recuperado debe declararse a si mismo
   // como de este workspace. Si no coincide, algo raro paso (preferencia mal
   // formada, o un intento de usar la URL de un workspace para otro pago) y
@@ -347,6 +404,7 @@ async function handleWorkspaceOrderWebhook(input: {
     currency: String(payment.currency_id ?? 'CLP'),
     payerEmail: payment.payer?.email ?? null,
     baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
+    workspaceId: input.workspaceId,
   });
 
   await prisma.mercadoPagoConnection.update({

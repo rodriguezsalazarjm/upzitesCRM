@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Channel, Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { isActiveMember } from '../membership';
 import { flowGraphSchema, validateFlowGraph, type FlowGraph } from './schema';
 import { graphCapabilities, missingCapabilities } from './catalog';
 import { ALL_TOOL_NAMES } from '../agents/tools';
@@ -33,7 +34,7 @@ export async function validatePublication(workspaceId: string, channel: Channel,
       const required: Record<string, string[]> = { ADD_TAG: ['tag'], REMOVE_TAG: ['tag'], SET_CUSTOM_FIELD: ['field'], ASSIGN_OPERATOR: ['userId'], UPDATE_OPPORTUNITY_STAGE: ['stageKey'], CREATE_CHECKOUT: ['productId'] };
       for (const key of required[node.action] ?? []) if (!String(p[key] ?? '').trim()) errors.push(`${node.id}: falta ${key}.`);
       if (node.action === 'CREATE_CHECKOUT' && !await prisma.product.findFirst({ where: { id: String(p.productId ?? ''), workspaceId, status: 'ACTIVE' } })) errors.push(`${node.id}: producto inexistente o inactivo en este workspace.`);
-      if (node.action === 'ASSIGN_OPERATOR' && !await prisma.user.findFirst({ where: { id: String(p.userId ?? ''), workspaceId } })) errors.push(`${node.id}: operador inválido.`);
+      if (node.action === 'ASSIGN_OPERATOR' && !await isActiveMember(workspaceId, String(p.userId ?? ''))) errors.push(`${node.id}: operador inválido.`);
       if (node.action === 'UPDATE_OPPORTUNITY_STAGE' && !await prisma.pipelineStage.findFirst({ where: { workspaceId, key: String(p.stageKey ?? '') as never } })) errors.push(`${node.id}: etapa inválida.`);
     }
     if (node.type === 'START_AUTOMATION' && !await prisma.automationFlow.findFirst({ where: { id: node.flowKey, workspaceId, status: 'PUBLISHED' } })) errors.push(`${node.id}: automatización publicada no encontrada.`);

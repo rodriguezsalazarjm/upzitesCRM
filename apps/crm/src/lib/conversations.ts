@@ -1,6 +1,7 @@
-import { Channel, ConversationMode, ConversationStatus, UserRole } from '../../generated/prisma/client';
+import { Channel, ConversationMode, ConversationStatus, WorkspaceRole } from '../../generated/prisma/client';
 import { requireCurrentUser } from './auth';
 import { recordAudit } from './domain/audit';
+import { findActiveMember } from './membership';
 import { prisma } from './prisma';
 import { activateHumanControl } from './whatsapp/human-control';
 import { lockConversation } from './whatsapp/outbound';
@@ -196,11 +197,9 @@ export async function releaseConversationToAi(conversationId: string) {
 export async function assignConversation(conversationId: string, assigneeId: string) {
   const user = await requireCurrentUser();
 
-  // El destinatario debe pertenecer al workspace: un id de otro tenant no vale.
-  const assignee = await prisma.user.findFirst({
-    where: { id: assigneeId, workspaceId: user.workspace.id },
-    select: { id: true, name: true },
-  });
+  // El destinatario debe ser miembro ACTIVE del workspace: un id de otro
+  // tenant, o de alguien suspendido, no vale.
+  const assignee = await findActiveMember(user.workspace.id, assigneeId);
 
   if (!assignee) return null;
 
@@ -232,6 +231,6 @@ export async function assignConversation(conversationId: string, assigneeId: str
 }
 
 /** Solo OWNER y ADMIN administran la conexion del canal. */
-export function canManageChannels(role: UserRole) {
-  return role === UserRole.OWNER || role === UserRole.ADMIN;
+export function canManageChannels(role: WorkspaceRole) {
+  return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
 }

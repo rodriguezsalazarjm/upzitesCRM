@@ -36,6 +36,8 @@ export const RATE_LIMITS = {
   webhook: { limit: 600, windowSeconds: 60 },
   internal: { limit: 120, windowSeconds: 60 },
   publicToken: { limit: 60, windowSeconds: 60 },
+  workspaceSwitch: { limit: 30, windowSeconds: 60 },
+  supportSession: { limit: 20, windowSeconds: 300 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

@@ -1,11 +1,11 @@
-import { UserRole } from '../../generated/prisma/client';
+import { WorkspaceRole } from '../../generated/prisma/enums';
 import { mockActivities, mockContacts, mockKPIs, mockOpportunities, mockSourceData } from './mock-data';
 
 export const DEV_DEMO_USER = {
   id: 'dev-demo-user',
   name: 'Admin Upzites',
   email: 'admin@upzites.cl',
-  role: UserRole.OWNER,
+  role: WorkspaceRole.OWNER,
   workspace: {
     id: 'dev-demo-workspace',
     name: 'Upzites Demo',

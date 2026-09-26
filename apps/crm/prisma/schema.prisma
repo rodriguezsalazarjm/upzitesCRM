@@ -12,10 +12,17 @@ model Workspace {
   name      String
   slug      String   @unique
   publicKey String   @unique @default(cuid()) @map("public_key")
+  /// Negocio propio de Upzites (o de QA). SOLO para reporting de plataforma:
+  /// excluye el workspace de MRR, churn y conteo de clientes SaaS. No cambia
+  /// aislamiento, permisos ni comportamiento del workspace.
+  isInternal Boolean @default(false) @map("is_internal")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   users           User[]
+  memberships     WorkspaceMembership[]
+  lastActiveUsers User[]                @relation("UserLastActiveWorkspace")
+  supportSessions SupportSession[]
   companies       Company[]
   contacts        Contact[]
   pipelineStages  PipelineStage[]
@@ -95,15 +102,28 @@ model Workspace {
 
 model User {
   id           String   @id @default(cuid())
+  /// LEGACY (P0-FOUNDATION step 1): workspace "de origen". Se sigue escribiendo
+  /// al crear usuarios pero NO se usa para autorizar: la pertenencia vive en
+  /// `WorkspaceMembership`. Pasa a nullable en el step 2 y se elimina en el 3.
   workspaceId  String   @map("workspace_id")
   name         String
   email        String
   passwordHash String   @map("password_hash")
+  /// LEGACY: reemplazado por `WorkspaceMembership.role`. No leer.
   role         UserRole @default(SALES)
+  /// Autorizacion sobre la PLATAFORMA. Independiente de cualquier workspace:
+  /// ser OWNER de un workspace no concede nada aqui.
+  platformRole PlatformRole @default(USER) @map("platform_role")
+  /// Preferencia, NO autorizacion: a que workspace entrar al iniciar sesion.
+  /// Siempre se re-verifica contra memberships.
+  lastActiveWorkspaceId String? @map("last_active_workspace_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lastActiveWorkspace Workspace?           @relation("UserLastActiveWorkspace", fields: [lastActiveWorkspaceId], references: [id], onDelete: SetNull)
+  memberships         WorkspaceMembership[]
+  supportSessions     SupportSession[]
   ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
   ownedContacts       Contact[]            @relation("ContactOwner")
   createdActivities   Activity[]           @relation("ActivityCreator")
@@ -115,9 +135,77 @@ model User {
 
   @@unique([workspaceId, email])
   @@index([workspaceId])
+  @@index([email])
   @@map("users")
 }
 
+/// Pertenencia de un usuario a un workspace. Un usuario puede operar varios
+/// negocios con la misma cuenta, con un rol distinto en cada uno.
+model WorkspaceMembership {
+  id          String           @id @default(cuid())
+  userId      String           @map("user_id")
+  workspaceId String           @map("workspace_id")
+  role        WorkspaceRole    @default(MEMBER)
+  /// SUSPENDED conserva la historia (duenos de contactos, asignaciones) sin
+  /// dar acceso ni contar para `users.max`.
+  status      MembershipStatus @default(ACTIVE)
+  invitedById String?          @map("invited_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, status, role])
+  @@map("workspace_memberships")
+}
+
+/// Acceso explicito y temporal de un operador de plataforma a un workspace del
+/// que NO es miembro. Es la unica via cross-tenant desde la app de workspace.
+model SupportSession {
+  id             String            @id @default(cuid())
+  actorUserId    String            @map("actor_user_id")
+  workspaceId    String            @map("workspace_id")
+  mode           SupportAccessMode @default(READ_ONLY)
+  reason         String
+  /// La elevacion a READ_WRITE exige su propio motivo.
+  elevatedAt     DateTime?         @map("elevated_at")
+  elevatedReason String?           @map("elevated_reason")
+  startedAt      DateTime          @default(now()) @map("started_at")
+  expiresAt      DateTime          @map("expires_at")
+  endedAt        DateTime?         @map("ended_at")
+
+  actor     User      @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+  @@index([actorUserId, endedAt])
+  @@map("support_sessions")
+}
+
+/// Bitacora de acciones de plataforma. Sin FKs a proposito: debe sobrevivir al
+/// borrado del workspace o del usuario sobre el que se actuo.
+model PlatformAuditLog {
+  id                String   @id @default(cuid())
+  actorUserId       String?  @map("actor_user_id")
+  action            String
+  targetWorkspaceId String?  @map("target_workspace_id")
+  targetUserId      String?  @map("target_user_id")
+  supportSessionId  String?  @map("support_session_id")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([actorUserId, createdAt])
+  @@index([targetWorkspaceId, createdAt])
+  @@index([supportSessionId])
+  @@map("platform_audit_logs")
+}
+
+/// LEGACY (P0-A). Reemplazado por `User.platformRole` en P0-FOUNDATION: sus
+/// filas se copiaron a `platform_role = SUPER_ADMIN` y ya no se lee ni escribe.
+/// Se conserva en el step 1 por compatibilidad de schema; se elimina despues.
+///
 /// Operador de la PLATAFORMA (Upzites), no de un workspace.
 ///
 /// Es un concepto aparte de `UserRole` a proposito: OWNER y ADMIN mandan dentro
@@ -2355,10 +2443,37 @@ model RateLimitWindow {
   @@map("rate_limit_windows")
 }
 
+/// LEGACY: rol del modelo de un-solo-workspace. Ver `WorkspaceRole`.
 enum UserRole {
   OWNER
   ADMIN
   SALES
+}
+
+/// Autorizacion sobre la plataforma Upzites Flow (SaaS).
+enum PlatformRole {
+  USER
+  /// Ops, clientes SaaS, suscripciones, pagos manuales, soporte.
+  PLATFORM_ADMIN
+  /// Todo lo anterior + roles de plataforma, Price Book y asignacion COMP.
+  SUPER_ADMIN
+}
+
+/// Autorizacion dentro de UN workspace.
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum SupportAccessMode {
+  READ_ONLY
+  READ_WRITE
 }
 
 enum ContactStatus {

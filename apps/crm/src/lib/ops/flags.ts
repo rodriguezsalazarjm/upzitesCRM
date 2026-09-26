@@ -69,8 +69,15 @@ export async function isEnabled(key: FeatureKey, workspaceId?: string | null): P
   try {
     const scopes = workspaceId ? [GLOBAL_SCOPE, workspaceId] : [GLOBAL_SCOPE];
 
+    // Acotado por workspaceId (no solo por scope): setFlag mantiene
+    // scope GLOBAL <=> workspaceId null, asi que el resultado es el mismo y la
+    // consulta nunca puede leer flags de otro tenant.
     const flags = await prisma.featureFlag.findMany({
-      where: { key, scope: { in: scopes } },
+      where: {
+        key,
+        scope: { in: scopes },
+        OR: [{ workspaceId: null }, ...(workspaceId ? [{ workspaceId }] : [])],
+      },
       select: { enabled: true },
     });
 
@@ -96,7 +103,7 @@ export type FlagState = {
 /** Estado de todos los interruptores para un workspace. */
 export async function flagStates(workspaceId: string): Promise<FlagState[]> {
   const flags = await prisma.featureFlag.findMany({
-    where: { scope: { in: [GLOBAL_SCOPE, workspaceId] } },
+    where: { scope: { in: [GLOBAL_SCOPE, workspaceId] }, OR: [{ workspaceId: null }, { workspaceId }] },
   });
 
   const byScope = new Map(flags.map((flag) => [`${flag.scope}:${flag.key}`, flag]));

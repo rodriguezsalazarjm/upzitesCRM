@@ -32,7 +32,7 @@ import {
   SuppressionReason,
   WhatsAppChannelStatus,
 } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { activateForTests } from './fixtures/workspace';
 import { canContact, grantConsent, revokeConsent, suppressIdentifier } from '../src/lib/domain/consent';
@@ -200,7 +200,7 @@ console.log('\n== Seguridad ==');
   check('El token del canal se guarda cifrado o vacio, nunca en claro',
     canal.accessTokenEncrypted === null || canal.accessTokenEncrypted.startsWith('v1:'));
 
-  const conexiones = await prisma.commerceConnection.findMany();
+  const conexiones = await crossTenantPrisma.commerceConnection.findMany();
   check('Lo mismo para los tokens de comercio',
     conexiones.every((c) => c.accessTokenEncrypted === null || c.accessTokenEncrypted.startsWith('v1:')));
 
@@ -225,7 +225,7 @@ console.log('\n== Confiabilidad ==');
     });
   }
 
-  const encolados = await prisma.job.count({ where: { dedupeKey } });
+  const encolados = await crossTenantPrisma.job.count({ where: { dedupeKey } });
   check('Un webhook repetido 10 veces deja un solo trabajo', encolados === 1, `${encolados}`);
 
   // --- Worker que falla despues de guardar reintenta sin duplicar ---
@@ -262,7 +262,7 @@ console.log('\n== Confiabilidad ==');
       reintento.some((job) => job.id === mio.id),
     );
 
-    const total = await prisma.job.count({ where: { dedupeKey: `critico-retry-${stamp}` } });
+    const total = await crossTenantPrisma.job.count({ where: { dedupeKey: `critico-retry-${stamp}` } });
     check('Y el reintento no creo un trabajo nuevo', total === 1);
   }
 
@@ -1001,7 +1001,7 @@ console.log('\n== Kill switches ==');
     !(await isEnabled('CAMPAIGNS', A.workspaceId)),
   );
 
-  await prisma.featureFlag.deleteMany({ where: { scope: 'GLOBAL' } });
+  await crossTenantPrisma.featureFlag.deleteMany({ where: { scope: 'GLOBAL' } });
   check('Retirado el corte global, vuelve a mandar el del workspace',
     await isEnabled('CAMPAIGNS', A.workspaceId));
 }
@@ -1420,7 +1420,7 @@ console.log('\n== Deuda corregida ==');
 // --- Limpieza ---------------------------------------------------------------
 const deleted = await prisma.workspace.deleteMany({ where: { slug: { startsWith: 'critico-' } } });
 await prisma.rateLimitWindow.deleteMany({ where: { bucket: { contains: `critico-${stamp}` } } });
-await prisma.job.deleteMany({ where: { dedupeKey: { startsWith: 'critico-' } } });
+await crossTenantPrisma.job.deleteMany({ where: { dedupeKey: { startsWith: 'critico-' } } });
 console.log(`\nLimpieza: ${deleted.count} workspaces de prueba eliminados (cascade).`);
 
 console.log(`\n== Resultado: ${results.length - failures}/${results.length} pruebas OK ==`);

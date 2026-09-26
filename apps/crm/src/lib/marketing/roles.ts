@@ -1,4 +1,4 @@
-import { UserRole } from '../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../generated/prisma/client';
 
 /**
  * Quien puede publicar un journey o lanzar una campana.
@@ -7,6 +7,6 @@ import { UserRole } from '../../../generated/prisma/client';
  * mismo nivel que para aprobar una cotizacion: owner o admin. Un usuario
  * operativo puede preparar el borrador, no dispararlo.
  */
-export function canManageMarketing(role: UserRole) {
-  return role === UserRole.OWNER || role === UserRole.ADMIN;
+export function canManageMarketing(role: WorkspaceRole) {
+  return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
 }

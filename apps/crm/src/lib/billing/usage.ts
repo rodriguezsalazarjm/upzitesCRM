@@ -1,5 +1,6 @@
 import { SubscriptionStatus } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { countActiveMembers } from '../membership';
 import type { Db } from '../domain/audit';
 import {
   ALLOWANCE_KIND,
@@ -182,7 +183,9 @@ export async function usedFor(
       case 'contacts':
         return db.contact.count({ where: { workspaceId } });
       case 'users':
-        return db.user.count({ where: { workspaceId } });
+        // Memberships ACTIVE, no filas de User: alguien en tres workspaces
+        // ocupa un cupo en cada uno, y un suspendido no ocupa ninguno.
+        return countActiveMembers(workspaceId, db);
       case 'whatsapp_numbers':
         return db.whatsAppChannel.count({ where: { workspaceId } });
       default:

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { AgentVersionStatus, UserRole } from '../../../../../../generated/prisma/client';
+import { AgentVersionStatus, WorkspaceRole } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const user = await requireCurrentUser();
 
-  if (user.role !== UserRole.OWNER) {
+  if (user.role !== WorkspaceRole.OWNER) {
     return NextResponse.json(
       { message: 'Solo el owner puede publicar un agente.' },
       { status: 403 },

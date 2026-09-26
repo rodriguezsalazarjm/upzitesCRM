@@ -24,11 +24,7 @@ export async function POST(request: Request) {
   try {
     const { user, workspace, subscription } = await createCustomerWorkspace(input);
 
-    await setSessionCookie({
-      userId: user.id,
-      workspaceId: workspace.id,
-      role: user.role,
-    });
+    await setSessionCookie({ userId: user.id, activeWorkspaceId: workspace.id });
 
     return NextResponse.json(
       {

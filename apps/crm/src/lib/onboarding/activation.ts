@@ -1,4 +1,4 @@
-import { ActivationStatus, UserRole } from '../../../generated/prisma/client';
+import { ActivationStatus, WorkspaceRole } from '../../../generated/prisma/client';
 import { recordAudit } from '../domain/audit';
 import { prisma } from '../prisma';
 import { getOnboardingState } from './steps';
@@ -24,14 +24,14 @@ export class ActivationError extends Error {
 }
 
 /** Solo el owner activa: es quien responde por lo que el agente diga. */
-export function canActivate(role: UserRole) {
-  return role === UserRole.OWNER;
+export function canActivate(role: WorkspaceRole) {
+  return role === WorkspaceRole.OWNER;
 }
 
 export async function activateWorkspace(input: {
   workspaceId: string;
   actorId: string;
-  role: UserRole;
+  role: WorkspaceRole;
 }) {
   if (!canActivate(input.role)) {
     throw new ActivationError('Solo el owner puede activar el workspace.', 'FORBIDDEN');
@@ -89,7 +89,7 @@ export async function activateWorkspace(input: {
 export async function suspendWorkspace(input: {
   workspaceId: string;
   actorId: string;
-  role: UserRole;
+  role: WorkspaceRole;
   note: string;
 }) {
   if (!canActivate(input.role)) {

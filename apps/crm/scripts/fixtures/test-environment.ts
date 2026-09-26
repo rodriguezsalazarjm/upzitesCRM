@@ -84,6 +84,9 @@ for (const key of [
 
 if (!isSupabase) delete process.env.SUPABASE_CA_CERT;
 process.env.MEDIA_STORAGE_DRIVER = 'filesystem';
+// Guardia de tenant (lib/tenant-guard): toda la suite corre con ella. Una
+// consulta global accidental sobre un modelo con workspaceId rompe la prueba.
+process.env.CRM_TENANT_GUARD = process.env.CRM_TENANT_GUARD_MODE === 'report' ? 'report' : 'throw';
 // Next usa esta implementacion al crear contextos de peticion en las pruebas.
 Object.assign(globalThis, { AsyncLocalStorage });
 

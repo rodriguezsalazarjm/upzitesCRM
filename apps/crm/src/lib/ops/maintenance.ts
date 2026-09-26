@@ -4,7 +4,7 @@ import {
   QuoteStatus,
 } from '../../../generated/prisma/client';
 import { recalculateContactScore } from '../domain/scoring';
-import { prisma } from '../prisma';
+import { crossTenantPrisma } from '../prisma';
 
 /**
  * Tareas de mantenimiento periodico.
@@ -25,7 +25,7 @@ import { prisma } from '../prisma';
  * proposito y una rechazada tambien: vencerlas borraria informacion.
  */
 export async function expireOverdueQuotes(now = new Date()) {
-  const result = await prisma.quote.updateMany({
+  const result = await crossTenantPrisma.quote.updateMany({
     where: {
       status: { in: [QuoteStatus.APPROVED, QuoteStatus.SENT] },
       validUntil: { lt: now },
@@ -48,7 +48,7 @@ export async function expireOverdueQuotes(now = new Date()) {
 export async function ageStaleScores(limit = 200, now = new Date()) {
   const threshold = new Date(now.getTime() - 24 * 3_600_000);
 
-  const contacts = await prisma.contact.findMany({
+  const contacts = await crossTenantPrisma.contact.findMany({
     where: {
       lifecycleStatus: { in: [LifecycleStatus.LEAD, LifecycleStatus.QUALIFIED] },
       OR: [{ scoreUpdatedAt: null }, { scoreUpdatedAt: { lt: threshold } }],

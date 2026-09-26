@@ -10,7 +10,7 @@ import {
   PaymentStatus,
   WebhookEventStatus,
 } from '../../../generated/prisma/client';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
 import { upsertShopifyOrder } from './orders';
@@ -88,7 +88,7 @@ export type ProcessResult = { handled: boolean; reason?: string; orderId?: strin
  * vinculo confiable es el dominio, registrado al conectar.
  */
 async function resolveConnection(shop: string) {
-  return prisma.commerceConnection.findFirst({
+  return crossTenantPrisma.commerceConnection.findFirst({
     where: { provider: CommerceProvider.SHOPIFY, shopDomain: shop.toLowerCase() },
     select: { id: true, workspaceId: true, status: true },
   });

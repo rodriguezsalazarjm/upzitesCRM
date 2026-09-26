@@ -24,7 +24,7 @@ import {
   ScheduledActionStatus,
   SubscriptionStatus,
 } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { createOrder, getOrder, listCatalog, OrderError, cancelOrder } from '../src/lib/commerce/orders';
 import { recoveryKeyFor, upsertPayment } from '../src/lib/commerce/checkout';
@@ -199,12 +199,17 @@ const B = await makeWorkspace('b');
 
 // --- 4. Discriminacion suscripcion vs pedido (riesgo de la Fase 0) ---------
 {
-  check('Sin `kind` se asume suscripcion (compatibilidad hacia atras)',
-    classifyPayment({ planKey: 'monthly' }) === 'subscription');
+  // P0-FOUNDATION: fail-closed. Lo que no esta marcado no es suscripcion.
+  check('Sin `kind` NO se asume suscripcion (fail-closed)',
+    classifyPayment({ planKey: 'monthly' }) === 'unknown');
   check('Con kind=order se trata como pedido', classifyPayment({ kind: 'order' }) === 'order');
-  check('Con kind=subscription se trata como suscripcion',
-    classifyPayment({ kind: 'subscription' }) === 'subscription');
-  check('Metadata vacia se asume suscripcion', classifyPayment(null) === 'subscription');
+  check('Con kind=saas_subscription se trata como suscripcion SaaS',
+    classifyPayment({ kind: 'saas_subscription' }) === 'saas_subscription');
+  check('La marca vieja kind=subscription sola no basta',
+    classifyPayment({ kind: 'subscription' }) === 'unknown');
+  check('Preferencia SaaS legacy conocida si cuenta como suscripcion',
+    classifyPayment({ kind: 'subscription' }, { knownLegacySaasPreference: true }) === 'saas_subscription');
+  check('Metadata vacia es desconocida', classifyPayment(null) === 'unknown');
 }
 
 // --- 5. Pago pendiente NO entrega -------------------------------------------
@@ -353,7 +358,7 @@ let paidContactId = '';
   });
   check('Se registra la actividad del pago', activity !== null);
 
-  const pendingRecovery = await prisma.scheduledAction.count({
+  const pendingRecovery = await crossTenantPrisma.scheduledAction.count({
     where: { cancelKey: recoveryKeyFor(order.id), status: ScheduledActionStatus.PENDING },
   });
   check('La recuperacion de checkout se cancela', pendingRecovery === 0);

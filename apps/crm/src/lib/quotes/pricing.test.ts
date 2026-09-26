@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { UserRole } from '../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../generated/prisma/client';
 import { calculateQuote } from './engine';
 import { isRuleSetUsable, type IntakeSchema, type PricingRules } from './schema';
 import { canApproveQuotes } from './roles';
@@ -81,7 +81,7 @@ test('onboarding exige una configuración interpretable y con precio', () => {
 });
 
 test('la aprobación humana sigue limitada a owner y admin', () => {
-  assert.equal(canApproveQuotes(UserRole.OWNER), true);
-  assert.equal(canApproveQuotes(UserRole.ADMIN), true);
-  assert.equal(canApproveQuotes(UserRole.SALES), false);
+  assert.equal(canApproveQuotes(WorkspaceRole.OWNER), true);
+  assert.equal(canApproveQuotes(WorkspaceRole.ADMIN), true);
+  assert.equal(canApproveQuotes(WorkspaceRole.MEMBER), false);
 });

@@ -1,5 +1,5 @@
-import { UserRole } from '../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../generated/prisma/client';
 
-export function canApproveQuotes(role: UserRole) {
-  return role === UserRole.OWNER || role === UserRole.ADMIN;
+export function canApproveQuotes(role: WorkspaceRole) {
+  return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
 }

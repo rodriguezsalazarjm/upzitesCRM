@@ -12,6 +12,7 @@ import {
 import { getCurrentWorkspaceId } from './crm-data';
 import { DEV_DEMO_USER, devDemoData, isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { prisma } from './prisma';
+import { countActiveMembers } from './membership';
 
 const demoDate = new Date('2026-06-15T12:00:00.000Z');
 
@@ -239,7 +240,7 @@ export async function getBillingSummary() {
       orderBy: { createdAt: 'desc' },
     });
     const [users, contacts] = await Promise.all([
-      prisma.user.count({ where: { workspaceId } }),
+      countActiveMembers(workspaceId),
       prisma.contact.count({ where: { workspaceId } }),
     ]);
 
@@ -281,45 +282,6 @@ export async function getWorkspaceOperations(workspaceId: string) {
     if (shouldUseDemo(error)) return { auditLogs: demoAuditLogs, deadJobs: [], failedOutbox: 0 };
     throw error;
   }
-}
-
-/**
- * Salud GLOBAL del sistema: cola de todos los tenants, trabajos muertos y
- * envios fallidos. Cross-tenant por definicion: el llamador DEBE haber pasado
- * por `requirePlatformAdmin()`.
- */
-export async function getPlatformOpsSummary() {
-  const [queue, deadJobs, failedOutbox, workspaces] = await Promise.all([
-    prisma.job.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.job.findMany({
-      where: { status: 'DEAD' },
-      orderBy: { updatedAt: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        type: true,
-        lastError: true,
-        updatedAt: true,
-        workspace: { select: { name: true } },
-      },
-    }),
-    prisma.outboxEvent.count({ where: { status: 'FAILED' } }),
-    prisma.workspace.count(),
-  ]);
-
-  const queueByStatus = Object.fromEntries(queue.map((row) => [row.status, row._count._all]));
-
-  return {
-    queue: {
-      pending: queueByStatus.PENDING ?? 0,
-      processing: queueByStatus.PROCESSING ?? 0,
-      done: queueByStatus.DONE ?? 0,
-      dead: queueByStatus.DEAD ?? 0,
-    },
-    deadJobs,
-    failedOutbox,
-    workspaces,
-  };
 }
 
 export {

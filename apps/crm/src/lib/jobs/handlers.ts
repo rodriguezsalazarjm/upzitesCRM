@@ -6,7 +6,7 @@ import {
   ScheduledActionType,
   WebhookEventStatus,
 } from '../../../generated/prisma/client';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { recalculateContactScore } from '../domain';
 import { processWebhookEvent } from '../whatsapp/inbound';
 import { processOutbox } from '../whatsapp/outbound';
@@ -122,7 +122,7 @@ const handlers: Record<JobType, JobHandler> = {
 
   /** Barrido periodico: promueve a la cola las acciones ya vencidas. */
   [JobType.SCAN_SCHEDULED_ACTIONS]: async () => {
-    const due = await prisma.scheduledAction.findMany({
+    const due = await crossTenantPrisma.scheduledAction.findMany({
       where: { status: ScheduledActionStatus.PENDING, runAt: { lte: new Date() } },
       orderBy: { runAt: 'asc' },
       take: 200,
@@ -151,7 +151,7 @@ const handlers: Record<JobType, JobHandler> = {
   [JobType.SCAN_SILENCE]: async () => {
     const threshold = new Date(Date.now() - 24 * 3_600_000);
 
-    const contacts = await prisma.contact.findMany({
+    const contacts = await crossTenantPrisma.contact.findMany({
       where: {
         lifecycleStatus: { in: ['LEAD', 'QUALIFIED'] },
         OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: threshold } }],
@@ -350,7 +350,7 @@ const handlers: Record<JobType, JobHandler> = {
   },
 
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
-    const segments = await prisma.segment.findMany({
+    const segments = await crossTenantPrisma.segment.findMany({
       where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
       select: { id: true, workspaceId: true },
       take: 200,
@@ -441,7 +441,7 @@ export async function enqueueRecurringJobs(now = new Date()) {
   // Shopify sin que el catalogo cambie tanto; menos seguido deja al agente
   // trabajando con datos de ayer.
   const bloque = Math.floor(now.getUTCHours() / 4);
-  const conexiones = await prisma.commerceConnection.findMany({
+  const conexiones = await crossTenantPrisma.commerceConnection.findMany({
     where: { provider: 'SHOPIFY', status: 'CONNECTED' },
     select: { workspaceId: true },
     take: 200,
@@ -498,7 +498,7 @@ export async function pruneWebhookEvents(olderThanDays = 30) {
 
 export async function pruneFinishedJobs(olderThanDays = 7) {
   const threshold = new Date(Date.now() - olderThanDays * 24 * 3_600_000);
-  const result = await prisma.job.deleteMany({
+  const result = await crossTenantPrisma.job.deleteMany({
     where: { status: JobStatus.DONE, processedAt: { lt: threshold } },
   });
 

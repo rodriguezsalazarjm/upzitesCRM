@@ -1,6 +1,6 @@
 import { JobType, MediaAssetStatus } from '../../../generated/prisma/client';
 import { enqueue } from '../jobs/queue';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { resolveStorage, storageStatus } from '../storage';
 
 /**
@@ -21,7 +21,7 @@ const BATCH = 200;
  * lugar de mostrar un hueco.
  */
 export async function purgeExpiredMedia(now = new Date()) {
-  const expired = await prisma.mediaAsset.findMany({
+  const expired = await crossTenantPrisma.mediaAsset.findMany({
     where: {
       status: MediaAssetStatus.STORED,
       expiresAt: { not: null, lte: now },
@@ -75,7 +75,7 @@ export async function purgeExpiredMedia(now = new Date()) {
  * contacto pidio que se borraran sus datos y su foto seguiria ahi.
  */
 export async function purgeOrphanMedia() {
-  const orphans = await prisma.mediaAsset.findMany({
+  const orphans = await crossTenantPrisma.mediaAsset.findMany({
     where: {
       messageId: null,
       status: MediaAssetStatus.STORED,
@@ -174,7 +174,7 @@ export async function purgeMediaForContact(workspaceId: string, contactId: strin
 export async function requeueBlockedMedia(now = new Date()) {
   if (!storageStatus().configured) return { requeued: 0, skipped: true };
 
-  const blocked = await prisma.mediaAsset.findMany({
+  const blocked = await crossTenantPrisma.mediaAsset.findMany({
     where: { status: MediaAssetStatus.BLOCKED },
     select: { id: true, workspaceId: true },
     take: BATCH,

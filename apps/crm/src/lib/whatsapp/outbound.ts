@@ -10,7 +10,7 @@ import {
 } from '../../../generated/prisma/client';
 import { canWorkspaceConsume } from '../billing/subscription-access';
 import { recordAudit } from '../domain/audit';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { sendTextMessage } from './client';
 import { queuePushSafely } from '../push/events';
 import {
@@ -305,7 +305,7 @@ async function prepareSend(
 
 /** Procesa eventos pendientes sin mantener una transacción durante la red. */
 export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
-  const pending = await prisma.outboxEvent.findMany({
+  const pending = await crossTenantPrisma.outboxEvent.findMany({
     where: { status: OutboxStatus.PENDING, availableAt: { lte: new Date() } },
     orderBy: { availableAt: 'asc' },
     take: limit,

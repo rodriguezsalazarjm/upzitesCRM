@@ -4,6 +4,7 @@ import { getWorkspaceByPublicKey, publicCorsHeaders, webEventTypeMap } from '@/l
 import { parseBody } from '@/lib/http';
 import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
+import { foreignRefs } from '@/lib/tenant-refs';
 
 const eventSchema = z.object({
   publicKey: z.string().min(1),
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Workspace not found' }, { status: 404, headers: publicCorsHeaders() });
   }
 
+  // Endpoint publico: un visitante puede mandar cualquier id. Las referencias
+  // que no son de este workspace se descartan (el evento se registra igual).
+  const foreign = await foreignRefs(workspace.id, { formId: input.formId, contactId: input.contactId });
+
   await prisma.webEvent.create({
     data: {
       workspaceId: workspace.id,
@@ -46,8 +51,8 @@ export async function POST(request: Request) {
       pageUrl: input.pageUrl,
       referrer: input.referrer,
       element: input.element,
-      formId: input.formId,
-      contactId: input.contactId,
+      formId: foreign.includes('formId') ? undefined : input.formId,
+      contactId: foreign.includes('contactId') ? undefined : input.contactId,
       visitorId: input.visitorId,
       sessionId: input.sessionId,
       utmSource: input.utmSource,

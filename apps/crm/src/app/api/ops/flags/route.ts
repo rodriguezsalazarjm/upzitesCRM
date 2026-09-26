@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { UserRole } from '../../../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
 import { FEATURES, flagStates, isFeatureKey, setFlag } from '@/lib/ops/flags';
@@ -31,7 +31,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await requireCurrentUser();
 
-  if (user.role !== UserRole.OWNER) {
+  if (user.role !== WorkspaceRole.OWNER) {
     return NextResponse.json(
       { message: 'Solo el owner puede apagar o encender funciones.' },
       { status: 403 },

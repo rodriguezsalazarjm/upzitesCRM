@@ -21,7 +21,7 @@ import {
   ScheduledActionStatus,
   ScheduledActionType,
 } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { claimJobs, completeJob, enqueue, failJob, queueStats, requeueStaleJobs } from '../src/lib/jobs/queue';
 import { runJobs } from '../src/lib/jobs/runner';
@@ -114,7 +114,7 @@ const B = await makeWorkspace('b');
   }
 
   // Limpia lo que quedo reclamado por este bloque.
-  await prisma.job.updateMany({
+  await crossTenantPrisma.job.updateMany({
     where: { status: JobStatus.PROCESSING },
     data: { status: JobStatus.DONE, processedAt: new Date() },
   });
@@ -146,7 +146,7 @@ const B = await makeWorkspace('b');
   const dead = await prisma.job.findUniqueOrThrow({ where: { id: job.id } });
   check('DEAD conserva el ultimo error', dead.status === JobStatus.DEAD && Boolean(dead.lastError));
 
-  await prisma.job.updateMany({
+  await crossTenantPrisma.job.updateMany({
     where: { status: JobStatus.PROCESSING },
     data: { status: JobStatus.DONE, processedAt: new Date() },
   });
@@ -388,7 +388,7 @@ const B = await makeWorkspace('b');
   check('No quedan acciones pendientes tras el opt-out', pending === 0);
 
   // La revocacion emite su evento a la cola.
-  const job = await prisma.job.findFirst({
+  const job = await crossTenantPrisma.job.findFirst({
     where: { dedupeKey: { contains: `consent-revoked:${contact.id}` } },
   });
   check('El opt-out emite su evento a la cola', job !== null);
@@ -454,7 +454,7 @@ const B = await makeWorkspace('b');
 
 // --- Limpieza ---------------------------------------------------------------
 const deleted = await prisma.workspace.deleteMany({ where: { slug: { startsWith: 'fase3-' } } });
-await prisma.job.deleteMany({ where: { dedupeKey: { contains: String(stamp) } } });
+await crossTenantPrisma.job.deleteMany({ where: { dedupeKey: { contains: String(stamp) } } });
 await prisma.job.deleteMany({ where: { workspaceId: null, status: { in: [JobStatus.DONE, JobStatus.PENDING] } } });
 console.log(`\nLimpieza: ${deleted.count} workspaces de prueba eliminados (cascade).`);
 

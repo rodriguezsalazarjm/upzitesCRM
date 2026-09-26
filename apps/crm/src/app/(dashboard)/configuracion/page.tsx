@@ -19,7 +19,7 @@ import { canManageMarketing } from '@/lib/marketing/roles';
 import { flagStates } from '@/lib/ops/flags';
 import { getWorkspaceOperations } from '@/lib/ops-data';
 import { prisma } from '@/lib/prisma';
-import { BusinessType, UserRole } from '../../../../generated/prisma/client';
+import { BusinessType, WorkspaceRole } from '../../../../generated/prisma/client';
 import { FlagsClient } from './flags-client';
 import { BusinessSettingsForm, HoursSettingsForm, InformationSettingsForm } from './settings-forms';
 import { ServicesPricing, type ServiceRuleSetView } from './services-pricing';
@@ -51,7 +51,7 @@ export default async function ConfiguracionPage() {
       getWorkspaceTimezone(user.workspace.id),
       getPricingRuleSets(user.workspace.id),
     ]);
-  const canSeeOperations = user.role === UserRole.OWNER || user.role === UserRole.ADMIN;
+  const canSeeOperations = user.role === WorkspaceRole.OWNER || user.role === WorkspaceRole.ADMIN;
   const [operations, flags] = canSeeOperations
     ? await Promise.all([getWorkspaceOperations(user.workspace.id), flagStates(user.workspace.id)])
     : [null, null];
@@ -107,7 +107,7 @@ export default async function ConfiguracionPage() {
                   <ServicesPricing
                     services={pricingRuleSets}
                     canEdit={canEdit}
-                    canPublish={user.role === UserRole.OWNER}
+                    canPublish={user.role === WorkspaceRole.OWNER}
                   />
                 ) : profile.businessType === BusinessType.ECOMMERCE ||
                   profile.businessType === BusinessType.INFOPRODUCT ? (
@@ -214,7 +214,7 @@ export default async function ConfiguracionPage() {
                 description="Interruptores de emergencia y auditoría de tu workspace."
               >
                 <div className="space-y-6">
-                  <FlagsClient flags={flags} canManage={user.role === UserRole.OWNER} />
+                  <FlagsClient flags={flags} canManage={user.role === WorkspaceRole.OWNER} />
                   {operations.deadJobs.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-semibold text-danger-ink">

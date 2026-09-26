@@ -28,6 +28,7 @@ import {
   PrismaClient,
   SubscriptionStatus,
   UserRole,
+  WorkspaceRole,
 } from '../generated/prisma/client';
 
 const EMAIL = (process.env.ALVARO_EMAIL ?? 'alvaro@mallasquintero.cl').toLowerCase().trim();
@@ -90,6 +91,14 @@ async function main() {
       },
       update: { name: OWNER_NAME, passwordHash: PASSWORD_HASH, role: UserRole.OWNER },
     });
+
+    // La membership OWNER es la que autoriza (P0-FOUNDATION).
+    await prisma.workspaceMembership.upsert({
+      where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
+      create: { userId: user.id, workspaceId: workspace.id, role: WorkspaceRole.OWNER },
+      update: { role: WorkspaceRole.OWNER, status: 'ACTIVE' },
+    });
+    await prisma.user.update({ where: { id: user.id }, data: { lastActiveWorkspaceId: workspace.id } });
 
     for (const stage of defaultStages) {
       await prisma.pipelineStage.upsert({

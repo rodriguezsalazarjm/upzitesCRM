@@ -6,6 +6,7 @@ import { verifyPassword } from '@/lib/password';
 import { parseBody } from '@/lib/http';
 import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
+import { pickWorkspaceForUser } from '@/lib/workspace-switch';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -28,16 +29,13 @@ export async function POST(request: Request) {
       where: {
         email: input.email.toLowerCase(),
       },
-      include: {
-        workspace: true,
-      },
+      select: { id: true, name: true, email: true, passwordHash: true },
     });
   } catch (error) {
     if (isDevDemoEnabled() && isDatabaseUnavailable(error) && isDemoCredential(input.email, input.password)) {
       await setSessionCookie({
         userId: DEV_DEMO_USER.id,
-        workspaceId: DEV_DEMO_USER.workspace.id,
-        role: DEV_DEMO_USER.role,
+        activeWorkspaceId: DEV_DEMO_USER.workspace.id,
       });
 
       return NextResponse.json({ data: DEV_DEMO_USER, mode: 'local-demo' });
@@ -50,23 +48,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Credenciales invalidas' }, { status: 401 });
   }
 
-  await setSessionCookie({
-    userId: user.id,
-    workspaceId: user.workspaceId,
-    role: user.role,
-  });
+  // El workspace de entrada sale de las memberships (ultimo usado, si no el
+  // OWNER mas antiguo), nunca de `users.workspace_id`.
+  const activeWorkspaceId = await pickWorkspaceForUser(user.id);
+  const membership = activeWorkspaceId
+    ? await prisma.workspaceMembership.findUnique({
+        where: { userId_workspaceId: { userId: user.id, workspaceId: activeWorkspaceId } },
+        select: { role: true, workspace: { select: { id: true, name: true, slug: true } } },
+      })
+    : null;
+
+  if (!membership) {
+    return NextResponse.json(
+      { message: 'Tu cuenta no tiene acceso a ningun workspace activo.' },
+      { status: 403 },
+    );
+  }
+
+  await setSessionCookie({ userId: user.id, activeWorkspaceId: membership.workspace.id });
 
   return NextResponse.json({
     data: {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
-      workspace: {
-        id: user.workspace.id,
-        name: user.workspace.name,
-        slug: user.workspace.slug,
-      },
+      role: membership.role,
+      workspace: membership.workspace,
     },
   });
 }

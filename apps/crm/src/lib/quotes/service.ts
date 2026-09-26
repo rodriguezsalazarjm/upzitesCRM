@@ -5,7 +5,7 @@ import {
   PricingRuleSetStatus,
   Prisma,
   QuoteStatus,
-  type UserRole,
+  type WorkspaceRole,
 } from '../../../generated/prisma/client';
 import { hasCapability } from '../billing/usage';
 import { prisma } from '../prisma';
@@ -332,7 +332,7 @@ export async function requestReview(
 export type ReviewInput = {
   workspaceId: string;
   quoteId: string;
-  reviewer: { id: string; role: UserRole };
+  reviewer: { id: string; role: WorkspaceRole };
   comment?: string;
 };
 

@@ -25,7 +25,7 @@ import {
   JourneyTrigger,
   SendCategory,
   SubscriptionStatus,
-  UserRole,
+  WorkspaceRole,
   WhatsAppChannelStatus,
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
@@ -299,7 +299,7 @@ console.log('\n== Activacion ==');
   // Activar con pasos pendientes tiene que fallar y decir cuales.
   let incompleto: ActivationError | null = null;
   try {
-    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: UserRole.OWNER });
+    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: WorkspaceRole.OWNER });
   } catch (error) {
     incompleto = error instanceof ActivationError ? error : null;
   }
@@ -381,7 +381,7 @@ console.log('\n== Activacion ==');
   // Solo el owner activa.
   let forbidden: ActivationError | null = null;
   try {
-    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: UserRole.SALES });
+    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: WorkspaceRole.MEMBER });
   } catch (error) {
     forbidden = error instanceof ActivationError ? error : null;
   }
@@ -390,7 +390,7 @@ console.log('\n== Activacion ==');
   const activation = await activateWorkspace({
     workspaceId: A.workspaceId,
     actorId: A.userId,
-    role: UserRole.OWNER,
+    role: WorkspaceRole.OWNER,
   });
 
   check('El owner si', activation.status === ActivationStatus.ACTIVE);
@@ -405,7 +405,7 @@ console.log('\n== Activacion ==');
   // Activar dos veces no es un error silencioso.
   let repetido: ActivationError | null = null;
   try {
-    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: UserRole.OWNER });
+    await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: WorkspaceRole.OWNER });
   } catch (error) {
     repetido = error instanceof ActivationError ? error : null;
   }
@@ -416,7 +416,7 @@ console.log('\n== Activacion ==');
   await suspendWorkspace({
     workspaceId: A.workspaceId,
     actorId: A.userId,
-    role: UserRole.OWNER,
+    role: WorkspaceRole.OWNER,
     note: 'prueba',
   });
 
@@ -426,7 +426,7 @@ console.log('\n== Activacion ==');
     (await prisma.contact.count({ where: { workspaceId: A.workspaceId } })) === contactosAntes,
   );
 
-  await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: UserRole.OWNER });
+  await activateWorkspace({ workspaceId: A.workspaceId, actorId: A.userId, role: WorkspaceRole.OWNER });
   check('Y se puede volver a activar', await isWorkspaceActive(A.workspaceId));
 }
 

@@ -4,6 +4,7 @@ import { OpportunityStage, OpportunityStatus } from '../../../../generated/prism
 import { getCurrentWorkspaceId, getOpportunities } from '@/lib/crm-data';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { rejectForeignRefs } from '@/lib/tenant-refs';
 
 const stageMap = {
   nuevo: OpportunityStage.NEW,
@@ -41,6 +42,12 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
+  const foreign = await rejectForeignRefs(workspaceId, {
+    contactId: input.contactId,
+    companyId: input.companyId,
+    ownerId: input.ownerId,
+  });
+  if (foreign) return foreign;
   const stageKey = stageMap[input.stage];
   const stage = await prisma.pipelineStage.findUniqueOrThrow({
     where: {

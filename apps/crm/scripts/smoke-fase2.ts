@@ -24,7 +24,7 @@ import {
   OutboxStatus,
   WhatsAppChannelStatus,
 } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { encryptSecret, decryptSecret, isEncryptionConfigured } from '../src/lib/crypto';
 import { ingestWebhookEvent, processWebhookEvent } from '../src/lib/whatsapp/inbound';
 import { verifyMetaSignature } from '../src/lib/whatsapp/signature';
@@ -208,7 +208,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
     `A=${conversationsA} B=${conversationsB}`);
 
   // Un numero que no pertenece a ningun workspace no debe crear nada.
-  const before = await prisma.message.count();
+  const before = await crossTenantPrisma.message.count();
   await deliver(
     inboundTextPayload({
       phoneNumberId: `pn-desconocido-${stamp}`,
@@ -217,7 +217,7 @@ const B = await makeWorkspace('b', `pn-b-${stamp}`);
       text: 'Numero no registrado',
     }),
   );
-  const after = await prisma.message.count();
+  const after = await crossTenantPrisma.message.count();
   check('Un phoneNumberId desconocido no crea mensajes', before === after);
 }
 

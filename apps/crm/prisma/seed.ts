@@ -13,6 +13,7 @@ import {
   SubscriptionStatus,
   PrismaClient,
   UserRole,
+  WorkspaceRole,
 } from '../generated/prisma/client';
 import { hashPassword } from '../src/lib/password';
 
@@ -217,7 +218,15 @@ async function main() {
       data: {
         ...user,
         workspaceId: createdWorkspace.id,
+        lastActiveWorkspaceId: createdWorkspace.id,
         passwordHash: hashPassword('demo1234'),
+        // La membership es la que autoriza; role/workspaceId quedan como legacy.
+        memberships: {
+          create: {
+            workspaceId: createdWorkspace.id,
+            role: user.role === UserRole.OWNER ? WorkspaceRole.OWNER : WorkspaceRole.MEMBER,
+          },
+        },
       },
     });
     createdUsers.set(user.email, created);

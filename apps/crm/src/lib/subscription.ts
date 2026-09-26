@@ -4,6 +4,7 @@ import {
   OpportunityStage,
   SubscriptionStatus,
   UserRole,
+  WorkspaceRole,
 } from '../../generated/prisma/client';
 import { isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { DEFAULT_SCORE_RULES } from './domain';
@@ -219,6 +220,8 @@ export async function createCustomerWorkspace(input: {
       },
     });
 
+    // P0-FOUNDATION step 1: se escriben las dos cosas. La membership OWNER es
+    // la que autoriza; `workspaceId`/`role` quedan como legacy hasta el step 2.
     const user = await tx.user.create({
       data: {
         workspaceId: workspace.id,
@@ -226,6 +229,8 @@ export async function createCustomerWorkspace(input: {
         email: normalizedEmail,
         passwordHash: hashPassword(input.password),
         role: UserRole.OWNER,
+        lastActiveWorkspaceId: workspace.id,
+        memberships: { create: { workspaceId: workspace.id, role: WorkspaceRole.OWNER } },
       },
     });
 
@@ -334,7 +339,8 @@ export async function createCustomerWorkspace(input: {
       },
     });
 
-    return { user, workspace, subscription: { trialEndsAt } };
+    // `role` es el rol en ESTE workspace (membership OWNER), no el legacy.
+    return { user: { ...user, role: WorkspaceRole.OWNER }, workspace, subscription: { trialEndsAt } };
   });
 
   // Fase 8: politica de contacto, segmentos y journeys de fabrica.

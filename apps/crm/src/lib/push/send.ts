@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import { z } from 'zod';
+import { isActiveMember } from '../membership';
 import { prisma } from '../prisma';
 
 const notificationSchema = z.object({
@@ -33,6 +34,11 @@ export async function sendPushJob(payload: Record<string, unknown>, workspaceId:
   });
   if (!subscription || !subscription.enabled || subscription.disabledAt) {
     return { skipped: true, reason: 'suscripción inactiva' };
+  }
+  // La membership se revisa tambien al enviar: pudo suspenderse despues de
+  // encolar. Sin membership ACTIVE no sale nada de este workspace.
+  if (!(await isActiveMember(workspaceId, subscription.userId))) {
+    return { skipped: true, reason: 'membership inactiva' };
   }
   if (subscription.expiresAt && subscription.expiresAt <= new Date()) {
     await prisma.pushSubscription.delete({ where: { id: subscription.id } });

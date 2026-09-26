@@ -28,7 +28,7 @@ import {
   ConversationStatus,
   MessageStatus,
 } from '../generated/prisma/client';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { grantConsent } from '../src/lib/domain/consent';
 import { activateForTests } from './fixtures/workspace';
@@ -477,7 +477,7 @@ const B = await makeWorkspace('b');
   check('Tres mensajes seguidos dejan UN solo trabajo',
     first.id === second.id && second.id === third.id);
 
-  const jobs = await prisma.job.count({
+  const jobs = await crossTenantPrisma.job.count({
     where: { type: 'RUN_AGENT', payload: { path: ['conversationId'], equals: conversationId } },
   });
   check('Solo existe un trabajo de agente para esa conversacion', jobs === 1, `${jobs} trabajos`);
@@ -556,7 +556,7 @@ const B = await makeWorkspace('b');
 
 // --- Limpieza ---------------------------------------------------------------
 const deleted = await prisma.workspace.deleteMany({ where: { slug: { startsWith: 'fase4-' } } });
-await prisma.job.deleteMany({ where: { type: 'RUN_AGENT' } });
+await crossTenantPrisma.job.deleteMany({ where: { type: 'RUN_AGENT' } });
 console.log(`\nLimpieza: ${deleted.count} workspaces de prueba eliminados (cascade).`);
 
 console.log(`\n== Resultado: ${results.length - failures}/${results.length} pruebas OK ==`);

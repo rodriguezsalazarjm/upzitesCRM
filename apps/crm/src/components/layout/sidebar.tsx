@@ -29,6 +29,7 @@ import { Wordmark } from '@/components/ui/wordmark';
 import type { CurrentUser } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { LogoutForm } from './logout-form';
+import { WorkspaceSwitcher, type SwitchableWorkspace } from './workspace-switcher';
 
 const navItems = [
   { href: '/onboarding', label: 'Puesta en marcha', icon: Rocket },
@@ -77,7 +78,17 @@ function NavSection({ label, first }: { label: string; first?: boolean }) {
   );
 }
 
-export function Sidebar({ user, isPlatformAdmin = false }: { user: CurrentUser; isPlatformAdmin?: boolean }) {
+export function Sidebar({
+  user,
+  isPlatformAdmin = false,
+  workspaces = [],
+}: {
+  user: CurrentUser;
+  isPlatformAdmin?: boolean;
+  /** Negocios con membership ACTIVE. Con mas de uno aparece el selector. */
+  workspaces?: SwitchableWorkspace[];
+}) {
+  const canSwitch = workspaces.length > 1;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -160,8 +171,9 @@ export function Sidebar({ user, isPlatformAdmin = false }: { user: CurrentUser; 
       >
         {/* En móvil el toggle fijo (left-3, 40px) queda sobre esta franja: pl-16 deja el wordmark a su derecha. */}
         <div className="flex h-20 items-center pl-16 pr-6 md:px-6">
-          <Wordmark tone="dark" subtitle={user.workspace.name} />
+          <Wordmark tone="dark" subtitle={canSwitch ? undefined : user.workspace.name} />
         </div>
+        {canSwitch && <WorkspaceSwitcher current={user.workspace} workspaces={workspaces} />}
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
           <NavSection label="Principal" first />

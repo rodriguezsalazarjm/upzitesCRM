@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { UserRole } from '../../../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
 import { getPreferenceClient, preferenceCheckoutUrl } from '@/lib/mercado-pago';
 import { parseBody } from '@/lib/http';
+import { recordAudit } from '@/lib/domain/audit';
+import { SAAS_SUBSCRIPTION_KIND } from '@/lib/commerce/payment-class';
 
 const checkoutSchema = z.object({
   planKey: z.string().min(1),
@@ -24,7 +26,7 @@ function getBaseUrl() {
 export async function POST(request: Request) {
   const user = await requireCurrentUser();
 
-  if (user.role !== UserRole.OWNER && user.role !== UserRole.ADMIN) {
+  if (user.role !== WorkspaceRole.OWNER && user.role !== WorkspaceRole.ADMIN) {
     return NextResponse.json(
       { message: 'Solo el owner o un admin del workspace puede gestionar el pago.' },
       { status: 403 },
@@ -61,8 +63,9 @@ export async function POST(request: Request) {
         },
       ],
       external_reference: user.workspace.id,
-      // `kind` explicito: el webhook distingue suscripcion de compra de producto.
-      metadata: { kind: 'subscription', planKey: plan.key, workspaceId: user.workspace.id },
+      // `kind` explicito: el webhook solo trata como suscripcion SaaS lo que
+      // viene marcado asi (fail-closed; ver classifyPayment).
+      metadata: { kind: SAAS_SUBSCRIPTION_KIND, planKey: plan.key, workspaceId: user.workspace.id },
       back_urls: {
         success: `${baseUrl}/billing?status=success`,
         pending: `${baseUrl}/billing?status=pending`,
@@ -73,14 +76,12 @@ export async function POST(request: Request) {
     },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      workspaceId: user.workspace.id,
-      actorId: user.id,
-      action: 'billing.checkout_started',
-      entity: 'WorkspaceSubscription',
-      metadata: { planKey: plan.key, preferenceId: preference.id ?? null },
-    },
+  await recordAudit({
+    workspaceId: user.workspace.id,
+    actorId: user.id,
+    action: 'billing.checkout_started',
+    entity: 'WorkspaceSubscription',
+    metadata: { planKey: plan.key, preferenceId: preference.id ?? null },
   });
 
   const checkoutUrl = preferenceCheckoutUrl(preference, process.env.MERCADO_PAGO_ACCESS_TOKEN);

@@ -4,6 +4,7 @@ import { OpportunityStage, OpportunityStatus } from '../../../../../generated/pr
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
 import { notFound, orNull, parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { rejectForeignRefs } from '@/lib/tenant-refs';
 
 const stageMap = {
   nuevo: OpportunityStage.NEW,
@@ -39,6 +40,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
+  const foreign = await rejectForeignRefs(workspaceId, {
+    contactId: input.contactId,
+    companyId: input.companyId,
+    ownerId: input.ownerId,
+  });
+  if (foreign) return foreign;
   const stageKey = input.stage ? stageMap[input.stage] : undefined;
   const stage = stageKey
     ? await prisma.pipelineStage.findUniqueOrThrow({

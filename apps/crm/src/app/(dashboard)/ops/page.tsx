@@ -2,7 +2,7 @@ import { AlertTriangle, Building2, Database, Layers } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
-import { getPlatformOpsSummary } from '@/lib/ops-data';
+import { getPlatformOpsSummary } from '@/lib/platform/ops-summary';
 import { requirePlatformAdmin } from '@/lib/platform-admin';
 
 export const dynamic = 'force-dynamic';

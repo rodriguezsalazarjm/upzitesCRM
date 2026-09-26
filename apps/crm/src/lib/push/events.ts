@@ -1,6 +1,7 @@
-import { JobType, Prisma, UserRole } from '../../../generated/prisma/client';
+import { JobType, Prisma, WorkspaceRole } from '../../../generated/prisma/client';
 import { enqueue } from '../jobs/queue';
 import { prisma } from '../prisma';
+import { activeMemberIdsWithRole, isActiveMember } from '../membership';
 import {
   notificationForEvent,
   recipientStrategy,
@@ -21,25 +22,18 @@ const PREFERENCE: Record<PushEventKind, keyof Prisma.PushSubscriptionWhereInput>
 
 /**
  * Elige destinatarios concretos. Conversaciones asignadas notifican solo al
- * responsable; revisiones y fallos se limitan a owner/admin.
+ * responsable; revisiones y fallos se limitan a owner/admin. Solo reciben
+ * miembros ACTIVE del workspace del evento.
  */
 export async function queuePushEvent(event: PushEvent) {
   let userIds: string[];
   const strategy = recipientStrategy(event);
   if (strategy === 'EXPLICIT') {
-    const user = await prisma.user.findFirst({
-      where: { id: event.userId!, workspaceId: event.workspaceId },
-      select: { id: true },
-    });
-    userIds = user ? [user.id] : [];
+    userIds = (await isActiveMember(event.workspaceId, event.userId!)) ? [event.userId!] : [];
   } else if (strategy === 'NONE') {
     userIds = [];
   } else {
-    const reviewers = await prisma.user.findMany({
-      where: { workspaceId: event.workspaceId, role: { in: [UserRole.OWNER, UserRole.ADMIN] } },
-      select: { id: true },
-    });
-    userIds = reviewers.map((user) => user.id);
+    userIds = await activeMemberIdsWithRole(event.workspaceId, [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]);
   }
 
   if (userIds.length === 0) return { queued: 0 };

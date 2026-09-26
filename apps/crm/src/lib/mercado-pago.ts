@@ -1,5 +1,6 @@
 import {
   MercadoPagoConfig,
+  MerchantOrder,
   OAuth,
   Preference,
   Payment,
@@ -7,12 +8,12 @@ import {
   WebhookSignatureValidator,
   InvalidWebhookSignatureError,
 } from 'mercadopago';
-import { UserRole } from '../../generated/prisma/client';
+import { WorkspaceRole } from '../../generated/prisma/client';
 import type { WorkspaceMercadoPagoConnection } from './commerce/mercado-pago-connection';
 
 /** Solo owner/admin conectan o desconectan la cuenta de pagos del workspace. */
-export function canManageMercadoPago(role: UserRole) {
-  return role === UserRole.OWNER || role === UserRole.ADMIN;
+export function canManageMercadoPago(role: WorkspaceRole) {
+  return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
 }
 
 /**
@@ -63,6 +64,16 @@ export function preferenceCheckoutUrl(
 export function getPaymentClient() {
   const cfg = getPlatformConfig();
   return cfg ? new Payment(cfg) : null;
+}
+
+/**
+ * Merchant orders de la cuenta de Upzites. Solo se usa para averiguar la
+ * preferencia de un pago sin marca (`kind`) y ver si es un checkout SaaS
+ * legacy conocido.
+ */
+export function getMerchantOrderClient() {
+  const cfg = getPlatformConfig();
+  return cfg ? new MerchantOrder(cfg) : null;
 }
 
 export class MercadoPagoCredentialError extends Error {}

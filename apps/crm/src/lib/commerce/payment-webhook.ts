@@ -28,6 +28,8 @@ export type OrderPaymentInput = {
   currency: string;
   payerEmail?: string | null;
   baseUrl: string;
+  /** Workspace dueno de la cuenta que cobro. Si viene, el pedido debe ser suyo. */
+  workspaceId?: string;
 };
 
 export type OrderPaymentResult = {
@@ -103,6 +105,13 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
 
   if (!order) {
     return { handled: false, reason: 'pedido no encontrado' };
+  }
+
+  // Un pago cobrado con la cuenta de Mercado Pago del workspace A solo puede
+  // pagar pedidos de A. El orderId viene de la metadata del pago, y quien
+  // controla la cuenta de A podria poner ahi el id de un pedido ajeno.
+  if (input.workspaceId && order.workspaceId !== input.workspaceId) {
+    return { handled: false, reason: 'pedido de otro workspace' };
   }
 
   const workspaceId = order.workspaceId;
@@ -251,15 +260,4 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
   };
 }
 
-/**
- * Decide si una notificacion corresponde a un pedido o a una suscripcion.
- *
- * Compatibilidad hacia atras deliberada: las preferencias creadas ANTES de la
- * Fase 5 no llevan `kind`, y esas son de suscripcion. Solo se trata como pedido
- * lo que viene marcado explicitamente. Asi un pago en vuelo no cambia de
- * significado a mitad de camino.
- */
-export function classifyPayment(metadata: Record<string, unknown> | null | undefined) {
-  const kind = metadata && typeof metadata.kind === 'string' ? metadata.kind : null;
-  return kind === 'order' ? ('order' as const) : ('subscription' as const);
-}
+export { classifyPayment, SAAS_SUBSCRIPTION_KIND, type PaymentClass } from './payment-class';

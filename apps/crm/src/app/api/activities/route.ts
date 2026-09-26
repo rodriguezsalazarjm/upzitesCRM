@@ -4,6 +4,7 @@ import { ActivityType } from '../../../../generated/prisma/client';
 import { getActivities, getCurrentWorkspaceId } from '@/lib/crm-data';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { rejectForeignRefs } from '@/lib/tenant-refs';
 
 const activityTypeMap = {
   email: ActivityType.EMAIL,
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
+  const foreign = await rejectForeignRefs(workspaceId, {
+    contactId: input.contactId,
+    opportunityId: input.opportunityId,
+  });
+  if (foreign) return foreign;
 
   const activity = await prisma.activity.create({
     data: {

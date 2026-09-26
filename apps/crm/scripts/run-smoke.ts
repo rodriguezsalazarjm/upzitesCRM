@@ -18,6 +18,7 @@ const suites = [
   'smoke-critico.ts',
   'smoke-beta.ts',
   'smoke-p0a.ts',
+  'smoke-foundation.ts',
 ];
 
 const require = createRequire(import.meta.url);

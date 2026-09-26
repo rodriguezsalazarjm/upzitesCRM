@@ -27,7 +27,8 @@ import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace, getSubscriptionStatus } from '../src/lib/subscription';
 import { activateForTests } from './fixtures/workspace';
 import { isPlatformAdmin } from '../src/lib/platform-admin';
-import { getPlatformOpsSummary, getWorkspaceOperations } from '../src/lib/ops-data';
+import { getWorkspaceOperations } from '../src/lib/ops-data';
+import { getPlatformOpsSummary } from '../src/lib/platform/ops-summary';
 import { checkAllowance, getEntitlements, hasCapability } from '../src/lib/billing/usage';
 import { canWorkspaceConsume } from '../src/lib/billing/subscription-access';
 import { runAgent } from '../src/lib/agents/runner';
@@ -141,12 +142,20 @@ console.log('\n== Operador de plataforma ==');
 {
   check('Un OWNER no es operador de plataforma', !(await isPlatformAdmin(A.userId)));
 
-  await prisma.platformAdmin.create({ data: { userId: A.userId, note: 'smoke p0a' } });
-  check('Concedido por tabla, pasa a serlo', await isPlatformAdmin(A.userId));
+  // P0-FOUNDATION: el permiso vive en User.platformRole (la tabla de P0-A es legacy).
+  await prisma.user.update({ where: { id: A.userId }, data: { platformRole: 'PLATFORM_ADMIN' } });
+  check('PLATFORM_ADMIN pasa a serlo', await isPlatformAdmin(A.userId));
   check('Y no contagia a otro usuario', !(await isPlatformAdmin(B.userId)));
 
-  await prisma.platformAdmin.deleteMany({ where: { userId: A.userId } });
+  await prisma.user.update({ where: { id: A.userId }, data: { platformRole: 'SUPER_ADMIN' } });
+  check('SUPER_ADMIN tambien es operador', await isPlatformAdmin(A.userId));
+
+  await prisma.user.update({ where: { id: A.userId }, data: { platformRole: 'USER' } });
   check('Revocado, deja de serlo en la siguiente consulta', !(await isPlatformAdmin(A.userId)));
+
+  await prisma.platformAdmin.create({ data: { userId: A.userId, note: 'legacy' } });
+  check('Una fila legacy en platform_admins ya no concede nada', !(await isPlatformAdmin(A.userId)));
+  await prisma.platformAdmin.deleteMany({ where: { userId: A.userId } });
 }
 
 // =============================================================================

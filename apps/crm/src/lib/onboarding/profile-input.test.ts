@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BusinessType } from '../../../generated/prisma/client';
-import { UserRole } from '../../../generated/prisma/client';
+import { WorkspaceRole } from '../../../generated/prisma/client';
 import { canManageMarketing } from '../marketing/roles';
 import {
   businessIndustries,
@@ -71,7 +71,7 @@ test('rechaza campos de tenant enviados por el cliente', () => {
 });
 
 test('solo owner y admin pueden editar la configuracion del negocio', () => {
-  assert.equal(canManageMarketing(UserRole.OWNER), true);
-  assert.equal(canManageMarketing(UserRole.ADMIN), true);
-  assert.equal(canManageMarketing(UserRole.SALES), false);
+  assert.equal(canManageMarketing(WorkspaceRole.OWNER), true);
+  assert.equal(canManageMarketing(WorkspaceRole.ADMIN), true);
+  assert.equal(canManageMarketing(WorkspaceRole.MEMBER), false);
 });

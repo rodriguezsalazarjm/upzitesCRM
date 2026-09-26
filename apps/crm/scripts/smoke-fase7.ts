@@ -17,7 +17,7 @@ import {
   ApprovalStatus,
   PricingRuleSetStatus,
   QuoteStatus,
-  UserRole,
+  WorkspaceRole,
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
@@ -281,7 +281,7 @@ let quoteId = '';
     await approveQuote({
       workspaceId: A.workspaceId,
       quoteId,
-      reviewer: { id: 'x', role: UserRole.SALES },
+      reviewer: { id: 'x', role: WorkspaceRole.MEMBER },
     });
   } catch (error) {
     denied = error instanceof QuoteError && error.code === 'FORBIDDEN';
@@ -298,7 +298,7 @@ let pdfToken = '';
   const { token } = await approveQuote({
     workspaceId: A.workspaceId,
     quoteId,
-    reviewer: { id: A.userId, role: UserRole.OWNER },
+    reviewer: { id: A.userId, role: WorkspaceRole.OWNER },
     comment: 'Medidas confirmadas.',
   });
   pdfToken = token;
@@ -399,7 +399,7 @@ let pdfToken = '';
     await approveQuote({
       workspaceId: A.workspaceId,
       quoteId,
-      reviewer: { id: A.userId, role: UserRole.OWNER },
+      reviewer: { id: A.userId, role: WorkspaceRole.OWNER },
     });
   } catch (error) {
     cannotReapprove = error instanceof QuoteError && error.code === 'INVALID_STATE';
@@ -411,7 +411,7 @@ let pdfToken = '';
     await rejectQuote({
       workspaceId: A.workspaceId,
       quoteId,
-      reviewer: { id: A.userId, role: UserRole.OWNER },
+      reviewer: { id: A.userId, role: WorkspaceRole.OWNER },
       comment: 'me arrepenti',
     });
   } catch (error) {
@@ -479,7 +479,7 @@ let pdfToken = '';
     await approveQuote({
       workspaceId: B.workspaceId,
       quoteId,
-      reviewer: { id: B.userId, role: UserRole.OWNER },
+      reviewer: { id: B.userId, role: WorkspaceRole.OWNER },
     });
   } catch (error) {
     denied = error instanceof QuoteError && error.code === 'NOT_FOUND';

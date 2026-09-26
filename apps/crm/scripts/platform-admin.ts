@@ -1,25 +1,34 @@
 /**
- * Concede, revoca o lista operadores de plataforma (modelo `PlatformAdmin`).
+ * Concede, revoca o lista roles de PLATAFORMA (`User.platformRole`).
  *
- * Es la UNICA forma de conceder el permiso: no hay pantalla ni endpoint que lo
- * haga, para que ningun bug de la web pueda convertir a un cliente en operador.
- * Cada cambio queda en `audit_logs` del workspace del usuario.
+ *   PLATFORM_ADMIN  Ops, clientes SaaS, suscripciones, pagos manuales, soporte.
+ *   SUPER_ADMIN     Lo anterior + roles de plataforma, Price Book y COMP.
+ *
+ * Es la UNICA forma de conceder el permiso por ahora: no hay pantalla ni
+ * endpoint que lo haga, para que ningun bug de la web pueda convertir a un
+ * cliente en operador. Cuando exista Platform Admin (P0-D), solo un
+ * SUPER_ADMIN podra hacerlo desde ahi. Cada cambio queda en
+ * `platform_audit_logs`.
  *
  * Uso, desde apps/crm (usa DATABASE_URL: revisar a que base apunta antes):
  *   pnpm exec tsx scripts/platform-admin.ts list
- *   pnpm exec tsx scripts/platform-admin.ts grant persona@upzites.com "motivo"
- *   pnpm exec tsx scripts/platform-admin.ts revoke persona@upzites.com
+ *   pnpm exec tsx scripts/platform-admin.ts grant persona@upzites.com SUPER_ADMIN "motivo"
+ *   pnpm exec tsx scripts/platform-admin.ts grant persona@upzites.com PLATFORM_ADMIN "motivo"
+ *   pnpm exec tsx scripts/platform-admin.ts revoke persona@upzites.com "motivo"
  */
 import 'dotenv/config';
+import { PlatformRole } from '../generated/prisma/enums';
 import { prisma } from '../src/lib/prisma';
+
+const GRANTABLE: PlatformRole[] = [PlatformRole.PLATFORM_ADMIN, PlatformRole.SUPER_ADMIN];
 
 async function findUser(email: string) {
   const users = await prisma.user.findMany({
     where: { email: email.toLowerCase().trim() },
-    select: { id: true, email: true, workspaceId: true, workspace: { select: { name: true } } },
+    select: { id: true, email: true, platformRole: true },
   });
-  // El email es unico por workspace, no global: ante dos coincidencias no se
-  // adivina a cual se referia quien lo ejecuta.
+  // Hasta el step 2 el email no es unico global en el schema: ante dos
+  // coincidencias no se adivina a cual se referia quien lo ejecuta.
   if (users.length !== 1) {
     throw new Error(`Se esperaba exactamente un usuario con ${email}; hay ${users.length}.`);
   }
@@ -27,49 +36,56 @@ async function findUser(email: string) {
 }
 
 async function main() {
-  const [command, email, note] = process.argv.slice(2);
+  const [command, email, ...rest] = process.argv.slice(2);
   const target = new URL(process.env.DATABASE_URL ?? 'postgresql://sin-configurar/');
   console.log(`Base: ${target.hostname}${target.pathname}`);
 
   if (command === 'list') {
-    const admins = await prisma.platformAdmin.findMany({
-      include: { user: { select: { email: true, workspace: { select: { name: true } } } } },
-      orderBy: { createdAt: 'asc' },
+    const operators = await prisma.user.findMany({
+      where: { platformRole: { in: GRANTABLE } },
+      select: { email: true, platformRole: true, updatedAt: true },
+      orderBy: { email: 'asc' },
     });
-    for (const admin of admins) {
-      console.log(`${admin.user.email}\t${admin.user.workspace.name}\t${admin.createdAt.toISOString()}\t${admin.note ?? ''}`);
+    for (const user of operators) {
+      console.log(`${user.email}\t${user.platformRole}\t${user.updatedAt.toISOString()}`);
     }
-    if (admins.length === 0) console.log('Sin operadores de plataforma.');
+    if (operators.length === 0) console.log('Sin operadores de plataforma.');
     return;
   }
 
-  if ((command !== 'grant' && command !== 'revoke') || !email) {
-    throw new Error('Uso: platform-admin.ts list | grant <email> [nota] | revoke <email>');
+  let role: PlatformRole;
+  let note: string | undefined;
+  if (command === 'grant') {
+    role = rest[0] as PlatformRole;
+    note = rest[1];
+    if (!GRANTABLE.includes(role)) throw new Error('Rol invalido: usa PLATFORM_ADMIN o SUPER_ADMIN.');
+  } else if (command === 'revoke') {
+    role = PlatformRole.USER;
+    note = rest[0];
+  } else {
+    throw new Error('Uso: platform-admin.ts list | grant <email> <PLATFORM_ADMIN|SUPER_ADMIN> [nota] | revoke <email> [nota]');
   }
+  if (!email) throw new Error('Falta el email.');
 
   const user = await findUser(email);
-
-  if (command === 'grant') {
-    await prisma.platformAdmin.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, note: note ?? null },
-      update: { note: note ?? null },
-    });
-  } else {
-    await prisma.platformAdmin.deleteMany({ where: { userId: user.id } });
+  if (user.platformRole === role) {
+    console.log(`Sin cambios: ${user.email} ya es ${role}.`);
+    return;
   }
 
-  await prisma.auditLog.create({
-    data: {
-      workspaceId: user.workspaceId,
-      action: command === 'grant' ? 'platform.admin_granted' : 'platform.admin_revoked',
-      entity: 'User',
-      entityId: user.id,
-      metadata: { via: 'cli', note: note ?? null },
-    },
-  });
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { platformRole: role } }),
+    prisma.platformAuditLog.create({
+      data: {
+        actorUserId: null,
+        action: command === 'grant' ? 'platform_role.granted' : 'platform_role.revoked',
+        targetUserId: user.id,
+        metadata: { via: 'cli', from: user.platformRole, to: role, note: note ?? null },
+      },
+    }),
+  ]);
 
-  console.log(`${command === 'grant' ? 'Concedido' : 'Revocado'}: ${user.email} (${user.workspace.name})`);
+  console.log(`${user.email}: ${user.platformRole} → ${role}`);
 }
 
 main()

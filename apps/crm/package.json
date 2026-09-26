@@ -34,7 +34,8 @@
     "test:media": "tsx --test src/lib/media/*.test.ts",
     "test:storage": "tsx --test src/lib/storage/*.test.ts",
     "test:automations": "tsx --test src/lib/channels/*.test.ts src/lib/automations/*.test.ts",
-    "test:instagram": "tsx --test src/lib/instagram/*.test.ts src/lib/meta/*.test.ts"
+    "test:instagram": "tsx --test src/lib/instagram/*.test.ts src/lib/meta/*.test.ts",
+    "test:foundation": "tsx --test src/lib/cross-tenant-allowlist.test.ts src/lib/session-token.test.ts src/lib/workspace-access.test.ts src/lib/tenant-guard.test.ts src/lib/commerce/payment-class.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

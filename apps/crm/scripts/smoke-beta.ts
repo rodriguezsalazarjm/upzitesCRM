@@ -2,7 +2,7 @@ import './fixtures/test-environment';
 import assert from 'node:assert/strict';
 import https from 'node:https';
 import { randomUUID } from 'node:crypto';
-import { prisma } from '../src/lib/prisma';
+import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { encryptSecret } from '../src/lib/crypto';
 import { activateHumanControl } from '../src/lib/whatsapp/human-control';
@@ -429,6 +429,7 @@ try {
         email: `sales-${stamp}@example.test`,
         passwordHash: 'unused-test-hash',
         role: 'SALES',
+        memberships: { create: { workspaceId: A.workspace.id, role: 'MEMBER' } },
       },
     });
     const salesEndpoint = `${endpoint}-sales`;
@@ -476,14 +477,14 @@ try {
     await queuePushEvent(event);
     await queuePushEvent(event);
     assert.equal(
-      await prisma.job.count({ where: { dedupeKey: `push:${event.dedupeKey}:${saved.id}` } }),
+      await crossTenantPrisma.job.count({ where: { dedupeKey: `push:${event.dedupeKey}:${saved.id}` } }),
       1,
     );
     const salesSubscription = await prisma.pushSubscription.findUniqueOrThrow({
       where: { endpoint: salesEndpoint },
     });
     assert.equal(
-      await prisma.job.count({
+      await crossTenantPrisma.job.count({
         where: { dedupeKey: `push:${event.dedupeKey}:${salesSubscription.id}` },
       }),
       0,

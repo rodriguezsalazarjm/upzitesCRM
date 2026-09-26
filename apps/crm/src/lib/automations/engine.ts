@@ -6,6 +6,7 @@ import {
   type Prisma,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { isActiveMember } from '../membership';
 import { enqueue } from '../jobs/queue';
 import { runAgent } from '../agents/runner';
 import { toolByName } from '../agents/tools';
@@ -459,11 +460,8 @@ async function executeAction(
     case 'ASSIGN_OPERATOR': {
       if (!ctx.conversationId) return { kind: 'CONTINUE' };
       const userId = String(params.userId ?? '');
-      const assignee = userId
-        ? await prisma.user.findFirst({ where: { id: userId, workspaceId: ctx.workspaceId }, select: { id: true } })
-        : null;
-      if (!assignee) return { kind: 'CONTINUE' };
-      await activateHumanControl({ conversationId: ctx.conversationId, workspaceId: ctx.workspaceId, assignedUserId: assignee.id });
+      if (!(await isActiveMember(ctx.workspaceId, userId))) return { kind: 'CONTINUE' };
+      await activateHumanControl({ conversationId: ctx.conversationId, workspaceId: ctx.workspaceId, assignedUserId: userId });
       return { kind: 'CONTINUE' };
     }
 

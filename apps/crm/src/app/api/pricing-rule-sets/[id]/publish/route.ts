@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PricingRuleSetStatus, UserRole } from '../../../../../../generated/prisma/client';
+import { PricingRuleSetStatus, WorkspaceRole } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { prisma } from '@/lib/prisma';
@@ -15,7 +15,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const user = await requireCurrentUser();
 
-  if (user.role !== UserRole.OWNER) {
+  if (user.role !== WorkspaceRole.OWNER) {
     return NextResponse.json(
       { message: 'Solo el owner puede publicar reglas de precio.' },
       { status: 403 },

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireCurrentUser } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { rejectForeignRefs } from '@/lib/tenant-refs';
 import { createOrder, OrderError } from '@/lib/commerce/orders';
 
 export const dynamic = 'force-dynamic';
@@ -39,16 +40,13 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
 
   try {
-    // El contacto se valida contra el workspace: un id ajeno no crea el pedido.
-    if (parsed.data.contactId) {
-      const contact = await prisma.contact.findFirst({
-        where: { id: parsed.data.contactId, workspaceId: user.workspace.id },
-        select: { id: true },
-      });
-      if (!contact) {
-        return NextResponse.json({ message: 'Contacto no encontrado' }, { status: 404 });
-      }
-    }
+    // Contacto y conversacion se validan contra el workspace: un id ajeno no
+    // crea el pedido.
+    const foreign = await rejectForeignRefs(user.workspace.id, {
+      contactId: parsed.data.contactId,
+      conversationId: parsed.data.conversationId,
+    });
+    if (foreign) return foreign;
 
     const order = await createOrder({
       workspaceId: user.workspace.id,

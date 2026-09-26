@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { JobStatus, JobType, type Prisma } from '../../../generated/prisma/client';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 
 /**
  * Cola durable sobre Postgres.
@@ -187,7 +187,7 @@ export async function failJob(job: ClaimedJob, error: unknown) {
 export async function requeueStaleJobs(olderThanMinutes = 10) {
   const threshold = new Date(Date.now() - olderThanMinutes * 60_000);
 
-  const result = await prisma.job.updateMany({
+  const result = await crossTenantPrisma.job.updateMany({
     where: { status: JobStatus.PROCESSING, lockedAt: { lt: threshold } },
     data: { status: JobStatus.PENDING, lockedBy: null, lastError: 'Reencolado: el worker no respondio.' },
   });
@@ -198,10 +198,10 @@ export async function requeueStaleJobs(olderThanMinutes = 10) {
 /** Metricas para el endpoint de salud y la pagina de Ops. */
 export async function queueStats() {
   const [pending, processing, dead, oldest] = await Promise.all([
-    prisma.job.count({ where: { status: JobStatus.PENDING } }),
-    prisma.job.count({ where: { status: JobStatus.PROCESSING } }),
-    prisma.job.count({ where: { status: JobStatus.DEAD } }),
-    prisma.job.findFirst({
+    crossTenantPrisma.job.count({ where: { status: JobStatus.PENDING } }),
+    crossTenantPrisma.job.count({ where: { status: JobStatus.PROCESSING } }),
+    crossTenantPrisma.job.count({ where: { status: JobStatus.DEAD } }),
+    crossTenantPrisma.job.findFirst({
       where: { status: JobStatus.PENDING, runAt: { lte: new Date() } },
       orderBy: { runAt: 'asc' },
       select: { runAt: true },

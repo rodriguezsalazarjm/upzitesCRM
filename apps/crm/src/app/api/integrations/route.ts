@@ -5,6 +5,7 @@ import { getCurrentWorkspaceId } from '@/lib/crm-data';
 import { getIntegrations } from '@/lib/ops-data';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { recordAudit } from '@/lib/domain/audit';
 
 const integrationSchema = z.object({
   provider: z.nativeEnum(IntegrationProvider),
@@ -45,14 +46,12 @@ export async function POST(request: Request) {
     },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      workspaceId,
-      action: 'integration.upserted',
-      entity: 'integration',
-      entityId: integration.id,
-      metadata: { provider: integration.provider, status: integration.status },
-    },
+  await recordAudit({
+    workspaceId,
+    action: 'integration.upserted',
+    entity: 'integration',
+    entityId: integration.id,
+    metadata: { provider: integration.provider, status: integration.status },
   });
 
   return NextResponse.json({ data: integration });
