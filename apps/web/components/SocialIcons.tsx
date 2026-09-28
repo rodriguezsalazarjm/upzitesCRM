@@ -67,11 +67,6 @@ export const JOSE_SOCIALS: SocialLink[] = [
   { type: "behance", url: "https://www.behance.net/josemarodrigu44" },
 ];
 
-export const JILLY_SOCIALS: SocialLink[] = [
-  { type: "linkedin", url: "https://www.linkedin.com/in/jilly-moreno-ba7485a5/" },
-  { type: "instagram", url: "https://www.instagram.com/jillymoreno92igsh=NTJqdzJ5enllNHJs" },
-];
-
 export function SocialLinks({ links, className }: { links: SocialLink[]; className: string }) {
   return (
     <div className={`socials${className ? " " + className : ""}`}>

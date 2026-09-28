@@ -4,7 +4,7 @@ import { TopNav, Footer } from "@/components/Sections";
 import { Eyebrow, Reveal, Sticker, Pill } from "@/components/Atoms";
 import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 import { FeatureCards, type FeatureCard } from "@/components/FeatureCards";
-import { SocialLinks, JOSE_SOCIALS, JILLY_SOCIALS } from "@/components/SocialIcons";
+import { SocialLinks, JOSE_SOCIALS } from "@/components/SocialIcons";
 
 export const metadata = {
   title: "Quiénes somos — UPZITES",
@@ -57,16 +57,6 @@ const JOSE_PHOTOS = [
   "/images/founder-2.webp",
   "/images/founder-3.webp",
   "/images/founder-4.webp",
-];
-const JILLY_PHOTOS = [
-  "/images/jilly-1.webp",
-  "/images/jilly-2.webp",
-  "/images/jilly-3.webp",
-  "/images/jilly-4.webp",
-];
-const ELIO_PHOTOS = [
-  "/images/nosotros/elio-main.webp",
-  "/images/nosotros/elio-2.webp",
 ];
 
 export default function NosotrosPage() {
@@ -286,10 +276,8 @@ export default function NosotrosPage() {
             </Reveal>
             <Reveal delay={120}>
               <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.55, color: "var(--fg-2)", maxWidth: 460, margin: 0 }}>
-                UPZITES se construye desde fuerzas que se complementan: la
-                estructura visual y técnica de José, la energía organizada y
-                social de Jilly, y la mirada audiovisual de Elio. Diseño, ritmo e
-                imagen en un mismo equipo.
+                UPZITES se construye desde la estructura visual y técnica de
+                José: estrategia, diseño y desarrollo en un mismo equipo.
               </p>
             </Reveal>
           </div>
@@ -327,80 +315,6 @@ export default function NosotrosPage() {
               </div>
             </Reveal>
           </div>
-
-          {/* Jilly */}
-          <div className="nos-founder team-member team-member--rev">
-            <div className="nos-founder-photos nos-founder-photos--in">
-              {JILLY_PHOTOS.map((src, i) => (
-                <img key={i} src={src} alt={`Jilly Moreno — foto ${i + 1}`} loading="lazy" />
-              ))}
-            </div>
-            <Reveal delay={120}>
-              <div className="nos-founder-bio">
-                <h3 className="team-name">Jilly Moreno</h3>
-                <p className="qs-bio-role">Administración &amp; Social Media</p>
-                <p className="brand-body">
-                  Mantiene el ritmo interno de UPZITES. Licenciada en Administración
-                  de Empresas con más de 7 años en gestión administrativa, RR.HH.,
-                  operaciones, atención al cliente y remuneraciones.
-                </p>
-                <p className="brand-body" style={{ marginTop: 12 }}>
-                  Es la mezcla de estructura y glamour: organiza procesos, cuida los
-                  detalles y se mantiene al día con los trends de Instagram y TikTok
-                  para que la marca nunca pierda frescura cultural.
-                </p>
-                <div className="intro-tags" style={{ marginTop: 20 }}>
-                  <Pill dot>Administración</Pill>
-                  <Pill dot>RR.HH.</Pill>
-                  <Pill dot>Operaciones</Pill>
-                  <Pill dot>Atención al cliente</Pill>
-                  <Pill dot>Social media</Pill>
-                  <Pill dot>Organización</Pill>
-                </div>
-                <SocialLinks links={JILLY_SOCIALS} className="team-socials" />
-              </div>
-            </Reveal>
-          </div>
-
-          {/* Elio */}
-          <div className="nos-founder team-member">
-            <div className="nos-founder-photos nos-founder-photos--in">
-              {ELIO_PHOTOS.map((src, i) => (
-                <img key={i} src={src} alt={`Elio Rincón — foto ${i + 1}`} loading="lazy" />
-              ))}
-            </div>
-            <Reveal delay={120}>
-              <div className="nos-founder-bio">
-                <p className="elio-label">Audiovisual / Content / Ads</p>
-                <h3 className="team-name">Elio Rincón</h3>
-                <p className="qs-bio-role">Director Audiovisual · Contenido &amp; Producción Visual</p>
-                <p className="brand-body">
-                  Lidera el área audiovisual de UPZITES, transformando ideas, marcas y
-                  servicios en contenido visual que conecta, comunica y genera impacto.
-                </p>
-                <p className="brand-body" style={{ marginTop: 12 }}>
-                  Combina dirección creativa, fotografía, video, edición y producción de
-                  piezas para redes, campañas y anuncios —desde reels de alto rendimiento
-                  hasta fotografía de producto, cobertura de proyectos y creativos
-                  publicitarios— con una mirada dinámica y orientada a resultados.
-                </p>
-                <div className="intro-tags" style={{ marginTop: 20 }}>
-                  <Pill dot>Dirección creativa</Pill>
-                  <Pill dot>Video</Pill>
-                  <Pill dot>Fotografía</Pill>
-                  <Pill dot>Edición</Pill>
-                  <Pill dot>Reels &amp; UGC</Pill>
-                  <Pill dot>Creativos para ads</Pill>
-                </div>
-              </div>
-            </Reveal>
-          </div>
-
-          <Reveal delay={80}>
-            <p className="team-closing">
-              José construye la experiencia. <span className="mark">Jilly mantiene el ritmo</span>. Elio le pone <span className="mark">imagen y movimiento</span>.
-            </p>
-          </Reveal>
         </div>
       </section>
 

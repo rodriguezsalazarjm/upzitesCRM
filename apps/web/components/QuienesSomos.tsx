@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Eyebrow, Reveal } from "./Atoms";
-import { SocialLinks, UPZITES_SOCIALS, JOSE_SOCIALS, JILLY_SOCIALS, type SocialLink } from "./SocialIcons";
+import { SocialLinks, UPZITES_SOCIALS, JOSE_SOCIALS } from "./SocialIcons";
 
 const TRUST = [
   "Estrategia 360°",
@@ -17,10 +17,7 @@ const TRUST = [
 const SLIDES: Record<string, string[]> = {
   "Quién es UPZITES": ["/images/nosotros/santiago.webp", "/images/home-1.webp", "/images/home-2.webp"],
   "José Rodríguez": ["/images/founder-1.webp", "/images/founder-2.webp", "/images/founder-3.webp", "/images/founder-4.webp"],
-  "Jilly Moreno": ["/images/jilly-1.webp", "/images/jilly-2.webp", "/images/jilly-3.webp", "/images/jilly-4.webp"],
-  "Elio Rincón": ["/images/nosotros/elio-main.webp", "/images/nosotros/elio-2.webp"],
 };
-const ELIO_SOCIALS: SocialLink[] = [];
 
 function Slideshow({ images, alt }: { images: string[]; alt: string }) {
   const [i, setI] = useState(0);
@@ -89,24 +86,6 @@ const TEAM = [
     text: "Diseñador y desarrollador de UPZITES. Une diseño gráfico, desarrollo web y pensamiento técnico —con base en ingeniería civil— para crear marcas, interfaces y sitios con estructura, rendimiento y carácter.",
     socials: JOSE_SOCIALS,
   },
-  {
-    kicker: "Equipo",
-    name: "Jilly Moreno",
-    role: "Administración & Social Media",
-    img: "",
-    images: SLIDES["Jilly Moreno"],
-    text: "Licenciada en Administración con +7 años en gestión, RR.HH. y operaciones. Mantiene el ritmo de UPZITES: organiza procesos, cuida los detalles y conecta la marca con los trends de Instagram y TikTok.",
-    socials: JILLY_SOCIALS,
-  },
-  {
-    kicker: "Equipo",
-    name: "Elio Rincón",
-    role: "Director Audiovisual · Contenido & Producción Visual",
-    img: "",
-    images: SLIDES["Elio Rincón"],
-    text: "Lidera el área audiovisual de UPZITES: video, fotografía, edición y creativos para campañas. Transforma ideas y marcas en contenido que conecta, comunica y genera impacto en redes y anuncios.",
-    socials: ELIO_SOCIALS,
-  },
 ];
 
 export function QuienesSomos() {
@@ -143,10 +122,10 @@ export function QuienesSomos() {
           </article>
         </Reveal>
 
-        <div className="qs-cards">
+        <div>
           {TEAM.map((b, i) => (
             <Reveal key={b.name} delay={i * 80} variant="scale">
-              <article className="qs-card">
+              <article className="qs-card qs-feature">
                 <div className="qs-card-img">
                   {b.images ? (
                     <Slideshow images={b.images} alt={b.name} />
