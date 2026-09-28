@@ -61,6 +61,8 @@ export type AccessUser = { id: string; platformRole: PlatformRole };
 export type AccessMembership = {
   role: WorkspaceRole;
   status: MembershipStatus;
+  /** P0-C: limitada por el plan del workspace (downgrade). No da acceso. */
+  planLimitedAt?: Date | null;
   /** null si el workspace ya no existe. */
   workspace: { id: string; name: string; slug: string } | null;
 };
@@ -80,6 +82,7 @@ export type AccessDenyReason =
   | 'NO_ACTIVE_WORKSPACE'
   | 'NOT_A_MEMBER'
   | 'MEMBERSHIP_SUSPENDED'
+  | 'MEMBERSHIP_PLAN_LIMITED'
   | 'WORKSPACE_GONE'
   | 'SUPPORT_SESSION_INVALID';
 
@@ -145,6 +148,9 @@ export function resolveAccess(input: {
   if (!membership) return { ok: false, reason: 'NOT_A_MEMBER' };
   if (!membership.workspace) return { ok: false, reason: 'WORKSPACE_GONE' };
   if (membership.status !== MembershipStatus.ACTIVE) return { ok: false, reason: 'MEMBERSHIP_SUSPENDED' };
+  // Ortogonal al estado: la membership sigue ACTIVE, pero el plan vigente no
+  // tiene cupo para ella. Subir de plan la devuelve sin tocar nada mas.
+  if (membership.planLimitedAt) return { ok: false, reason: 'MEMBERSHIP_PLAN_LIMITED' };
 
   return { ok: true, access: 'MEMBER', role: membership.role, workspace: membership.workspace };
 }
@@ -175,6 +181,7 @@ export type LoginMembership = {
   workspaceId: string;
   role: WorkspaceRole;
   status: MembershipStatus;
+  planLimitedAt?: Date | null;
   createdAt: Date;
 };
 
@@ -190,7 +197,7 @@ export function chooseLoginWorkspace(
   lastActiveWorkspaceId: string | null,
 ): string | null {
   const active = memberships
-    .filter((m) => m.status === MembershipStatus.ACTIVE)
+    .filter((m) => m.status === MembershipStatus.ACTIVE && !m.planLimitedAt)
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   if (active.length === 0) return null;
   if (lastActiveWorkspaceId && active.some((m) => m.workspaceId === lastActiveWorkspaceId)) {

@@ -153,6 +153,14 @@ model WorkspaceMembership {
   /// dar acceso ni contar para `users.max`.
   status      MembershipStatus @default(ACTIVE)
   invitedById String?          @map("invited_by_id")
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
@@ -500,6 +508,10 @@ model AutomationRule {
   description String?
   trigger     AutomationTrigger
   isActive    Boolean           @default(true) @map("is_active")
+  /// P0-C: regla de sistema sembrada desde el catalogo de presets
+  /// (automation/presets.ts). Son internas y acotadas: no cuentan para
+  /// `automations.active.max`. null = regla creada a medida.
+  presetKey   String?           @map("preset_key")
 
   /// Grupo de condiciones validado con Zod: { match: "ALL" | "ANY", rules: [...] }.
   /// Null significa "sin condiciones": la regla corre en cada disparo.
@@ -518,6 +530,14 @@ model AutomationRule {
   dedupeMinutes Int       @default(0) @map("dedupe_minutes")
   lastRunAt     DateTime? @map("last_run_at")
   runCount      Int       @default(0) @map("run_count")
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -854,6 +874,14 @@ model WhatsAppChannel {
   webhookSubscribedAt  DateTime?             @map("webhook_subscribed_at")
   lastHealthCheckAt    DateTime?             @map("last_health_check_at")
   metadata             Json?
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
 
@@ -919,6 +947,14 @@ model ChannelAccount {
   lastErrorCode         String?                  @map("last_error_code")
   lastError             String?                  @map("last_error")
   metadata              Json?
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt             DateTime                 @default(now()) @map("created_at")
   updatedAt             DateTime                 @updatedAt @map("updated_at")
 
@@ -1297,6 +1333,14 @@ model AutomationFlow {
   channelScope  Channel[]            @default([]) @map("channel_scope")
   createdById   String?              @map("created_by")
   updatedById   String?              @map("updated_by")
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt     DateTime             @default(now()) @map("created_at")
   updatedAt     DateTime             @updatedAt @map("updated_at")
 
@@ -1418,6 +1462,14 @@ model AgentDefinition {
   name        String
   purpose     String?
   isActive    Boolean   @default(true) @map("is_active")
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -2017,6 +2069,14 @@ model Journey {
   version     Int       @default(1)
   publishedAt DateTime? @map("published_at")
   pausedAt    DateTime? @map("paused_at")
+  /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
+  /// el recurso existe y conserva su estado, pero el plan vigente no permite
+  /// usarlo (downgrade, vencimiento). Solo lo escribe
+  /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
+  /// estado que decidio el usuario.
+  planLimitedAt     DateTime? @map("plan_limited_at")
+  /// Clave del entitlement que lo limita (p. ej. `channels.max`).
+  planLimitedReason String?   @map("plan_limited_reason")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -4,6 +4,9 @@ import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { prisma } from '@/lib/prisma';
 import { canManageMarketing } from '@/lib/marketing/roles';
+import { assertRequirements } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
+import { journeyRequirements } from '@/lib/entitlements/requirements';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +41,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       { status: 409 },
     );
   }
+
+  // P0-C: journeys son `campaigns` del plan; el disparador y los pasos piden
+  // ademas lo suyo (recuperacion, cotizador, pedidos, canal, email). Se valida
+  // al publicar, antes de que inscriba a nadie.
+  const blocked = await gate(() =>
+    assertRequirements(user.workspace.id, journeyRequirements(journey), 'publicar este seguimiento'),
+  );
+  if (blocked) return blocked;
 
   const brokenEmailStep = journey.steps.find(
     (step) => step.action === 'SEND_EMAIL' && step.template && step.template.status !== 'PUBLISHED',
@@ -83,6 +94,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       status: JourneyStatus.PUBLISHED,
       publishedAt: journey.publishedAt ?? new Date(),
       pausedAt: null,
+      // Publicar con el plan vigente ya validado: no queda marca vieja.
+      planLimitedAt: null,
+      planLimitedReason: null,
     },
   });
 

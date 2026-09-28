@@ -7,6 +7,7 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
+import { assertFeature } from '../entitlements';
 import { cancelByKey, scheduleAction } from '../domain';
 import { getWorkspacePreferenceClient, preferenceCheckoutUrl } from '../mercado-pago';
 import { getValidWorkspaceMercadoPagoToken } from './mercado-pago-connection';
@@ -46,6 +47,10 @@ export async function createOrderCheckout(input: {
   orderId: string;
   actorId?: string | null;
 }) {
+  // P0-C: cobrar un pedido es commerce. Aplica a la ruta, al agente
+  // (createCheckoutLink) y al nodo CREATE_CHECKOUT de los flujos.
+  await assertFeature(input.workspaceId, 'commerce.checkout');
+
   const order = await prisma.customerOrder.findFirst({
     where: { id: input.orderId, workspaceId: input.workspaceId },
     include: { lines: true, contact: { select: { id: true, email: true } } },

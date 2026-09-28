@@ -18,7 +18,7 @@ export async function pickWorkspaceForUser(userId: string) {
       where: { id: userId },
       select: {
         lastActiveWorkspaceId: true,
-        memberships: { select: { workspaceId: true, role: true, status: true, createdAt: true } },
+        memberships: { select: { workspaceId: true, role: true, status: true, planLimitedAt: true, createdAt: true } },
       },
     }),
   );
@@ -43,9 +43,9 @@ export async function switchWorkspace(input: {
 }): Promise<SwitchResult> {
   const membership = await prisma.workspaceMembership.findUnique({
     where: { userId_workspaceId: { userId: input.userId, workspaceId: input.workspaceId } },
-    select: { status: true, workspace: { select: { id: true, name: true, slug: true } } },
+    select: { status: true, planLimitedAt: true, workspace: { select: { id: true, name: true, slug: true } } },
   });
-  if (!membership || membership.status !== MembershipStatus.ACTIVE) return { ok: false, status: 404 };
+  if (!membership || membership.status !== MembershipStatus.ACTIVE || membership.planLimitedAt) return { ok: false, status: 404 };
 
   await prisma.$transaction(async (tx) => {
     if (input.currentSupportSessionId) {

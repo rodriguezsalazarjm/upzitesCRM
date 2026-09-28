@@ -1,6 +1,7 @@
 import { Header } from '@/components/layout/header';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { prisma } from '@/lib/prisma';
 import { canApproveQuotes, pendingApprovals } from '@/lib/quotes/service';
 import { parseIntakeSchema } from '@/lib/quotes/schema';
@@ -78,6 +79,7 @@ export default async function CotizacionesPage() {
         subtitle="Cola de revision: nada se envia al cliente sin aprobacion humana"
       />
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <PlanLockedNotice workspaceId={user.workspace.id} feature="quotes" />
         {published.length === 0 && (
           <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
             No hay servicios cotizables configurados. Sin precios publicados, el CRM deriva la

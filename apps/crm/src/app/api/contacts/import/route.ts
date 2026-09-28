@@ -3,6 +3,8 @@ import { ContactStatus } from '../../../../../generated/prisma/client';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
 import { splitName } from '@/lib/capture';
 import { prisma } from '@/lib/prisma';
+import { getWorkspaceEntitlements, isEntitlementError } from '@/lib/entitlements';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
 
 const statusMap: Record<string, ContactStatus> = {
   lead: ContactStatus.LEAD,
@@ -22,6 +24,15 @@ export async function POST(request: Request) {
 
   const headers = parseCsvLine(headerLine).map((header) => header.trim().toLowerCase());
   let imported = 0;
+  let skipped = 0;
+
+  // P0-C (D3): importar crea contactos y se corta en el limite del plan.
+  // Actualizar los que ya existen sigue permitido; solo se omiten los nuevos
+  // que no caben (lo ya cargado no se pierde).
+  const entitlements = await getWorkspaceEntitlements(workspaceId);
+  if (entitlements.state === 'SUSPENDED') {
+    return NextResponse.json({ message: 'El workspace esta suspendido.', code: 'WORKSPACE_SUSPENDED' }, { status: 423 });
+  }
 
   for (const line of lines) {
     const values = parseCsvLine(line);
@@ -46,40 +57,69 @@ export async function POST(request: Request) {
       : null;
 
     if (email) {
-      await prisma.contact.upsert({
-        where: {
-          workspaceId_email: {
-            workspaceId,
-            email,
-          },
-        },
-        create: {
-          workspaceId,
-          companyId: company?.id,
-          firstName,
-          lastName,
-          email,
-          phone: row.phone || undefined,
-          status: statusMap[row.status] ?? ContactStatus.LEAD,
-          source: row.source || 'Importacion CSV',
-          value: Number(row.value || 0),
-          tags: row.tags ? row.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : ['importado'],
-          lastActivityAt: new Date(),
-        },
-        update: {
-          companyId: company?.id,
-          firstName,
-          lastName,
-          phone: row.phone || undefined,
-          status: statusMap[row.status] ?? undefined,
-          source: row.source || undefined,
-          value: Number(row.value || 0),
-          tags: row.tags ? row.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : undefined,
-          lastActivityAt: new Date(),
-        },
+      const data = {
+        companyId: company?.id,
+        firstName,
+        lastName,
+        phone: row.phone || undefined,
+        value: Number(row.value || 0),
+        lastActivityAt: new Date(),
+      };
+      const exists = await prisma.contact.findUnique({
+        where: { workspaceId_email: { workspaceId, email } },
+        select: { id: true },
       });
+      if (exists) {
+        // Actualizar lo existente siempre se permite, aun sobre el limite.
+        await prisma.contact.update({
+          where: { id: exists.id },
+          data: {
+            ...data,
+            status: statusMap[row.status] ?? undefined,
+            source: row.source || undefined,
+            tags: row.tags ? row.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : undefined,
+          },
+        });
+      } else {
+        // Alta nueva: chequeo final + insercion bajo el lock de `contacts.max`.
+        try {
+          await withEntitlementLock(workspaceId, 'contacts.max', async (tx, guard) => {
+            await guard.assertCanGrow();
+            await tx.contact.upsert({
+              where: { workspaceId_email: { workspaceId, email } },
+              create: {
+                workspaceId,
+                email,
+                ...data,
+                status: statusMap[row.status] ?? ContactStatus.LEAD,
+                source: row.source || 'Importacion CSV',
+                tags: row.tags ? row.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : ['importado'],
+              },
+              update: data,
+            });
+          });
+        } catch (error) {
+          if (isEntitlementError(error) && error.code === 'PLAN_LIMIT') {
+            skipped += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
       imported += 1;
     }
+  }
+
+  if (skipped > 0) {
+    return NextResponse.json(
+      {
+        imported,
+        skipped,
+        code: 'PLAN_LIMIT',
+        message: `Se importaron ${imported}. ${skipped} contactos nuevos no caben en el limite de tu plan (${entitlements.limit('contacts.max')}).`,
+      },
+      { status: 409 },
+    );
   }
 
   return NextResponse.json({ imported });

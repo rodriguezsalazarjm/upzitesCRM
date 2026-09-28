@@ -22,6 +22,8 @@ import { sendCampaignBatch } from '../marketing/campaigns';
 import { advanceEnrollment, processDueEnrollments, scanJourneyEntries } from '../marketing/journeys';
 import { refreshSegmentCount } from '../marketing/segments';
 import { scanWorkspaceHealth } from '../billing/alerts';
+import { reconcileSafely } from '../entitlements/reconcile';
+import { getWorkspaceEntitlements } from '../entitlements';
 import { pruneRateLimitWindows } from '../ops/rate-limit';
 import { ageStaleScores, expireOverdueQuotes } from '../ops/maintenance';
 import { enqueue } from './queue';
@@ -210,6 +212,12 @@ const handlers: Record<JobType, JobHandler> = {
       return { skipped: true, reason: 'sin conexion Shopify activa' };
     }
 
+    // P0-C: defensa en runtime. Tras un downgrade la conexion se conserva (no
+    // se desconecta ni se borran credenciales), pero no sincroniza.
+    if (!(await getWorkspaceEntitlements(workspaceId)).can('integrations.shopify')) {
+      return { skipped: true, reason: 'el plan no incluye Shopify' };
+    }
+
     return syncShopifyCatalog({
       workspaceId,
       connectionId: connection.id,
@@ -297,6 +305,11 @@ const handlers: Record<JobType, JobHandler> = {
     let resolved = 0;
 
     for (const workspace of workspaces) {
+      // P0-C: el vencimiento (trial, COMP, fin de gracia) se deriva por fecha y
+      // no emite evento. El barrido reconcilia los recursos con el plan
+      // vigente; es idempotente, asi que correrlo en cada pasada no cambia nada
+      // si el plan no cambio.
+      await reconcileSafely(workspace.id);
       const result = await scanWorkspaceHealth(workspace.id);
       raised += result.raised;
       resolved += result.resolved;

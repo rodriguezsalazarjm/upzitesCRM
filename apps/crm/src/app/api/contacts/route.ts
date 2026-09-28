@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ContactStatus } from '../../../../generated/prisma/client';
 import { getContacts, getCurrentWorkspaceId } from '@/lib/crm-data';
-import { checkAllowance } from '@/lib/billing/usage';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
+import { gate } from '@/lib/entitlements/http';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 
@@ -36,52 +37,38 @@ export async function POST(request: Request) {
   const input = parsed.data;
   const workspaceId = await getCurrentWorkspaceId();
 
-  // Fase 9: el plan tiene un cupo de contactos. Se comprueba al crear y no al
-  // importar un CSV completo porque la importacion pasa por aqui contacto a
-  // contacto: asi el corte es exacto y lo ya cargado no se pierde.
-  const quota = await checkAllowance({ workspaceId, metric: 'contacts' });
-
-  if (!quota.allowed) {
-    return NextResponse.json(
-      {
-        message: `Tu plan incluye ${quota.limit} contactos y ya tienes ${quota.used}.`,
-        code: 'PLAN_LIMIT',
-      },
-      { status: 409 },
-    );
-  }
-
-  const company = input.company
-    ? await prisma.company.upsert({
-        where: {
-          workspaceId_name: {
-            workspaceId,
-            name: input.company,
-          },
-        },
-        create: {
+  // P0-C (D3): crear aumenta el uso y se bloquea en el limite. Ver, editar y
+  // borrar siguen permitidos aunque un downgrade deje el uso por encima. El
+  // chequeo y la insercion van bajo el lock de `contacts.max`.
+  let contact!: Awaited<ReturnType<typeof prisma.contact.create>>;
+  const blocked = await gate(() =>
+    withEntitlementLock(workspaceId, 'contacts.max', async (tx, guard) => {
+      await guard.assertCanGrow();
+      const company = input.company
+        ? await tx.company.upsert({
+            where: { workspaceId_name: { workspaceId, name: input.company } },
+            create: { workspaceId, name: input.company },
+            update: {},
+          })
+        : null;
+      contact = await tx.contact.create({
+        data: {
           workspaceId,
-          name: input.company,
+          companyId: company?.id,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email,
+          phone: input.phone,
+          status: statusMap[input.status],
+          source: input.source,
+          value: input.value,
+          tags: input.tags,
+          lastActivityAt: new Date(),
         },
-        update: {},
-      })
-    : null;
-
-  const contact = await prisma.contact.create({
-    data: {
-      workspaceId,
-      companyId: company?.id,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      status: statusMap[input.status],
-      source: input.source,
-      value: input.value,
-      tags: input.tags,
-      lastActivityAt: new Date(),
-    },
-  });
+      });
+    }),
+  );
+  if (blocked) return blocked;
 
   return NextResponse.json({ data: contact }, { status: 201 });
 }

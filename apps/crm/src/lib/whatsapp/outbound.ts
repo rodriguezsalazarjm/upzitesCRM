@@ -339,7 +339,7 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
 
       const channel = await prisma.whatsAppChannel.findFirst({
         where: { id: prepared.channelId, workspaceId: event.workspaceId ?? undefined },
-        select: { id: true, workspaceId: true, phoneNumberId: true, accessTokenEncrypted: true },
+        select: { id: true, workspaceId: true, phoneNumberId: true, accessTokenEncrypted: true, planLimitedAt: true },
       });
       if (!channel) {
         await markFailed(event.id, payload.messageId, 'El canal de WhatsApp ya no existe.');
@@ -351,6 +351,16 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
       // sale despues: se marca fallido en vez de esperar, para que renovar no
       // dispare de golpe mensajes que ya perdieron su momento. Sin push por
       // mensaje: el vencimiento ya se avisa por su cuenta.
+      // P0-C: canal limitado por el plan. No se envia; como con el vencimiento,
+      // se marca fallido para que liberar el canal no dispare mensajes viejos.
+      if (channel.planLimitedAt) {
+        await prisma.$transaction((tx) =>
+          markFailedWithClient(tx, event.id, payload.messageId, 'El canal está limitado por el plan del workspace.', 'PLAN_LIMITED'),
+        );
+        result.failed += 1;
+        continue;
+      }
+
       if (!(await canWorkspaceConsume(channel.workspaceId))) {
         await prisma.$transaction((tx) =>
           markFailedWithClient(

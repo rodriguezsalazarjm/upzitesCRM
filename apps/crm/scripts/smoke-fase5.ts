@@ -15,6 +15,7 @@
  *   pnpm exec tsx scripts/smoke-fase5.ts
  */
 import './fixtures/test-environment';
+import { scalePlanForTests } from './fixtures/workspace';
 import {
   DeliveryStatus,
   OrderStatus,
@@ -57,6 +58,8 @@ async function makeWorkspace(key: string) {
     email: `fase5-${key}-${stamp}@upzites.test`,
     password: 'Fase5#Test1234',
   });
+  // P0-C: commerce (pedidos, productos, checkout) es del plan PRO+.
+  await scalePlanForTests(workspace.id);
   return { workspaceId: workspace.id, userId: user.id };
 }
 
@@ -364,13 +367,14 @@ let paidContactId = '';
   check('La recuperacion de checkout se cancela', pendingRecovery === 0);
 
   // Lo que la Fase 0 marco como riesgo: esto NO debe tocar la suscripcion.
-  // P0-B: el registro nace en FREE; comprar un producto debe dejarlo igual.
+  // P0-C: la suite corre en SCALE + COMP (commerce es PRO+); comprar un
+  // producto debe dejar la suscripcion exactamente como la asigno la suite.
   const subscription = await prisma.workspaceSubscription.findFirstOrThrow({
     where: { workspaceId: A.workspaceId },
   });
   const resolved = await resolveSubscription(A.workspaceId);
   check('Comprar un producto NO activa la suscripcion del CRM',
-    resolved.state === 'FREE' && resolved.billingSource === 'FREE', `state=${resolved.state}`);
+    resolved.state === 'ACTIVE' && resolved.billingSource === 'COMP' && resolved.configuredPlan === 'SCALE', `state=${resolved.state}`);
   check('Ni le asigna el pago del producto', subscription.mpPaymentId === null);
   check('Ni crea un pago SaaS', (await prisma.subscriptionPayment.count({ where: { workspaceId: A.workspaceId } })) === 0);
 }

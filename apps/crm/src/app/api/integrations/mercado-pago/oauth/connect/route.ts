@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { requireCurrentUser } from '@/lib/auth';
 import { isEncryptionConfigured } from '@/lib/crypto';
 import { recordAudit } from '@/lib/domain/audit';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 import { buildMercadoPagoAuthorizationUrl, canManageMercadoPago, getPlatformOAuthConfig } from '@/lib/mercado-pago';
 import { createMercadoPagoOAuthState } from '@/lib/commerce/mercado-pago-oauth-state';
 
@@ -33,6 +35,10 @@ export async function GET() {
       { status: 403 },
     );
   }
+
+  // P0-C: antes de mandar al vendedor a autorizar, el plan tiene que incluirlo.
+  const blocked = await gate(() => assertFeature(user.workspace.id, 'integrations.mercadoPago'));
+  if (blocked) return blocked;
 
   const config = getPlatformOAuthConfig();
   if (!config) {

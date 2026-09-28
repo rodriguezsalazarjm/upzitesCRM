@@ -78,6 +78,8 @@ export async function enroll(input: EnrollInput): Promise<EnrollResult> {
 
   if (!journey) return { enrolled: false, reason: 'NOT_FOUND' };
   if (journey.status !== JourneyStatus.PUBLISHED) return { enrolled: false, reason: 'NOT_PUBLISHED' };
+  // P0-C: publicado pero limitado por el plan (downgrade): no inscribe.
+  if (journey.planLimitedAt) return { enrolled: false, reason: 'PLAN_LIMITED' };
   if (journey.steps.length === 0) return { enrolled: false, reason: 'NO_STEPS' };
 
   const contact = await prisma.contact.findFirst({
@@ -409,14 +411,15 @@ export async function advanceEnrollment(enrollmentId: string, now = new Date()):
     return { enrollmentId, outcome: 'NOT_ACTIVE', detail: 'workspace sin activar' };
   }
 
-  if (journey.status !== JourneyStatus.PUBLISHED) {
-    // Un journey pausado no escribe, pero la inscripcion no se pierde: vuelve a
+  if (journey.status !== JourneyStatus.PUBLISHED || journey.planLimitedAt) {
+    // Un journey pausado (o limitado por el plan, P0-C) no escribe, pero la
+    // inscripcion no se pierde: vuelve a
     // mirarse en una hora y sigue donde estaba cuando lo reactiven.
     await prisma.journeyEnrollment.update({
       where: { id: enrollment.id },
       data: { nextRunAt: new Date(now.getTime() + 3_600_000) },
     });
-    return { enrollmentId, outcome: 'NOT_ACTIVE', detail: journey.status };
+    return { enrollmentId, outcome: 'NOT_ACTIVE', detail: journey.planLimitedAt ? 'PLAN_LIMITED' : journey.status };
   }
 
   const exitReason = await hardExitReason(enrollment, now);
@@ -560,7 +563,7 @@ const TRIGGER_AUDIENCE: Record<JourneyTrigger, SegmentDefinition | null> = {
  */
 export async function scanJourneyEntries(limit = 200, now = new Date()) {
   const journeys = await crossTenantPrisma.journey.findMany({
-    where: { status: JourneyStatus.PUBLISHED, trigger: { not: JourneyTrigger.MANUAL } },
+    where: { status: JourneyStatus.PUBLISHED, planLimitedAt: null, trigger: { not: JourneyTrigger.MANUAL } },
     select: { id: true, workspaceId: true, trigger: true, segmentId: true },
   });
 

@@ -10,6 +10,7 @@ import {
 import { readSessionToken, SESSION_COOKIE } from './lib/session-token';
 import { isMutationMethod } from './lib/workspace-access';
 import { checkWriteAccess, writeDeniedMessage } from './lib/workspace-context';
+import { isWorkspaceSuspended } from './lib/billing/subscription-access';
 
 /**
  * Punto unico por el que pasan todos los requests (P0-FOUNDATION).
@@ -31,6 +32,29 @@ import { checkWriteAccess, writeDeniedMessage } from './lib/workspace-context';
 /** Siempre permitidas, aun en soporte READ_ONLY o con otra pestana desfasada. */
 const SESSION_CONTROL_PATHS = ['/api/auth/', '/api/workspaces/switch', '/api/platform/support-sessions'];
 
+/**
+ * P0-C (D5): con el workspace SUSPENDED solo queda lo minimo: sesion, cambio
+ * de negocio, soporte, estado del sistema y lo que no es del workspace
+ * (webhooks, workers, captura publica, baja de emails).
+ */
+const SUSPENDED_ALLOWED_PATHS = [
+  '/api/auth/',
+  '/api/workspaces/',
+  '/api/platform/',
+  '/api/system/',
+  '/api/webhooks/',
+  '/api/internal/',
+  '/api/billing/webhook',
+  '/api/capture/',
+  '/api/email/unsubscribe',
+];
+
+function isAllowedWhileSuspended(path: string) {
+  return SUSPENDED_ALLOWED_PATHS.some((prefix) =>
+    prefix.endsWith('/') ? path.startsWith(prefix) : path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
 function isSessionControl(path: string) {
   return SESSION_CONTROL_PATHS.some((prefix) => path === prefix || path.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`));
 }
@@ -48,6 +72,22 @@ export async function proxy(request: NextRequest) {
   forwarded.set(REQUEST_ID_HEADER, requestId);
   // Sale de la cookie firmada, no del cliente: enlaza la auditoria de negocio.
   if (session?.supportSessionId) forwarded.set(SUPPORT_SESSION_HEADER, session.supportSessionId);
+
+  // D5: bloqueo total de la API del workspace suspendido, lecturas incluidas.
+  // Es server-side: la pantalla de suspension del layout es solo la UX. El
+  // soporte de plataforma no pasa por aqui (tiene su propia sesion auditada).
+  if (
+    session?.activeWorkspaceId &&
+    !session.supportSessionId &&
+    path.startsWith('/api/') &&
+    !isAllowedWhileSuspended(path) &&
+    (await isWorkspaceSuspended(session.activeWorkspaceId))
+  ) {
+    return NextResponse.json(
+      { code: 'WORKSPACE_SUSPENDED', message: 'El workspace está suspendido. Contacta a Upzites para reactivarlo.' },
+      { status: 423 },
+    );
+  }
 
   if (session && path.startsWith('/api/') && isMutationMethod(method) && !isSessionControl(path)) {
     const claimed = request.headers.get(WORKSPACE_HEADER);

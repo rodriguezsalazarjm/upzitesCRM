@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { JobType } from '../../../../../../generated/prisma/client';
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageChannels } from '@/lib/conversations';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 import { enqueue } from '@/lib/jobs/queue';
 import { getShopifyConnection } from '@/lib/shopify/sync';
 
@@ -17,6 +19,10 @@ export async function POST() {
   if (!canManageChannels(user.role)) {
     return NextResponse.json({ message: 'Solo el owner o un admin puede sincronizar.' }, { status: 403 });
   }
+
+  // P0-C: tras un downgrade la conexion se conserva, pero no sincroniza.
+  const blocked = await gate(() => assertFeature(user.workspace.id, 'integrations.shopify'));
+  if (blocked) return blocked;
 
   const connection = await getShopifyConnection(user.workspace.id);
   if (!connection || connection.status !== 'CONNECTED') {

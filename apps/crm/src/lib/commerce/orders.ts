@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { assertFeature } from '../entitlements';
 import { recordAudit } from '../domain/audit';
 
 /**
@@ -37,6 +38,10 @@ export type CreateOrderInput = {
 };
 
 export async function createOrder(input: CreateOrderInput) {
+  // P0-C: pedidos es commerce. Gate en la libreria, no solo en la ruta: lo
+  // llaman tambien el agente y las automatizaciones.
+  await assertFeature(input.workspaceId, 'commerce.orders');
+
   if (input.items.length === 0) {
     throw new OrderError('El pedido no tiene lineas.', 'EMPTY');
   }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { canManageChannels } from '@/lib/conversations';
 import { prisma } from '@/lib/prisma';
 import { KnowledgeManager } from '@/components/agents/knowledge-manager';
@@ -17,6 +18,9 @@ export default async function Page() {
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="IA · Conocimiento" subtitle="Fuentes estructuradas de este negocio" />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <div className="mb-4 space-y-3 empty:hidden">
+          <PlanLockedNotice workspaceId={user.workspace.id} feature="ai" />
+        </div>
         <p className="mb-1 text-sm text-soft">
           Los precios y servicios se consultan desde sus catálogos actuales.
         </p>

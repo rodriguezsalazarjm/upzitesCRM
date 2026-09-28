@@ -9,6 +9,7 @@ import { recordAudit } from '../domain/audit';
 import { prisma } from '../prisma';
 import { ensurePlanCatalog } from './plan-catalog';
 import { addInterval, getCurrentPrice } from './price-book';
+import { reconcileSafely } from '../entitlements/reconcile';
 import { resolveSubscription } from './subscription-access';
 import { GRACE_PERIOD_DAYS } from './subscription-state';
 
@@ -203,6 +204,17 @@ async function runOnce(
 // --- Operaciones -------------------------------------------------------------
 
 /**
+ * Estado final de una operacion: primero se reconcilian los recursos con el
+ * plan vigente (P0-C: upgrade libera, downgrade limita; nunca borra) y luego
+ * se devuelve el snapshot. Una falla de reconciliacion no revierte la
+ * operacion de billing: la repara el barrido periodico.
+ */
+async function settled(workspaceId: string) {
+  await reconcileSafely(workspaceId);
+  return resolveSubscription(workspaceId);
+}
+
+/**
  * Cambia el plan conservando el medio de pago y el periodo en curso. El precio
  * acordado se actualiza al del Price Book del plan nuevo. Pasar a FREE deja
  * medio FREE y sin vencimiento.
@@ -241,7 +253,7 @@ export async function assignPlan(
       priceId: price?.id ?? null,
     });
   });
-  return resolveSubscription(input.workspaceId);
+  return settled(input.workspaceId);
 }
 
 export type ManualPaymentInput = {
@@ -322,7 +334,7 @@ export async function activateManualSubscription(input: ManualPaymentInput) {
       });
     }),
   );
-  return { ...(await resolveSubscription(input.workspaceId)), alreadyProcessed };
+  return { ...(await settled(input.workspaceId)), alreadyProcessed };
 }
 
 /** Registra otro periodo pagado del plan configurado (MANUAL). */
@@ -405,7 +417,7 @@ export async function renewManualSubscription(
       });
     }),
   );
-  return { ...(await resolveSubscription(input.workspaceId)), alreadyProcessed };
+  return { ...(await settled(input.workspaceId)), alreadyProcessed };
 }
 
 /** Cortesia (negocios propios, QA, acuerdos). Sin fecha de fin = no vence. */
@@ -436,7 +448,7 @@ export async function assignCompSubscription(
       periodEnd: input.periodEnd?.toISOString() ?? null,
     });
   });
-  return resolveSubscription(input.workspaceId);
+  return settled(input.workspaceId);
 }
 
 /** Prueba explicita de un plan (campanas, promociones). Nunca automatica. */
@@ -473,7 +485,7 @@ export async function startTrial(
       periodEnd: periodEnd.toISOString(),
     });
   });
-  return resolveSubscription(input.workspaceId);
+  return settled(input.workspaceId);
 }
 
 /** Suspension administrativa: bloquea acceso y consumo, no baja el plan. */
@@ -493,7 +505,7 @@ export async function suspendSubscription(input: { workspaceId: string } & Admin
       throw new SubscriptionAdminError('NO_SUBSCRIPTION', 'El workspace no tiene suscripcion.');
     await audit(tx, input.workspaceId, 'subscription.suspended', input, {});
   });
-  return resolveSubscription(input.workspaceId);
+  return settled(input.workspaceId);
 }
 
 export async function resumeSubscription(input: { workspaceId: string } & AdminActor) {
@@ -506,7 +518,7 @@ export async function resumeSubscription(input: { workspaceId: string } & AdminA
       throw new SubscriptionAdminError('NOT_SUSPENDED', 'La suscripcion no esta suspendida.');
     await audit(tx, input.workspaceId, 'subscription.resumed', input, {});
   });
-  return resolveSubscription(input.workspaceId);
+  return settled(input.workspaceId);
 }
 
 /**
@@ -617,5 +629,6 @@ export async function recordSaasPayment(input: {
     if (await byExternalId()) return { alreadyProcessed: true };
     throw error;
   });
+  if (!outcome.alreadyProcessed) await reconcileSafely(input.workspaceId);
   return outcome;
 }

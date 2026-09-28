@@ -74,6 +74,7 @@ const MONTHLY_PLAN_TERMS = {
     whatsapp_numbers: 1,
     conversations: 500,
     ai_cost_clp: 20000,
+    ai_credits: 0,
     emails: 2000,
     campaign_contacts: 1000,
   },
@@ -300,6 +301,8 @@ export async function createCustomerWorkspace(input: {
       await tx.automationRule.create({
         data: {
           workspaceId: workspace.id,
+          // Regla de sistema: interna, no ocupa `automations.active.max` (P0-C).
+          presetKey: preset.key,
           name: preset.name,
           description: preset.description,
           trigger: preset.trigger,

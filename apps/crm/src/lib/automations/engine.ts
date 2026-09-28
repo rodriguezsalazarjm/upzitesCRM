@@ -14,6 +14,8 @@ import type { ModelProvider } from '../agents/provider';
 import { getPolicy, nextAllowedInstant } from '../marketing/policy';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { sendChannelMessage } from '../channels/outbound';
+import { getWorkspaceEntitlements } from '../entitlements';
+import { flowRequirements, missingFeatures } from '../entitlements/requirements';
 import { evaluateCondition, type ConditionContext } from './conditions';
 import {
   flowGraphSchema,
@@ -77,7 +79,7 @@ export type StartFlowRunInput = {
 
 export type StartFlowRunResult =
   | { started: true; runId: string }
-  | { started: false; reason: 'VERSION_NOT_PUBLISHED' | 'MAX_DEPTH_EXCEEDED' }
+  | { started: false; reason: 'VERSION_NOT_PUBLISHED' | 'MAX_DEPTH_EXCEEDED' | 'PLAN_LIMITED' }
   | { started: false; reason: 'ALREADY_STARTED'; runId?: string };
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -93,8 +95,22 @@ function isUniqueConstraintError(error: unknown): boolean {
 export async function startFlowRun(input: StartFlowRunInput): Promise<StartFlowRunResult> {
   const version = await prisma.automationFlowVersion.findFirst({
     where: { id: input.flowVersionId, flowId: input.flowId, status: AutomationFlowStatus.PUBLISHED, flow: { workspaceId: input.workspaceId } },
+    include: { flow: { select: { planLimitedAt: true } } },
   });
   if (!version) return { started: false, reason: 'VERSION_NOT_PUBLISHED' };
+
+  // P0-C, defensa en runtime: la publicacion ya valida el plan, pero el plan
+  // pudo bajar (vencimiento derivado por fecha) antes de que corra la
+  // reconciliacion. Un flujo limitado o que pide algo que el plan ya no
+  // incluye no arranca; no se borra ni se despublica.
+  if (version.flow.planLimitedAt) return { started: false, reason: 'PLAN_LIMITED' };
+  const runtimeGraph = flowGraphSchema.safeParse({ trigger: version.trigger, nodes: version.nodes, edges: version.edges });
+  if (runtimeGraph.success) {
+    const entitlements = await getWorkspaceEntitlements(input.workspaceId);
+    if (missingFeatures(entitlements.values, flowRequirements(runtimeGraph.data)).length > 0) {
+      return { started: false, reason: 'PLAN_LIMITED' };
+    }
+  }
 
   if ((input.depth ?? 0) > MAX_FLOW_DEPTH) {
     return { started: false, reason: 'MAX_DEPTH_EXCEEDED' };
@@ -388,7 +404,7 @@ async function executeNode(node: FlowNode, ctx: NodeExecutionContext): Promise<N
 
     case 'START_AUTOMATION': {
       const target = await prisma.automationFlow.findFirst({
-        where: { workspaceId: ctx.workspaceId, id: node.flowKey, status: AutomationFlowStatus.PUBLISHED },
+        where: { workspaceId: ctx.workspaceId, id: node.flowKey, status: AutomationFlowStatus.PUBLISHED, planLimitedAt: null },
         include: { versions: { where: { status: AutomationFlowStatus.PUBLISHED }, take: 1 } },
       });
       const targetVersion = target?.versions[0];

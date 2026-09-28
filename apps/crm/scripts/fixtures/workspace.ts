@@ -61,3 +61,15 @@ export async function legacyTrialForTests(workspaceId: string) {
     update: data,
   });
 }
+
+/**
+ * P0-C: pedidos, productos, checkout y Shopify son funciones del plan (PRO+).
+ * Las suites que prueban commerce sobre un workspace recien registrado (FREE)
+ * declaran aqui el plan que necesitan, igual que lo haria un negocio propio
+ * (SCALE + COMP, como 5 Minutos con Dios). No toca el ledger SaaS.
+ */
+export async function scalePlanForTests(workspaceId: string) {
+  const { assignCompSubscription } = await import('../../src/lib/billing/subscription-admin');
+  const { PlanCode } = await import('../../generated/prisma/client');
+  await assignCompSubscription({ workspaceId, planCode: PlanCode.SCALE, via: 'cli', reason: 'suite de pruebas' });
+}

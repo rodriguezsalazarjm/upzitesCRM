@@ -102,8 +102,16 @@ export type ClaimedJob = {
  * `SKIP LOCKED` hace que dos workers concurrentes tomen conjuntos distintos en
  * vez de bloquearse o pisarse. Es la pieza que permite escalar a varios
  * consumidores sin coordinacion externa.
+ *
+ * `scope.workspaceId` acota la toma a un workspace (worker dedicado, o una
+ * prueba que no debe tocar trabajos ajenos de la cola compartida).
  */
-export async function claimJobs(limit = 10, workerId = randomUUID()): Promise<ClaimedJob[]> {
+export async function claimJobs(
+  limit = 10,
+  workerId = randomUUID(),
+  scope: { workspaceId?: string } = {},
+): Promise<ClaimedJob[]> {
+  const workspaceId = scope.workspaceId ?? null;
   // Prisma guarda DateTime como timestamp UTC sin zona; now() es timestamptz.
   // La conversion explicita evita desplazar vencimientos por la zona del servidor.
   const rows = await prisma.$queryRaw<
@@ -112,6 +120,7 @@ export async function claimJobs(limit = 10, workerId = randomUUID()): Promise<Cl
     WITH claimed AS (
       SELECT id FROM jobs
       WHERE status = 'PENDING' AND run_at <= (now() AT TIME ZONE 'UTC')
+        AND (${workspaceId}::text IS NULL OR workspace_id = ${workspaceId})
       ORDER BY priority ASC, run_at ASC
       FOR UPDATE SKIP LOCKED
       LIMIT ${limit}

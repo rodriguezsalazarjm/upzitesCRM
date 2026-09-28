@@ -7,6 +7,8 @@ import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 import { listCatalog } from '@/lib/commerce/orders';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +83,10 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+
+  // P0-C: crear productos es commerce. Ver el catalogo sigue permitido.
+  const blocked = await gate(() => assertFeature(user.workspace.id, 'commerce.products'));
+  if (blocked) return blocked;
 
   const parsed = await parseBody(request, createSchema);
   if (!parsed.ok) return parsed.response;

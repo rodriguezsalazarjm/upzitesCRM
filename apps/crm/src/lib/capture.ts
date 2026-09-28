@@ -1,5 +1,6 @@
 import { ContactStatus, WebEventType } from '../../generated/prisma/client';
 import { prisma } from './prisma';
+import { noteInboundContact } from './entitlements/inbound';
 
 export const webEventTypeMap = {
   page_view: WebEventType.PAGE_VIEW,
@@ -45,6 +46,18 @@ export async function upsertLeadContact(input: {
   utmCampaign?: string | null;
 }) {
   const { firstName, lastName } = splitName(input.name);
+
+  // P0-C: un lead entrante real NUNCA se pierde por `contacts.max`. Se crea
+  // aunque el uso quede sobre el limite y se audita
+  // (`contacts.inbound_over_limit`); lo que se bloquea son las altas
+  // proactivas del negocio (crear a mano, importar).
+  const existing = input.email
+    ? await prisma.contact.findUnique({
+        where: { workspaceId_email: { workspaceId: input.workspaceId, email: input.email } },
+        select: { id: true },
+      })
+    : null;
+
   const company = input.company
     ? await prisma.company.upsert({
         where: {
@@ -61,8 +74,9 @@ export async function upsertLeadContact(input: {
       })
     : null;
 
+  let contact;
   if (input.email) {
-    return prisma.contact.upsert({
+    contact = await prisma.contact.upsert({
       where: {
         workspaceId_email: {
           workspaceId: input.workspaceId,
@@ -96,24 +110,27 @@ export async function upsertLeadContact(input: {
         lastActivityAt: new Date(),
       },
     });
+  } else {
+    contact = await prisma.contact.create({
+      data: {
+        workspaceId: input.workspaceId,
+        companyId: company?.id,
+        firstName,
+        lastName,
+        phone: input.phone,
+        status: ContactStatus.LEAD,
+        source: input.source,
+        utmSource: input.utmSource,
+        utmMedium: input.utmMedium,
+        utmCampaign: input.utmCampaign,
+        tags: ['web'],
+        lastActivityAt: new Date(),
+      },
+    });
   }
 
-  return prisma.contact.create({
-    data: {
-      workspaceId: input.workspaceId,
-      companyId: company?.id,
-      firstName,
-      lastName,
-      phone: input.phone,
-      status: ContactStatus.LEAD,
-      source: input.source,
-      utmSource: input.utmSource,
-      utmMedium: input.utmMedium,
-      utmCampaign: input.utmCampaign,
-      tags: ['web'],
-      lastActivityAt: new Date(),
-    },
-  });
+  if (!existing) await noteInboundContact({ workspaceId: input.workspaceId, contactId: contact.id, source: 'FORM' });
+  return contact;
 }
 
 export function publicCorsHeaders() {

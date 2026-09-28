@@ -50,6 +50,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
   const utmMedium = String(data.utmMedium ?? '');
   const utmCampaign = String(data.utmCampaign ?? '');
 
+  // P0-C: un lead real nunca se pierde por el limite de contactos (se audita
+  // si queda sobre el limite, ver noteInboundContact).
   const contact = await upsertLeadContact({
     workspaceId: form.workspaceId,
     name,

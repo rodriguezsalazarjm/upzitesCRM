@@ -31,6 +31,15 @@ export async function resolveSubscription(
 /** @deprecated Nombre de P0-A; usar `resolveSubscription`. */
 export const getSubscriptionState = resolveSubscription;
 
+/**
+ * Lectura minima para el proxy (D5): la suspension administrativa manda sobre
+ * todo en `resolveLifecycle`, asi que basta `suspendedAt`.
+ */
+export async function isWorkspaceSuspended(workspaceId: string, db: Db = prisma) {
+  const row = await db.workspaceSubscription.findUnique({ where: { workspaceId }, select: { suspendedAt: true } });
+  return Boolean(row?.suspendedAt);
+}
+
 export class SubscriptionInactiveError extends Error {
   constructor(readonly state: SubscriptionState) {
     super('La suscripcion del workspace no permite consumir servicios pagados.');

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { requireCurrentUser } from '@/lib/auth';
-import { hasCapability } from '@/lib/billing/usage';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 import { canManageChannels } from '@/lib/conversations';
 import { recordAudit } from '@/lib/domain/audit';
 import { isEncryptionConfigured } from '@/lib/crypto';
@@ -33,12 +34,8 @@ export async function GET(request: Request) {
   // Fase 9: Shopify es una capacidad del plan. Se comprueba ANTES de iniciar el
   // OAuth: mandar al cliente a autorizar una app que despues no va a poder usar
   // es peor que decirselo aqui.
-  if (!(await hasCapability(user.workspace.id, 'SHOPIFY'))) {
-    return NextResponse.json(
-      { message: 'Tu plan no incluye la integracion con Shopify.', code: 'PLAN_LIMIT' },
-      { status: 403 },
-    );
-  }
+  const blocked = await gate(() => assertFeature(user.workspace.id, 'integrations.shopify'));
+  if (blocked) return blocked;
 
   const config = getShopifyConfig();
   if (!config) {

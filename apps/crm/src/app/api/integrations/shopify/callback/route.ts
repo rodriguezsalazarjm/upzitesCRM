@@ -8,6 +8,8 @@ import {
 import { encryptSecret } from '@/lib/crypto';
 import { recordAudit } from '@/lib/domain/audit';
 import { prisma } from '@/lib/prisma';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 import {
   exchangeCodeForToken,
   getShopifyConfig,
@@ -70,6 +72,10 @@ export async function GET(request: Request) {
   if (!code) {
     return NextResponse.json({ message: 'Falta el code' }, { status: 400 });
   }
+
+  // P0-C: el plan pudo cambiar durante el OAuth. Se decide antes del canje.
+  const blocked = await gate(() => assertFeature(stateCheck.payload.workspaceId, 'integrations.shopify'));
+  if (blocked) return blocked;
 
   const exchange = await exchangeCodeForToken({ shop, code, config });
   if (!exchange.ok) {

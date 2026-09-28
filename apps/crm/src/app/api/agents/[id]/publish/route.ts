@@ -5,6 +5,9 @@ import { requireCurrentUser } from '@/lib/auth';
 import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { assertFeature } from '@/lib/entitlements';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
+import { gate } from '@/lib/entitlements/http';
 
 const publishSchema = z.object({ versionId: z.string().min(1) });
 
@@ -43,16 +46,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ data: { alreadyPublished: true } });
   }
 
-  await prisma.$transaction([
-    prisma.agentVersion.updateMany({
-      where: { agentDefinitionId: id, status: AgentVersionStatus.PUBLISHED },
-      data: { status: AgentVersionStatus.ARCHIVED },
+  // P0-C: publicar un agente exige IA en el plan. Si el agente todavia no
+  // estaba en vivo, ademas ocupa un lugar de `agents.max`; publicar una
+  // version nueva de uno que ya atiende no suma. Conteo y publicacion van bajo
+  // el lock del limite: dos publicaciones simultaneas no superan el cupo.
+  const blocked = await gate(() =>
+    withEntitlementLock(user.workspace.id, 'agents.max', async (tx, guard) => {
+      await assertFeature(user.workspace.id, 'agents', tx);
+      const live = await tx.agentVersion.count({
+        where: { agentDefinitionId: id, status: AgentVersionStatus.PUBLISHED, definition: { workspaceId: user.workspace.id, isActive: true } },
+      });
+      if (live === 0) await guard.assertCanGrow();
+      await tx.agentVersion.updateMany({
+        where: { agentDefinitionId: id, status: AgentVersionStatus.PUBLISHED },
+        data: { status: AgentVersionStatus.ARCHIVED },
+      });
+      await tx.agentVersion.update({
+        where: { id: version.id },
+        data: { status: AgentVersionStatus.PUBLISHED, publishedAt: new Date() },
+      });
     }),
-    prisma.agentVersion.update({
-      where: { id: version.id },
-      data: { status: AgentVersionStatus.PUBLISHED, publishedAt: new Date() },
-    }),
-  ]);
+  );
+  if (blocked) return blocked;
 
   await recordAudit({
     workspaceId: user.workspace.id,

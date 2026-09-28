@@ -5,8 +5,46 @@ import { isActiveMember } from '../membership';
 import { flowGraphSchema, validateFlowGraph, type FlowGraph } from './schema';
 import { graphCapabilities, missingCapabilities } from './catalog';
 import { ALL_TOOL_NAMES } from '../agents/tools';
+import { assertCanGrow, EntitlementError, getWorkspaceEntitlements, isEntitlementError, type Db } from '../entitlements';
+import { lockEntitlement } from '../entitlements/lock';
+import { FEATURE_LABEL } from '../entitlements/config';
+import { requiredPlanForFeature } from '../entitlements/resolve';
+import { flowRequirements, missingFeatures } from '../entitlements/requirements';
 
 export class FlowError extends Error {}
+
+/**
+ * P0-C (D2): el plan se valida al PUBLICAR, no cuando falle la ejecucion.
+ *  - Funciones: un flujo con IA, mensajes por canal o cobros exige que el plan
+ *    las incluya (FREE solo automatiza acciones internas).
+ *  - Cupo: publicar un flujo que no estaba publicado suma a
+ *    `automations.active.max`; republicar una version nueva no suma.
+ * Devuelve el bloqueo (no lo lanza) para que "validar" pueda listarlo.
+ */
+export async function planErrorForFlow(workspaceId: string, graph: FlowGraph, opts: { countsAsNew: boolean; db?: Db }): Promise<EntitlementError | null> {
+  try {
+    const entitlements = await getWorkspaceEntitlements(workspaceId, opts.db);
+    if (entitlements.state === 'SUSPENDED') {
+      return new EntitlementError('WORKSPACE_SUSPENDED', 'El workspace esta suspendido: no se pueden publicar automatizaciones.', { key: 'automations.active.max' });
+    }
+    const missing = missingFeatures(entitlements.values, flowRequirements(graph));
+    if (missing.length > 0) {
+      const feature = missing[0].feature;
+      const requiredPlan = requiredPlanForFeature(feature);
+      const label = missing.map((m) => FEATURE_LABEL[m.feature]).join(', ');
+      return new EntitlementError(
+        'PLAN_FEATURE',
+        `Tu plan no permite publicar esta automatización: usa ${label} (nodo ${missing[0].where}).${requiredPlan ? ` Disponible en ${requiredPlan.charAt(0)}${requiredPlan.slice(1).toLowerCase()}.` : ''}`,
+        { key: feature, requiredPlan },
+      );
+    }
+    if (opts.countsAsNew) await assertCanGrow(workspaceId, 'automations.active.max', 1, opts.db);
+    return null;
+  } catch (error) {
+    if (isEntitlementError(error)) return error;
+    throw error;
+  }
+}
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 export async function validatePublication(workspaceId: string, channel: Channel, raw: unknown): Promise<string[]> {
@@ -62,6 +100,17 @@ export async function saveFlow(workspaceId: string, id: string, actorId: string,
     if (input.updatedAt && version.updatedAt.toISOString() !== input.updatedAt) throw new FlowError('Otro editor guardó cambios. Recarga antes de continuar.');
     if (input.action === 'publish') {
       // Validation inside lock reads only local data; no provider call occurs here.
+      // El plan primero: "Disponible en Start" es mas util que un error de
+      // configuracion de un nodo que el plan no permite usar.
+      const parsedGraph = flowGraphSchema.safeParse({ trigger: version.trigger, nodes: version.nodes, edges: version.edges });
+      if (parsedGraph.success) {
+        // Cupo serializado: el lock del limite vive lo que esta transaccion y
+        // el conteo se hace con `tx`, asi dos publicaciones simultaneas no
+        // pueden ocupar el mismo ultimo lugar. Sin llamadas externas aqui.
+        await lockEntitlement(tx, workspaceId, 'automations.active.max');
+        const planError = await planErrorForFlow(workspaceId, parsedGraph.data, { countsAsNew: flow.status !== 'PUBLISHED', db: tx });
+        if (planError) throw planError;
+      }
       const errors = await validatePublication(workspaceId, flow.channelScope[0], { trigger: version.trigger, nodes: version.nodes, edges: version.edges });
       if (errors.length) throw new FlowError(errors.join('\n'));
       await tx.automationFlowVersion.updateMany({ where: { flowId: id, status: 'PUBLISHED' }, data: { status: 'ARCHIVED' } });

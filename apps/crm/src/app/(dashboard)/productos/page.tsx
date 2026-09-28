@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { formatCurrency } from '@/lib/mock-data';
 import { prisma } from '@/lib/prisma';
 import { BusinessType } from '../../../../generated/prisma/client';
@@ -50,6 +51,7 @@ export default async function ProductosPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Productos" subtitle="Catalogo interno: lo que el agente puede vender" />
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <PlanLockedNotice workspaceId={user.workspace.id} feature="commerce.products" />
         <Card className="p-5">
           <p className="text-sm font-bold text-carbon">Catálogo manual</p>
           <p className="mt-1 text-xs leading-5 text-soft">

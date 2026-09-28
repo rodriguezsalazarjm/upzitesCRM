@@ -7,6 +7,12 @@ import { EncryptionKeyMissingError, encryptSecret } from '@/lib/crypto';
 import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { assertChannelConnectAllowed } from '@/lib/entitlements/channels';
+import { entitlementResponse, gate } from '@/lib/entitlements/http';
+import { isEntitlementError } from '@/lib/entitlements';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
+
+class ForeignAccountError extends Error {}
 
 const connectSchema = z.object({
   externalAccountId: z.string().min(1),
@@ -38,6 +44,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
+  // P0-C: `channels.max` cuenta canales conectados de cualquier proveedor.
+  const blocked = await gate(() =>
+    assertChannelConnectAllowed(user.workspace.id, {
+      channel: channel as Exclude<Channel, 'WHATSAPP'>,
+      externalAccountId: input.externalAccountId,
+    }),
+  );
+  if (blocked) return blocked;
+
   let accessTokenEncrypted: string;
   try {
     accessTokenEncrypted = encryptSecret(input.accessToken);
@@ -56,45 +71,62 @@ export async function POST(request: Request, { params }: { params: Promise<{ cha
     return NextResponse.json({ message: 'Esa cuenta ya está conectada a otro workspace.' }, { status: 409 });
   }
 
-  const account = await prisma.$transaction(async (tx) => {
-    const saved = await tx.channelAccount.upsert({
-      where: { channel_externalAccountId: { channel: channel as Channel, externalAccountId: input.externalAccountId } },
-      create: {
-        workspaceId: user.workspace.id,
-        channel: channel as Channel,
-        connectionMethod: ChannelConnectionMethod.MANUAL,
-        externalAccountId: input.externalAccountId,
-        displayName: input.displayName ?? null,
-        accessTokenEncrypted,
-        status: ChannelAccountStatus.CONNECTED,
-        connectedAt: new Date(),
-        lastVerifiedAt: new Date(),
-      },
-      update: {
-        displayName: input.displayName ?? null,
-        accessTokenEncrypted,
-        status: ChannelAccountStatus.CONNECTED,
-        lastVerifiedAt: new Date(),
-        lastErrorCode: null,
-        lastError: null,
-      },
-      select: { id: true, channel: true, displayName: true, externalAccountId: true, status: true, connectedAt: true },
+  // P0-C: chequeo final + escritura bajo el lock de `channels.max`. Reconectar
+  // una cuenta ya conectada en este workspace no suma.
+  let account;
+  try {
+    account = await withEntitlementLock(user.workspace.id, 'channels.max', async (tx, guard) => {
+      const current = await tx.channelAccount.findUnique({
+        where: { channel_externalAccountId: { channel: channel as Channel, externalAccountId: input.externalAccountId } },
+        select: { workspaceId: true, status: true },
+      });
+      if (current && current.workspaceId !== user.workspace.id) throw new ForeignAccountError();
+      if (!(current && current.status !== ChannelAccountStatus.DISCONNECTED)) await guard.assertCanGrow();
+      const saved = await tx.channelAccount.upsert({
+        where: { channel_externalAccountId: { channel: channel as Channel, externalAccountId: input.externalAccountId } },
+        create: {
+          workspaceId: user.workspace.id,
+          channel: channel as Channel,
+          connectionMethod: ChannelConnectionMethod.MANUAL,
+          externalAccountId: input.externalAccountId,
+          displayName: input.displayName ?? null,
+          accessTokenEncrypted,
+          status: ChannelAccountStatus.CONNECTED,
+          connectedAt: new Date(),
+          lastVerifiedAt: new Date(),
+        },
+        update: {
+          displayName: input.displayName ?? null,
+          accessTokenEncrypted,
+          status: ChannelAccountStatus.CONNECTED,
+          lastVerifiedAt: new Date(),
+          lastErrorCode: null,
+          lastError: null,
+        },
+        select: { id: true, channel: true, displayName: true, externalAccountId: true, status: true, connectedAt: true },
+      });
+
+      await recordAudit(
+        {
+          workspaceId: user.workspace.id,
+          actorId: user.id,
+          action: taken ? 'channel.credentials_updated' : 'channel.connected',
+          entity: 'ChannelAccount',
+          entityId: saved.id,
+          metadata: { channel, externalAccountId: input.externalAccountId },
+        },
+        tx,
+      );
+
+      return saved;
     });
-
-    await recordAudit(
-      {
-        workspaceId: user.workspace.id,
-        actorId: user.id,
-        action: taken ? 'channel.credentials_updated' : 'channel.connected',
-        entity: 'ChannelAccount',
-        entityId: saved.id,
-        metadata: { channel, externalAccountId: input.externalAccountId },
-      },
-      tx,
-    );
-
-    return saved;
-  });
+  } catch (error) {
+    if (isEntitlementError(error)) return entitlementResponse(error);
+    if (error instanceof ForeignAccountError) {
+      return NextResponse.json({ message: 'Esa cuenta ya está conectada a otro workspace.' }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ data: account }, { status: 201 });
 }

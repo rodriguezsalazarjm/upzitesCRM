@@ -5,6 +5,8 @@ import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 import { rejectForeignRefs } from '@/lib/tenant-refs';
 import { createOrder, OrderError } from '@/lib/commerce/orders';
+import { isEntitlementError } from '@/lib/entitlements';
+import { entitlementResponse } from '@/lib/entitlements/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: order }, { status: 201 });
   } catch (error) {
+    if (isEntitlementError(error)) return entitlementResponse(error);
     if (error instanceof OrderError) {
       const status = error.code === 'NOT_FOUND' ? 404 : 409;
       return NextResponse.json({ message: error.message, code: error.code }, { status });

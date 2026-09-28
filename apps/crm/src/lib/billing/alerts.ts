@@ -173,9 +173,8 @@ export async function scanWorkspaceHealth(workspaceId: string) {
         severity: AlertSeverity.CRITICAL,
         title: `${check.label}: cupo agotado`,
         detail: `${check.used} de ${check.limit}. ${
-          entitlements.plan.overages[metric] !== undefined
-            ? 'Lo que siga se cobra como excedente.'
-            : 'Lo que siga queda bloqueado hasta el proximo periodo.'
+          // D3: no hay excedentes; lo que aumente el uso queda bloqueado.
+          'Lo que siga queda bloqueado hasta el proximo periodo o un cambio de plan.'
         }`,
         dedupeKey: `allowance-exceeded:${metric}`,
       });

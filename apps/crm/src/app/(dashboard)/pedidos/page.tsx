@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { formatCurrency } from '@/lib/mock-data';
 import { prisma } from '@/lib/prisma';
 import { deliveryStatusLabel, deliveryStatusTone, orderStatusLabel, orderStatusTone, paymentStatusLabel, paymentStatusTone } from '@/lib/status-tone';
@@ -28,6 +29,9 @@ export default async function PedidosPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Pedidos" subtitle="Compras, pagos y entregas digitales" />
       <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4 space-y-3 empty:hidden">
+          <PlanLockedNotice workspaceId={user.workspace.id} feature="commerce.orders" />
+        </div>
         <Card className="overflow-hidden">
           <Table density="compact">
             <TableHeader>

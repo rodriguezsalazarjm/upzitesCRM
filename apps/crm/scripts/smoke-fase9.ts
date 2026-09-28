@@ -582,16 +582,19 @@ console.log('\n== Los limites limitan de verdad ==');
   });
   check('Y se avisa en vez de fallar en silencio', aviso !== null);
 
-  // El simulador SI puede correr: probar el agente es un paso del onboarding.
+  // P0-C: el simulador llama al mismo proveedor y gasta. Con el cupo del mes
+  // agotado tampoco corre ("el limite mensual bloquea consumo adicional"),
+  // y no levanta un segundo aviso: el simulador no avisa.
+  const simuladorProvider = new ScriptedProvider([{ text: 'hola' }]);
   const simulado = await runAgent({
     workspaceId: A.workspaceId,
     conversationId: conversacion.id,
-    provider: new ScriptedProvider([{ text: 'hola' }]),
+    provider: simuladorProvider,
     dryRun: true,
   });
   check(
-    'El simulador sigue funcionando sin cupo: probar es un paso previo',
-    simulado.status !== AgentRunStatus.ABORTED || simulado.skippedReason !== 'sin cupo de IA en el plan',
+    'Sin cupo, el simulador tampoco gasta IA (P0-C)',
+    simulado.status === AgentRunStatus.ABORTED && simuladorProvider.calls.length === 0,
     simulado.skippedReason ?? simulado.status,
   );
 

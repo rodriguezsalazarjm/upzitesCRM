@@ -8,6 +8,10 @@ import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
 import { actionsSchema, conditionGroupSchema } from '@/lib/automation/schema';
 import { presetByKey } from '@/lib/automation/presets';
+import { assertRequirements } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
+import { ruleActionsOf, ruleRequirements } from '@/lib/entitlements/requirements';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,17 +82,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'La regla predefinida no existe.' }, { status: 404 });
   }
 
-  const rule = await prisma.automationRule.create({
-    data: {
-      workspaceId: user.workspace.id,
-      name: data.name,
-      description: data.description,
-      trigger: data.trigger,
-      conditions: data.conditions as never,
-      actions: data.actions as never,
-      dedupeMinutes: data.dedupeMinutes,
-    },
-  });
+  // P0-C: una regla nace activa, asi que se valida como una publicacion. Sus
+  // acciones tienen que estar en el plan (FREE: solo internas) y, si es a
+  // medida, ocupa un lugar de `automations.active.max`. Las reglas del
+  // catalogo de presets son internas y no ocupan cupo.
+  const presetKey = 'presetKey' in input ? input.presetKey : null;
+  // Chequeo y alta bajo el lock del limite: dos altas simultaneas no pueden
+  // ocupar el mismo ultimo lugar.
+  let rule!: Awaited<ReturnType<typeof prisma.automationRule.create>>;
+  const blocked = await gate(() =>
+    withEntitlementLock(user.workspace.id, 'automations.active.max', async (tx, guard) => {
+      await assertRequirements(user.workspace.id, ruleRequirements(ruleActionsOf({ actions: data.actions })), 'activar esta automatización', tx);
+      if (!presetKey) await guard.assertCanGrow();
+      rule = await tx.automationRule.create({
+        data: {
+          workspaceId: user.workspace.id,
+          presetKey,
+          name: data.name,
+          description: data.description,
+          trigger: data.trigger,
+          conditions: data.conditions as never,
+          actions: data.actions as never,
+          dedupeMinutes: data.dedupeMinutes,
+        },
+      });
+    }),
+  );
+  if (blocked) return blocked;
 
   await recordAudit({
     workspaceId: user.workspace.id,

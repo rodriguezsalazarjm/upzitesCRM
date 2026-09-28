@@ -117,7 +117,9 @@ async function buildContext(event: DomainEvent): Promise<EventContext | null> {
 /** Reglas activas del workspace para ese disparador. */
 export async function matchingRules(workspaceId: string, trigger: AutomationTrigger) {
   return prisma.automationRule.findMany({
-    where: { workspaceId, trigger, isActive: true },
+    // P0-C: una regla limitada por plan conserva isActive (lo decide el
+    // usuario) pero no se ejecuta hasta que el plan vuelva a permitirla.
+    where: { workspaceId, trigger, isActive: true, planLimitedAt: null },
     orderBy: { createdAt: 'asc' },
   });
 }

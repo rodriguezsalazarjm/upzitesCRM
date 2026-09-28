@@ -15,6 +15,7 @@ import { isMediaKind } from '../media/policy';
 import { enqueue } from '../jobs/queue';
 import { recordUsage } from '../billing/usage';
 import { prisma } from '../prisma';
+import { noteInboundContact } from '../entitlements/inbound';
 import { cancelForContact } from '../domain';
 import { emitDomainEvent } from '../automation/emit';
 import { scheduleAgentRun } from '../agents/dispatch';
@@ -416,6 +417,9 @@ async function upsertContactByPhone(
       lastActivityAt: new Date(),
     },
   });
+  // P0-C: un contacto entrante nunca se pierde por `contacts.max`; si queda
+  // sobre el limite se audita (en la misma transaccion).
+  await noteInboundContact({ workspaceId: input.workspaceId, contactId: contact.id, source: 'WHATSAPP' }, tx);
 
   await tx.activity.create({
     data: {

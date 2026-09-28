@@ -12,6 +12,7 @@
  *   pnpm exec tsx scripts/smoke-fase-a.ts
  */
 import './fixtures/test-environment';
+import { scalePlanForTests } from './fixtures/workspace';
 import { randomBytes, createHmac } from 'node:crypto';
 import {
   MercadoPagoConnectionStatus,
@@ -44,6 +45,8 @@ async function makeWorkspace(key: string) {
     email: `faseA-${key}-${stamp}@upzites.test`,
     password: 'FaseA#Test1234',
   });
+  // P0-C: commerce (pedidos, productos, checkout) es del plan PRO+.
+  await scalePlanForTests(workspace.id);
   return workspace.id;
 }
 

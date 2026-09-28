@@ -14,7 +14,7 @@
  *   pnpm exec tsx scripts/smoke-critico.ts
  */
 import './fixtures/test-environment';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import {
   AgentRunStatus,
   ConsentChannel,
@@ -236,18 +236,28 @@ console.log('\n== Confiabilidad ==');
     dedupeKey: `critico-retry-${stamp}`,
   });
 
-  // Se toma un lote amplio: la cola puede tener trabajos de otros bloques y un
-  // limite chico haria que la prueba dependiera del orden, no del bloqueo.
-  const tomados = await claimJobs(100);
-  const mio = tomados.find((job) => job.id === reintentable?.id);
-  check('Un trabajo se toma una sola vez', mio !== undefined);
+  // Toma ACOTADA al workspace de esta suite: la cola de la base de pruebas es
+  // compartida y puede tener cualquier cantidad de trabajos ajenos. La prueba
+  // no depende de ese volumen ni marca como PROCESSING nada que no sea suyo.
+  const scope = { workspaceId: A.workspaceId };
 
-  // Segunda toma inmediata: ya no esta disponible.
-  const segundos = await claimJobs(100);
+  // Dos workers simultaneos sobre el mismo workspace: SKIP LOCKED reparte.
+  const [workerUno, workerDos] = await Promise.all([
+    claimJobs(100, randomUUID(), scope),
+    claimJobs(100, randomUUID(), scope),
+  ]);
+  const vecesTomado = [...workerUno, ...workerDos].filter((job) => job.id === reintentable?.id).length;
+  const mio = [...workerUno, ...workerDos].find((job) => job.id === reintentable?.id);
+  check('Un trabajo se toma una sola vez', vecesTomado === 1, `${vecesTomado}`);
   check(
     'Dos workers simultaneos no toman el mismo trabajo',
-    !segundos.some((job) => job.id === reintentable?.id),
+    new Set([...workerUno, ...workerDos].map((job) => job.id)).size === workerUno.length + workerDos.length,
   );
+  check('La toma acotada no toca trabajos de otros workspaces', [...workerUno, ...workerDos].every((job) => job.workspaceId === A.workspaceId));
+
+  // Segunda toma inmediata: ya no esta disponible.
+  const segundos = await claimJobs(100, randomUUID(), scope);
+  check('Una vez tomado, no se vuelve a tomar', !segundos.some((job) => job.id === reintentable?.id));
 
   // Se simula el fallo tras guardar: vuelve a PENDING y se puede reintentar.
   if (mio) {
@@ -256,7 +266,7 @@ console.log('\n== Confiabilidad ==');
       data: { status: JobStatus.PENDING, runAt: new Date(Date.now() - 1000), lastError: 'fallo simulado' },
     });
 
-    const reintento = await claimJobs(100);
+    const reintento = await claimJobs(100, randomUUID(), scope);
     check(
       'Tras un fallo el trabajo se vuelve a tomar',
       reintento.some((job) => job.id === mio.id),

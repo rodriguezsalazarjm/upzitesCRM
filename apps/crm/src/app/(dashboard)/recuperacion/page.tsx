@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { campaignMetrics, journeyMetrics } from '@/lib/marketing/campaigns';
 import { getPolicy } from '@/lib/marketing/policy';
 import { canManageMarketing } from '@/lib/marketing/roles';
@@ -86,6 +87,8 @@ export default async function RecuperacionPage() {
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <PlanLockedNotice workspaceId={user.workspace.id} feature="campaigns.journeys" />
+        <PlanLockedNotice workspaceId={user.workspace.id} feature="recovery" />
         {!verifiedDomain && (
           <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
             Sin dominio de envio verificado. Las campanas de email no salen hasta que el dominio

@@ -26,7 +26,8 @@ import { isMediaKind, mediaLabel } from '../media/policy';
 import { AlertKind, AlertSeverity } from '../../../generated/prisma/client';
 import { raiseAlert } from '../billing/alerts';
 import { canWorkspaceConsume } from '../billing/subscription-access';
-import { checkAllowance, recordUsage } from '../billing/usage';
+import { recordUsage } from '../billing/usage';
+import { checkAiCredits, recordAiCredits } from '../entitlements/ai-credits';
 import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
 import { queuePushSafely } from '../push/events';
@@ -99,11 +100,13 @@ async function releaseLock(conversationId: string, owner: string) {
 /** Version publicada del agente, o null si el workspace no publico ninguna. */
 async function publishedVersion(workspaceId: string, kind: AgentKind, versionId?: string, draft = false) {
   if (versionId) {
-    const version = await prisma.agentVersion.findFirst({ where: { id: versionId, ...(draft ? { status: { in: [AgentVersionStatus.DRAFT, AgentVersionStatus.PUBLISHED] } } : { status: AgentVersionStatus.PUBLISHED }), definition: { workspaceId, ...(draft ? {} : { isActive: true }) } }, include: { definition: true } });
+    const version = await prisma.agentVersion.findFirst({ where: { id: versionId, ...(draft ? { status: { in: [AgentVersionStatus.DRAFT, AgentVersionStatus.PUBLISHED] } } : { status: AgentVersionStatus.PUBLISHED }), definition: { workspaceId, ...(draft ? {} : { isActive: true, planLimitedAt: null }) } }, include: { definition: true } });
     return version ? { definition: version.definition, version } : null;
   }
   const definition = await prisma.agentDefinition.findFirst({
-    where: { workspaceId, key: kind, isActive: true },
+    // planLimitedAt: el agente existe y sigue activo, pero el plan vigente no
+    // lo permite (downgrade). No atiende hasta que vuelva a estar permitido.
+    where: { workspaceId, key: kind, isActive: true, planLimitedAt: null },
     include: {
       versions: {
         where: { status: AgentVersionStatus.PUBLISHED },
@@ -136,6 +139,17 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     return { status: AgentRunStatus.FAILED, skippedReason: 'conversacion no encontrada' };
   }
 
+  // P0-C: canal limitado por el plan. El mensaje entrante se guardo; la IA no
+  // gasta creditos en una respuesta que el canal no puede enviar.
+  const channelLimited = conversation.channelId
+    ? await prisma.whatsAppChannel.count({ where: { id: conversation.channelId, planLimitedAt: { not: null } } })
+    : conversation.channelAccountId
+      ? await prisma.channelAccount.count({ where: { id: conversation.channelAccountId, planLimitedAt: { not: null } } })
+      : 0;
+  if (channelLimited > 0) {
+    return { status: AgentRunStatus.ABORTED, skippedReason: 'canal limitado por el plan' };
+  }
+
   // Regla 7 de la spec: la IA no responde cuando hay un humano a cargo.
   if (conversation.mode === ConversationMode.HUMAN_ACTIVE) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'humano activo' };
@@ -157,6 +171,31 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'la suscripcion no esta vigente' };
   }
 
+  // P0-C: la IA se mide en creditos del plan (entitlements/ai-credits). Aplica
+  // tambien al simulador: probar al agente llama al mismo proveedor y cuesta.
+  const credits = await checkAiCredits(input.workspaceId);
+  if (!credits.allowed) {
+    if (credits.reason === 'CREDITS_EXHAUSTED' && !input.dryRun) {
+      // Se avisa, no se falla en silencio: quedarse sin IA sin que nadie lo
+      // sepa es indistinguible de que la IA este rota.
+      await raiseAlert({
+        workspaceId: input.workspaceId,
+        kind: AlertKind.ALLOWANCE_EXCEEDED,
+        severity: AlertSeverity.CRITICAL,
+        title: 'Se agotaron los creditos de IA del mes',
+        detail: credits.source === 'LEGACY'
+          ? 'Se agoto el presupuesto de IA del plan. El agente dejo de responder y las conversaciones pasan a una persona.'
+          : `${Math.floor(credits.usedCredits)} de ${credits.limitCredits} creditos. El agente dejo de responder y las conversaciones pasan a una persona.`,
+        // Un plan legacy conserva su clave de aviso (presupuesto en pesos).
+        dedupeKey: credits.source === 'LEGACY' ? 'allowance-exceeded:ai_cost_clp' : 'allowance-exceeded:ai_credits',
+      });
+    }
+    return {
+      status: AgentRunStatus.ABORTED,
+      skippedReason: credits.reason === 'CREDITS_EXHAUSTED' ? 'sin cupo de IA en el plan' : 'el plan no incluye IA',
+    };
+  }
+
   // Fase 9: la IA no atiende sola hasta que el workspace se activa, y no pasa
   // del cupo de IA de su plan.
   //
@@ -174,27 +213,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
     if (!(await isWorkspaceActive(input.workspaceId))) {
       return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no esta activo' };
-    }
-
-    const budget = await checkAllowance({
-      workspaceId: input.workspaceId,
-      metric: 'ai_cost_clp',
-      amount: 0,
-    });
-
-    if (!budget.allowed) {
-      // Se avisa, no se falla en silencio: quedarse sin IA sin que nadie lo
-      // sepa es indistinguible de que la IA este rota.
-      await raiseAlert({
-        workspaceId: input.workspaceId,
-        kind: AlertKind.ALLOWANCE_EXCEEDED,
-        severity: AlertSeverity.CRITICAL,
-        title: 'Se agoto el cupo de IA del mes',
-        detail: `${budget.used} de ${budget.limit} CLP. El agente dejo de responder y las conversaciones pasan a una persona.`,
-        dedupeKey: 'allowance-exceeded:ai_cost_clp',
-      });
-
-      return { status: AgentRunStatus.ABORTED, skippedReason: 'sin cupo de IA en el plan' };
     }
   }
 
@@ -494,6 +512,17 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     metric: 'ai_cost_clp',
     quantity: inputTokens + outputTokens,
     costClp: cost,
+    referenceType: 'AgentRun',
+    referenceId: run.id,
+  });
+
+  // P0-C: el mismo consumo, en creditos ponderados (lo que limita el plan).
+  await recordAiCredits({
+    workspaceId: run.workspaceId,
+    provider: provider.name,
+    model: version.model,
+    inputTokens,
+    outputTokens,
     referenceType: 'AgentRun',
     referenceId: run.id,
   });

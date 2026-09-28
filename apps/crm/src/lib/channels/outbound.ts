@@ -28,6 +28,14 @@ export async function sendChannelMessage(input: { workspaceId: string; conversat
   });
   if (!conversation) throw new ChannelOutboundError('Conversación no encontrada en este workspace.');
 
+  // P0-C: un canal limitado por el plan (downgrade) conserva credenciales y
+  // conversaciones, pero no envia hasta que el plan vuelva a permitirlo.
+  const planLimited =
+    conversation.channelType === 'WHATSAPP'
+      ? Boolean(conversation.channelId && (await prisma.whatsAppChannel.findFirst({ where: { id: conversation.channelId, workspaceId: input.workspaceId, planLimitedAt: { not: null } }, select: { id: true } })))
+      : Boolean(conversation.channelAccount?.planLimitedAt);
+  if (planLimited) throw new ChannelOutboundError('Este canal está limitado por tu plan: no se envían mensajes.');
+
   if (conversation.channelType === 'WHATSAPP') {
     return queueOutboundMessage({
       workspaceId: input.workspaceId,

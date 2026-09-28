@@ -45,6 +45,7 @@ export const ALLOWANCE_METRICS = [
   'whatsapp_numbers',
   'conversations',
   'ai_cost_clp',
+  'ai_credits',
   'emails',
   'campaign_contacts',
 ] as const;
@@ -57,6 +58,7 @@ export const ALLOWANCE_KIND: Record<AllowanceMetric, 'stock' | 'flow'> = {
   whatsapp_numbers: 'stock',
   conversations: 'flow',
   ai_cost_clp: 'flow',
+  ai_credits: 'flow',
   emails: 'flow',
   campaign_contacts: 'flow',
 };
@@ -67,6 +69,7 @@ export const ALLOWANCE_LABEL: Record<AllowanceMetric, string> = {
   whatsapp_numbers: 'Numeros de WhatsApp',
   conversations: 'Conversaciones del mes',
   ai_cost_clp: 'Costo de IA del mes',
+  ai_credits: 'Creditos de IA del mes',
   emails: 'Emails del mes',
   campaign_contacts: 'Contactos de campana del mes',
 };
@@ -150,6 +153,8 @@ export const BETA_PLANS: (PlanTerms & { features: string[]; position: number })[
       whatsapp_numbers: 1,
       conversations: 500,
       ai_cost_clp: 20000,
+      // Legacy: la IA se media en pesos. Los creditos son del catalogo P0-C.
+      ai_credits: 0,
       emails: 0,
       campaign_contacts: 0,
     },
@@ -168,6 +173,8 @@ export const BETA_PLANS: (PlanTerms & { features: string[]; position: number })[
       whatsapp_numbers: 1,
       conversations: 2000,
       ai_cost_clp: 60000,
+      // Legacy: la IA se media en pesos. Los creditos son del catalogo P0-C.
+      ai_credits: 0,
       emails: 10000,
       campaign_contacts: 5000,
     },
@@ -194,6 +201,8 @@ export const BETA_PLANS: (PlanTerms & { features: string[]; position: number })[
       whatsapp_numbers: 3,
       conversations: 8000,
       ai_cost_clp: 200000,
+      // Legacy: la IA se media en pesos. Los creditos son del catalogo P0-C.
+      ai_credits: 0,
       emails: 50000,
       campaign_contacts: 20000,
     },

@@ -1,5 +1,6 @@
 import { Header } from '@/components/layout/header';
 import { requireCurrentUser } from '@/lib/auth';
+import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { canManageChannels } from '@/lib/conversations';
 import { prisma } from '@/lib/prisma';
 import { ALL_TOOL_NAMES } from '@/lib/agents/tools';
@@ -29,6 +30,9 @@ export default async function Page() {
         action={{ label: 'Administrar conocimiento', href: '/ia/conocimiento' }}
       />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <div className="mb-4 space-y-3 empty:hidden">
+          <PlanLockedNotice workspaceId={user.workspace.id} feature="agents" />
+        </div>
         <AgentSettings
           agent={agent}
           tools={ALL_TOOL_NAMES}

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireCurrentUser } from '@/lib/auth';
 import { createOrderCheckout, CheckoutError } from '@/lib/commerce/checkout';
+import { isEntitlementError } from '@/lib/entitlements';
+import { entitlementResponse } from '@/lib/entitlements/http';
 
 /** Genera el enlace de pago de un pedido. */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,6 +17,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     });
     return NextResponse.json({ data: result });
   } catch (error) {
+    if (isEntitlementError(error)) return entitlementResponse(error);
     if (error instanceof CheckoutError) {
       const status =
         error.code === 'NOT_FOUND' ? 404 : error.code === 'NOT_CONFIGURED' ? 503 : error.code === 'PROVIDER' ? 502 : 409;

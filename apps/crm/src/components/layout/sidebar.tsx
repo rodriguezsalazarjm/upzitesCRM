@@ -17,6 +17,7 @@ import {
   Rocket,
   Send,
   FileText,
+  Lock,
   PlugZap,
   ShieldCheck,
   Settings,
@@ -27,26 +28,30 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Wordmark } from '@/components/ui/wordmark';
 import type { CurrentUser } from '@/lib/auth';
+import type { FeatureKey } from '@/lib/entitlements/config';
 import { cn } from '@/lib/utils';
 import { LogoutForm } from './logout-form';
 import { WorkspaceSwitcher, type SwitchableWorkspace } from './workspace-switcher';
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: typeof Rocket; requires?: FeatureKey };
+
+/** `requires`: funcion del PLAN (P0-C). Si no esta incluida, el item se ve bloqueado, no se oculta. */
+const navItems: NavItem[] = [
   { href: '/onboarding', label: 'Puesta en marcha', icon: Rocket },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/contactos', label: 'Contactos', icon: Users },
   { href: '/oportunidades', label: 'Pipeline', icon: TrendingUp },
-  { href: '/productos', label: 'Productos', icon: Package },
-  { href: '/pedidos', label: 'Pedidos', icon: Receipt },
-  { href: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
+  { href: '/productos', label: 'Productos', icon: Package, requires: 'commerce.products' },
+  { href: '/pedidos', label: 'Pedidos', icon: Receipt, requires: 'commerce.orders' },
+  { href: '/cotizaciones', label: 'Cotizaciones', icon: FileText, requires: 'quotes' },
   { href: '/actividades', label: 'Actividades', icon: Activity },
   { href: '/fuentes', label: 'Fuentes', icon: Globe2 },
   { href: '/integraciones', label: 'Integraciones', icon: PlugZap },
   { href: '/automatizaciones', label: 'Automatizaciones', icon: Bot },
-  { href: '/recuperacion', label: 'Recuperación', icon: Send },
-  { href: '/ia/agente', label: 'IA · Agente', icon: Bot },
-  { href: '/ia/conocimiento', label: 'IA · Conocimiento', icon: FileText },
+  { href: '/recuperacion', label: 'Recuperación', icon: Send, requires: 'campaigns.journeys' },
+  { href: '/ia/agente', label: 'IA · Agente', icon: Bot, requires: 'agents' },
+  { href: '/ia/conocimiento', label: 'IA · Conocimiento', icon: FileText, requires: 'ai' },
   { href: '/insights', label: 'Insights IA', icon: Bot },
   { href: '/uso', label: 'Uso y costos', icon: Gauge },
   { href: '/billing', label: 'Billing', icon: CreditCard },
@@ -54,7 +59,7 @@ const navItems = [
 ];
 
 /** Solo operadores de plataforma: vista global del sistema (ver lib/platform-admin). */
-const platformItems = [{ href: '/ops', label: 'Ops plataforma', icon: ShieldCheck }];
+const platformItems: NavItem[] = [{ href: '/ops', label: 'Ops plataforma', icon: ShieldCheck }];
 
 function getInitials(name: string) {
   return name
@@ -82,9 +87,12 @@ export function Sidebar({
   user,
   isPlatformAdmin = false,
   workspaces = [],
+  lockedFeatures = {},
 }: {
   user: CurrentUser;
   isPlatformAdmin?: boolean;
+  /** Funciones que el plan no incluye → nombre del plan que las trae. */
+  lockedFeatures?: Partial<Record<FeatureKey, string>>;
   /** Negocios con membership ACTIVE. Con mas de uno aparece el selector. */
   workspaces?: SwitchableWorkspace[];
 }) {
@@ -105,19 +113,22 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  function renderItems(items: typeof navItems, matchNested: boolean) {
+  function renderItems(items: NavItem[], matchNested: boolean) {
     return (
       <ul className="space-y-0.5">
         {items.map((item) => {
           const Icon = item.icon;
           const active =
             pathname === item.href || (matchNested && pathname.startsWith(`${item.href}/`));
+          const lockedIn = item.requires ? lockedFeatures[item.requires] : undefined;
           return (
             <li key={item.href}>
               <Link
                 href={item.href}
                 onClick={() => setOpen(false)}
                 aria-current={active ? 'page' : undefined}
+                aria-label={lockedIn ? `${item.label} (bloqueado: disponible en ${lockedIn})` : undefined}
+                title={lockedIn ? `Disponible en ${lockedIn}` : undefined}
                 className={cn(
                   'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   active
@@ -133,6 +144,12 @@ export function Sidebar({
                   strokeWidth={1.75}
                 />
                 <span className="flex-1">{item.label}</span>
+                {lockedIn && (
+                  <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-fog">
+                    <Lock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                    {lockedIn}
+                  </span>
+                )}
               </Link>
             </li>
           );

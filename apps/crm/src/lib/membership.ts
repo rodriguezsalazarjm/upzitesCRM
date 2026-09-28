@@ -15,9 +15,10 @@ export async function isActiveMember(workspaceId: string, userId: string) {
   if (!workspaceId || !userId) return false;
   const membership = await prisma.workspaceMembership.findUnique({
     where: { userId_workspaceId: { userId, workspaceId } },
-    select: { status: true },
+    select: { status: true, planLimitedAt: true },
   });
-  return membership?.status === MembershipStatus.ACTIVE;
+  // P0-C: una membership limitada por plan conserva su historia pero no opera.
+  return membership?.status === MembershipStatus.ACTIVE && !membership.planLimitedAt;
 }
 
 export class NotAMemberError extends Error {
@@ -36,16 +37,16 @@ export async function findActiveMember(workspaceId: string, userId: string) {
   if (!workspaceId || !userId) return null;
   const membership = await prisma.workspaceMembership.findUnique({
     where: { userId_workspaceId: { userId, workspaceId } },
-    select: { status: true, role: true, user: { select: { id: true, name: true } } },
+    select: { status: true, planLimitedAt: true, role: true, user: { select: { id: true, name: true } } },
   });
-  if (membership?.status !== MembershipStatus.ACTIVE) return null;
+  if (membership?.status !== MembershipStatus.ACTIVE || membership.planLimitedAt) return null;
   return { id: membership.user.id, name: membership.user.name, role: membership.role };
 }
 
 /** Ids de miembros ACTIVE con alguno de los roles dados. */
 export async function activeMemberIdsWithRole(workspaceId: string, roles: WorkspaceRole[]) {
   const memberships = await prisma.workspaceMembership.findMany({
-    where: { workspaceId, status: MembershipStatus.ACTIVE, role: { in: roles } },
+    where: { workspaceId, status: MembershipStatus.ACTIVE, planLimitedAt: null, role: { in: roles } },
     select: { userId: true },
   });
   return memberships.map((m) => m.userId);
@@ -53,7 +54,8 @@ export async function activeMemberIdsWithRole(workspaceId: string, roles: Worksp
 
 /**
  * Usuarios que cuentan para `users.max`: memberships ACTIVE del workspace. Una
- * persona en tres workspaces cuenta como 1 en cada uno.
+ * persona en tres workspaces cuenta como 1 en cada uno. Las limitadas por plan
+ * SI cuentan: el uso es lo que existe, y el limite solo frena el crecimiento.
  */
 export function countActiveMembers(workspaceId: string, db: Pick<typeof prisma, 'workspaceMembership'> = prisma) {
   return db.workspaceMembership.count({ where: { workspaceId, status: MembershipStatus.ACTIVE } });
@@ -63,7 +65,7 @@ export function countActiveMembers(workspaceId: string, db: Pick<typeof prisma, 
 export async function listMyWorkspaces(userId: string) {
   const memberships = await withPlatformScope(() =>
     prisma.workspaceMembership.findMany({
-      where: { userId, status: MembershipStatus.ACTIVE },
+      where: { userId, status: MembershipStatus.ACTIVE, planLimitedAt: null },
       select: { role: true, workspace: { select: { id: true, name: true, slug: true } } },
       orderBy: { createdAt: 'asc' },
     }),

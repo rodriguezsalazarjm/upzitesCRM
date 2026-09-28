@@ -7,6 +7,7 @@
  *   pnpm exec tsx scripts/smoke-fase-c-engine.ts
  */
 import './fixtures/test-environment';
+import { scalePlanForTests } from './fixtures/workspace';
 import { AutomationFlowRunStatus, AutomationFlowStatus, JobStatus, JobType } from '../generated/prisma/client';
 import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
@@ -31,6 +32,8 @@ async function makeWorkspace(key: string) {
     email: `faseC-e-${key}-${stamp}@upzites.test`,
     password: 'FaseC#Test1234',
   });
+  // P0-C: el motor ejecuta mensajes, IA y cobros; FREE no los permite.
+  await scalePlanForTests(workspace.id);
   return workspace.id;
 }
 

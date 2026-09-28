@@ -152,7 +152,7 @@ export type AllowanceCheck = {
   remaining: number;
   /** Hay cupo para lo que se quiere hacer. */
   allowed: boolean;
-  /** Se paso del cupo pero el plan admite excedente. */
+  /** Siempre false desde P0-C (D3: sin cobro de excedentes). */
   overage: boolean;
   /**
    * No queda margen.
@@ -202,7 +202,8 @@ export async function usedFor(
 
   if (!counter) return 0;
   // El costo de IA se mide en pesos, no en unidades.
-  return metric === 'ai_cost_clp' ? counter.costClp : counter.quantity;
+  if (metric === 'ai_cost_clp') return counter.costClp;
+  return counter.quantity;
 }
 
 /**
@@ -250,16 +251,17 @@ export async function checkAllowance(
   const used = await usedFor(input.workspaceId, input.metric, period, db);
   const remaining = Math.max(0, limit - used);
   const fits = used + amount <= limit;
-  const overagePrice = entitlements.plan.overages[input.metric];
 
+  // P0-C (D3): no existe cobro de excedentes. Aunque un plan legacy declare
+  // `overages`, pasarse bloquea lo que aumenta el uso.
   return {
     metric: input.metric,
     label,
     limit,
     used,
     remaining,
-    allowed: fits || (overagePrice !== undefined && limit > 0),
-    overage: !fits && overagePrice !== undefined && limit > 0,
+    allowed: fits,
+    overage: false,
     exhausted: ALLOWANCE_KIND[input.metric] === 'stock' ? used > limit : used >= limit,
     percent: limit === 0 ? 100 : Math.min(100, Math.round((used / limit) * 100)),
   };

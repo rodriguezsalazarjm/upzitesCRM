@@ -1,52 +1,47 @@
 import { PlanCode } from '../../../generated/prisma/enums';
 import type { PrismaClient, Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
-import { BETA_PLANS, type PlanTerms } from './plans';
+import { PLAN_ENTITLEMENTS } from '../entitlements/config';
+import { legacyTermsFromValues } from '../entitlements/resolve';
+import type { PlanTerms } from './plans';
 
 /**
- * Catalogo de planes de Upzites Flow (P0-B): FREE, START, PRO, SCALE.
+ * Catalogo de planes de Upzites Flow: FREE, START, PRO, SCALE.
  *
- * Aqui viven los TERMINOS (capacidades y cupos). Los PRECIOS no: estan en el
- * Price Book (`plan_prices`, ver price-book.ts), que se cambia sin deploy.
- *
- * PROVISIONAL hasta P0-C. START/PRO/SCALE reutilizan los terminos de la beta
- * solo por compatibilidad; no son el contrato comercial definitivo. FREE es
- * deliberadamente conservador: CRM basico y datos accesibles, nada que genere
- * coste variable (IA, mensajes pagados, email, campanas, Shopify, cotizador).
- * Canales y automatizaciones gratuitas se definen en P0-C.
+ * Aqui viven nombre, orden y textos comerciales. Los NUMEROS y las FUNCIONES
+ * de cada plan viven en `entitlements/config.ts` (P0-C, unica fuente); los
+ * terminos legacy (capabilities/allowances) se derivan de ahi para que
+ * `hasCapability`/`checkAllowance` sigan funcionando como fachadas. Los
+ * PRECIOS estan en el Price Book (`plan_prices`, ver price-book.ts).
  */
 
 type CatalogEntry = { key: string; name: string; position: number; terms: Omit<PlanTerms, 'key' | 'name' | 'priceClp'>; features: string[] };
 
-function fromBeta(betaKey: string) {
-  const beta = BETA_PLANS.find((plan) => plan.key === betaKey);
-  if (!beta) throw new Error(`Plan beta ${betaKey} no existe.`);
-  return { terms: { capabilities: [...beta.capabilities], allowances: { ...beta.allowances }, overages: { ...beta.overages } }, features: beta.features };
+function entry(code: PlanCode, key: string, name: string, position: number, features: string[]): CatalogEntry {
+  return { key, name, position, terms: legacyTermsFromValues(PLAN_ENTITLEMENTS[code]), features };
 }
 
 export const PLAN_CATALOG: Record<PlanCode, CatalogEntry> = {
-  [PlanCode.FREE]: {
-    key: 'free',
-    name: 'Free',
-    position: 0,
-    terms: {
-      capabilities: [],
-      allowances: {
-        users: 1,
-        contacts: 300,
-        whatsapp_numbers: 0,
-        conversations: 0,
-        ai_cost_clp: 0,
-        emails: 0,
-        campaign_contacts: 0,
-      },
-      overages: {},
-    },
-    features: ['CRM basico', 'Contactos, pipeline y actividades', 'Tus datos siempre accesibles'],
-  },
-  [PlanCode.START]: { key: 'start', name: 'Start', position: 1, ...fromBeta('beta-inicial') },
-  [PlanCode.PRO]: { key: 'pro', name: 'Pro', position: 2, ...fromBeta('beta-comercial') },
-  [PlanCode.SCALE]: { key: 'scale', name: 'Scale', position: 3, ...fromBeta('beta-completo') },
+  [PlanCode.FREE]: entry(PlanCode.FREE, 'free', 'Free', 0, [
+    'CRM básico: contactos, pipeline y actividades',
+    'Hasta 3 automatizaciones internas',
+    'Tus datos siempre accesibles',
+  ]),
+  [PlanCode.START]: entry(PlanCode.START, 'start', 'Start', 1, [
+    '2 canales de mensajería',
+    'Agente IA con 200 créditos al mes',
+    'Cotizador y seguimientos automáticos',
+  ]),
+  [PlanCode.PRO]: entry(PlanCode.PRO, 'pro', 'Pro', 2, [
+    'Productos, pedidos y cobros',
+    'Shopify y recuperación de ventas',
+    'Campañas y analítica avanzada',
+  ]),
+  [PlanCode.SCALE]: entry(PlanCode.SCALE, 'scale', 'Scale', 3, [
+    'Todo lo de Pro, con más capacidad',
+    '10 canales y 20 agentes IA',
+    'API avanzada',
+  ]),
 };
 
 export const PLAN_CODES = [PlanCode.FREE, PlanCode.START, PlanCode.PRO, PlanCode.SCALE] as const;

@@ -81,7 +81,7 @@ export async function resolveContextForSession(session: Session | null, now = ne
         session.activeWorkspaceId && !session.supportSessionId
           ? prisma.workspaceMembership.findUnique({
               where: { userId_workspaceId: { userId: session.userId, workspaceId: session.activeWorkspaceId } },
-              select: { role: true, status: true, workspace: { select: { id: true, name: true, slug: true } } },
+              select: { role: true, status: true, planLimitedAt: true, workspace: { select: { id: true, name: true, slug: true } } },
             })
           : null,
         session.supportSessionId

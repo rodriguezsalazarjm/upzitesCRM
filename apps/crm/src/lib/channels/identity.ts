@@ -1,5 +1,6 @@
 import { ActivityType, type Channel } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { noteInboundContact } from '../entitlements/inbound';
 import { CHANNEL_LABEL } from '../../components/channels/channel-badge';
 
 /**
@@ -47,6 +48,9 @@ export async function resolveContactForChannelIdentity(input: {
       },
     },
   });
+  // P0-C: un contacto entrante nunca se pierde por `contacts.max`; si queda
+  // sobre el limite se audita.
+  await noteInboundContact({ workspaceId: input.workspaceId, contactId: contact.id, source: input.channel });
 
   await prisma.activity.create({
     data: {

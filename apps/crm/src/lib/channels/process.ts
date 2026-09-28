@@ -104,7 +104,9 @@ export async function processChannelEvent(eventId: string) {
       });
     }
 
-    await matchAndStartFlowsForChannelEvent({
+    // P0-C: la cuenta limitada por el plan sigue recibiendo (el mensaje del
+    // cliente no se pierde), pero no dispara automatizaciones.
+    if (!event.channelAccount?.planLimitedAt) await matchAndStartFlowsForChannelEvent({
       eventId: event.id,
       accountId: event.channelAccountId,
       postId: typeof content.postId === 'string' ? content.postId : undefined,

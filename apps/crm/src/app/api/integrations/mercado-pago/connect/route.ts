@@ -15,6 +15,8 @@ import {
   verifyMercadoPagoAccessToken,
 } from '@/lib/mercado-pago';
 import { prisma } from '@/lib/prisma';
+import { assertFeature } from '@/lib/entitlements';
+import { gate } from '@/lib/entitlements/http';
 
 const connectSchema = z.object({
   accessToken: z.string().min(20, 'El access token no parece completo.').max(512),
@@ -37,6 +39,10 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+
+  // P0-C: cobrar las ventas del negocio es la funcion commerce del plan.
+  const blocked = await gate(() => assertFeature(user.workspace.id, 'integrations.mercadoPago'));
+  if (blocked) return blocked;
 
   const parsed = await parseBody(request, connectSchema);
   if (!parsed.ok) return parsed.response;

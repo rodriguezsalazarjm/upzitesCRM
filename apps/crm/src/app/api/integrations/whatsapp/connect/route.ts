@@ -10,7 +10,10 @@ import { canManageChannels } from '@/lib/conversations';
 import { EncryptionKeyMissingError, encryptSecret } from '@/lib/crypto';
 import { recordAudit } from '@/lib/domain/audit';
 import { parseBody } from '@/lib/http';
-import { prisma } from '@/lib/prisma';
+import { assertChannelConnectAllowed } from '@/lib/entitlements/channels';
+import { entitlementResponse, gate } from '@/lib/entitlements/http';
+import { isEntitlementError } from '@/lib/entitlements';
+import { withEntitlementLock } from '@/lib/entitlements/lock';
 import { MetaWhatsAppError, verifyAndSubscribeWhatsAppChannel } from '@/lib/whatsapp/meta';
 import {
   assertWhatsAppChannelOwnership,
@@ -46,6 +49,13 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
+  // P0-C: `channels.max` es agnostico de proveedor. Se decide antes de
+  // verificar contra Meta.
+  const blocked = await gate(() =>
+    assertChannelConnectAllowed(user.workspace.id, { channel: 'WHATSAPP', phoneNumberId: input.phoneNumberId }),
+  );
+  if (blocked) return blocked;
+
   let verified;
   try {
     verified = await verifyAndSubscribeWhatsAppChannel(input);
@@ -71,14 +81,18 @@ export async function POST(request: Request) {
 
   let channel;
   try {
-    channel = await prisma.$transaction(async (tx) => {
+    // P0-C: la verificacion con Meta ya ocurrio (fuera del lock). Aqui, bajo el
+    // lock de `channels.max`, se hace el chequeo final y la escritura local:
+    // dos conexiones simultaneas no pueden superar el limite.
+    channel = await withEntitlementLock(user.workspace.id, 'channels.max', async (tx, guard) => {
       // La lectura y la escritura viven en la misma transaccion. Si dos tenants
       // compiten, el unique global hace fallar al perdedor sin sobrescribir.
       const taken = await tx.whatsAppChannel.findUnique({
         where: { phoneNumberId: verified.phoneNumberId },
-        select: { id: true, workspaceId: true },
+        select: { id: true, workspaceId: true, status: true },
       });
       assertWhatsAppChannelOwnership(taken?.workspaceId, user.workspace.id);
+      if (!(taken && taken.status !== WhatsAppChannelStatus.DISCONNECTED)) await guard.assertCanGrow();
 
       const integration = await tx.integration.upsert({
         where: {
@@ -139,6 +153,7 @@ export async function POST(request: Request) {
       return saved;
     });
   } catch (error) {
+    if (isEntitlementError(error)) return entitlementResponse(error);
     if (isWhatsAppChannelOwnershipConflict(error)) {
       return NextResponse.json(
         { message: 'Ese numero ya esta conectado a otra cuenta.' },

@@ -14,6 +14,7 @@ import { recordAudit } from '../domain/audit';
 import { cancelForContact, revokeConsent, scheduleAction } from '../domain';
 import { createOrder, listCatalog, OrderError } from '../commerce/orders';
 import { CheckoutError, createOrderCheckout } from '../commerce/checkout';
+import { isEntitlementError } from '../entitlements';
 import { createShopifyClient } from '../shopify/client';
 import { createShopifyCheckout, ShopifyOrderError } from '../shopify/orders';
 import { fetchLiveVariant, getShopifyConnection } from '../shopify/sync';
@@ -617,6 +618,9 @@ export const AGENT_TOOLS: AgentTool[] = [
           data: { checkoutUrl: checkout.checkoutUrl, totalClp: order.total, orderId: order.id },
         };
       } catch (error) {
+        // P0-C: el plan no incluye cobros (defensa en runtime; la publicacion
+        // del agente/flujo ya lo valida). El agente lo explica, no se cae.
+        if (isEntitlementError(error)) return { ok: false, error: 'Este negocio no tiene cobros en linea habilitados en su plan.' };
         if (error instanceof OrderError) return { ok: false, error: error.message };
         // El cambio de precio se le dice al agente tal cual, para que lo
         // reconfirme con el cliente en vez de cobrar de mas.

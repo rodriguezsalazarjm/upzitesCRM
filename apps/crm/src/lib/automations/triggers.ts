@@ -65,6 +65,8 @@ export async function matchAndStartFlowsForChannelEvent(event: ChannelTriggerEve
       flow: {
         workspaceId: event.workspaceId,
         status: AutomationFlowStatus.PUBLISHED,
+        // P0-C: un flujo limitado por plan sigue publicado pero no se dispara.
+        planLimitedAt: null,
         OR: [{ channelScope: { isEmpty: true } }, { channelScope: { has: event.channel } }],
       },
     },
