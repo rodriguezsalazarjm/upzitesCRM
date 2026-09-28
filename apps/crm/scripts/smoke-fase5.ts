@@ -22,10 +22,10 @@ import {
   ProductStatus,
   ProductType,
   ScheduledActionStatus,
-  SubscriptionStatus,
 } from '../generated/prisma/client';
 import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { resolveSubscription } from '../src/lib/billing/subscription-access';
 import { createOrder, getOrder, listCatalog, OrderError, cancelOrder } from '../src/lib/commerce/orders';
 import { recoveryKeyFor, upsertPayment } from '../src/lib/commerce/checkout';
 import { classifyPayment, processOrderPayment } from '../src/lib/commerce/payment-webhook';
@@ -364,12 +364,15 @@ let paidContactId = '';
   check('La recuperacion de checkout se cancela', pendingRecovery === 0);
 
   // Lo que la Fase 0 marco como riesgo: esto NO debe tocar la suscripcion.
+  // P0-B: el registro nace en FREE; comprar un producto debe dejarlo igual.
   const subscription = await prisma.workspaceSubscription.findFirstOrThrow({
     where: { workspaceId: A.workspaceId },
   });
+  const resolved = await resolveSubscription(A.workspaceId);
   check('Comprar un producto NO activa la suscripcion del CRM',
-    subscription.status === SubscriptionStatus.TRIAL, `status=${subscription.status}`);
+    resolved.state === 'FREE' && resolved.billingSource === 'FREE', `state=${resolved.state}`);
   check('Ni le asigna el pago del producto', subscription.mpPaymentId === null);
+  check('Ni crea un pago SaaS', (await prisma.subscriptionPayment.count({ where: { workspaceId: A.workspaceId } })) === 0);
 }
 
 // --- 8. Pago duplicado NO duplica entrega -----------------------------------

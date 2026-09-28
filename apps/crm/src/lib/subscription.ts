@@ -1,7 +1,9 @@
 import {
+  BillingSource,
   IntegrationProvider,
   IntegrationStatus,
   OpportunityStage,
+  PlanCode,
   SubscriptionStatus,
   UserRole,
   WorkspaceRole,
@@ -13,13 +15,15 @@ import { DEFAULT_SALES_AGENT } from './agents/presets';
 import { bootstrapMarketing } from './marketing/bootstrap';
 import { hashPassword } from './password';
 import { BETA_PLANS } from './billing/plans';
-import { latestSubscription } from './billing/subscription-access';
-import { resolveSubscriptionState } from './billing/subscription-state';
+import { ensurePlanCatalog } from './billing/plan-catalog';
+import { currentSubscription } from './billing/subscription-access';
+import { resolveLifecycle } from './billing/subscription-state';
 import { prisma } from './prisma';
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30;
 const TRIAL_MS = 1000 * 60 * 60 * 24 * 7;
 
+/** LEGACY: plan de la beta con trial de 7 dias. Ya no se asigna (P0-B). */
 export const MONTHLY_PLAN_KEY = 'monthly';
 
 const defaultStages = [
@@ -48,7 +52,9 @@ export function nextTrialEnd(from = new Date()) {
 }
 
 /**
- * Plan con el que arranca todo workspace nuevo.
+ * LEGACY (P0-B): plan con el que arrancaba todo workspace antes de V2. Ya no
+ * se asigna a nadie; se conserva para las suscripciones que lo tienen y para
+ * resolver preferencias de Mercado Pago legacy en vuelo.
  *
  * Habilita todas las capacidades a proposito —durante la prueba el cliente
  * tiene que poder ver que hace el producto— pero con cupos deliberadamente
@@ -99,7 +105,9 @@ export async function ensureMonthlyPlan() {
 }
 
 /**
- * Escalera comercial de la beta. Idempotente.
+ * LEGACY (P0-B): escalera comercial de la beta. Ya no se vende (queda
+ * `isActive = false`); los planes a la venta son los del catalogo
+ * FREE/START/PRO/SCALE (billing/plan-catalog.ts). Idempotente.
  *
  * Se siembra bajo demanda desde `GET /api/plans` en vez de en una migracion:
  * los precios cambian, y una migracion que fija precios obliga a otra migracion
@@ -117,7 +125,7 @@ export async function ensureBetaPlans() {
       allowances: plan.allowances,
       overages: plan.overages,
       position: plan.position,
-      isActive: true,
+      isActive: false,
     };
 
     await prisma.subscriptionPlan.upsert({
@@ -128,25 +136,26 @@ export async function ensureBetaPlans() {
   }
 
   return prisma.subscriptionPlan.findMany({
-    where: { isActive: true },
+    where: { key: { in: BETA_PLANS.map((plan) => plan.key) } },
     orderBy: [{ position: 'asc' }, { priceClp: 'asc' }],
   });
 }
 
 /**
- * Estado de la suscripcion para la interfaz. Delega en el resolver unico
- * (`billing/subscription-state.ts`), el mismo que decide el consumo.
+ * Estado de la suscripcion para la interfaz. Es el MISMO resolver que decide
+ * el consumo y los entitlements (billing/subscription-state.ts).
  */
 export async function getSubscriptionStatus(workspaceId: string) {
   let subscription;
 
   try {
-    subscription = await latestSubscription(workspaceId);
+    subscription = await currentSubscription(workspaceId);
   } catch (error) {
     if (isDevDemoEnabled() && isDatabaseUnavailable(error)) {
       const expiresAt = nextMonthlyRenewal();
       return {
         subscription: null,
+        snapshot: null,
         isActive: true,
         state: 'ACTIVE' as const,
         daysLeft: 30,
@@ -158,9 +167,10 @@ export async function getSubscriptionStatus(workspaceId: string) {
     throw error;
   }
 
-  const resolved = resolveSubscriptionState(subscription);
+  const resolved = resolveLifecycle(subscription);
   return {
     subscription,
+    snapshot: resolved,
     isActive: resolved.hasAccess,
     state: resolved.state,
     daysLeft: resolved.daysLeft,
@@ -208,9 +218,11 @@ export async function createCustomerWorkspace(input: {
     throw new Error('EMAIL_ALREADY_EXISTS');
   }
 
-  const plan = await ensureMonthlyPlan();
+  // P0-B: todo registro nuevo nace en FREE (sin trial automatico). El TRIAL
+  // sigue existiendo, pero se asigna explicitamente (campanas, promociones).
+  const plans = await ensurePlanCatalog();
+  const plan = plans[PlanCode.FREE];
   const slug = await uniqueWorkspaceSlug(input.companyName);
-  const trialEndsAt = nextTrialEnd();
 
   const created = await prisma.$transaction(async (tx) => {
     const workspace = await tx.workspace.create({
@@ -257,12 +269,16 @@ export async function createCustomerWorkspace(input: {
       },
     });
 
+    const startedAt = new Date();
     await tx.workspaceSubscription.create({
       data: {
         workspaceId: workspace.id,
         planId: plan.id,
-        status: SubscriptionStatus.TRIAL,
-        trialEndsAt,
+        billingSource: BillingSource.FREE,
+        // `status` es legacy: el estado se resuelve, no se guarda.
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: startedAt,
+        currentPeriodEnd: null,
       },
     });
 
@@ -335,12 +351,16 @@ export async function createCustomerWorkspace(input: {
         action: 'customer.registered',
         entity: 'Workspace',
         entityId: workspace.id,
-        metadata: { planKey: plan.key, trialEndsAt: trialEndsAt.toISOString() },
+        metadata: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
       },
     });
 
     // `role` es el rol en ESTE workspace (membership OWNER), no el legacy.
-    return { user: { ...user, role: WorkspaceRole.OWNER }, workspace, subscription: { trialEndsAt } };
+    return {
+      user: { ...user, role: WorkspaceRole.OWNER },
+      workspace,
+      subscription: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
+    };
   });
 
   // Fase 8: politica de contacto, segmentos y journeys de fabrica.

@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import { PaymentStatus, SubscriptionStatus } from '../../../../../generated/prisma/client';
+import { BillingInterval, PaymentStatus, PlanCode } from '../../../../../generated/prisma/client';
 import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-webhook';
 import { enforce } from '@/lib/ops/rate-limit';
 import { isKnownLegacySaasPreference, resolvePaymentPreferenceId } from '@/lib/billing/saas-payments';
 import { prisma } from '@/lib/prisma';
-import { nextMonthlyRenewal, MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
+import { MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
+import { ensurePlanCatalog } from '@/lib/billing/plan-catalog';
+import { toMajorUnits } from '@/lib/billing/price-book';
+import { recordSaasPayment } from '@/lib/billing/subscription-admin';
 import {
   getPaymentClient,
   getWorkspacePaymentClient,
@@ -179,90 +182,75 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Workspace no encontrado' }, { status: 404 });
   }
 
-  // Idempotencia: si este pago ya fue procesado (reintento de MP), no repetir.
-  const alreadyProcessed = await prisma.workspaceSubscription.findUnique({
-    where: { mpPaymentId: String(dataId) },
-  });
-  if (alreadyProcessed) {
-    return NextResponse.json({ ok: true, alreadyProcessed: true });
+  // Mercado Pago devuelve la metadata en snake_case; se aceptan ambas formas.
+  const meta = (camel: string, snake: string) => {
+    const value = metadata[camel] ?? metadata[snake];
+    return typeof value === 'string' && value ? value : null;
+  };
+  const priceId = meta('priceId', 'price_id');
+  const declaredPlan = meta('planCode', 'plan_code');
+  const reportedCurrency = typeof payment.currency_id === 'string' ? payment.currency_id.toUpperCase() : null;
+
+  let plan: { id: string; code: PlanCode | null; key: string } | null = null;
+  let price: { id: string; interval: BillingInterval; currency: string; amountMinor: number } | null = null;
+
+  if (priceId) {
+    // P0-B: el precio sale de la fila del Price Book que genero el checkout.
+    // Nunca se clasifica ni se elige el plan por el monto. Se busca por id SIN
+    // filtrar vigencia: si despues se publico otro precio, un checkout emitido
+    // con la version anterior se valida contra ESA version (monto y moneda).
+    const row = await prisma.planPrice.findUnique({ where: { id: priceId } });
+    if (!row || (declaredPlan && declaredPlan !== row.planCode) || row.planCode === PlanCode.FREE) {
+      console.error('billing_webhook_unknown_price', { paymentId: dataId, priceId, declaredPlan });
+      return NextResponse.json({ message: 'Precio no encontrado' }, { status: 400 });
+    }
+    const plans = await ensurePlanCatalog();
+    plan = plans[row.planCode];
+    price = { id: row.id, interval: row.interval, currency: row.currency, amountMinor: row.amountMinor };
+  } else {
+    // Preferencias legacy en vuelo (planKey, CLP de la fila del plan).
+    const planKey = meta('planKey', 'plan_key') ?? MONTHLY_PLAN_KEY;
+    const legacy = planKey === MONTHLY_PLAN_KEY
+      ? await ensureMonthlyPlan()
+      : await prisma.subscriptionPlan.findUnique({ where: { key: planKey } });
+    if (!legacy) {
+      console.error('billing_webhook_unknown_plan', { paymentId: dataId, planKey });
+      return NextResponse.json({ message: 'Plan no encontrado' }, { status: 400 });
+    }
+    plan = { id: legacy.id, code: legacy.code, key: legacy.key };
+    price = null;
   }
 
-  const planKey = typeof metadata.planKey === 'string' ? metadata.planKey : MONTHLY_PLAN_KEY;
-  const plan = planKey === MONTHLY_PLAN_KEY
-    ? await ensureMonthlyPlan()
-    : await prisma.subscriptionPlan.findUnique({ where: { key: planKey } });
+  const currency = price?.currency ?? 'CLP';
+  const expectedMinor = price?.amountMinor ?? (await prisma.subscriptionPlan.findUniqueOrThrow({ where: { id: plan.id } })).priceClp;
 
-  if (!plan) {
-    console.error('billing_webhook_unknown_plan', { paymentId: dataId, planKey });
-    return NextResponse.json({ message: 'Plan no encontrado' }, { status: 400 });
+  // Moneda y monto deben coincidir con el precio acordado. No bloquea si MP no
+  // los reporta (defensa adicional, no la unica).
+  if (reportedCurrency && reportedCurrency !== currency) {
+    console.error('billing_webhook_currency_mismatch', { paymentId: dataId, expected: currency, received: reportedCurrency });
+    return NextResponse.json({ message: 'Moneda no coincide con el plan' }, { status: 400 });
   }
-
-  // Validacion de monto/moneda cuando el pago los reporta (defensa adicional
-  // contra manipulacion de la preferencia; no bloquea si MP no los reporta).
-  if (
-    typeof payment.transaction_amount === 'number' &&
-    payment.transaction_amount !== plan.priceClp
-  ) {
+  if (typeof payment.transaction_amount === 'number' && payment.transaction_amount !== toMajorUnits(expectedMinor, currency)) {
     console.error('billing_webhook_amount_mismatch', {
       paymentId: dataId,
-      expected: plan.priceClp,
+      expected: toMajorUnits(expectedMinor, currency),
       received: payment.transaction_amount,
     });
     return NextResponse.json({ message: 'Monto no coincide con el plan' }, { status: 400 });
   }
 
-  const renewsAt = nextMonthlyRenewal();
-  const current = await prisma.workspaceSubscription.findFirst({
-    where: { workspaceId },
-    orderBy: { createdAt: 'desc' },
+  // Solo WorkspaceSubscription + SubscriptionPayment (libro SaaS). Nunca
+  // Payment ni CustomerOrder. Idempotente por el id de pago de Mercado Pago.
+  const result = await recordSaasPayment({
+    workspaceId,
+    plan,
+    price: price ? { id: price.id, interval: price.interval } : null,
+    currency,
+    amountMinor: expectedMinor,
+    externalPaymentId: String(dataId),
   });
 
-  let subscription;
-  try {
-    subscription = current
-      ? await prisma.workspaceSubscription.update({
-          where: { id: current.id },
-          data: {
-            planId: plan.id,
-            status: SubscriptionStatus.ACTIVE,
-            trialEndsAt: null,
-            renewsAt,
-            mpPreferenceId: typeof metadata.preferenceId === 'string' ? metadata.preferenceId : current.mpPreferenceId,
-            mpPaymentId: String(dataId),
-          },
-        })
-      : await prisma.workspaceSubscription.create({
-          data: {
-            workspaceId,
-            planId: plan.id,
-            status: SubscriptionStatus.ACTIVE,
-            renewsAt,
-            mpPaymentId: String(dataId),
-          },
-        });
-  } catch (error) {
-    // Carrera con otra entrega del mismo webhook: el constraint unique en
-    // mpPaymentId ya gano en la otra request. Tratamos como exito idempotente.
-    const alreadyRace = await prisma.workspaceSubscription.findUnique({
-      where: { mpPaymentId: String(dataId) },
-    });
-    if (alreadyRace) {
-      return NextResponse.json({ ok: true, alreadyProcessed: true });
-    }
-    throw error;
-  }
-
-  await prisma.auditLog.create({
-    data: {
-      workspaceId,
-      action: 'billing.payment_confirmed',
-      entity: 'WorkspaceSubscription',
-      entityId: subscription.id,
-      metadata: { planKey: plan.key, paymentId: dataId, renewsAt: renewsAt.toISOString() },
-    },
-  });
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(result.alreadyProcessed ? { alreadyProcessed: true } : {}) });
 }
 
 function mapPaymentStatus(status: unknown): PaymentStatus {

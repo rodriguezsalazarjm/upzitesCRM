@@ -4,6 +4,7 @@ import https from 'node:https';
 import { randomUUID } from 'node:crypto';
 import { crossTenantPrisma, prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { legacyTrialForTests } from './fixtures/workspace';
 import { encryptSecret } from '../src/lib/crypto';
 import { activateHumanControl } from '../src/lib/whatsapp/human-control';
 import { queueOutboundMessage, processOutbox } from '../src/lib/whatsapp/outbound';
@@ -56,6 +57,8 @@ async function workspace(key: string) {
     password: 'Beta#Test1234',
   });
   workspaceIds.push(result.workspace.id);
+  // P0-B: el alta nace en FREE; esta suite prueba funciones del trial previo.
+  await legacyTrialForTests(result.workspace.id);
   const channel = await prisma.whatsAppChannel.create({
     data: {
       workspaceId: result.workspace.id,

@@ -14,6 +14,7 @@ import { AutomationFlowStatus, ChannelAccountStatus, ChannelConnectionMethod } f
 import { prisma } from '../src/lib/prisma';
 import { encryptSecret } from '../src/lib/crypto';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { legacyTrialForTests } from './fixtures/workspace';
 import { POST as instagramWebhook } from '../src/app/api/webhooks/instagram/route';
 import { processChannelEvent } from '../src/lib/channels/process';
 import type { FlowGraph } from '../src/lib/automations/schema';
@@ -48,6 +49,8 @@ async function makeWorkspace(key: string) {
     email: `faseC-ch-${key}-${stamp}@upzites.test`,
     password: 'FaseCch#Test1234',
   });
+  // P0-B: el alta nace en FREE; los canales se prueban con el trial previo.
+  await legacyTrialForTests(workspace.id);
   return workspace.id;
 }
 

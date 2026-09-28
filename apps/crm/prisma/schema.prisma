@@ -36,7 +36,10 @@ model Workspace {
   automationRules AutomationRule[]
   aiInsights      AiInsight[]
   auditLogs       AuditLog[]
-  subscriptions   WorkspaceSubscription[]
+  /// Una sola suscripcion por workspace (P0-B). El historial financiero vive
+  /// en SubscriptionPayment y AuditLog.
+  subscription    WorkspaceSubscription?
+  subscriptionPayments SubscriptionPayment[]
 
   contactConsents    ContactChannelConsent[]
   suppressionEntries SuppressionEntry[]
@@ -551,6 +554,10 @@ model AiInsight {
 model SubscriptionPlan {
   id          String   @id @default(cuid())
   key         String   @unique
+  /// Codigo comercial formal (P0-B). null = plan legacy (monthly, beta-*): las
+  /// suscripciones que lo usan siguen resolviendose con sus propios terminos,
+  /// pero ya no se vende. El precio NO vive aqui: ver PlanPrice.
+  code        PlanCode? @unique
   name        String
   priceClp    Int      @map("price_clp")
   maxUsers    Int      @map("max_users")
@@ -581,21 +588,105 @@ model SubscriptionPlan {
 
 model WorkspaceSubscription {
   id             String             @id @default(cuid())
-  workspaceId    String             @map("workspace_id")
+  workspaceId    String             @unique @map("workspace_id")
   planId         String             @map("plan_id")
+  /// LEGACY (P0-B): el estado ya no se guarda, se resuelve (lib/billing/
+  /// subscription-state.ts). Se sigue escribiendo por compatibilidad.
   status         SubscriptionStatus @default(TRIAL)
   trialEndsAt    DateTime?          @map("trial_ends_at")
   renewsAt       DateTime?          @map("renews_at")
   mpPreferenceId String?            @map("mp_preference_id")
   mpPaymentId    String?            @unique @map("mp_payment_id")
+
+  /// Como se paga. Independiente del plan: PRO puede ser MANUAL o MERCADO_PAGO,
+  /// SCALE puede ser COMP. Nunca se infiere el plan por el medio de pago.
+  billingSource      BillingSource @default(FREE) @map("billing_source")
+  currentPeriodStart DateTime?     @map("current_period_start")
+  /// null = sin vencimiento (FREE, COMP indefinido).
+  currentPeriodEnd   DateTime?     @map("current_period_end")
+  /// Suspension administrativa explicita. No es un vencimiento.
+  suspendedAt        DateTime?     @map("suspended_at")
+  suspendedReason    String?       @map("suspended_reason")
+  /// Precio acordado (snapshot) y la fila del Price Book de la que salio.
+  priceId            String?       @map("price_id")
+  currency           String?
+  amountMinor        Int?          @map("amount_minor")
+  notes              String?
+  updatedById        String?       @map("updated_by_id")
+
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
-  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plan      SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  price     PlanPrice?            @relation(fields: [priceId], references: [id], onDelete: SetNull)
+  payments  SubscriptionPayment[]
 
   @@index([workspaceId, status])
   @@map("workspace_subscriptions")
+}
+
+/// Price Book (P0-B): precio por plan, moneda e intervalo, con vigencia. La base
+/// es la fuente de verdad: un cambio de precio es una fila nueva (queda el
+/// historial) y un SUPER_ADMIN podra hacerlo sin deploy.
+///
+/// `amountMinor` va en unidades menores ISO 4217: CLP (exponente 0) 19990 =
+/// $19.990; USD (exponente 2) 1900 = US$19. Sin conversion entre monedas.
+model PlanPrice {
+  id          String          @id @default(cuid())
+  planCode    PlanCode        @map("plan_code")
+  currency    String
+  interval    BillingInterval @default(MONTH)
+  amountMinor Int             @map("amount_minor")
+  active      Boolean         @default(true)
+  validFrom   DateTime        @default(now()) @map("valid_from")
+  validUntil  DateTime?       @map("valid_until")
+  createdById String?         @map("created_by_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  subscriptions WorkspaceSubscription[]
+  payments      SubscriptionPayment[]
+
+  @@index([planCode, currency, interval, active])
+  @@map("plan_prices")
+}
+
+/// Libro de pagos de la suscripcion SaaS (MANUAL y MERCADO_PAGO).
+///
+/// Separado a proposito de Payment/CustomerOrder, que son el commerce de cada
+/// workspace: cobrar Upzites Flow nunca pasa por el libro de ventas de un
+/// cliente, ni al reves.
+model SubscriptionPayment {
+  id                String        @id @default(cuid())
+  workspaceId       String        @map("workspace_id")
+  subscriptionId    String        @map("subscription_id")
+  /// null solo para pagos de planes legacy (sin codigo).
+  planCode          PlanCode?     @map("plan_code")
+  planKey           String        @map("plan_key")
+  source            BillingSource
+  currency          String
+  amountMinor       Int           @map("amount_minor")
+  paidAt            DateTime      @map("paid_at")
+  periodStart       DateTime      @map("period_start")
+  periodEnd         DateTime      @map("period_end")
+  reference         String?
+  notes             String?
+  /// Idempotencia de Mercado Pago: un reintento del webhook no duplica el pago.
+  externalPaymentId String?       @unique @map("external_payment_id")
+  /// Idempotencia de la OPERACION de billing (doble click en "Registrar
+  /// transferencia", reintento del webhook). Unica en todo el libro SaaS. No
+  /// se confia en la referencia bancaria para esto.
+  idempotencyKey    String?       @unique @map("idempotency_key")
+  priceId           String?       @map("price_id")
+  recordedById      String?       @map("recorded_by_id")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription WorkspaceSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  price        PlanPrice?            @relation(fields: [priceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, paidAt])
+  @@map("subscription_payments")
 }
 
 model AuditLog {
@@ -2588,6 +2679,28 @@ enum InsightStatus {
   OPEN
   DISMISSED
   APPLIED
+}
+
+/// Plan comercial de Upzites Flow (P0-B).
+enum PlanCode {
+  FREE
+  START
+  PRO
+  SCALE
+}
+
+/// Medio por el que se sostiene la suscripcion. Independiente del plan.
+enum BillingSource {
+  FREE
+  MANUAL
+  MERCADO_PAGO
+  COMP
+  TRIAL
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
 }
 
 enum SubscriptionStatus {

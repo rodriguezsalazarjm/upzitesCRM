@@ -188,13 +188,15 @@ const definitions: StepDefinition[] = [
         };
       }
 
+      // P0-B: FREE tambien es un plan (el registro nace ahi). Solo una
+      // suspension deja este paso pendiente.
       const entitlements = await getEntitlements(workspaceId);
-      return entitlements?.active
+      return entitlements.hasAccess
         ? { done: true, evidence: 'VERIFICADO' }
         : {
             done: false,
             evidence: 'GUARDADO',
-            hint: 'Tu plan figura, pero la suscripción no está al día.',
+            hint: 'La suscripción está suspendida: escríbenos para reactivarla.',
           };
     },
   },
@@ -544,8 +546,11 @@ export async function getOnboardingState(workspaceId: string): Promise<Onboardin
   const context: Context = {
     workspaceId,
     businessType: profile?.businessType ?? BusinessType.UNDEFINED,
-    capabilities: entitlements?.plan.capabilities ?? null,
-    hasPlan: entitlements !== null,
+    capabilities: entitlements.plan.capabilities,
+    // Tener plan = existe una suscripcion (FREE incluida). Sin fila es un
+    // estado anomalo: el resolver lo trata como FREE, pero el wizard no lo da
+    // por resuelto.
+    hasPlan: entitlements.subscription.configuredPlan !== null || entitlements.subscription.legacyPlanKey !== null,
   };
 
   const steps: StepState[] = [];

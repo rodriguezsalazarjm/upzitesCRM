@@ -189,11 +189,16 @@ export async function scanWorkspaceHealth(workspaceId: string) {
       });
     }
 
-    await track(!entitlements.active, {
+    // FREE no es una suscripcion vencida: solo alertan EXPIRED y SUSPENDED.
+    const lapsed = entitlements.state === 'EXPIRED' || entitlements.state === 'SUSPENDED';
+    await track(lapsed, {
       kind: AlertKind.SUBSCRIPTION_EXPIRED,
       severity: AlertSeverity.CRITICAL,
-      title: 'La suscripcion no esta vigente',
-      detail: 'El consumo queda bloqueado hasta regularizar el pago.',
+      title: entitlements.state === 'SUSPENDED' ? 'La suscripcion esta suspendida' : 'La suscripcion vencio',
+      detail:
+        entitlements.state === 'SUSPENDED'
+          ? 'El acceso y el consumo quedan bloqueados hasta que Upzites la reactive.'
+          : 'El workspace opera con los limites de FREE hasta renovar. No se borro nada.',
       dedupeKey: 'subscription-expired',
     });
   }

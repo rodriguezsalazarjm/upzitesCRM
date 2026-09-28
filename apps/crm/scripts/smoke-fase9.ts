@@ -13,6 +13,7 @@
  *   pnpm exec tsx scripts/smoke-fase9.ts
  */
 import './fixtures/test-environment';
+import { legacyTrialForTests } from './fixtures/workspace';
 import {
   ActivationStatus,
   AgentRunStatus,
@@ -82,6 +83,8 @@ async function makeWorkspace(suffix: string) {
     email: `owner-${suffix}-${stamp}@fase9.test`,
     password: 'contrasena-de-prueba-1234',
   });
+  // P0-B: el alta nace en FREE; el onboarding se prueba con el trial previo.
+  await legacyTrialForTests(created.workspace.id);
 
   return { workspaceId: created.workspace.id, userId: created.user.id };
 }
@@ -765,12 +768,16 @@ console.log('\n== Suscripcion vencida ==');
   const entitlements = await getEntitlements(B.workspaceId);
   check('Una suscripcion vencida deja de estar activa', entitlements?.active === false);
 
-  const cupo = await checkAllowance({ workspaceId: B.workspaceId, metric: 'contacts' });
+  // P0-B: vencida = FREE efectivo. No se bloquea el CRM (los contactos usan el
+  // tope de FREE), pero el consumo pagado del mes queda en cero.
+  const cupo = await checkAllowance({ workspaceId: B.workspaceId, metric: 'conversations' });
   check('Y no deja consumir nada', !cupo.allowed && cupo.limit === 0);
+  const contactosVencida = await checkAllowance({ workspaceId: B.workspaceId, metric: 'contacts' });
+  check('Los contactos quedan con el tope de FREE', contactosVencida.limit === 300);
 
   // Sin suscripcion tampoco.
   await prisma.workspaceSubscription.deleteMany({ where: { workspaceId: B.workspaceId } });
-  const sinSuscripcion = await checkAllowance({ workspaceId: B.workspaceId, metric: 'contacts' });
+  const sinSuscripcion = await checkAllowance({ workspaceId: B.workspaceId, metric: 'conversations' });
   check('Quedarse sin plan no significa consumo libre', !sinSuscripcion.allowed);
   check('Ni capacidades', !(await hasCapability(B.workspaceId, 'WHATSAPP')));
 }

@@ -21,6 +21,7 @@ import {
 } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createCustomerWorkspace } from '../src/lib/subscription';
+import { legacyTrialForTests } from './fixtures/workspace';
 import { calculateQuote } from '../src/lib/quotes/engine';
 import { parseRules, validateIntake, parseIntakeSchema } from '../src/lib/quotes/schema';
 import {
@@ -110,6 +111,8 @@ async function makeWorkspace(key: string) {
     email: `fase7-${key}-${stamp}@upzites.test`,
     password: 'Fase7#Test1234',
   });
+  // P0-B: el alta nace en FREE (sin cotizador); se parte del trial previo.
+  await legacyTrialForTests(workspace.id);
 
   const ruleSet = await prisma.pricingRuleSet.create({
     data: {

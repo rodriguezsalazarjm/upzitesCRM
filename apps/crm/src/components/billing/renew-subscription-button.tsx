@@ -4,7 +4,19 @@ import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export function RenewSubscriptionButton() {
+/**
+ * Inicia el checkout SaaS de Mercado Pago para un plan del catalogo. El precio
+ * lo decide el servidor (Price Book, CLP); aqui solo se elige el plan.
+ */
+export function RenewSubscriptionButton({
+  planCode,
+  label,
+  variant = 'default',
+}: {
+  planCode: 'START' | 'PRO' | 'SCALE';
+  label: string;
+  variant?: 'default' | 'outline';
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -15,7 +27,7 @@ export function RenewSubscriptionButton() {
     const response = await fetch('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planKey: 'monthly' }),
+      body: JSON.stringify({ planCode, currency: 'CLP' }),
     }).catch(() => null);
     const result = await response?.json().catch(() => null);
 
@@ -36,9 +48,9 @@ export function RenewSubscriptionButton() {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" size="sm" className="h-8 text-xs" onClick={renew} disabled={loading}>
+      <Button type="button" size="sm" variant={variant} className="h-8 text-xs" onClick={renew} disabled={loading}>
         <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-        Renovar 30 días
+        {label}
       </Button>
       {error && <p role="alert" className="text-[11px] font-medium text-danger-ink">{error}</p>}
     </div>

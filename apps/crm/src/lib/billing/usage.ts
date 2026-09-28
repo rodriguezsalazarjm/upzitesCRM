@@ -1,4 +1,3 @@
-import { SubscriptionStatus } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { countActiveMembers } from '../membership';
 import type { Db } from '../domain/audit';
@@ -10,8 +9,9 @@ import {
   type PlanCapability,
   type PlanTerms,
 } from './plans';
-import { latestSubscription } from './subscription-access';
-import { resolveSubscriptionState, type SubscriptionState } from './subscription-state';
+import { catalogTerms } from './plan-catalog';
+import { currentSubscription } from './subscription-access';
+import { resolveLifecycle, type SubscriptionSnapshot, type SubscriptionState } from './subscription-state';
 
 /**
  * Consumo y limites.
@@ -99,36 +99,38 @@ export async function recordUsage(input: RecordUsageInput, db: Db = prisma) {
 // --- Limites -----------------------------------------------------------------
 
 export type WorkspaceEntitlements = {
+  /** Terminos del PLAN EFECTIVO (FREE si expiro), no del configurado. */
   plan: PlanTerms;
-  status: SubscriptionStatus;
   /** Estado resuelto (ver subscription-state.ts). */
   state: SubscriptionState;
-  /** Puede consumir: un plan vencido conserva las capacidades pero no deja gastar. */
+  /** Puede gastar recursos pagados. */
   active: boolean;
+  /** Puede usar la aplicacion (solo SUSPENDED lo niega). */
+  hasAccess: boolean;
+  subscription: SubscriptionSnapshot;
 };
 
 /**
- * Plan vigente del workspace.
+ * Capacidades y cupos vigentes del workspace, siempre desde el resolver unico.
  *
- * Devuelve null cuando no hay suscripcion: el llamador decide si eso bloquea.
- * Inventar un plan por defecto aqui seria regalar capacidades a quien no pago.
- *
- * `active` sale del mismo resolver que usa la interfaz: antes un `ACTIVE`
- * vencido seguia consumiendo aqui mientras la app mostraba "vencido".
+ * Los terminos son los del plan EFECTIVO: una PRO vencida tras la gracia tiene
+ * los de FREE (sin borrar nada), y una en GRACE conserva los de PRO. Un plan
+ * legacy en vigencia usa los de su propia fila. Sin suscripcion rige FREE.
+ * Ningun llamador pregunta por el nombre del plan.
  */
-export async function getEntitlements(
-  workspaceId: string,
-  db: Db = prisma,
-): Promise<WorkspaceEntitlements | null> {
-  const subscription = await latestSubscription(workspaceId, db);
-  if (!subscription) return null;
-
-  const resolved = resolveSubscriptionState(subscription);
+export async function getEntitlements(workspaceId: string, db: Db = prisma): Promise<WorkspaceEntitlements> {
+  const row = await currentSubscription(workspaceId, db);
+  const resolved = resolveLifecycle(row);
+  const plan =
+    resolved.effectivePlan === 'LEGACY' && row
+      ? planTerms(row.plan)
+      : catalogTerms(resolved.effectivePlan === 'LEGACY' ? 'FREE' : resolved.effectivePlan);
   return {
-    plan: planTerms(subscription.plan),
-    status: subscription.status,
+    plan,
     state: resolved.state,
     active: resolved.canConsume,
+    hasAccess: resolved.hasAccess,
+    subscription: resolved,
   };
 }
 
@@ -204,10 +206,13 @@ export async function usedFor(
 }
 
 /**
- * Decide si cabe `amount` mas en una metrica.
+ * Decide si cabe `amount` mas en una metrica, con los cupos del PLAN EFECTIVO.
  *
- * Sin suscripcion o con una vencida no cabe nada: quedarse sin plan no puede
- * significar consumo libre.
+ * P0-B separa dos cosas: las existencias (contactos, usuarios, numeros) usan
+ * los cupos del plan efectivo mientras haya acceso —FREE o un plan vencido
+ * siguen trabajando con su CRM dentro de los topes de FREE—, y el consumo
+ * pagado del mes (IA, conversaciones, emails, campanas) exige ademas poder
+ * consumir. SUSPENDED no tiene acceso: no cabe nada.
  */
 export async function checkAllowance(
   input: {
@@ -224,7 +229,8 @@ export async function checkAllowance(
 
   const entitlements = await getEntitlements(input.workspaceId, db);
 
-  if (!entitlements || !entitlements.active) {
+  const blocked = !entitlements.hasAccess || (ALLOWANCE_KIND[input.metric] === 'flow' && !entitlements.active);
+  if (blocked) {
     return {
       metric: input.metric,
       label,
@@ -278,7 +284,7 @@ export async function usageSummary(workspaceId: string, period = currentPeriod()
   return {
     period,
     plan: entitlements.plan,
-    status: entitlements.status,
+    status: entitlements.state,
     active: entitlements.active,
     allowances: checks,
     /** Costo estimado del periodo, sumando todo lo que tenga precio. */

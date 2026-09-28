@@ -236,8 +236,11 @@ const B = await makeWorkspace('b', SHOP_B);
   });
   check('Los productos quedan en el workspace correcto',
     products.every((p) => p.workspaceId === A.workspaceId));
-  check('El precio viene de Shopify', products[0].variants[0].priceClp === 12990);
-  check('El inventario viene de Shopify', products[0].variants.some((v) => v.inventory === 0));
+  // Se busca el producto por su SKU: findMany no garantiza orden, y tomar
+  // products[0] hacia fallar el test cuando la base devolvia el otro primero.
+  const polera = products.find((p) => p.variants.some((v) => v.sku === 'POL-S'));
+  check('El precio viene de Shopify', polera?.variants.every((v) => v.priceClp === 12990) === true);
+  check('El inventario viene de Shopify', polera?.variants.some((v) => v.inventory === 0) === true);
 
   // Re-sincronizar NO duplica.
   await syncShopifyCatalog({ workspaceId: A.workspaceId, connectionId: A.connectionId, fetcher });

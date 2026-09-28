@@ -40,6 +40,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/smoke-fase4.ts': { uses: 2, why: 'Test: cuenta y limpia jobs RUN_AGENT.' },
   'scripts/smoke-fase5.ts': { uses: 1, why: 'Test: acciones programadas pendientes.' },
   'scripts/smoke-foundation.ts': { uses: 23, why: 'Test: verifica la migracion y el aislamiento mirando todos los tenants.' },
+  'scripts/smoke-p0b.ts': { uses: 5, why: 'Test: limpia auditoria y precios de prueba y lee la auditoria de plataforma.' },
 };
 
 /** Directorios de plataforma: todo lo que vive aqui es cross-tenant por diseno. */

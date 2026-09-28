@@ -210,12 +210,15 @@ await setRenewal(C.workspaceId, -2);
     ['ACTIVE vencido hace 30 dias', B, false],
     ['en gracia (vencio hace 2 dias)', C, true],
   ] as const) {
+    // P0-B: vencido no bloquea la app (FREE efectivo), pero la interfaz, los
+    // limites y el cupo de consumo siguen diciendo exactamente lo mismo.
     const ui = await getSubscriptionStatus(ws.workspaceId);
     const entitlements = await getEntitlements(ws.workspaceId);
-    const contacts = await checkAllowance({ workspaceId: ws.workspaceId, metric: 'contacts' });
-    check(`${label}: la interfaz dice ${expected ? 'activo' : 'vencido'}`, ui.isActive === expected, ui.state);
+    const consumption = await checkAllowance({ workspaceId: ws.workspaceId, metric: 'conversations' });
+    const uiInForce = ui.state === 'ACTIVE' || ui.state === 'TRIAL' || ui.state === 'GRACE';
+    check(`${label}: la interfaz dice ${expected ? 'vigente' : 'vencido'}`, uiInForce === expected && ui.isActive, ui.state);
     check(`${label}: los limites dicen lo mismo`, entitlements?.active === expected, entitlements?.state);
-    check(`${label}: checkAllowance coincide`, contacts.allowed === expected);
+    check(`${label}: checkAllowance de consumo coincide`, consumption.allowed === expected);
     check(`${label}: hasCapability coincide`, (await hasCapability(ws.workspaceId, 'WHATSAPP')) === expected);
     check(`${label}: el freno de consumo coincide`, (await canWorkspaceConsume(ws.workspaceId)) === expected);
   }
