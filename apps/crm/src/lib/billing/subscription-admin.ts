@@ -201,6 +201,32 @@ async function runOnce(
   return { alreadyProcessed: false };
 }
 
+/**
+ * Un monto pactado distinto del Price Book (acuerdo comercial) es valido, pero
+ * nunca silencioso: exige motivo o notas y deja `subscription.manual_price_override`
+ * con ambos montos. El Price Book no se toca.
+ */
+function assertOverrideJustified(priceBookAmount: number, amountMinor: number, input: AdminActor & { notes?: string | null }) {
+  if (amountMinor !== priceBookAmount && !input.reason?.trim() && !input.notes?.trim()) {
+    throw new SubscriptionAdminError('REASON_REQUIRED', 'Un monto distinto del Price Book requiere motivo o notas.');
+  }
+}
+
+async function auditPriceOverride(
+  tx: Tx,
+  workspaceId: string,
+  input: AdminActor & { notes?: string | null; reference?: string | null },
+  data: { planCode: PlanCode; currency: string; priceBookAmountMinor: number; amountMinor: number; priceId: string },
+) {
+  if (data.amountMinor === data.priceBookAmountMinor) return;
+  await audit(tx, workspaceId, 'subscription.manual_price_override', input, {
+    ...data,
+    differenceMinor: data.amountMinor - data.priceBookAmountMinor,
+    notes: input.notes ?? null,
+    reference: input.reference ?? null,
+  });
+}
+
 // --- Operaciones -------------------------------------------------------------
 
 /**
@@ -285,6 +311,7 @@ export async function activateManualSubscription(input: ManualPaymentInput) {
   if (periodEnd <= periodStart)
     throw new SubscriptionAdminError('INVALID_PERIOD', 'El periodo termina antes de empezar.');
   const amountMinor = input.amountMinor ?? price.amountMinor;
+  assertOverrideJustified(price.amountMinor, amountMinor, input);
   const planId = await planIdFor(input.planCode);
 
   const { alreadyProcessed } = await runOnce(input.workspaceId, input.idempotencyKey, () =>
@@ -322,6 +349,13 @@ export async function activateManualSubscription(input: ManualPaymentInput) {
           recordedById: input.actorId ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
         },
+      });
+      await auditPriceOverride(tx, input.workspaceId, input, {
+        planCode: input.planCode,
+        currency,
+        priceBookAmountMinor: price.amountMinor,
+        amountMinor,
+        priceId: price.id,
       });
       await audit(tx, input.workspaceId, 'subscription.manual_activated', input, {
         planCode: input.planCode,
@@ -367,6 +401,7 @@ export async function renewManualSubscription(
   const interval = current.price?.interval ?? BillingInterval.MONTH;
   const price = await priceSnapshot(planCode, currency, interval);
   const amountMinor = input.amountMinor ?? price.amountMinor;
+  assertOverrideJustified(price.amountMinor, amountMinor, input);
   const paidAt = input.paidAt ?? new Date();
   const periodStart = nextPeriodStart(current.currentPeriodEnd, paidAt);
   const periodEnd = addInterval(periodStart, interval, input.periods ?? 1);
@@ -405,6 +440,13 @@ export async function renewManualSubscription(
           recordedById: input.actorId ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
         },
+      });
+      await auditPriceOverride(tx, input.workspaceId, input, {
+        planCode,
+        currency,
+        priceBookAmountMinor: price.amountMinor,
+        amountMinor,
+        priceId: price.id,
       });
       await audit(tx, input.workspaceId, 'subscription.manual_renewed', input, {
         planCode,

@@ -21,6 +21,8 @@ export type RunOptions = {
   withRecurring?: boolean;
   /** Corta el lote si se acerca el limite de tiempo de la funcion serverless. */
   budgetMs?: number;
+  /** Acota la toma a un workspace (worker dedicado o prueba aislada). */
+  workspaceId?: string;
 };
 
 export async function runJobs(options: RunOptions = {}): Promise<RunResult> {
@@ -43,7 +45,7 @@ export async function runJobs(options: RunOptions = {}): Promise<RunResult> {
 
   if (options.withRecurring) await enqueueRecurringJobs();
 
-  const jobs = await claimJobs(limit);
+  const jobs = await claimJobs(limit, undefined, { workspaceId: options.workspaceId });
   result.claimed = jobs.length;
 
   for (const job of jobs) {

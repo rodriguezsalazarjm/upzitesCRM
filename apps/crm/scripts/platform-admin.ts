@@ -19,20 +19,16 @@
 import 'dotenv/config';
 import { PlatformRole } from '../generated/prisma/enums';
 import { prisma } from '../src/lib/prisma';
+import { findUserByEmail } from '../src/lib/identity';
+import { setPlatformRoleFromCli } from '../src/lib/platform/roles';
 
 const GRANTABLE: PlatformRole[] = [PlatformRole.PLATFORM_ADMIN, PlatformRole.SUPER_ADMIN];
 
 async function findUser(email: string) {
-  const users = await prisma.user.findMany({
-    where: { email: email.toLowerCase().trim() },
-    select: { id: true, email: true, platformRole: true },
-  });
-  // Hasta el step 2 el email no es unico global en el schema: ante dos
-  // coincidencias no se adivina a cual se referia quien lo ejecuta.
-  if (users.length !== 1) {
-    throw new Error(`Se esperaba exactamente un usuario con ${email}; hay ${users.length}.`);
-  }
-  return users[0];
+  // Step 2: email unico global.
+  const user = await findUserByEmail(email, { id: true, email: true, platformRole: true });
+  if (!user) throw new Error(`No existe un usuario con ${email}.`);
+  return user;
 }
 
 async function main() {
@@ -68,23 +64,12 @@ async function main() {
   if (!email) throw new Error('Falta el email.');
 
   const user = await findUser(email);
-  if (user.platformRole === role) {
+  // P0-D: misma operacion que la UI (lock + "nunca sin SUPER_ADMIN").
+  const result = await setPlatformRoleFromCli({ email: user.email, role, note });
+  if (!result.changed) {
     console.log(`Sin cambios: ${user.email} ya es ${role}.`);
     return;
   }
-
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { platformRole: role } }),
-    prisma.platformAuditLog.create({
-      data: {
-        actorUserId: null,
-        action: command === 'grant' ? 'platform_role.granted' : 'platform_role.revoked',
-        targetUserId: user.id,
-        metadata: { via: 'cli', from: user.platformRole, to: role, note: note ?? null },
-      },
-    }),
-  ]);
-
   console.log(`${user.email}: ${user.platformRole} → ${role}`);
 }
 

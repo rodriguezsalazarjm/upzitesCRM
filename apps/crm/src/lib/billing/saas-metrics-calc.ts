@@ -23,6 +23,12 @@ export type SaasMetrics = {
   comp: number;
   internalWorkspaces: number;
   byState: Partial<Record<SubscriptionState, number>>;
+  /** Clientes pagando hoy (ACTIVE/GRACE) por medio: manual vs Mercado Pago. */
+  payingBySource: { MANUAL: number; MERCADO_PAGO: number };
+  /** Workspaces comerciales por plan configurado ('LEGACY' = sin codigo). */
+  byPlan: Record<string, number>;
+  /** En gracia: pagaron, vencieron y aun no pasan a FREE. */
+  grace: number;
   /** Workspaces que cuentan como clientes de pago (nunca internos). */
   payingWorkspaceIds: string[];
 };
@@ -42,6 +48,9 @@ export function computeSaasMetrics(rows: MetricsRow[], now = new Date()): SaasMe
     internalWorkspaces: 0,
     byState: {},
     payingWorkspaceIds: [],
+    payingBySource: { MANUAL: 0, MERCADO_PAGO: 0 },
+    byPlan: {},
+    grace: 0,
   };
 
   for (const row of rows) {
@@ -51,11 +60,15 @@ export function computeSaasMetrics(rows: MetricsRow[], now = new Date()): SaasMe
     }
     const snapshot = resolveLifecycle(row, now);
     metrics.byState[snapshot.state] = (metrics.byState[snapshot.state] ?? 0) + 1;
+    const planKey = snapshot.configuredPlan ?? 'LEGACY';
+    metrics.byPlan[planKey] = (metrics.byPlan[planKey] ?? 0) + 1;
+    if (snapshot.state === 'GRACE') metrics.grace += 1;
 
     const paid = PAID.has(snapshot.billingSource);
     if (paid && (snapshot.state === 'ACTIVE' || snapshot.state === 'GRACE')) {
       metrics.payingCustomers += 1;
       metrics.payingWorkspaceIds.push(row.workspace.id);
+      metrics.payingBySource[snapshot.billingSource as 'MANUAL' | 'MERCADO_PAGO'] += 1;
       if (snapshot.price) {
         const monthly =
           snapshot.price.interval === BillingInterval.YEAR

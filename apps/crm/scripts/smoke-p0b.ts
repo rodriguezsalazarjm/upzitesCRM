@@ -518,7 +518,11 @@ for (const id of createdPrices) {
   await crossTenantPrisma.platformAuditLog.deleteMany({ where: { action: 'price_book.published', metadata: { path: ['priceId'], equals: id } } });
 }
 await crossTenantPrisma.planPrice.deleteMany({ where: { id: { in: createdPrices } } });
+// Step 2: borrar un workspace ya no borra la cuenta global (SetNull). Se
+// borran explicitamente las cuentas de prueba de estos workspaces.
+const testUsers = (await prisma.workspaceMembership.findMany({ where: { workspaceId: { in: createdWorkspaces } }, select: { userId: true } })).map((m) => m.userId);
 const cleaned = await crossTenantPrisma.workspace.deleteMany({ where: { id: { in: createdWorkspaces } } });
+await prisma.user.deleteMany({ where: { id: { in: [...new Set(testUsers)] } } });
 console.log(`\nLimpieza: ${cleaned.count} workspaces de prueba eliminados (cascade).`);
 
 const passed = results.filter((result) => result.ok).length;

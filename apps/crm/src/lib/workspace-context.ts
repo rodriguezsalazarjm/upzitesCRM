@@ -6,8 +6,8 @@ import { PlatformRole, WorkspaceRole } from '../../generated/prisma/enums';
 import { DEV_DEMO_USER, isDatabaseUnavailable, isDevDemoEnabled } from './dev-demo';
 import { prisma } from './prisma';
 import { REQUEST_ID_HEADER, REQUEST_METHOD_HEADER, REQUEST_PATH_HEADER } from './request-headers';
-import { readSessionCookie } from './session';
-import type { Session } from './session-token';
+import { readSessionCookie, readUnverifiedSessionCookie } from './session';
+import { sessionVersionMatches, type Session } from './session-token';
 import { withPlatformScope } from './tenant-guard';
 import {
   canWrite,
@@ -76,7 +76,7 @@ export async function resolveContextForSession(session: Session | null, now = ne
       Promise.all([
         prisma.user.findUnique({
           where: { id: session.userId },
-          select: { id: true, name: true, email: true, platformRole: true },
+          select: { id: true, name: true, email: true, platformRole: true, sessionVersion: true },
         }),
         session.activeWorkspaceId && !session.supportSessionId
           ? prisma.workspaceMembership.findUnique({
@@ -104,6 +104,9 @@ export async function resolveContextForSession(session: Session | null, now = ne
     if (isDevDemoEnabled() && isDatabaseUnavailable(error)) return { kind: 'ok', ctx: DEMO_CONTEXT, session };
     throw error;
   }
+
+  // Credenciales cambiadas (reset, cierre global): la cookie ya no vale.
+  if (user && !sessionVersionMatches(session, user)) return { kind: 'anonymous' };
 
   const decision = resolveAccess({
     now,
@@ -153,7 +156,7 @@ async function requestMeta() {
  * cubre el caso de que un matcher mal configurado lo deje pasar.
  */
 export const getContextState = cache(async (): Promise<ContextState> => {
-  const state = await resolveContextForSession(await readSessionCookie());
+  const state = await resolveContextForSession(await readUnverifiedSessionCookie());
   if (state.kind === 'ok' && state.ctx.access === 'SUPPORT') {
     const { method } = await requestMeta();
     const write = canWrite(
@@ -213,7 +216,8 @@ export async function requirePlatformRole(min: PlatformRole = PlatformRole.PLATF
     select: { id: true, name: true, email: true, platformRole: true },
   });
   if (!user || !hasPlatformRole(user.platformRole, min)) notFound();
-  return user;
+  // Version de la sesion verificada, para reemitir la cookie sin refrescarla.
+  return { ...user, sessionVersion: session.sessionVersion };
 }
 
 // --- Escritura: guard central -----------------------------------------------

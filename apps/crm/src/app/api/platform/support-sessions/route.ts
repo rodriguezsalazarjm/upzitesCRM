@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ code: result.error, message }, { status });
   }
 
-  await setSessionCookie(result.session);
+  await setSessionCookie({ ...result.session, sessionVersion: actor.sessionVersion });
   return NextResponse.json(
     { data: { supportSessionId: result.supportSessionId, mode: 'READ_ONLY', expiresAt: result.expiresAt } },
     { status: 201 },

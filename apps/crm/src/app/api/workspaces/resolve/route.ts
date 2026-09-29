@@ -25,6 +25,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/login?error=sin-workspace', request.url), 303);
   }
 
-  await setSessionCookie({ userId: session.userId, activeWorkspaceId });
+  await setSessionCookie({ userId: session.userId, activeWorkspaceId, sessionVersion: session.sessionVersion });
   return NextResponse.redirect(new URL('/dashboard', request.url), 303);
 }

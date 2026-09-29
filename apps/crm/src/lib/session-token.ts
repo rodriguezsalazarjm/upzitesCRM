@@ -20,6 +20,8 @@ export type SessionPayloadV2 = {
   /** null = usuario sin workspace activo (p. ej. sin memberships). */
   activeWorkspaceId: string | null;
   supportSessionId?: string;
+  /** Version de credenciales del usuario al emitir. Ausente (cookies previas) = 0. */
+  sv?: number;
   exp: number;
 };
 
@@ -37,6 +39,8 @@ export type Session = {
   userId: string;
   activeWorkspaceId: string | null;
   supportSessionId: string | null;
+  /** Debe coincidir con `User.sessionVersion` (ver `sessionVersionMatches`). */
+  sessionVersion: number;
   exp: number;
 };
 
@@ -44,7 +48,25 @@ export type SessionInput = {
   userId: string;
   activeWorkspaceId: string | null;
   supportSessionId?: string | null;
+  /**
+   * Obligatoria: quien reemite una cookie conserva la version de la sesion
+   * que ya verifico; quien inicia sesion usa la actual del usuario. Nunca se
+   * "refresca" desde la base al reemitir: eso revalidaria una sesion vieja.
+   */
+  sessionVersion: number;
 };
+
+/**
+ * Regla unica: la sesion vale solo si su version es la vigente del usuario.
+ * Subir `User.sessionVersion` invalida todas las cookies emitidas antes.
+ */
+export function sessionVersionMatches(session: Pick<Session, 'sessionVersion'>, user: { sessionVersion: number }) {
+  return session.sessionVersion === user.sessionVersion;
+}
+
+function readVersion(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : value === undefined ? 0 : null;
+}
 
 export function getSessionSecret() {
   const secret = process.env.CRM_SESSION_SECRET;
@@ -80,6 +102,7 @@ export function createSessionToken(input: SessionInput, nowSeconds = Math.floor(
     userId: input.userId,
     activeWorkspaceId: input.activeWorkspaceId,
     ...(input.supportSessionId ? { supportSessionId: input.supportSessionId } : {}),
+    sv: input.sessionVersion,
     exp: nowSeconds + SESSION_TTL_SECONDS,
   };
   return signSessionPayload(payload);
@@ -117,6 +140,9 @@ export function readSessionToken(
   const exp = payload.exp;
   if (typeof exp !== 'number' || exp < nowSeconds) return null;
   if (!isNonEmptyString(payload.userId)) return null;
+  // Compatibilidad: cookies emitidas antes de `sv` valen como version 0.
+  const sessionVersion = readVersion(payload.sv);
+  if (sessionVersion === null) return null;
 
   if (payload.v === 2) {
     const v2 = payload as unknown as SessionPayloadV2;
@@ -125,6 +151,7 @@ export function readSessionToken(
       userId: v2.userId,
       activeWorkspaceId: isNonEmptyString(v2.activeWorkspaceId) ? v2.activeWorkspaceId : null,
       supportSessionId: isNonEmptyString(v2.supportSessionId) ? v2.supportSessionId : null,
+      sessionVersion,
       exp,
     };
   }
@@ -133,5 +160,5 @@ export function readSessionToken(
   // existe la membership correspondiente, asi que nadie pierde la sesion.
   const v1 = payload as unknown as SessionPayloadV1;
   if (!isNonEmptyString(v1.workspaceId)) return null;
-  return { version: 1, userId: v1.userId, activeWorkspaceId: v1.workspaceId, supportSessionId: null, exp };
+  return { version: 1, userId: v1.userId, activeWorkspaceId: v1.workspaceId, supportSessionId: null, sessionVersion, exp };
 }

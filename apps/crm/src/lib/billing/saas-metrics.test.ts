@@ -53,6 +53,10 @@ test('solo MANUAL y MERCADO_PAGO vigentes suman MRR; FREE, TRIAL, COMP e interno
   assert.equal(metrics.trials, 1);
   assert.equal(metrics.free, 1);
   assert.equal(metrics.internalWorkspaces, 2);
+  // P0-D: desglose del dashboard de plataforma, tambien sin internos.
+  assert.deepEqual(metrics.payingBySource, { MANUAL: 1, MERCADO_PAGO: 1 });
+  assert.deepEqual(metrics.byPlan, { PRO: 4, FREE: 1 });
+  assert.equal(metrics.grace, 0);
 });
 
 test('un interno con billing pagado por error jamas entra: ni MRR, ni clientes, ni churn, ni estados', () => {
@@ -73,6 +77,7 @@ test('pagado en GRACE sigue en MRR; pagado tras la gracia es churn, no MRR', () 
   assert.deepEqual(metrics.payingWorkspaceIds, [grace.workspace.id]);
   assert.deepEqual(metrics.mrrByCurrency, { CLP: 49990 });
   assert.equal(metrics.churned, 1);
+  assert.equal(metrics.grace, 1);
 });
 
 test('SUSPENDED no suma MRR aunque su periodo este pagado', () => {

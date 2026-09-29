@@ -71,7 +71,9 @@ async function workspace(key: string) {
       webhookSubscribedAt: new Date(),
     },
   });
-  return { ...result, channel };
+  // Step 2: la cuenta ya no tiene workspace de origen (users.workspace_id NULL).
+  // La sesion de la suite entra al workspace recien creado, como el login real.
+  return { ...result, user: { ...result.user, workspaceId: result.workspace.id }, channel };
 }
 async function deliver(payload: unknown) {
   const event = await ingestWebhookEvent(JSON.stringify(payload), payload);

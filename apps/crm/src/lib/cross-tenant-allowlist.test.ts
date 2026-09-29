@@ -36,12 +36,13 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/smoke-critico.ts': { uses: 5, why: 'Test: estado global de jobs, flags y conexiones.' },
   'scripts/smoke-fase-c-engine.ts': { uses: 1, why: 'Test: busca el job de un flow run.' },
   'scripts/smoke-fase2.ts': { uses: 2, why: 'Test: comprueba que no se crearon mensajes en ningun tenant.' },
-  'scripts/smoke-fase3.ts': { uses: 4, why: 'Test: manipula y limpia la cola de jobs.' },
+  'scripts/smoke-fase3.ts': { uses: 2, why: 'Test: rescate de jobs colgados (cola global).' },
   'scripts/smoke-fase4.ts': { uses: 2, why: 'Test: cuenta y limpia jobs RUN_AGENT.' },
   'scripts/smoke-fase5.ts': { uses: 1, why: 'Test: acciones programadas pendientes.' },
   'scripts/smoke-foundation.ts': { uses: 23, why: 'Test: verifica la migracion y el aislamiento mirando todos los tenants.' },
   'scripts/smoke-p0b.ts': { uses: 5, why: 'Test: limpia auditoria y precios de prueba y lee la auditoria de plataforma.' },
   'scripts/smoke-p0c.ts': { uses: 2, why: 'Test: limpia los workspaces de prueba y su auditoria de plataforma.' },
+  'scripts/smoke-p0d.ts': { uses: 8, why: 'Test: auditoria de plataforma y limpieza de workspaces/cuentas de prueba.' },
 };
 
 /** Directorios de plataforma: todo lo que vive aqui es cross-tenant por diseno. */

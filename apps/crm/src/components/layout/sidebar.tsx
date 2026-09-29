@@ -59,7 +59,10 @@ const navItems: NavItem[] = [
 ];
 
 /** Solo operadores de plataforma: vista global del sistema (ver lib/platform-admin). */
-const platformItems: NavItem[] = [{ href: '/ops', label: 'Ops plataforma', icon: ShieldCheck }];
+const platformItems: NavItem[] = [
+  { href: '/platform', label: 'Platform Admin', icon: ShieldCheck },
+  { href: '/ops', label: 'Ops plataforma', icon: ShieldCheck },
+];
 
 function getInitials(name: string) {
   return name

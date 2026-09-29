@@ -21,6 +21,7 @@ model Workspace {
 
   users           User[]
   memberships     WorkspaceMembership[]
+  invitations     WorkspaceInvitation[]
   lastActiveUsers User[]                @relation("UserLastActiveWorkspace")
   supportSessions SupportSession[]
   companies       Company[]
@@ -105,12 +106,14 @@ model Workspace {
 
 model User {
   id           String   @id @default(cuid())
-  /// LEGACY (P0-FOUNDATION step 1): workspace "de origen". Se sigue escribiendo
-  /// al crear usuarios pero NO se usa para autorizar: la pertenencia vive en
-  /// `WorkspaceMembership`. Pasa a nullable en el step 2 y se elimina en el 3.
-  workspaceId  String   @map("workspace_id")
+  /// LEGACY (P0-FOUNDATION): workspace "de origen". Desde el step 2 es nullable
+  /// y las altas nuevas NO lo escriben: la pertenencia vive en
+  /// `WorkspaceMembership`. Se elimina en el step 3.
+  workspaceId  String?  @map("workspace_id")
   name         String
-  email        String
+  /// Unico GLOBAL (step 2): una persona = una cuenta, con memberships en N
+  /// workspaces. Siempre normalizado (trim + minusculas).
+  email        String   @unique
   passwordHash String   @map("password_hash")
   /// LEGACY: reemplazado por `WorkspaceMembership.role`. No leer.
   role         UserRole @default(SALES)
@@ -120,10 +123,17 @@ model User {
   /// Preferencia, NO autorizacion: a que workspace entrar al iniciar sesion.
   /// Siempre se re-verifica contra memberships.
   lastActiveWorkspaceId String? @map("last_active_workspace_id")
+  /// Version de credenciales. Cada cookie lleva la version con la que se
+  /// emitio; si no coincide, la sesion es invalida. Subirla (reset de
+  /// contrasena, "cerrar sesion en todos los dispositivos") invalida TODAS
+  /// las sesiones abiertas. Cookies sin version = 0.
+  sessionVersion Int      @default(0) @map("session_version")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// SetNull: borrar el workspace de origen NO borra una cuenta global que
+  /// puede pertenecer a otros workspaces.
+  workspace           Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   lastActiveWorkspace Workspace?           @relation("UserLastActiveWorkspace", fields: [lastActiveWorkspaceId], references: [id], onDelete: SetNull)
   memberships         WorkspaceMembership[]
   supportSessions     SupportSession[]
@@ -136,9 +146,10 @@ model User {
   pushSubscriptions     PushSubscription[]
   platformAdmin         PlatformAdmin?
 
-  @@unique([workspaceId, email])
+  invitationsSent     WorkspaceInvitation[] @relation("InvitationInviter")
+  invitationsAccepted WorkspaceInvitation[] @relation("InvitationAcceptedBy")
+
   @@index([workspaceId])
-  @@index([email])
   @@map("users")
 }
 
@@ -170,6 +181,36 @@ model WorkspaceMembership {
   @@unique([userId, workspaceId])
   @@index([workspaceId, status, role])
   @@map("workspace_memberships")
+}
+
+/// Invitacion a un workspace (P0-D). El token viaja SOLO en el enlace: aqui se
+/// guarda su hash (HMAC). Un solo uso, TTL de 7 dias; reenviar genera un token
+/// nuevo e invalida el anterior (cambia el hash). Aceptar crea la cuenta global
+/// si el email no existe, o agrega la membership a la cuenta existente.
+model WorkspaceInvitation {
+  id               String        @id @default(cuid())
+  workspaceId      String        @map("workspace_id")
+  /// Normalizado (trim + minusculas).
+  email            String
+  role             WorkspaceRole @default(MEMBER)
+  tokenHash        String        @unique @map("token_hash")
+  invitedByUserId  String?       @map("invited_by_user_id")
+  expiresAt        DateTime      @map("expires_at")
+  acceptedAt       DateTime?     @map("accepted_at")
+  acceptedByUserId String?       @map("accepted_by_user_id")
+  revokedAt        DateTime?     @map("revoked_at")
+  /// Ultimo envio por email de plataforma (null = solo enlace copiado).
+  lastSentAt       DateTime?     @map("last_sent_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy  User?     @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy User?     @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, email])
+  @@index([email])
+  @@map("workspace_invitations")
 }
 
 /// Acceso explicito y temporal de un operador de plataforma a un workspace del

@@ -19,6 +19,7 @@ import { ensurePlanCatalog } from './billing/plan-catalog';
 import { currentSubscription } from './billing/subscription-access';
 import { resolveLifecycle } from './billing/subscription-state';
 import { prisma } from './prisma';
+import { normalizeEmail } from './identity';
 
 const MONTH_MS = 1000 * 60 * 60 * 24 * 30;
 const TRIAL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -203,168 +204,189 @@ async function uniqueWorkspaceSlug(companyName: string) {
   return slug;
 }
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Aprovisiona un workspace nuevo con sus valores de fabrica: etapas, formulario,
+ * suscripcion FREE, scoring, reglas de sistema, agente en borrador e
+ * integraciones. NO crea usuarios ni memberships: lo usan el registro (con su
+ * OWNER) y Platform Admin (que invita al OWNER, sin contrasena).
+ *
+ * Despues de la transaccion hay que llamar `bootstrapMarketing(workspace.id)`
+ * (perfil minimo, politica de contacto, segmentos y journeys de fabrica).
+ */
+export async function provisionWorkspaceTx(tx: Tx, input: { name: string; slug: string; isInternal?: boolean; freePlanId: string }) {
+  const freePlanId = input.freePlanId;
+  const workspace = await tx.workspace.create({
+    data: { name: input.name, slug: input.slug, isInternal: input.isInternal ?? false },
+  });
+
+  await tx.pipelineStage.createMany({
+    data: defaultStages.map((stage) => ({
+      workspaceId: workspace.id,
+      key: stage.key,
+      name: stage.name,
+      position: stage.position,
+      probability: stage.probability,
+      isWon: 'isWon' in stage ? stage.isWon : false,
+      isLost: 'isLost' in stage ? stage.isLost : false,
+    })),
+  });
+
+  await tx.form.create({
+    data: {
+      workspaceId: workspace.id,
+      name: 'Formulario principal',
+      title: 'Conversemos sobre tu proyecto',
+      description: 'Completa tus datos y te contactaremos pronto.',
+      submitLabel: 'Enviar',
+      source: 'Formulario web',
+    },
+  });
+
+  const startedAt = new Date();
+  await tx.workspaceSubscription.create({
+    data: {
+      workspaceId: workspace.id,
+      planId: freePlanId,
+      billingSource: BillingSource.FREE,
+      // `status` es legacy: el estado se resuelve, no se guarda.
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodStart: startedAt,
+      currentPeriodEnd: null,
+    },
+  });
+
+  // Reglas de scoring por defecto del workspace (Fase 1). Se crean aqui para
+  // que el score sea explicable desde el primer lead, sin depender de un job.
+  await tx.leadScoreRule.createMany({
+    data: DEFAULT_SCORE_RULES.map((rule) => ({
+      workspaceId: workspace.id,
+      key: rule.key,
+      label: rule.label,
+      points: rule.points,
+    })),
+    skipDuplicates: true,
+  });
+
+  // Automatizaciones basicas activas desde el primer dia (Fase 3). Son
+  // genericas a proposito: la beta es multivertical.
+  for (const preset of AUTOMATION_PRESETS.filter((item) => item.enabledByDefault)) {
+    await tx.automationRule.create({
+      data: {
+        workspaceId: workspace.id,
+        // Regla de sistema: interna, no ocupa `automations.active.max` (P0-C).
+        presetKey: preset.key,
+        name: preset.name,
+        description: preset.description,
+        trigger: preset.trigger,
+        conditions: preset.conditions as never,
+        actions: preset.actions as never,
+        dedupeMinutes: preset.dedupeMinutes,
+      },
+    });
+  }
+
+  // Agente comercial por defecto, en borrador. Publicar es una decision
+  // explicita del cliente: nadie deja una IA hablando con sus clientes sin
+  // haberla leido primero.
+  const agent = await tx.agentDefinition.create({
+    data: {
+      workspaceId: workspace.id,
+      key: DEFAULT_SALES_AGENT.key,
+      name: DEFAULT_SALES_AGENT.name,
+      purpose: DEFAULT_SALES_AGENT.purpose,
+    },
+  });
+
+  await tx.agentVersion.create({
+    data: {
+      agentDefinitionId: agent.id,
+      version: 1,
+      instructions: DEFAULT_SALES_AGENT.instructions,
+      model: DEFAULT_SALES_AGENT.model,
+      allowedTools: [...DEFAULT_SALES_AGENT.allowedTools],
+      maxSteps: DEFAULT_SALES_AGENT.maxSteps,
+      escalationPolicy: DEFAULT_SALES_AGENT.escalationPolicy as never,
+    },
+  });
+
+  await tx.integration.createMany({
+    data: defaultIntegrations.map((integration) => ({
+      workspaceId: workspace.id,
+      provider: integration.provider,
+      name: integration.name,
+      status: IntegrationStatus.DISCONNECTED,
+    })),
+  });
+
+
+  return workspace;
+}
+
+/** Slug unico para un workspace nuevo (exportado para Platform Admin). */
+export { uniqueWorkspaceSlug };
+
 export async function createCustomerWorkspace(input: {
   companyName: string;
   ownerName: string;
   email: string;
   password: string;
 }) {
-  const normalizedEmail = input.email.toLowerCase().trim();
-  const existingUser = await prisma.user.findFirst({
-    where: { email: normalizedEmail },
-    select: { id: true },
-  });
-
-  if (existingUser) {
+  // Step 2: email unico GLOBAL. Una cuenta existente no se duplica: para sumar
+  // un workspace a una persona que ya tiene cuenta se usa una invitacion.
+  const normalizedEmail = normalizeEmail(input.email);
+  if (await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })) {
     throw new Error('EMAIL_ALREADY_EXISTS');
   }
 
   // P0-B: todo registro nuevo nace en FREE (sin trial automatico). El TRIAL
   // sigue existiendo, pero se asigna explicitamente (campanas, promociones).
   const plans = await ensurePlanCatalog();
-  const plan = plans[PlanCode.FREE];
   const slug = await uniqueWorkspaceSlug(input.companyName);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const workspace = await tx.workspace.create({
-      data: {
-        name: input.companyName,
-        slug,
-      },
-    });
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const workspace = await provisionWorkspaceTx(tx, { name: input.companyName, slug, freePlanId: plans[PlanCode.FREE].id });
 
-    // P0-FOUNDATION step 1: se escriben las dos cosas. La membership OWNER es
-    // la que autoriza; `workspaceId`/`role` quedan como legacy hasta el step 2.
-    const user = await tx.user.create({
-      data: {
-        workspaceId: workspace.id,
-        name: input.ownerName,
-        email: normalizedEmail,
-        passwordHash: hashPassword(input.password),
-        role: UserRole.OWNER,
-        lastActiveWorkspaceId: workspace.id,
-        memberships: { create: { workspaceId: workspace.id, role: WorkspaceRole.OWNER } },
-      },
-    });
-
-    await tx.pipelineStage.createMany({
-      data: defaultStages.map((stage) => ({
-        workspaceId: workspace.id,
-        key: stage.key,
-        name: stage.name,
-        position: stage.position,
-        probability: stage.probability,
-        isWon: 'isWon' in stage ? stage.isWon : false,
-        isLost: 'isLost' in stage ? stage.isLost : false,
-      })),
-    });
-
-    await tx.form.create({
-      data: {
-        workspaceId: workspace.id,
-        name: 'Formulario principal',
-        title: 'Conversemos sobre tu proyecto',
-        description: 'Completa tus datos y te contactaremos pronto.',
-        submitLabel: 'Enviar',
-        source: 'Formulario web',
-      },
-    });
-
-    const startedAt = new Date();
-    await tx.workspaceSubscription.create({
-      data: {
-        workspaceId: workspace.id,
-        planId: plan.id,
-        billingSource: BillingSource.FREE,
-        // `status` es legacy: el estado se resuelve, no se guarda.
-        status: SubscriptionStatus.ACTIVE,
-        currentPeriodStart: startedAt,
-        currentPeriodEnd: null,
-      },
-    });
-
-    // Reglas de scoring por defecto del workspace (Fase 1). Se crean aqui para
-    // que el score sea explicable desde el primer lead, sin depender de un job.
-    await tx.leadScoreRule.createMany({
-      data: DEFAULT_SCORE_RULES.map((rule) => ({
-        workspaceId: workspace.id,
-        key: rule.key,
-        label: rule.label,
-        points: rule.points,
-      })),
-      skipDuplicates: true,
-    });
-
-    // Automatizaciones basicas activas desde el primer dia (Fase 3). Son
-    // genericas a proposito: la beta es multivertical.
-    for (const preset of AUTOMATION_PRESETS.filter((item) => item.enabledByDefault)) {
-      await tx.automationRule.create({
+      // Step 2: la cuenta es global y la autoriza la membership OWNER. Ya no se
+      // escribe `users.workspace_id` (legacy nullable). `role` sigue
+      // escribiendose solo como legacy de lectura; nada autoriza con el.
+      const user = await tx.user.create({
         data: {
-          workspaceId: workspace.id,
-          // Regla de sistema: interna, no ocupa `automations.active.max` (P0-C).
-          presetKey: preset.key,
-          name: preset.name,
-          description: preset.description,
-          trigger: preset.trigger,
-          conditions: preset.conditions as never,
-          actions: preset.actions as never,
-          dedupeMinutes: preset.dedupeMinutes,
+          name: input.ownerName,
+          email: normalizedEmail,
+          passwordHash: hashPassword(input.password),
+          role: UserRole.OWNER,
+          lastActiveWorkspaceId: workspace.id,
+          memberships: { create: { workspaceId: workspace.id, role: WorkspaceRole.OWNER } },
         },
       });
-    }
 
-    // Agente comercial por defecto, en borrador. Publicar es una decision
-    // explicita del cliente: nadie deja una IA hablando con sus clientes sin
-    // haberla leido primero.
-    const agent = await tx.agentDefinition.create({
-      data: {
-        workspaceId: workspace.id,
-        key: DEFAULT_SALES_AGENT.key,
-        name: DEFAULT_SALES_AGENT.name,
-        purpose: DEFAULT_SALES_AGENT.purpose,
-      },
+      await tx.auditLog.create({
+        data: {
+          workspaceId: workspace.id,
+          actorId: user.id,
+          action: 'customer.registered',
+          entity: 'Workspace',
+          entityId: workspace.id,
+          metadata: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
+        },
+      });
+
+      // `role` es el rol en ESTE workspace (membership OWNER), no el legacy.
+      return {
+        user: { ...user, role: WorkspaceRole.OWNER },
+        workspace,
+        subscription: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
+      };
     });
-
-    await tx.agentVersion.create({
-      data: {
-        agentDefinitionId: agent.id,
-        version: 1,
-        instructions: DEFAULT_SALES_AGENT.instructions,
-        model: DEFAULT_SALES_AGENT.model,
-        allowedTools: [...DEFAULT_SALES_AGENT.allowedTools],
-        maxSteps: DEFAULT_SALES_AGENT.maxSteps,
-        escalationPolicy: DEFAULT_SALES_AGENT.escalationPolicy as never,
-      },
-    });
-
-    await tx.integration.createMany({
-      data: defaultIntegrations.map((integration) => ({
-        workspaceId: workspace.id,
-        provider: integration.provider,
-        name: integration.name,
-        status: IntegrationStatus.DISCONNECTED,
-      })),
-    });
-
-
-    await tx.auditLog.create({
-      data: {
-        workspaceId: workspace.id,
-        actorId: user.id,
-        action: 'customer.registered',
-        entity: 'Workspace',
-        entityId: workspace.id,
-        metadata: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
-      },
-    });
-
-    // `role` es el rol en ESTE workspace (membership OWNER), no el legacy.
-    return {
-      user: { ...user, role: WorkspaceRole.OWNER },
-      workspace,
-      subscription: { planCode: PlanCode.FREE, billingSource: BillingSource.FREE },
-    };
-  });
+  } catch (error) {
+    // Carrera: dos registros simultaneos con el mismo email. El unico global gana.
+    if ((error as { code?: string }).code === 'P2002') throw new Error('EMAIL_ALREADY_EXISTS');
+    throw error;
+  }
 
   // Fase 8: politica de contacto, segmentos y journeys de fabrica.
   //

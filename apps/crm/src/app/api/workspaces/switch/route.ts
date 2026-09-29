@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   });
   if (!result.ok) return NextResponse.json({ message: 'Workspace no encontrado.' }, { status: 404 });
 
-  await setSessionCookie(result.session);
+  // Reemitir conserva la version de la sesion verificada (nunca la refresca).
+  await setSessionCookie({ ...result.session, sessionVersion: session.sessionVersion });
   return NextResponse.json({ data: { workspace: result.workspace } });
 }

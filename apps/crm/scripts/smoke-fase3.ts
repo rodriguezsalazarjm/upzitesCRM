@@ -99,12 +99,14 @@ const B = await makeWorkspace('b');
   });
   check('La dedupeKey impide encolar dos veces el mismo hecho', again.id === job.id);
 
-  const claimed = await claimJobs(10);
+  // Toma ACOTADA al workspace de la suite: la cola de pruebas es compartida.
+  const scope = { workspaceId: A.workspaceId };
+  const claimed = await claimJobs(10, undefined, scope);
   const mine = claimed.find((c) => c.id === job.id);
   check('El trabajo se reclama', Boolean(mine));
 
   // Un segundo reclamo no debe devolver el mismo trabajo.
-  const second = await claimJobs(10);
+  const second = await claimJobs(10, undefined, scope);
   check('Un trabajo reclamado no lo toma otro worker', !second.some((c) => c.id === job.id));
 
   if (mine) {
@@ -113,9 +115,9 @@ const B = await makeWorkspace('b');
     check('Completar deja el trabajo en DONE', done.status === JobStatus.DONE);
   }
 
-  // Limpia lo que quedo reclamado por este bloque.
-  await crossTenantPrisma.job.updateMany({
-    where: { status: JobStatus.PROCESSING },
+  // Limpia SOLO lo que quedo reclamado por este bloque (nunca jobs ajenos).
+  await prisma.job.updateMany({
+    where: { workspaceId: A.workspaceId, status: JobStatus.PROCESSING },
     data: { status: JobStatus.DONE, processedAt: new Date() },
   });
 }
@@ -130,7 +132,8 @@ const B = await makeWorkspace('b');
     dedupeKey: `test-retry-${stamp}`,
   });
 
-  const [claimed] = await claimJobs(1).then((jobs) => jobs.filter((j) => j.id === job.id));
+  const scope = { workspaceId: A.workspaceId };
+  const [claimed] = await claimJobs(10, undefined, scope).then((jobs) => jobs.filter((j) => j.id === job.id));
   const first = claimed ? await failJob(claimed, new Error('fallo transitorio')) : null;
   check('Un fallo transitorio reintenta, no mata el trabajo', first?.dead === false, `reintenta en ${first?.retryInSeconds}s`);
 
@@ -139,15 +142,15 @@ const B = await makeWorkspace('b');
 
   // Se fuerza el vencimiento para agotar el intento restante.
   await prisma.job.update({ where: { id: job.id }, data: { runAt: new Date() } });
-  const [again] = await claimJobs(5).then((jobs) => jobs.filter((j) => j.id === job.id));
+  const [again] = await claimJobs(10, undefined, scope).then((jobs) => jobs.filter((j) => j.id === job.id));
   const second = again ? await failJob(again, new Error('fallo definitivo')) : null;
   check('Al agotar los intentos el trabajo queda DEAD', second?.dead === true);
 
   const dead = await prisma.job.findUniqueOrThrow({ where: { id: job.id } });
   check('DEAD conserva el ultimo error', dead.status === JobStatus.DEAD && Boolean(dead.lastError));
 
-  await crossTenantPrisma.job.updateMany({
-    where: { status: JobStatus.PROCESSING },
+  await prisma.job.updateMany({
+    where: { workspaceId: A.workspaceId, status: JobStatus.PROCESSING },
     data: { status: JobStatus.DONE, processedAt: new Date() },
   });
 }
@@ -343,9 +346,11 @@ const B = await makeWorkspace('b');
     cancelKey: `vencida:${contact.id}`,
   });
 
-  await enqueue({ type: JobType.SCAN_SCHEDULED_ACTIONS, payload: {}, dedupeKey: `scan-${stamp}` });
-  await runJobs({ limit: 50, withRecurring: false });
-  await runJobs({ limit: 50, withRecurring: false });
+  // Scan + ejecucion ACOTADOS al workspace de la suite: el volumen de la cola
+  // compartida de pruebas no decide el resultado.
+  await enqueue({ type: JobType.SCAN_SCHEDULED_ACTIONS, workspaceId: A.workspaceId, payload: {}, dedupeKey: `scan-${stamp}` });
+  await runJobs({ limit: 50, withRecurring: false, workspaceId: A.workspaceId });
+  await runJobs({ limit: 50, withRecurring: false, workspaceId: A.workspaceId });
 
   const processed = await prisma.scheduledAction.findUniqueOrThrow({ where: { id: due.id } });
   check('El scheduler ejecuta la accion vencida', processed.status === ScheduledActionStatus.DONE,

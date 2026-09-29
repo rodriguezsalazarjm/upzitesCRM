@@ -30,7 +30,10 @@ import { isWorkspaceSuspended } from './lib/billing/subscription-access';
  */
 
 /** Siempre permitidas, aun en soporte READ_ONLY o con otra pestana desfasada. */
-const SESSION_CONTROL_PATHS = ['/api/auth/', '/api/workspaces/switch', '/api/platform/support-sessions'];
+// P0-D: `/api/platform/` es de la PLATAFORMA (no escribe en el workspace
+// activo): un operador dentro de una sesion de soporte READ_ONLY igual puede
+// operar la plataforma. Aceptar una invitacion es control de sesion.
+const SESSION_CONTROL_PATHS = ['/api/auth/', '/api/workspaces/switch', '/api/platform/', '/api/invitations/'];
 
 /**
  * P0-C (D5): con el workspace SUSPENDED solo queda lo minimo: sesion, cambio
@@ -41,6 +44,7 @@ const SUSPENDED_ALLOWED_PATHS = [
   '/api/auth/',
   '/api/workspaces/',
   '/api/platform/',
+  '/api/invitations/',
   '/api/system/',
   '/api/webhooks/',
   '/api/internal/',

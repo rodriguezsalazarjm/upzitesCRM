@@ -9,9 +9,13 @@ const result: Record<string, unknown> = {};
 try {
   for (const key of ['a', 'b']) {
     const email = `c2-owner-${key}@visual.test`;
-    const old = await prisma.user.findFirst({ where: { email }, include: { workspace: true } });
-    if (old && old.workspace.name !== `C2 Flow ${key.toUpperCase()}`) throw new Error('Cuenta de fixture ocupada.');
-    if (old) await prisma.workspace.delete({ where: { id: old.workspaceId } });
+    // Step 2: la cuenta es global; su workspace de fixture sale de la membership OWNER.
+    const old = await prisma.user.findUnique({ where: { email }, include: { memberships: { where: { role: 'OWNER' }, include: { workspace: true } } } });
+    if (old && old.memberships.some((m) => m.workspace.name !== `C2 Flow ${key.toUpperCase()}`)) throw new Error('Cuenta de fixture ocupada.');
+    if (old) {
+      await prisma.workspace.deleteMany({ where: { id: { in: old.memberships.map((m) => m.workspaceId) } } });
+      await prisma.user.delete({ where: { id: old.id } });
+    }
     const { workspace, user } = await createCustomerWorkspace({ companyName: `C2 Flow ${key.toUpperCase()}`, ownerName: `Owner C2 ${key}`, email, password: credentials.password });
     await prisma.workspaceActivation.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, status: 'ACTIVE', activatedAt: new Date() }, update: { status: 'ACTIVE' } });
     const definition = await prisma.agentDefinition.findFirstOrThrow({ where: { workspaceId: workspace.id, key: 'SALES' } });

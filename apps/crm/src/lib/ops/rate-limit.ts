@@ -32,6 +32,10 @@ export const RATE_LIMITS = {
   login: { limit: 10, windowSeconds: 300 },
   register: { limit: 5, windowSeconds: 3600 },
   passwordReset: { limit: 5, windowSeconds: 3600 },
+  // Por email destino (exista o no): frena el bombardeo de correos a una
+  // persona desde muchas IPs. Al superarlo se responde igual, sin enviar.
+  passwordResetEmail: { limit: 3, windowSeconds: 3600 },
+  passwordResetConfirm: { limit: 10, windowSeconds: 900 },
   capture: { limit: 30, windowSeconds: 60 },
   webhook: { limit: 600, windowSeconds: 60 },
   internal: { limit: 120, windowSeconds: 60 },

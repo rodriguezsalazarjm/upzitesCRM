@@ -1,14 +1,23 @@
-import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
+import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { generateResetToken, hashResetToken } from '@/lib/auth';
 import { parseBody } from '@/lib/http';
-import { enforce } from '@/lib/ops/rate-limit';
-import { prisma } from '@/lib/prisma';
+import { normalizeEmail } from '@/lib/identity';
+import { consume, enforce } from '@/lib/ops/rate-limit';
+import { PASSWORD_RESET_PUBLIC_RESPONSE, requestPasswordReset } from '@/lib/password-reset';
 
 const requestResetSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
 });
 
+/**
+ * Solicitud de recuperacion. Misma respuesta exista o no la cuenta.
+ *
+ * El email sale con `after()` de Next: se ejecuta despues de enviar la
+ * respuesta (su latencia no delata si la cuenta existe) y, en Vercel, la
+ * plataforma mantiene viva la invocacion (waitUntil) hasta que termina. Sin
+ * fallback a una promesa suelta: fuera de un request de Next, `after` lanza.
+ */
 export async function POST(request: Request) {
   // Fase 10: Reseteo de contrasena: frena el envio masivo de correos de recuperacion.
   const limited = await enforce('passwordReset', request);
@@ -16,27 +25,11 @@ export async function POST(request: Request) {
 
   const parsed = await parseBody(request, requestResetSchema);
   if (!parsed.ok) return parsed.response;
-  const input = parsed.data;
-  const user = await prisma.user.findFirst({
-    where: { email: input.email.toLowerCase() },
-  });
+  const email = normalizeEmail(parsed.data.email);
 
-  if (!user) {
-    return NextResponse.json({ ok: true });
-  }
+  // Cupo por destinatario (exista o no): al superarlo se responde igual.
+  const perEmail = await consume('passwordResetEmail', createHash('sha256').update(email).digest('hex'));
+  if (!perEmail.allowed) return NextResponse.json(PASSWORD_RESET_PUBLIC_RESPONSE);
 
-  const token = generateResetToken();
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: hashResetToken(token),
-      expiresAt: new Date(Date.now() + 1000 * 60 * 30),
-    },
-  });
-
-  return NextResponse.json({
-    ok: true,
-    devToken: process.env.NODE_ENV === 'production' ? undefined : token,
-  });
+  return NextResponse.json(await requestPasswordReset(email, { schedule: after }));
 }
-

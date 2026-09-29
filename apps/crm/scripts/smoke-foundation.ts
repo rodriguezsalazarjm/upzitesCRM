@@ -103,7 +103,8 @@ console.log('\n== Migracion (estado de crm_pruebas) ==');
   const [users, orphanUsers, badMapping, workspacesWithoutOwner] = await Promise.all([
     crossTenantPrisma.user.count(),
     crossTenantPrisma.$queryRawUnsafe<{ n: number }[]>(
-      `SELECT count(*)::int n FROM users u WHERE NOT EXISTS (SELECT 1 FROM workspace_memberships m WHERE m.user_id = u.id AND m.workspace_id = u.workspace_id)`,
+      // Step 2: workspace_id es legacy nullable; solo se exige para quien lo tiene.
+      `SELECT count(*)::int n FROM users u WHERE u.workspace_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM workspace_memberships m WHERE m.user_id = u.id AND m.workspace_id = u.workspace_id)`,
     ),
     crossTenantPrisma.$queryRawUnsafe<{ n: number }[]>(
       `SELECT count(*)::int n FROM users u JOIN workspace_memberships m ON m.user_id = u.id AND m.workspace_id = u.workspace_id
@@ -119,7 +120,11 @@ console.log('\n== Migracion (estado de crm_pruebas) ==');
 
   // Re-ejecutar el backfill de la migracion: no debe duplicar nada.
   const sql = readFileSync('prisma/migrations/20260926120000_workspace_memberships/migration.sql', 'utf8');
-  const backfill = sql.slice(sql.indexOf('-- 1. Exactamente una membership'));
+  // Step 2: las cuentas nuevas ya no tienen workspace de origen (NULL); el
+  // backfill historico solo aplica a las cuentas legacy que lo tienen.
+  const backfill = sql
+    .slice(sql.indexOf('-- 1. Exactamente una membership'))
+    .replace(/FROM "users" u\s*\nON CONFLICT/, 'FROM "users" u WHERE u."workspace_id" IS NOT NULL ON CONFLICT');
   const statements = backfill
     .split(/;\s*\n/)
     .map((statement) => statement.replace(/^\s*--.*$/gm, '').trim())
@@ -207,7 +212,7 @@ console.log('\n== Multi-workspace y switch ==');
   check('Switch a C sin membership: 404', toC.status === 404, `${toC.status}`);
 
   // Una cookie que apunta a C (fabricada) no da acceso: se verifica membership.
-  const forged = await resolveContextForSession(readSessionToken(createSessionToken({ userId: U.id, activeWorkspaceId: C.workspaceId })));
+  const forged = await resolveContextForSession(readSessionToken(createSessionToken({ userId: U.id, activeWorkspaceId: C.workspaceId, sessionVersion: 0 })));
   check('Cookie firmada con un workspace sin membership no da contexto', forged.kind === 'no-workspace');
 
   check('Login elige el ultimo usado (B)', (await pickWorkspaceForUser(U.id)) === B.workspaceId);
@@ -353,7 +358,7 @@ console.log('\n== Asignacion y push por membership ==');
   });
   check('U activo en A y B cuenta 1 en cada uno', (await usedFor(A.workspaceId, 'users')) === 2 && (await usedFor(B.workspaceId, 'users')) === 2);
 
-  const suspendedCtx = await resolveContextForSession(readSessionToken(createSessionToken({ userId: U.id, activeWorkspaceId: A.workspaceId })));
+  const suspendedCtx = await resolveContextForSession(readSessionToken(createSessionToken({ userId: U.id, activeWorkspaceId: A.workspaceId, sessionVersion: 0 })));
   check('Membership ACTIVE otra vez: contexto valido', suspendedCtx.kind === 'ok');
 }
 
@@ -364,7 +369,7 @@ await prisma.user.update({ where: { id: S.ownerId }, data: { platformRole: Platf
 {
   const direct = await switchWorkspace({ userId: S.ownerId, workspaceId: A.workspaceId });
   check('SUPER_ADMIN sin membership no puede hacer switch a A (404)', !direct.ok);
-  const own = await resolveContextForSession(readSessionToken(createSessionToken({ userId: S.ownerId, activeWorkspaceId: S.workspaceId })));
+  const own = await resolveContextForSession(readSessionToken(createSessionToken({ userId: S.ownerId, activeWorkspaceId: S.workspaceId, sessionVersion: 0 })));
   check('En SU workspace (membership OWNER) no esta en modo soporte', own.kind === 'ok' && own.ctx.access === 'MEMBER');
 
   const notOperator = await startSupportSession({ actorUserId: A.ownerId, workspaceId: B.workspaceId, reason: 'probando acceso' });
@@ -481,7 +486,7 @@ await prisma.user.update({ where: { id: S.ownerId }, data: { platformRole: Platf
 
   await crossTenantPrisma.supportSession.update({ where: { id: started.supportSessionId }, data: { expiresAt: new Date(Date.now() - 1000) } });
   const expired = await resolveContextForSession(readSessionToken(createSessionToken(
-    { userId: S.ownerId, activeWorkspaceId: A.workspaceId, supportSessionId: started.supportSessionId },
+    { userId: S.ownerId, activeWorkspaceId: A.workspaceId, supportSessionId: started.supportSessionId, sessionVersion: 0 },
   )));
   check('Soporte vencido: sin contexto', expired.kind === 'no-workspace');
   const expiredWrite = await throughProxy(
@@ -640,7 +645,10 @@ console.log('\n== SaaS Billing vs Commerce (Mercado Pago fail-closed) ==');
 // Limpieza: los workspaces arrastran memberships, soporte, contactos y demas.
 await crossTenantPrisma.job.deleteMany({ where: { workspaceId: { in: createdWorkspaces }, type: JobType.SEND_PUSH } });
 await crossTenantPrisma.platformAuditLog.deleteMany({ where: { targetWorkspaceId: { in: createdWorkspaces } } });
+// Step 2: borrar un workspace ya no borra la cuenta global (SetNull).
+const testUsers = (await prisma.workspaceMembership.findMany({ where: { workspaceId: { in: createdWorkspaces } }, select: { userId: true } })).map((m) => m.userId);
 const cleaned = await crossTenantPrisma.workspace.deleteMany({ where: { id: { in: createdWorkspaces } } });
+await prisma.user.deleteMany({ where: { id: { in: [...new Set(testUsers)] } } });
 console.log(`\nLimpieza: ${cleaned.count} workspaces de prueba eliminados (cascade).`);
 
 const passed = results.filter((result) => result.ok).length;

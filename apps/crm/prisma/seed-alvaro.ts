@@ -80,10 +80,10 @@ async function main() {
       update: { name: COMPANY },
     });
 
+    // Step 2: el email es unico GLOBAL; la cuenta no depende del workspace.
     const user = await prisma.user.upsert({
-      where: { workspaceId_email: { workspaceId: workspace.id, email: EMAIL } },
+      where: { email: EMAIL.trim().toLowerCase() },
       create: {
-        workspaceId: workspace.id,
         name: OWNER_NAME,
         email: EMAIL,
         passwordHash: PASSWORD_HASH,

@@ -36,6 +36,7 @@
     "test:automations": "tsx --test src/lib/channels/*.test.ts src/lib/automations/*.test.ts",
     "test:instagram": "tsx --test src/lib/instagram/*.test.ts src/lib/meta/*.test.ts",
     "test:entitlements": "tsx --test src/lib/entitlements/*.test.ts",
+    "test:platform": "tsx --test src/lib/platform/*.test.ts",
     "test:foundation": "tsx --test src/lib/cross-tenant-allowlist.test.ts src/lib/session-token.test.ts src/lib/workspace-access.test.ts src/lib/tenant-guard.test.ts src/lib/commerce/payment-class.test.ts"
   },
   "dependencies": {

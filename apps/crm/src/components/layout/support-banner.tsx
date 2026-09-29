@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Aviso permanente de modo soporte: un operador de plataforma esta dentro de
@@ -20,6 +20,28 @@ export function SupportBanner({
   const [elevating, setElevating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const until = new Date(expiresAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  // Cuenta regresiva en vivo: al llegar a cero el servidor ya no acepta la
+  // sesion y el proximo request vuelve al workspace propio.
+  // null hasta montar: el servidor y el cliente no comparten reloj (evita el
+  // desajuste de hidratacion); mientras tanto se muestra la hora de termino.
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => {
+      const ms = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+      setLeft(ms);
+      if (ms === 0) window.location.reload();
+    };
+    const first = window.setTimeout(tick, 0);
+    const timer = window.setInterval(tick, 1000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [expiresAt]);
+  const countdown =
+    left === null
+      ? until
+      : `${String(Math.floor(left / 60000)).padStart(2, '0')}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`;
 
   async function elevate() {
     const reason = window.prompt('Motivo para habilitar escritura (queda auditado):')?.trim();
@@ -47,7 +69,8 @@ export function SupportBanner({
       <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-lime" aria-hidden />
       <p className="flex-1">
         Modo soporte en <strong>{workspaceName}</strong> ·{' '}
-        {mode === 'READ_ONLY' ? 'solo lectura' : 'escritura habilitada (auditada)'} · termina a las {until}
+        {mode === 'READ_ONLY' ? 'solo lectura' : 'escritura habilitada (auditada)'} · quedan{' '}
+        <span className="font-mono tabular-nums" aria-label={`Termina a las ${until}`}>{countdown}</span>
       </p>
       {error && <span role="alert">{error}</span>}
       {mode === 'READ_ONLY' && (

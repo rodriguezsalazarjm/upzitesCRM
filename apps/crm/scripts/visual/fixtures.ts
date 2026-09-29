@@ -9,16 +9,18 @@ import { queueOutboundMessage } from '../../src/lib/whatsapp/outbound';
 if (!(globalThis as Record<symbol, unknown>)[Symbol.for('upzites.visual.guard')]) throw Error('Usa visual:prepare.');
 const credentials = JSON.parse(readFileSync('.local-visual/accounts.json', 'utf8'));
 const emails = credentials.accounts as string[];
-const existing = await prisma.user.findMany({ where: { email: { in: emails } }, include: { workspace: true } });
+// Step 2: cuentas globales; sus workspaces de fixture salen de las memberships.
+const existing = await prisma.user.findMany({ where: { email: { in: emails } }, include: { memberships: { include: { workspace: true } } } });
 // Never reset anything except our explicitly named, dedicated visual fixtures.
 for (const user of existing) {
-  if (!['Visual Flow A', 'Visual Flow B'].includes(user.workspace.name)) throw Error('Cuenta de fixture ocupada por otro workspace.');
+  if (user.memberships.some((m) => !['Visual Flow A', 'Visual Flow B'].includes(m.workspace.name))) throw Error('Cuenta de fixture ocupada por otro workspace.');
 }
-await prisma.workspace.deleteMany({ where: { id: { in: existing.map((u) => u.workspaceId) } } });
+await prisma.workspace.deleteMany({ where: { id: { in: existing.flatMap((u) => u.memberships.map((m) => m.workspaceId)) } } });
+await prisma.user.deleteMany({ where: { id: { in: existing.map((u) => u.id) } } });
 try {
   const A = await createCustomerWorkspace({ companyName: 'Visual Flow A', ownerName: 'Ana Owner A', email: emails[0], password: credentials.password });
   const B = await createCustomerWorkspace({ companyName: 'Visual Flow B', ownerName: 'Bruno Owner B', email: emails[2], password: credentials.password });
-  const operator = await prisma.user.create({ data: { workspaceId: A.workspace.id, name: 'Olivia Operadora A', email: emails[1], passwordHash: hashPassword(credentials.password), role: 'SALES', memberships: { create: { workspaceId: A.workspace.id, role: 'MEMBER' } } } });
+  const operator = await prisma.user.create({ data: { name: 'Olivia Operadora A', email: emails[1], passwordHash: hashPassword(credentials.password), role: 'SALES', memberships: { create: { workspaceId: A.workspace.id, role: 'MEMBER' } } } });
   const links: Record<string, string> = {};
   for (const [key, ws] of [['a', A], ['b', B]] as const) {
     await prisma.workspaceProfile.update({ where: { workspaceId: ws.workspace.id }, data: {

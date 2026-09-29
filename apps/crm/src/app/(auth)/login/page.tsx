@@ -35,7 +35,11 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/dashboard');
+      // `next` solo si es una ruta interna (nunca `//host` ni una URL absoluta).
+      const next = new URLSearchParams(window.location.search).get('next');
+      const body = (await response.json().catch(() => ({}))) as { data?: { redirect?: string } };
+      const target = next && next.startsWith('/') && !next.startsWith('//') ? next : body.data?.redirect ?? '/dashboard';
+      router.push(target);
       router.refresh();
     } catch {
       setError('Se perdió la conexión. Revisa tu conexión e intenta de nuevo.');
@@ -81,7 +85,7 @@ export default function LoginPage() {
                   <label htmlFor="login-password" className="text-sm font-semibold text-carbon">
                     Contraseña
                   </label>
-                  <Link href="#" className="text-xs font-medium text-electric hover:text-electric-strong">
+                  <Link href="/forgot-password" className="text-xs font-medium text-electric hover:text-electric-strong">
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>

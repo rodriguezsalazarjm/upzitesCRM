@@ -56,9 +56,15 @@ const stamp = Date.now();
 console.log('\n== Seed de demostracion ==\n');
 
 // --- Limpieza del anterior ---------------------------------------------------
-const previo = await prisma.user.findFirst({ where: { email: EMAIL } });
+// Step 2: borrar el workspace ya no borra la cuenta global; se borran los
+// workspaces donde la cuenta demo es OWNER y despues la cuenta.
+const previo = await prisma.user.findUnique({
+  where: { email: EMAIL.trim().toLowerCase() },
+  select: { id: true, memberships: { where: { role: 'OWNER' }, select: { workspaceId: true } } },
+});
 if (previo) {
-  await prisma.workspace.deleteMany({ where: { id: previo.workspaceId } });
+  await prisma.workspace.deleteMany({ where: { id: { in: previo.memberships.map((m) => m.workspaceId) } } });
+  await prisma.user.delete({ where: { id: previo.id } });
   console.log('Workspace anterior eliminado.');
 }
 
