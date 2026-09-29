@@ -15,6 +15,9 @@
  *   pnpm exec tsx scripts/platform-admin.ts grant persona@upzites.com SUPER_ADMIN "motivo"
  *   pnpm exec tsx scripts/platform-admin.ts grant persona@upzites.com PLATFORM_ADMIN "motivo"
  *   pnpm exec tsx scripts/platform-admin.ts revoke persona@upzites.com "motivo"
+ *
+ * grant/revoke son DRY-RUN por defecto (solo leen y muestran el cambio). Para
+ * escribir: `--apply --confirm-host <host>` con el host EXACTO de DATABASE_URL.
  */
 import 'dotenv/config';
 import { PlatformRole } from '../generated/prisma/enums';
@@ -32,9 +35,14 @@ async function findUser(email: string) {
 }
 
 async function main() {
-  const [command, email, ...rest] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const apply = argv.includes('--apply');
+  const hostFlag = argv.indexOf('--confirm-host');
+  const confirmHost = hostFlag >= 0 ? argv[hostFlag + 1] : null;
+  const positional = argv.filter((arg, index) => arg !== '--apply' && (hostFlag < 0 || (index !== hostFlag && index !== hostFlag + 1)));
+  const [command, email, ...rest] = positional;
   const target = new URL(process.env.DATABASE_URL ?? 'postgresql://sin-configurar/');
-  console.log(`Base: ${target.hostname}${target.pathname}`);
+  console.log(`Base: ${target.hostname}${target.pathname}${apply ? '' : '  (DRY-RUN: no se escribe nada)'}`);
 
   if (command === 'list') {
     const operators = await prisma.user.findMany({
@@ -64,6 +72,14 @@ async function main() {
   if (!email) throw new Error('Falta el email.');
 
   const user = await findUser(email);
+  if (!apply) {
+    console.log(user.platformRole === role ? `Sin cambios: ${user.email} ya es ${role}.` : `Se aplicaria: ${user.email}: ${user.platformRole} → ${role}`);
+    console.log('Para escribir: --apply --confirm-host <host de DATABASE_URL>');
+    return;
+  }
+  if (confirmHost !== target.hostname) {
+    throw new Error(`--confirm-host debe ser exactamente "${target.hostname}" para escribir en esta base.`);
+  }
   // P0-D: misma operacion que la UI (lock + "nunca sin SUPER_ADMIN").
   const result = await setPlatformRoleFromCli({ email: user.email, role, note });
   if (!result.changed) {
