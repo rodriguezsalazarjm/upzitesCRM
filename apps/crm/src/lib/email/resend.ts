@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { EmailEventType, EmailProviderKind } from '../../../generated/prisma/client';
-import type {
-  DomainVerification,
-  EmailProvider,
-  NormalizedEmailEvent,
-  SendEmailInput,
-  SendEmailResult,
-  SignatureCheck,
+import {
+  PROVIDER_UNAVAILABLE,
+  type DomainVerification,
+  type EmailProvider,
+  type NormalizedEmailEvent,
+  type SendEmailInput,
+  type SendEmailResult,
+  type SignatureCheck,
 } from './provider';
 
 /**
@@ -115,7 +116,9 @@ export function createResendProvider(apiKey = process.env.RESEND_API_KEY): Email
 
     async send(input: SendEmailInput): Promise<SendEmailResult> {
       if (!apiKey) {
-        return { ok: false, error: 'RESEND_API_KEY no configurada', retryable: false };
+        // Igual que el guionado en produccion: falla reintentable, nunca SENT.
+        console.error('email_provider_unavailable', { provider: 'RESEND', reason: 'RESEND_API_KEY no configurada' });
+        return { ok: false, error: PROVIDER_UNAVAILABLE, retryable: true };
       }
 
       const headers: Record<string, string> = {};

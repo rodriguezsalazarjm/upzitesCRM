@@ -15,6 +15,7 @@ import { getPolicy, nextAllowedInstant } from '../marketing/policy';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { sendChannelMessage } from '../channels/outbound';
 import { getWorkspaceEntitlements } from '../entitlements';
+import { buyerFacingCheckoutUrl } from '../commerce/public-checkout-link';
 import { flowRequirements, missingFeatures } from '../entitlements/requirements';
 import { evaluateCondition, type ConditionContext } from './conditions';
 import {
@@ -515,7 +516,7 @@ async function executeAction(
       if (!result.ok) return { kind: 'ERROR', error: result.error };
       await prisma.automationFlowVersion.update({ where: { id: ctx.flowVersionId }, data: { checkoutsCreated: { increment: 1 } } });
       const checkout = result.data as Record<string, unknown>;
-      if (ctx.conversationId && typeof checkout.checkoutUrl === 'string') await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: checkout.checkoutUrl });
+      if (ctx.conversationId && typeof checkout.publicUrl === 'string') await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: buyerFacingCheckoutUrl(checkout as { publicUrl: string }) });
       return { kind: 'CONTINUE', state: { ...ctx.state, checkout } };
     }
 

@@ -1,27 +1,41 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { EmailEventType, EmailProviderKind } from '../../../generated/prisma/client';
-import type {
-  DomainVerification,
-  EmailProvider,
-  NormalizedEmailEvent,
-  SendEmailInput,
-  SendEmailResult,
-  SignatureCheck,
+import { isLocalDemo } from '../testing/local-mode';
+import {
+  PROVIDER_UNAVAILABLE,
+  type DomainVerification,
+  type EmailProvider,
+  type NormalizedEmailEvent,
+  type SendEmailInput,
+  type SendEmailResult,
+  type SignatureCheck,
 } from './provider';
 
 /**
  * Proveedor determinista.
  *
- * Cumple dos funciones y por eso vive en produccion y no solo en las pruebas:
+ * Cumple dos funciones:
  *
- *  1. Es el proveedor de un workspace que todavia no configuro email. Enviar
- *     falla con un motivo claro en vez de romper el journey completo.
- *  2. Es el proveedor de las pruebas de aceptacion. Como el mismo mensaje
- *     produce siempre el mismo id, se puede afirmar que un email salio sin
- *     depender de la red ni de la cuota de nadie.
+ *  1. Es el proveedor de las pruebas de aceptacion (dev/test y demo local).
+ *     Como el mismo mensaje produce siempre el mismo id, se puede afirmar que
+ *     un email salio sin depender de la red ni de la cuota de nadie.
+ *  2. En PRODUCCION es lo que queda cuando no hay proveedor real, y ahi NO
+ *     finge: `send` falla con PROVIDER_UNAVAILABLE (reintentable), el dominio
+ *     no se verifica y ningun webhook se acepta. Un email "SENT" que nunca
+ *     salio es peor que uno FAILED: el negocio cree que el cliente recibio su
+ *     acceso y nadie lo reenvia.
  *
  * Mismo enfoque que el proveedor guionado de agentes de la Fase 4.
  */
+
+/**
+ * Si el proveedor guionado puede "enviar". Se evalua en cada llamada (no al
+ * crear el proveedor): solo fuera de produccion o en la demo local con su
+ * guardia de red instalada.
+ */
+export function scriptedEmailAllowed(env: Record<string, string | undefined> = process.env) {
+  return env.NODE_ENV !== 'production' || isLocalDemo();
+}
 
 export type ScriptedSend = SendEmailInput & { providerMessageId: string; at: Date };
 
@@ -48,9 +62,18 @@ const FAILURE_ADDRESS = /@fallo\.test$/i;
 export function createScriptedProvider(): EmailProvider {
   return {
     kind: EmailProviderKind.SCRIPTED,
-    configured: true,
+    get configured() {
+      return scriptedEmailAllowed();
+    },
 
     async send(input: SendEmailInput): Promise<SendEmailResult> {
+      if (!scriptedEmailAllowed()) {
+        // Reintentable: en cuanto se configure el proveedor real, el reintento
+        // del journey/worker sale de verdad.
+        console.error('email_provider_unavailable', { to: input.to, idempotencyKey: input.idempotencyKey ?? null });
+        return { ok: false, error: PROVIDER_UNAVAILABLE, retryable: true };
+      }
+
       if (FAILURE_ADDRESS.test(input.to)) {
         return { ok: false, error: 'destinatario de prueba con fallo forzado', retryable: false };
       }
@@ -61,6 +84,7 @@ export function createScriptedProvider(): EmailProvider {
     },
 
     async verifyDomain(domain: string): Promise<DomainVerification> {
+      if (!scriptedEmailAllowed()) return { status: 'FAILED', error: PROVIDER_UNAVAILABLE };
       return {
         status: 'VERIFIED',
         providerDomainId: `scripted-${domain}`,
@@ -75,6 +99,7 @@ export function createScriptedProvider(): EmailProvider {
      * acepta nada: un webhook sin firma verificable es una puerta abierta.
      */
     verifySignature(rawBody: string, headers: Headers): SignatureCheck {
+      if (!scriptedEmailAllowed()) return { valid: false, reason: PROVIDER_UNAVAILABLE };
       const secret = process.env.EMAIL_WEBHOOK_SECRET;
       if (!secret) return { valid: false, reason: 'EMAIL_WEBHOOK_SECRET no configurado' };
 

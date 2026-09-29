@@ -438,8 +438,8 @@ const P = await makeWorkspace('pro');
     checkoutCode = error instanceof CheckoutError ? error.code : isEntitlementError(error) ? error.code : 'OTRO';
   }
   check(
-    '10. PRO: commerce permitido (producto 201, pedido creado, checkout pasa el plan)',
-    product.status === 201 && Boolean(order.id) && checkoutCode === 'NOT_CONFIGURED',
+    '10. PRO: commerce permitido (producto 201, pedido creado, checkout publico pasa el plan)',
+    product.status === 201 && Boolean(order.id) && checkoutCode === undefined,
     `${product.status} ${checkoutCode}`,
   );
   const shopify = await asUser(P.session, () => shopifyConnect(new Request('http://localhost/api/integrations/shopify/connect?shop=tienda.myshopify.com')));
@@ -788,7 +788,7 @@ const M = await makeWorkspace('5mcd');
     ent.can('commerce.orders') &&
       product.status === 201 &&
       Boolean(order.id) &&
-      checkoutCode === 'NOT_CONFIGURED' &&
+      checkoutCode === undefined &&
       flow.published &&
       channel.status === 201 &&
       ai.allowed &&

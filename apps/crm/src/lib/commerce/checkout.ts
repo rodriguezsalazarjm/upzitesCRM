@@ -11,6 +11,7 @@ import { assertFeature } from '../entitlements';
 import { cancelByKey, scheduleAction } from '../domain';
 import { getWorkspacePreferenceClient, preferenceCheckoutUrl } from '../mercado-pago';
 import { getValidWorkspaceMercadoPagoToken } from './mercado-pago-connection';
+import { publicCheckoutUrl } from './public-checkout-link';
 
 /**
  * Checkout de un pedido con Mercado Pago.
@@ -63,10 +64,57 @@ export async function createOrderCheckout(input: {
     throw new CheckoutError('El pedido ya esta pagado.', 'INVALID_STATE');
   }
 
+  const publicUrl = publicCheckoutUrl(order.id);
+
+  // El reminder lleva el checkout publico. No crea una preferencia de pago.
+  if (order.contactId) {
+    for (const hours of [1, 24, 72]) {
+      await scheduleAction({
+        workspaceId: input.workspaceId,
+        contactId: order.contactId,
+        type: ScheduledActionType.CHECKOUT_RECOVERY,
+        runAt: new Date(Date.now() + hours * 3_600_000),
+        cancelKey: recoveryKeyFor(order.id),
+        payload: { orderId: order.id, attempt: hours, publicUrl },
+      });
+    }
+  }
+
+  await recordAudit({
+    workspaceId: input.workspaceId,
+    actorId: input.actorId,
+    action: 'order.checkout_link_created',
+    entity: 'CustomerOrder',
+    entityId: order.id,
+    metadata: { total: order.total },
+  });
+
+  return { checkoutUrl: publicUrl, publicUrl, orderId: order.id };
+}
+
+/** Crea la preferencia interna; su URL solo la consume el checkout publico. */
+export async function createOrderProviderCheckout(input: {
+  workspaceId: string;
+  orderId: string;
+  actorId?: string | null;
+}) {
+  await assertFeature(input.workspaceId, 'commerce.checkout');
+
+  const order = await prisma.customerOrder.findFirst({
+    where: { id: input.orderId, workspaceId: input.workspaceId },
+    include: { lines: true, contact: { select: { id: true, email: true } } },
+  });
+
+  if (!order) throw new CheckoutError('Pedido no encontrado.', 'NOT_FOUND');
+  if (order.lines.length === 0) throw new CheckoutError('El pedido no tiene lineas.', 'INVALID_STATE');
+  if (order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.FULFILLED) {
+    throw new CheckoutError('El pedido ya esta pagado.', 'INVALID_STATE');
+  }
+
   if (isLocalDemo()) {
-    const checkoutUrl = `/demo-checkout/${order.id}`;
-    await prisma.customerOrder.update({ where: { id: order.id }, data: { status: OrderStatus.PENDING_PAYMENT, metadata: { fake: true, checkoutUrl } } });
-    return { checkoutUrl, orderId: order.id };
+    const providerUrl = `/demo-checkout/${order.id}`;
+    await prisma.customerOrder.update({ where: { id: order.id }, data: { status: OrderStatus.PENDING_PAYMENT, metadata: { fake: true, checkoutUrl: providerUrl, checkoutCreatedAt: new Date().toISOString() } } });
+    return { providerUrl, orderId: order.id };
   }
   const connection = await getValidWorkspaceMercadoPagoToken(input.workspaceId);
   if (!connection) {
@@ -99,10 +147,12 @@ export async function createOrderCheckout(input: {
           workspaceId: input.workspaceId,
         },
         payer: order.contact?.email ? { email: order.contact.email } : undefined,
+        // Vuelven al checkout publico firmado (/checkout/[id]); el estado real
+        // lo decide el webhook, la marca `r` solo elige el texto.
         back_urls: {
-          success: `${url}/checkout/${order.id}?status=success`,
-          pending: `${url}/checkout/${order.id}?status=pending`,
-          failure: `${url}/checkout/${order.id}?status=failure`,
+          success: publicCheckoutUrl(order.id, { result: 'success' }),
+          pending: publicCheckoutUrl(order.id, { result: 'pending' }),
+          failure: publicCheckoutUrl(order.id, { result: 'failure' }),
         },
         auto_return: 'approved',
         // El workspaceId en la URL es lo que permite al webhook elegir QUE
@@ -125,24 +175,9 @@ export async function createOrderCheckout(input: {
     where: { id: order.id },
     data: {
       status: OrderStatus.PENDING_PAYMENT,
-      metadata: { preferenceId: preference.id ?? null, checkoutUrl },
+      metadata: { preferenceId: preference.id ?? null, checkoutUrl, checkoutCreatedAt: new Date().toISOString() },
     },
   });
-
-  // Recuperacion de checkout abandonado (spec, seccion 9.5): 1 h, 24 h y 72 h.
-  // Todas comparten cancelKey, asi el pago las apaga de una sola vez.
-  if (order.contactId) {
-    for (const hours of [1, 24, 72]) {
-      await scheduleAction({
-        workspaceId: input.workspaceId,
-        contactId: order.contactId,
-        type: ScheduledActionType.CHECKOUT_RECOVERY,
-        runAt: new Date(Date.now() + hours * 3_600_000),
-        cancelKey: recoveryKeyFor(order.id),
-        payload: { orderId: order.id, attempt: hours },
-      });
-    }
-  }
 
   await recordAudit({
     workspaceId: input.workspaceId,
@@ -153,7 +188,7 @@ export async function createOrderCheckout(input: {
     metadata: { preferenceId: preference.id ?? null, total: order.total },
   });
 
-  return { checkoutUrl, orderId: order.id };
+  return { providerUrl: checkoutUrl, orderId: order.id };
 }
 
 /**

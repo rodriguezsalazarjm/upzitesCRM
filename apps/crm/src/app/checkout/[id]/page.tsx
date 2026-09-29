@@ -1,0 +1,130 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { loadPublicCheckout } from '@/lib/commerce/public-checkout';
+
+export const dynamic = 'force-dynamic';
+
+// El enlace lleva un token: no se indexa ni se filtra por Referer.
+export const metadata: Metadata = { title: 'Checkout', robots: { index: false, follow: false }, referrer: 'no-referrer' };
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function formatMoney(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency }).format(amount);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
+const UNAVAILABLE_TEXT = {
+  EXPIRED: { title: 'Este enlace de pago expiró', body: 'Pide un enlace nuevo a quien te lo envió.' },
+  UNAVAILABLE: { title: 'Este pedido ya no está disponible para pago', body: 'Si crees que es un error, responde el mensaje por el que recibiste este enlace.' },
+} as const;
+
+const ERROR_TEXT: Record<string, string> = {
+  PAYMENTS_UNAVAILABLE: 'El pago no está disponible en este momento. Intenta de nuevo más tarde.',
+  RATE_LIMITED: 'Demasiados intentos seguidos. Espera un momento y vuelve a intentarlo.',
+  PENDING: 'Ya hay un pago en proceso para este pedido.',
+};
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-sm sm:p-8">{children}</div>
+    </main>
+  );
+}
+
+/**
+ * Checkout publico de un pedido (cualquier workspace). Todo lo que se muestra
+ * sale del pedido guardado; el estado, de la base. Ver lib/commerce/public-checkout.
+ */
+export default async function PublicCheckoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  const { id } = await params;
+  const query = await searchParams;
+  const token = first(query.t) ?? null;
+  const returned = first(query.r);
+  const error = first(query.e);
+
+  const view = await loadPublicCheckout(id, token);
+
+  if (!view.ok) {
+    if (view.reason === 'NOT_FOUND') notFound();
+    const text = UNAVAILABLE_TEXT[view.reason];
+    return (
+      <Shell>
+        <p className="text-sm font-semibold text-slate-900">{text.title}</p>
+        <p className="mt-2 text-sm text-slate-500">{text.body}</p>
+      </Shell>
+    );
+  }
+
+  // Mercado Pago dijo "success"/"pending" pero el webhook aun no confirma: se
+  // espera sin ofrecer pagar de nuevo (evita cobros dobles).
+  const waiting = view.state === 'PENDING' || (view.state === 'PAYABLE' && (returned === 'success' || returned === 'pending'));
+
+  return (
+    <Shell>
+      {waiting ? <meta httpEquiv="refresh" content="8" /> : null}
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{view.workspaceName}</p>
+      <h1 className="mt-1 text-lg font-bold text-slate-900">{view.item.name}</h1>
+      {view.item.quantity > 1 ? (
+        <p className="mt-1 text-sm text-slate-500">
+          {view.item.quantity} × {formatMoney(view.item.unitPrice, view.currency)}
+        </p>
+      ) : null}
+
+      <div className="mt-5 flex items-baseline justify-between border-t border-slate-100 pt-4">
+        <span className="text-sm text-slate-500">Total</span>
+        <span className="text-xl font-bold text-slate-900">{formatMoney(view.total, view.currency)}</span>
+      </div>
+
+      {view.buyer.name || view.buyer.email ? (
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Comprador</p>
+          {view.buyer.name ? <p className="mt-1 text-slate-900">{view.buyer.name}</p> : null}
+          {view.buyer.email ? <p className="text-slate-500">{view.buyer.email}</p> : null}
+        </div>
+      ) : null}
+
+      <div className="mt-6" role="status">
+        {view.state === 'PAID' ? (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
+            <p className="font-semibold">Pago confirmado</p>
+            <p className="mt-1">Gracias por tu compra. Recibirás la confirmación de {view.workspaceName} por los medios que dejaste.</p>
+          </div>
+        ) : waiting ? (
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-semibold">{view.state === 'PENDING' || returned === 'pending' ? 'Pago pendiente' : 'Estamos confirmando tu pago'}</p>
+            <p className="mt-1">Esta página se actualiza sola. No hace falta pagar de nuevo.</p>
+          </div>
+        ) : (
+          <>
+            {returned === 'failure' ? (
+              <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">El pago no se completó. Puedes intentarlo de nuevo.</p>
+            ) : null}
+            {error && ERROR_TEXT[error] ? <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{ERROR_TEXT[error]}</p> : null}
+            <form method="post" action={`/api/checkout/${encodeURIComponent(view.orderId)}/pay`}>
+              <input type="hidden" name="t" value={token ?? ''} />
+              <button type="submit" className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+                Pagar con Mercado Pago
+              </button>
+            </form>
+            <p className="mt-3 text-center text-[11px] text-slate-400">Serás redirigido a Mercado Pago para completar el pago de forma segura.</p>
+          </>
+        )}
+      </div>
+    </Shell>
+  );
+}

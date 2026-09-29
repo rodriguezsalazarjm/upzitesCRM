@@ -14,6 +14,7 @@ import { recordAudit } from '../domain/audit';
 import { cancelForContact, revokeConsent, scheduleAction } from '../domain';
 import { createOrder, listCatalog, OrderError } from '../commerce/orders';
 import { CheckoutError, createOrderCheckout } from '../commerce/checkout';
+import { buyerFacingCheckoutUrl, publicCheckoutUrl } from '../commerce/public-checkout-link';
 import { isEntitlementError } from '../entitlements';
 import { createShopifyClient } from '../shopify/client';
 import { createShopifyCheckout, ShopifyOrderError } from '../shopify/orders';
@@ -615,7 +616,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         // no lo inventa.
         return {
           ok: true,
-          data: { checkoutUrl: checkout.checkoutUrl, totalClp: order.total, orderId: order.id },
+          data: { checkoutUrl: buyerFacingCheckoutUrl(checkout), publicUrl: checkout.publicUrl, totalClp: order.total, orderId: order.id },
         };
       } catch (error) {
         // P0-C: el plan no incluye cobros (defensa en runtime; la publicacion
@@ -898,8 +899,11 @@ AGENT_TOOLS.push(
     const inbound = recent.find(m => m.direction === 'INBOUND');
     const offer = recent.find(m => m.direction === 'OUTBOUND' && (m.text ?? '').includes(product.name) && (m.text ?? '').includes(String(variant.priceClp)));
     if (!inbound || !/^(sí|si|confirmo|confirmar)(\b|\s)/i.test((inbound.text ?? '').trim()) || !offer || offer.createdAt >= inbound.createdAt) return { ok: false, error: 'Se requiere confirmación explícita después de presentar producto y precio actual.' };
-    const existing = await prisma.customerOrder.findFirst({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, status: 'PENDING_PAYMENT', lines: { some: { variantId: variant.id } } }, orderBy: { createdAt: 'desc' } });
-    if (existing && (existing.metadata as { checkoutUrl?: string } | null)?.checkoutUrl) return { ok: true, data: { checkoutUrl: (existing.metadata as { checkoutUrl: string }).checkoutUrl, orderId: existing.id, displayName: product.name, displayPrice: existing.total, currency: existing.currency } };
+    const existing = await prisma.customerOrder.findFirst({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, status: { in: ['DRAFT', 'PENDING_PAYMENT'] }, lines: { some: { variantId: variant.id } } }, orderBy: { createdAt: 'desc' } });
+    if (existing) {
+      const publicUrl = publicCheckoutUrl(existing.id);
+      return { ok: true, data: { checkoutUrl: publicUrl, publicUrl, orderId: existing.id, displayName: product.name, displayPrice: existing.total, currency: existing.currency } };
+    }
     const result = await AGENT_TOOLS.find(t => t.name === 'create_checkout')!.execute({ variantId: variant.id, quantity: 1 }, ctx);
     if (!result.ok) return result;
     return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: variant.priceClp, currency: 'CLP' } };

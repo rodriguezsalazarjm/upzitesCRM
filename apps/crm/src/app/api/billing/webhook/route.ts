@@ -28,7 +28,7 @@ import {
  *  - `?workspaceId=...` en la URL -> venta de un producto propio del
  *    workspace (Fase A): se valida y recupera el pago con LA CUENTA DE ESE
  *    WORKSPACE. El workspaceId llega sin firmar en la URL (lo puso
- *    createOrderCheckout), asi que no es de fiar por si solo: sirve solo
+ *    createOrderProviderCheckout), asi que no es de fiar por si solo: sirve solo
  *    para elegir que secreto usar, y la firma x-signature sobre ESE secreto
  *    es la que de verdad autentica la notificacion.
  *  - sin `workspaceId` -> suscripcion del CRM (cuenta de Upzites).

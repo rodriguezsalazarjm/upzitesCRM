@@ -24,7 +24,7 @@ import { prisma } from '../src/lib/prisma';
 import { encryptSecret } from '../src/lib/crypto';
 import { createCustomerWorkspace } from '../src/lib/subscription';
 import { createOrder } from '../src/lib/commerce/orders';
-import { createOrderCheckout, CheckoutError } from '../src/lib/commerce/checkout';
+import { createOrderProviderCheckout, CheckoutError } from '../src/lib/commerce/checkout';
 import { getValidWorkspaceMercadoPagoToken } from '../src/lib/commerce/mercado-pago-connection';
 import { POST as billingWebhook } from '../src/app/api/billing/webhook/route';
 
@@ -107,7 +107,7 @@ const B = await makeWorkspace('b');
 
   let code: string | undefined;
   try {
-    await createOrderCheckout({ workspaceId: A, orderId: order.id });
+    await createOrderProviderCheckout({ workspaceId: A, orderId: order.id });
   } catch (error) {
     if (error instanceof CheckoutError) code = error.code;
   }
@@ -173,7 +173,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 
 let checkout;
 try {
-  checkout = await createOrderCheckout({ workspaceId: A, orderId: orderForCheckout.id });
+  checkout = await createOrderProviderCheckout({ workspaceId: A, orderId: orderForCheckout.id });
 } finally {
   globalThis.fetch = originalFetch;
 }
@@ -184,7 +184,7 @@ check(
 );
 check(
   'El notification_url incluye el workspaceId, para que el webhook sepa que cuenta usar',
-  checkout.checkoutUrl !== undefined &&
+  checkout.providerUrl !== undefined &&
     (await prisma.customerOrder.findUnique({ where: { id: orderForCheckout.id } }))?.status ===
       OrderStatus.PENDING_PAYMENT,
 );

@@ -38,7 +38,7 @@ const SESSION_CONTROL_PATHS = ['/api/auth/', '/api/workspaces/switch', '/api/pla
 /**
  * P0-C (D5): con el workspace SUSPENDED solo queda lo minimo: sesion, cambio
  * de negocio, soporte, estado del sistema y lo que no es del workspace
- * (webhooks, workers, captura publica, baja de emails).
+ * (webhooks, workers, captura publica, baja de emails, checkout publico).
  */
 const SUSPENDED_ALLOWED_PATHS = [
   '/api/auth/',
@@ -51,6 +51,8 @@ const SUSPENDED_ALLOWED_PATHS = [
   '/api/billing/webhook',
   '/api/capture/',
   '/api/email/unsubscribe',
+  // Checkout publico: lo usa el comprador, no la sesion del workspace.
+  '/api/checkout/',
 ];
 
 function isAllowedWhileSuspended(path: string) {

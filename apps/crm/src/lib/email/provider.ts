@@ -25,6 +25,9 @@ export type SendEmailInput = {
   idempotencyKey?: string | null;
 };
 
+/** Motivo de fallo cuando no hay proveedor real que pueda enviar (produccion sin configurar). */
+export const PROVIDER_UNAVAILABLE = 'PROVIDER_UNAVAILABLE';
+
 export type SendEmailResult =
   | { ok: true; providerMessageId: string }
   | { ok: false; error: string; retryable: boolean };

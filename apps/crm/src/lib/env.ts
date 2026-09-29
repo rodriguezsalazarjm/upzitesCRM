@@ -39,7 +39,7 @@ const OPTIONAL_INTEGRATIONS = [
     name: 'Proveedor de email',
     vars: ['EMAIL_PROVIDER', 'RESEND_API_KEY', 'EMAIL_WEBHOOK_SECRET'],
     effect:
-      'las campanas y los journeys de email quedaran en el proveedor guionado: se registran pero no salen',
+      'ningun email del workspace sale: quedan FAILED / PROVIDER_UNAVAILABLE (nunca SENT) y se reintentan al configurar el proveedor',
   },
 ] as const;
 

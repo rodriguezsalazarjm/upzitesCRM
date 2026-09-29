@@ -47,7 +47,8 @@ export function providerFor(kind: EmailProviderKind): EmailProvider {
 /**
  * Proveedor configurado por entorno. Si RESEND_API_KEY falta se usa el
  * guionado: la integracion queda inactiva y el CRM sigue en pie, que es la
- * regla de la spec para integraciones sin configurar.
+ * regla de la spec para integraciones sin configurar. En produccion el
+ * guionado no envia: todo queda FAILED / PROVIDER_UNAVAILABLE (ver scripted.ts).
  */
 export function defaultProvider(): EmailProvider {
   const configured = (process.env.EMAIL_PROVIDER ?? '').trim().toUpperCase();
