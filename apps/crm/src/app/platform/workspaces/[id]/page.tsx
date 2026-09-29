@@ -8,6 +8,8 @@ import { PLAN_CATALOG, PLAN_CODES } from '@/lib/billing/plan-catalog';
 import { getCurrentPrice } from '@/lib/billing/price-book';
 import { currentPlatformActor, isSuperAdmin } from '@/lib/platform/access';
 import { getPlatformWorkspace } from '@/lib/platform/clients';
+import { BUSINESS_TYPE_LABEL, COMMERCE_SUBTYPE_LABEL, canonicalBusiness } from '@/lib/workspace-profile/business';
+import { presetId, resolvePreset } from '@/lib/workspace-presets';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +32,8 @@ export default async function WorkspaceDetail({ params }: { params: Promise<{ id
   const endpoint = `/api/platform/workspaces/${workspace.id}`;
   const pendingInvites = workspace.invitations.filter((i) => !i.acceptedAt && !i.revokedAt);
   const owner = workspace.memberships.find((m) => m.role === 'OWNER' && m.status === 'ACTIVE');
+  const business = canonicalBusiness(workspace.profile);
+  const preset = resolvePreset(workspace.profile);
 
   const paymentFields: Field[] = [
     { name: 'planCode', label: 'Plan', type: 'select', defaultValue: planForPayment, options: paidPlanOptions },
@@ -67,6 +71,15 @@ export default async function WorkspaceDetail({ params }: { params: Promise<{ id
           <div><dt className="text-xs text-soft">Gracia hasta</dt><dd>{fmtDate(life.graceEndsAt)}</dd></div>
           <div><dt className="text-xs text-soft">Precio acordado</dt><dd>{life.price ? formatMoney(life.price.amountMinor, life.price.currency) : '—'}</dd></div>
           <div><dt className="text-xs text-soft">OWNER</dt><dd>{owner ? owner.user.email : 'Pendiente de aceptar invitación'}</dd></div>
+        </dl>
+      </Section>
+
+      <Section title="Perfil de negocio" description="Solo lectura. Se configura dentro del workspace; para ajustes profundos usa una sesión de soporte.">
+        <dl className="grid gap-3 text-sm sm:grid-cols-4">
+          <div><dt className="text-xs text-soft">Business type</dt><dd className="font-semibold">{BUSINESS_TYPE_LABEL[business.businessType]}</dd></div>
+          <div><dt className="text-xs text-soft">Commerce subtype</dt><dd className="font-semibold">{business.commerceSubtype ? COMMERCE_SUBTYPE_LABEL[business.commerceSubtype] : '—'}</dd></div>
+          <div><dt className="text-xs text-soft">Preset</dt><dd className="font-semibold">{presetId(preset.preset)}{preset.applied ? '' : ' (deducido)'}</dd></div>
+          <div><dt className="text-xs text-soft">Onboarding</dt><dd>{workspace.profile?.onboardingCompletedAt ? fmtDate(workspace.profile.onboardingCompletedAt) : 'Pendiente'}</dd></div>
         </dl>
       </Section>
 

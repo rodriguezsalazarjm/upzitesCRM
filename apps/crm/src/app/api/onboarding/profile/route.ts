@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/http';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { updateWorkspaceProfileSchema } from '@/lib/onboarding/profile-input';
 import { prisma } from '@/lib/prisma';
+import { normalizeBusinessInput } from '@/lib/workspace-profile/business';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,16 @@ export async function PATCH(request: Request) {
 
   const parsed = await parseBody(request, updateWorkspaceProfileSchema);
   if (!parsed.ok) return parsed.response;
-  const { businessName, timezone, ...profileData } = parsed.data;
+  const { businessName, timezone, ...input } = parsed.data;
+  // P0-E: el tipo se normaliza (legacy INFOPRODUCT -> ECOMMERCE + INFOPRODUCT;
+  // subtipo solo con ECOMMERCE). Cambiar el perfil NO toca el preset aplicado
+  // ni las preferencias de nadie: eso es "Aplicar navegacion recomendada".
+  const { businessType, commerceSubtype, preferredChannels, ...rest } = input;
+  const profileData = {
+    ...rest,
+    ...(businessType ? normalizeBusinessInput({ businessType, commerceSubtype: commerceSubtype ?? null }) : {}),
+    ...(preferredChannels ? { preferredChannels: [...new Set(preferredChannels)] } : {}),
+  };
 
   if (timezone) {
     try {

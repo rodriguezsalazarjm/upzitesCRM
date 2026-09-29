@@ -1,12 +1,20 @@
 import { z } from 'zod';
-import { BusinessType } from '../../../generated/prisma/client';
+import { BusinessType, CommerceSubtype, PrimaryGoal, TeamSize } from '../../../generated/prisma/client';
+import { PREFERRED_CHANNELS } from '../workspace-profile/business';
 
-/** Formas de venta configurables por el usuario. UNDEFINED es solo el estado inicial. */
+/**
+ * Tipos de negocio configurables (P0-E). UNDEFINED es solo el estado inicial.
+ * Infoproductos ya no es un tipo: es ECOMMERCE + commerceSubtype INFOPRODUCT.
+ */
 export const configurableBusinessTypes = [
-  BusinessType.INFOPRODUCT,
-  BusinessType.ECOMMERCE,
   BusinessType.SERVICES,
+  BusinessType.ECOMMERCE,
+  BusinessType.APPOINTMENTS,
+  BusinessType.GENERAL,
 ] as const;
+
+/** Entrada aceptada: incluye el legacy INFOPRODUCT, que la ruta normaliza. */
+const businessTypeInputs = [...configurableBusinessTypes, BusinessType.INFOPRODUCT] as const;
 
 export type ConfigurableBusinessType = (typeof configurableBusinessTypes)[number];
 
@@ -27,14 +35,19 @@ export const businessIndustries = [
 
 export type BusinessIndustry = (typeof businessIndustries)[number];
 
-export function isBusinessTypeConfigured(value: BusinessType): value is ConfigurableBusinessType {
-  return configurableBusinessTypes.some((candidate) => candidate === value);
+/** Configurado = cualquier valor distinto del estado inicial (incluye la modalidad del wizard). */
+export function isBusinessTypeConfigured(value: BusinessType) {
+  return value !== BusinessType.UNDEFINED;
 }
 
 export const updateWorkspaceProfileSchema = z
   .object({
     businessName: z.string().trim().min(1).max(120).optional(),
-    businessType: z.enum(configurableBusinessTypes).optional(),
+    businessType: z.enum(businessTypeInputs).optional(),
+    commerceSubtype: z.nativeEnum(CommerceSubtype).nullable().optional(),
+    primaryGoal: z.nativeEnum(PrimaryGoal).nullable().optional(),
+    teamSize: z.nativeEnum(TeamSize).nullable().optional(),
+    preferredChannels: z.array(z.enum(PREFERRED_CHANNELS)).max(PREFERRED_CHANNELS.length).optional(),
     industry: z.enum(businessIndustries).nullable().optional(),
     industryOther: z.string().trim().min(2).max(120).nullable().optional(),
     currency: z.string().length(3).optional(),

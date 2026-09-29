@@ -12,14 +12,18 @@ import { isPlatformAdmin } from '@/lib/platform-admin';
 import { getSubscriptionStatus } from '@/lib/subscription';
 import { entitlementSnapshot, usageFor } from '@/lib/entitlements';
 import { ContactsLimitBanner } from '@/components/billing/contacts-limit-banner';
-import type { FeatureKey } from '@/lib/entitlements/config';
 import { requireWorkspaceContext } from '@/lib/workspace-context';
+import { EMPTY_PREFERENCE } from '@/lib/preferences';
+import { resolveNavigation } from '@/lib/navigation/resolve';
+import { featureAccessFrom, getWorkspaceExperience } from '@/lib/workspace-experience';
+import { PRESETS } from '@/lib/workspace-presets';
+import { FEATURE_KEYS } from '@/lib/entitlements/config';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireCurrentUser();
   const ctx = await requireWorkspaceContext();
   const isDemo = user.id === DEV_DEMO_USER.id;
-  const [subscription, platformAdmin, workspaces, entitlements, contactsUsage] = await Promise.all([
+  const [subscription, platformAdmin, workspaces, entitlements, contactsUsage, experience] = await Promise.all([
     isDemo
       ? { isActive: true, state: 'ACTIVE' as const, expiresAt: null, graceEndsAt: null, snapshot: null }
       : getSubscriptionStatus(user.workspace.id),
@@ -27,14 +31,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     isDemo ? [] : listMyWorkspaces(user.id),
     isDemo ? null : entitlementSnapshot(user.workspace.id),
     isDemo ? null : usageFor(user.workspace.id, 'contacts'),
+    // P0-E: navegacion = preset → plan → rol → preferencias (USUARIO x WORKSPACE).
+    isDemo ? null : getWorkspaceExperience({ workspaceId: user.workspace.id, userId: user.id, role: user.role }),
   ]);
   const contactsLimit = entitlements?.limits['contacts.max'] ?? null;
 
-  // D6: lo que el PLAN no incluye se muestra bloqueado ("Disponible en Pro").
-  const lockedFeatures: Partial<Record<FeatureKey, string>> = {};
-  for (const [key, feature] of Object.entries(entitlements?.features ?? {}) as [FeatureKey, { allowed: boolean; requiredPlan: keyof typeof PLAN_CATALOG | null }][]) {
-    if (!feature.allowed && feature.requiredPlan) lockedFeatures[key] = PLAN_CATALOG[feature.requiredPlan].name;
-  }
+  // D6 (P0-C) se mantiene dentro del resolver: lo que el PLAN no incluye y el
+  // preset considera relevante se ve bloqueado ("Disponible en Pro").
+  const navigation =
+    experience?.navigation ??
+    resolveNavigation({
+      preset: PRESETS.general,
+      features: entitlements
+        ? featureAccessFrom(entitlements)
+        : Object.fromEntries(FEATURE_KEYS.map((key) => [key, { allowed: true, requiredPlanName: null }])),
+      role: user.role,
+    });
+  const preference = experience?.preference ?? EMPTY_PREFERENCE;
 
   const supportBanner = ctx.supportSession && (
     <SupportBanner
@@ -59,7 +72,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas">
       <WorkspaceSync workspaceId={user.workspace.id} />
-      <Sidebar user={user} isPlatformAdmin={platformAdmin} workspaces={workspaces} lockedFeatures={lockedFeatures} />
+      {/* key: al cambiar de workspace el sidebar se monta de nuevo con SUS preferencias. */}
+      <Sidebar
+        key={user.workspace.id}
+        user={user}
+        isPlatformAdmin={platformAdmin}
+        workspaces={workspaces}
+        navigation={navigation}
+        preference={preference}
+      />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {supportBanner}
         {subscription.state === 'GRACE' && subscription.graceEndsAt && (

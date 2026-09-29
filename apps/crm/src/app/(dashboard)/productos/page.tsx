@@ -1,3 +1,4 @@
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { Package, PackageOpen } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Card } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { BusinessType } from '../../../../generated/prisma/client';
 import { canManageChannels } from '@/lib/conversations';
 import { NewProductForm } from './new-product-form';
+import { wizardSalesMode } from '@/lib/workspace-profile/business';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,15 +44,16 @@ export default async function ProductosPage() {
     }),
     prisma.workspaceProfile.findUnique({
       where: { workspaceId: user.workspace.id },
-      select: { businessType: true },
+      select: { businessType: true, commerceSubtype: true },
     }),
   ]);
-  const preferredType = profile?.businessType === BusinessType.INFOPRODUCT ? 'DIGITAL' : 'PHYSICAL';
+  const preferredType = wizardSalesMode(profile) === BusinessType.INFOPRODUCT ? 'DIGITAL' : 'PHYSICAL';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Productos" subtitle="Catalogo interno: lo que el agente puede vender" />
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <TutorialHint tutorialKey="products.first_visit" />
         <PlanLockedNotice workspaceId={user.workspace.id} feature="commerce.products" />
         <Card className="p-5">
           <p className="text-sm font-bold text-carbon">Catálogo manual</p>

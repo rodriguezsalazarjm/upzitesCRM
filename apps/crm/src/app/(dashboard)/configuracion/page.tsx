@@ -24,11 +24,16 @@ import { FlagsClient } from './flags-client';
 import { BusinessSettingsForm, HoursSettingsForm, InformationSettingsForm } from './settings-forms';
 import { ServicesPricing, type ServiceRuleSetView } from './services-pricing';
 import { WebsiteConnection } from './website-connection';
+import { ExperiencePanel } from './experience-panel';
+import { PRESETS, resolvePreset } from '@/lib/workspace-presets';
+import { wizardSalesMode } from '@/lib/workspace-profile/business';
+import { canManageProfile } from '@/lib/workspace-profile/service';
 
 export const dynamic = 'force-dynamic';
 
 const navigation = [
   ['mi-negocio', 'Mi negocio'],
+  ['experiencia', 'Menú e inicio'],
   ['ventas', 'Ventas y cotizaciones'],
   ['horarios', 'Horarios de atención'],
   ['informacion', 'Información y políticas'],
@@ -58,6 +63,8 @@ export default async function ConfiguracionPage() {
   const sections = canSeeOperations ? [...navigation, ...operationsNavigation] : navigation;
 
   const profile = { ...storedProfile, businessName: user.workspace.name };
+  const presetState = resolvePreset(storedProfile);
+  const salesMode = wizardSalesMode(storedProfile);
   const canEdit = canManageMarketing(user.role);
   const snippet = `<script async src="${baseUrl}/api/capture/snippet?key=${workspacePublicKey}"></script>`;
   const formEmbed = form
@@ -97,20 +104,35 @@ export default async function ConfiguracionPage() {
             </SettingsSection>
 
             <SettingsSection
+              id="experiencia"
+              icon={Settings2}
+              title="Menú e inicio"
+              description="El menú, el inicio y los primeros pasos se ordenan según tu tipo de negocio. Tu plan sigue decidiendo qué está disponible."
+            >
+              <ExperiencePanel
+                currentLabel={presetState.preset.label}
+                recommendedLabel={PRESETS[presetState.recommendedKey].label}
+                recommendationDiffers={presetState.recommendationDiffers}
+                updateAvailable={presetState.updateAvailable}
+                applied={presetState.applied}
+                canApply={canManageProfile(user.role)}
+              />
+            </SettingsSection>
+
+            <SettingsSection
               id="ventas"
               icon={ShoppingCart}
               title="Ventas y cotizaciones"
               description="Revisa el recorrido de tus oportunidades y administra lo que vendes."
             >
               <div className="space-y-6">
-                {profile.businessType === BusinessType.SERVICES ? (
+                {salesMode === BusinessType.SERVICES ? (
                   <ServicesPricing
                     services={pricingRuleSets}
                     canEdit={canEdit}
                     canPublish={user.role === WorkspaceRole.OWNER}
                   />
-                ) : profile.businessType === BusinessType.ECOMMERCE ||
-                  profile.businessType === BusinessType.INFOPRODUCT ? (
+                ) : salesMode === BusinessType.ECOMMERCE || salesMode === BusinessType.INFOPRODUCT ? (
                   <div className="rounded-xl bg-ivory p-4">
                     <h3 className="text-sm font-semibold text-carbon">Catálogo de productos</h3>
                     <p className="mt-1 text-xs leading-5 text-soft">
@@ -318,6 +340,9 @@ async function getWorkspaceProfile(workspaceId: string) {
 function defaultProfile() {
   return {
     businessType: BusinessType.UNDEFINED,
+    commerceSubtype: null,
+    presetKey: null,
+    presetVersion: null,
     industry: null,
     industryOther: null,
     businessStartMinute: 540,

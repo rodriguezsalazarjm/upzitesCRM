@@ -9,6 +9,7 @@ import { getEntitlements } from '@/lib/billing/usage';
 import type { SubscriptionState } from '@/lib/billing/subscription-state';
 import { getBillingSummary } from '@/lib/ops-data';
 import { getCurrentWorkspaceId } from '@/lib/crm-data';
+import { requireModuleAccess } from '@/lib/navigation/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,9 @@ export default async function BillingPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  // Rol minimo del catalogo de navegacion (OWNER/ADMIN): MEMBER recibe 404
+  // aunque escriba la URL. No depende del sidebar.
+  await requireModuleAccess('billing');
   const { status: checkoutStatus } = await searchParams;
   const banner = checkoutStatus ? CHECKOUT_BANNERS[checkoutStatus] : undefined;
 

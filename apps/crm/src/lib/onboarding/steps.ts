@@ -13,6 +13,7 @@ import {
 import { prisma } from '../prisma';
 import { getEntitlements } from '../billing/usage';
 import { isBusinessTypeConfigured } from './profile-input';
+import { wizardSalesMode } from '../workspace-profile/business';
 import { isRuleSetUsable } from '../quotes/schema';
 import {
   canShopifyCompleteCatalog,
@@ -545,7 +546,9 @@ export async function getOnboardingState(workspaceId: string): Promise<Onboardin
 
   const context: Context = {
     workspaceId,
-    businessType: profile?.businessType ?? BusinessType.UNDEFINED,
+    // P0-E: el wizard razona por modalidad de venta (servicios / fisico /
+    // digital); ECOMMERCE + INFOPRODUCT se lee como INFOPRODUCT.
+    businessType: wizardSalesMode(profile),
     capabilities: entitlements.plan.capabilities,
     // Tener plan = existe una suscripcion (FREE incluida). Sin fila es un
     // estado anomalo: el resolver lo trata como FREE, pero el wizard no lo da

@@ -21,6 +21,7 @@ model Workspace {
 
   users           User[]
   memberships     WorkspaceMembership[]
+  userPreferences WorkspaceUserPreference[]
   invitations     WorkspaceInvitation[]
   lastActiveUsers User[]                @relation("UserLastActiveWorkspace")
   supportSessions SupportSession[]
@@ -136,6 +137,7 @@ model User {
   workspace           Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   lastActiveWorkspace Workspace?           @relation("UserLastActiveWorkspace", fields: [lastActiveWorkspaceId], references: [id], onDelete: SetNull)
   memberships         WorkspaceMembership[]
+  workspacePreferences WorkspaceUserPreference[]
   supportSessions     SupportSession[]
   ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
   ownedContacts       Contact[]            @relation("ContactOwner")
@@ -2436,6 +2438,21 @@ model WorkspaceProfile {
   workspaceId String       @unique @map("workspace_id")
 
   businessType BusinessType @default(UNDEFINED) @map("business_type")
+  /// Solo con businessType = ECOMMERCE (P0-E). Reemplaza al legacy
+  /// `businessType = INFOPRODUCT` (migrado a ECOMMERCE + INFOPRODUCT).
+  commerceSubtype CommerceSubtype? @map("commerce_subtype")
+  primaryGoal     PrimaryGoal?     @map("primary_goal")
+  teamSize        TeamSize?        @map("team_size")
+  /// Canales donde el negocio habla con sus clientes (WHATSAPP, INSTAGRAM,
+  /// MESSENGER, WEB, ONLINE_STORE). Informativo: no conecta nada.
+  preferredChannels String[] @default([]) @map("preferred_channels")
+  /// Preset de experiencia aplicado (`services`, `infoproduct`...). El preset
+  /// vive en codigo (src/lib/workspace-presets); aqui solo clave y version.
+  /// null = se deduce del businessType. Nunca concede capacidades.
+  presetKey               String?   @map("preset_key")
+  presetVersion           Int?      @map("preset_version")
+  onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
+  onboardingCompletedById String?   @map("onboarding_completed_by")
   /// Rubro declarado por el cliente. Es independiente de `businessType`, que
   /// describe la modalidad de venta y condiciona el onboarding.
   industry      String?
@@ -2463,6 +2480,39 @@ model WorkspaceProfile {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("workspace_profiles")
+}
+
+/// Personalizacion de UNA persona en UN workspace (P0-E). La misma cuenta
+/// tiene sidebar/dashboard distintos en cada negocio. Nunca concede nada:
+/// el resolver aplica plan y rol antes que estas preferencias.
+model WorkspaceUserPreference {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  /// Solo escritorio. En movil se ignora (drawer de ancho fijo).
+  sidebarWidth       Int?     @map("sidebar_width")
+  sidebarCollapsed   Boolean  @default(false) @map("sidebar_collapsed")
+  /// Ids de navegacion en el orden elegido. Incluir un id que el preset
+  /// oculta lo vuelve a mostrar.
+  navOrder           String[] @default([]) @map("nav_order")
+  hiddenNavItems     String[] @default([]) @map("hidden_nav_items")
+  /// [{ id, position, size, hidden }]. null = layout del preset.
+  dashboardLayout    Json?    @map("dashboard_layout")
+  dismissedTutorials String[] @default([]) @map("dismissed_tutorials")
+  /// Estado personal del checklist ({ hidden: true }). El avance NO se
+  /// guarda: se calcula del estado real.
+  onboardingChecklistState Json? @map("onboarding_checklist_state")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+  @@map("workspace_user_preferences")
 }
 
 /// Estado de activacion del workspace.
@@ -3276,10 +3326,38 @@ enum SendCategory {
 /// Como vende el cliente. Decide que pasos del onboarding son obligatorios,
 /// no como funciona el CRM.
 enum BusinessType {
+  /// Sin configurar. La experiencia usa el preset GENERAL.
   UNDEFINED
+  /// LEGACY (antes de P0-E): migrado a ECOMMERCE + commerceSubtype
+  /// INFOPRODUCT. No escribir.
   INFOPRODUCT
   ECOMMERCE
   SERVICES
+  APPOINTMENTS
+  GENERAL
+}
+
+enum CommerceSubtype {
+  INFOPRODUCT
+  PHYSICAL_PRODUCTS
+  MIXED
+  GENERAL_COMMERCE
+}
+
+enum PrimaryGoal {
+  LEADS
+  SALES
+  CONVERSATIONS
+  AUTOMATION
+  RECOVERY
+  OPERATIONS
+}
+
+enum TeamSize {
+  SOLO
+  SMALL
+  MEDIUM
+  LARGE
 }
 
 enum ActivationStatus {

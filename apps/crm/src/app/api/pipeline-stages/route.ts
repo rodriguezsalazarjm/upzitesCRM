@@ -4,6 +4,8 @@ import { OpportunityStage } from '../../../../generated/prisma/client';
 import { getCurrentWorkspaceId, getPipelineStages } from '@/lib/crm-data';
 import { parseBody } from '@/lib/http';
 import { prisma } from '@/lib/prisma';
+import { requireCurrentUser } from '@/lib/auth';
+import { canManageWorkspaceSettings } from '@/lib/workspace-roles';
 
 const stageKeyMap = {
   nuevo: OpportunityStage.NEW,
@@ -28,7 +30,18 @@ export async function GET() {
   return NextResponse.json({ data: stages });
 }
 
+/** Configurar el pipeline es configuracion del workspace: OWNER/ADMIN (403 para MEMBER). */
+async function requireSettingsManager() {
+  const user = await requireCurrentUser();
+  if (!canManageWorkspaceSettings(user.role)) {
+    return NextResponse.json({ message: 'Solo el owner o un admin puede configurar el pipeline.' }, { status: 403 });
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
+  const denied = await requireSettingsManager();
+  if (denied) return denied;
   const parsed = await parseBody(request, stageSchema);
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;

@@ -28,23 +28,63 @@ const INDUSTRIES = [
   ['OTHER', 'Otro'],
 ] as const;
 
+/**
+ * P0-E: tipo de negocio + subtipo de ecommerce. Infoproductos es ECOMMERCE +
+ * INFOPRODUCT (ya no un tipo propio). Guardar esto NO cambia el menu ni el
+ * inicio: eso se aplica aparte con "Aplicar navegacion recomendada".
+ */
 const SALE_MODES = [
   {
-    value: BusinessType.SERVICES,
+    value: 'SERVICES',
     label: 'Servicios y cotizaciones',
     detail: 'Por ejemplo, una instalación, asesoría o proyecto que se cotiza antes de comenzar.',
   },
   {
-    value: BusinessType.ECOMMERCE,
+    value: 'APPOINTMENTS',
+    label: 'Citas',
+    detail: 'Atiendes con hora o reserva: una consulta, una clase, un tratamiento.',
+  },
+  {
+    value: 'ECOMMERCE:PHYSICAL_PRODUCTS',
     label: 'Productos físicos / tienda online',
     detail: 'Por ejemplo, productos con inventario, pedidos y despacho.',
   },
   {
-    value: BusinessType.INFOPRODUCT,
+    value: 'ECOMMERCE:INFOPRODUCT',
     label: 'Productos digitales',
     detail: 'Por ejemplo, un curso, guía o archivo que se entrega después del pago.',
   },
+  {
+    value: 'ECOMMERCE:MIXED',
+    label: 'Productos físicos y digitales',
+    detail: 'Vendes ambos tipos de producto.',
+  },
+  {
+    value: 'GENERAL',
+    label: 'Otro',
+    detail: 'Algo distinto o un poco de todo.',
+  },
 ] as const;
+
+type SaleMode = (typeof SALE_MODES)[number]['value'] | '';
+
+function saleModeOf(businessType: BusinessTypeValue, commerceSubtype: string | null): SaleMode {
+  if (businessType === BusinessType.INFOPRODUCT) return 'ECOMMERCE:INFOPRODUCT';
+  if (businessType === BusinessType.ECOMMERCE) {
+    if (commerceSubtype === 'INFOPRODUCT') return 'ECOMMERCE:INFOPRODUCT';
+    if (commerceSubtype === 'MIXED') return 'ECOMMERCE:MIXED';
+    return 'ECOMMERCE:PHYSICAL_PRODUCTS';
+  }
+  if (businessType === BusinessType.SERVICES || businessType === BusinessType.APPOINTMENTS || businessType === BusinessType.GENERAL) {
+    return businessType;
+  }
+  return '';
+}
+
+function businessFromMode(mode: SaleMode) {
+  const [businessType, commerceSubtype] = mode.split(':');
+  return { businessType, commerceSubtype: commerceSubtype ?? null };
+}
 
 const DAYS = [
   [1, 'Lun'],
@@ -72,6 +112,7 @@ type Notice = { kind: 'error' | 'success'; message: string } | null;
 type ProfileValues = {
   businessName: string;
   businessType: BusinessTypeValue;
+  commerceSubtype: string | null;
   industry: string | null;
   industryOther: string | null;
   businessStartMinute: number;
@@ -121,12 +162,12 @@ export function BusinessSettingsForm({
   const [businessName, setBusinessName] = useState(initial.businessName);
   const [industry, setIndustry] = useState(initial.industry ?? '');
   const [industryOther, setIndustryOther] = useState(initial.industryOther ?? '');
-  const [businessType, setBusinessType] = useState<BusinessTypeValue>(initial.businessType);
+  const [businessType, setBusinessType] = useState<SaleMode>(saleModeOf(initial.businessType, initial.commerceSubtype));
   const [saved, setSaved] = useState({
     businessName: initial.businessName,
     industry: initial.industry ?? '',
     industryOther: initial.industryOther ?? '',
-    businessType: initial.businessType,
+    businessType: saleModeOf(initial.businessType, initial.commerceSubtype),
   });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -142,7 +183,7 @@ export function BusinessSettingsForm({
     if (industry === 'OTHER' && industryOther.trim().length < 2) {
       return setNotice({ kind: 'error', message: 'Escribe el rubro de tu negocio.' });
     }
-    if (businessType === BusinessType.UNDEFINED) {
+    if (!businessType) {
       return setNotice({ kind: 'error', message: 'Selecciona cómo vendes principalmente.' });
     }
 
@@ -152,7 +193,7 @@ export function BusinessSettingsForm({
         businessName: businessName.trim(),
         industry,
         industryOther: industry === 'OTHER' ? industryOther.trim() : null,
-        businessType,
+        ...businessFromMode(businessType),
       });
       const persisted = {
         businessName: businessName.trim(),

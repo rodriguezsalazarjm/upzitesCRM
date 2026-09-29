@@ -10,12 +10,15 @@ import {
   updateWorkspaceProfileSchema,
 } from './profile-input';
 
-test('expone solamente las tres modalidades implementadas por el backend', () => {
+test('P0-E: tipos de negocio canonicos; infoproductos es un subtipo de ECOMMERCE', () => {
   assert.deepEqual(configurableBusinessTypes, [
-    BusinessType.INFOPRODUCT,
-    BusinessType.ECOMMERCE,
     BusinessType.SERVICES,
+    BusinessType.ECOMMERCE,
+    BusinessType.APPOINTMENTS,
+    BusinessType.GENERAL,
   ]);
+  // El valor legacy se sigue aceptando como entrada (la ruta lo normaliza).
+  assert.equal(updateWorkspaceProfileSchema.safeParse({ businessType: BusinessType.INFOPRODUCT }).success, true);
 });
 
 test('acepta los rubros disponibles y exige detalle para Otro', () => {

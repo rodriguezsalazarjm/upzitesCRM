@@ -1,4 +1,5 @@
-import { BillingSource, MembershipStatus, PlanCode, WorkspaceRole } from '../../../generated/prisma/enums';
+import { BillingSource, BusinessType, CommerceSubtype, MembershipStatus, PlanCode, WorkspaceRole } from '../../../generated/prisma/enums';
+import { normalizeBusinessInput } from '../workspace-profile/business';
 import { crossTenantPrisma } from '../prisma';
 import { ensurePlanCatalog } from '../billing/plan-catalog';
 import { getCurrentPrice } from '../billing/price-book';
@@ -43,6 +44,13 @@ export type CreateClientInput = {
   isInternal?: boolean;
   /** Negocio propio: el SUPER_ADMIN queda como OWNER (auditado). */
   addActorAsOwner?: boolean;
+  /**
+   * P0-E: tipo de negocio inicial, SOLO al aprovisionar un negocio interno
+   * (SUPER_ADMIN). Es provisioning, no edicion de datos del tenant: despues el
+   * perfil se cambia dentro del workspace. El preset queda deducido y el
+   * onboarding pendiente.
+   */
+  initialBusiness?: { businessType: BusinessType; commerceSubtype?: CommerceSubtype | null } | null;
   reason?: string | null;
 };
 
@@ -65,6 +73,9 @@ export async function createPlatformClient(input: CreateClientInput) {
   if (!input.idempotencyKey?.trim()) throw new PlatformClientError('INVALID_INPUT', 'Falta la clave de idempotencia.');
   if (input.billingSource === 'COMP') assertSuperAdmin(input.actor, 'asignar COMP');
   if (input.isInternal) assertSuperAdmin(input.actor, 'crear un negocio interno');
+  if (input.initialBusiness && !input.isInternal) {
+    throw new PlatformClientError('INVALID_INPUT', 'El tipo de negocio inicial solo se elige al crear un negocio interno.');
+  }
   if (input.addActorAsOwner && !input.isInternal) {
     throw new PlatformClientError('INVALID_INPUT', 'Solo un negocio interno puede tener al operador como OWNER automatico.');
   }
@@ -99,6 +110,14 @@ export async function createPlatformClient(input: CreateClientInput) {
     if (previous?.targetWorkspaceId) return { workspaceId: previous.targetWorkspaceId, created: false };
 
     const workspace = await provisionWorkspaceTx(tx, { name, slug, isInternal: Boolean(input.isInternal), freePlanId: plans[PlanCode.FREE].id });
+    if (input.initialBusiness) {
+      const business = normalizeBusinessInput({ businessType: input.initialBusiness.businessType, commerceSubtype: input.initialBusiness.commerceSubtype ?? null });
+      await tx.workspaceProfile.upsert({
+        where: { workspaceId: workspace.id },
+        create: { workspaceId: workspace.id, ...business },
+        update: business,
+      });
+    }
     if (selfOwned) {
       await tx.workspaceMembership.create({
         data: { userId: input.actor.id, workspaceId: workspace.id, role: WorkspaceRole.OWNER, invitedById: input.actor.id },
@@ -232,6 +251,8 @@ export async function getPlatformWorkspace(workspaceId: string) {
       slug: true,
       isInternal: true,
       createdAt: true,
+      // P0-E: solo lectura. El perfil se configura dentro del workspace (o via SupportSession).
+      profile: { select: { businessType: true, commerceSubtype: true, presetKey: true, presetVersion: true, onboardingCompletedAt: true } },
       subscription: { include: { plan: true, price: { select: { interval: true } } } },
       memberships: {
         select: { id: true, role: true, status: true, planLimitedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true } } },

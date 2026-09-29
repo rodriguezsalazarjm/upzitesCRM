@@ -1,3 +1,4 @@
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { MessagesSquare } from 'lucide-react';
 import { ConversationList, CHANNEL_FILTERS } from '@/components/inbox/conversation-list';
 import { requireCurrentUser } from '@/lib/auth';
@@ -34,7 +35,8 @@ export default async function InboxPage({
         showWhatsAppBanner={showWhatsAppBanner}
         className="w-full lg:w-[340px] lg:shrink-0 lg:border-r lg:border-line"
       />
-      <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+      <div className="hidden min-w-0 flex-1 flex-col items-center justify-center gap-6 px-8 lg:flex">
+        <TutorialHint tutorialKey="inbox.first_visit" className="max-w-md" />
         <div className="max-w-xs text-center">
           <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-ivory text-ash">
             <MessagesSquare className="h-6 w-6" strokeWidth={1.5} aria-hidden />

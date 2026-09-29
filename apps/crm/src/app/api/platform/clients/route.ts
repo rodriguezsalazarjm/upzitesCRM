@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { PlanCode } from '../../../../../generated/prisma/enums';
+import { PlanCode, type BusinessType, type CommerceSubtype } from '../../../../../generated/prisma/enums';
 import { parseBody } from '@/lib/http';
 import { sendInvitationEmail } from '@/lib/invitations';
 import { platformGuard } from '@/lib/platform/access';
@@ -30,6 +30,15 @@ const schema = z.object({
     .optional(),
   isInternal: z.boolean().default(false),
   addActorAsOwner: z.boolean().default(false),
+  /** P0-E: "SERVICES" | "ECOMMERCE:INFOPRODUCT" ... Solo negocio interno. */
+  initialBusiness: z
+    .enum(['', 'SERVICES', 'APPOINTMENTS', 'GENERAL', 'ECOMMERCE:PHYSICAL_PRODUCTS', 'ECOMMERCE:INFOPRODUCT', 'ECOMMERCE:MIXED'])
+    .optional()
+    .transform((value) => {
+      if (!value) return null;
+      const [businessType, commerceSubtype] = value.split(':');
+      return { businessType: businessType as BusinessType, commerceSubtype: (commerceSubtype ?? null) as CommerceSubtype | null };
+    }),
   sendEmail: z.boolean().default(true),
   reason: z.string().max(500).optional(),
 });

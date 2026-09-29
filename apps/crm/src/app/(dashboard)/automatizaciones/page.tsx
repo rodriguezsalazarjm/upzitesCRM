@@ -1,3 +1,4 @@
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { Activity, AlertTriangle, Power, Workflow } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -151,6 +152,7 @@ export default async function AutomatizacionesPage() {
         subtitle="Reglas que corren solas: cuando pasa algo, el CRM actua"
       />
       <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <TutorialHint tutorialKey="automation.first_visit" />
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <StatCard
             size="sm"

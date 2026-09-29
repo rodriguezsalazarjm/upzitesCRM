@@ -38,6 +38,21 @@ export default async function ClientsPage() {
       ? ([
           { name: 'isInternal', label: 'Negocio interno (propio de Upzites; fuera de métricas SaaS)', type: 'checkbox' },
           { name: 'addActorAsOwner', label: 'Soy el OWNER de este negocio interno (queda auditado)', type: 'checkbox' },
+          {
+            name: 'initialBusiness',
+            label: 'Tipo de negocio inicial (solo negocio interno)',
+            type: 'select',
+            defaultValue: '',
+            options: [
+              { value: '', label: 'Sin definir (lo configura el OWNER)' },
+              { value: 'SERVICES', label: 'Servicios' },
+              { value: 'ECOMMERCE:PHYSICAL_PRODUCTS', label: 'Ecommerce · productos físicos' },
+              { value: 'ECOMMERCE:INFOPRODUCT', label: 'Ecommerce · infoproductos' },
+              { value: 'ECOMMERCE:MIXED', label: 'Ecommerce · mixto' },
+              { value: 'APPOINTMENTS', label: 'Citas' },
+              { value: 'GENERAL', label: 'Otro' },
+            ],
+          },
         ] satisfies Field[])
       : []),
   ];
