@@ -8,6 +8,7 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingCart,
+  Users,
 } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -33,6 +34,7 @@ export const dynamic = 'force-dynamic';
 
 const navigation = [
   ['mi-negocio', 'Mi negocio'],
+  ['equipo', 'Equipo'],
   ['experiencia', 'Menú e inicio'],
   ['ventas', 'Ventas y cotizaciones'],
   ['horarios', 'Horarios de atención'],
@@ -101,6 +103,17 @@ export default async function ConfiguracionPage() {
               description="Cuéntanos qué hace tu negocio y cómo vende principalmente."
             >
               <BusinessSettingsForm initial={profile} canEdit={canEdit} />
+            </SettingsSection>
+
+            <SettingsSection
+              id="equipo"
+              icon={Users}
+              title="Equipo"
+              description="Invita a tu equipo, cambia roles y gestiona accesos. Cada invitación pendiente reserva un lugar del plan."
+            >
+              <Link href="/configuracion/equipo" className="inline-flex items-center gap-1 text-sm font-semibold text-electric hover:text-electric-strong">
+                Gestionar equipo <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
             </SettingsSection>
 
             <SettingsSection

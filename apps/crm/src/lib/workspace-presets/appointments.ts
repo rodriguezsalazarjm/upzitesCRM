@@ -15,7 +15,7 @@ export const appointmentsPreset: WorkspacePreset = {
   defaultHiddenItems: ['orders', 'products', 'recovery', 'quotes'],
   // Solo widgets con datos reales hoy para este tipo de negocio.
   dashboardWidgets: ['new_contacts', 'unread_messages', 'automation_activity'],
-  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_automation'],
+  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram'],
   recommendedAutomations: ['nuevo-lead-tarea', 'silencio-3-dias'],
 };

@@ -203,6 +203,10 @@ model WorkspaceInvitation {
   revokedAt        DateTime?     @map("revoked_at")
   /// Ultimo envio por email de plataforma (null = solo enlace copiado).
   lastSentAt       DateTime?     @map("last_sent_at")
+  /// P0-F: quien la creo. WORKSPACE = gestion de equipo del cliente; PLATFORM
+  /// = Platform Admin (P0-D). Un ADMIN del workspace solo gestiona las
+  /// WORKSPACE de rol MEMBER. Filas previas = PLATFORM (unico origen hasta P0-F).
+  origin           InvitationOrigin @default(PLATFORM)
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
@@ -2711,6 +2715,11 @@ enum WorkspaceRole {
 enum MembershipStatus {
   ACTIVE
   SUSPENDED
+}
+
+enum InvitationOrigin {
+  PLATFORM
+  WORKSPACE
 }
 
 enum SupportAccessMode {

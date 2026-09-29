@@ -302,7 +302,14 @@ await assignCompSubscription({ workspaceId: INV.workspaceId, planCode: PlanCode.
   if (newUser) createdUsers.push(newUser.id);
   const newMembership = newUser ? await prisma.workspaceMembership.findUnique({ where: { userId_workspaceId: { userId: newUser.id, workspaceId: INV.workspaceId } } }) : null;
   check('14. Usuario nuevo acepta: User global + membership, sin workspace extra', accepted.status === 200 && Boolean(newMembership) && newUser?.workspaceId === null && (await prisma.workspaceMembership.count({ where: { userId: newUser!.id } })) === 1, `${accepted.status}`);
-  check('11. El mismo token no sirve dos veces', await expectError(() => acceptInvitation({ token: created.token, sessionUserId: newUser?.id }), (e) => e instanceof InvitationError && e.code === 'ALREADY_ACCEPTED'));
+  // P0-F: la MISMA cuenta que acepto recibe respuesta idempotente; para
+  // cualquier otra (o sin sesion) el token ya no sirve.
+  const repeated = await acceptInvitation({ token: created.token, sessionUserId: newUser?.id });
+  check(
+    '11. El mismo token no sirve dos veces (salvo respuesta idempotente a quien ya acepto)',
+    (await expectError(() => acceptInvitation({ token: created.token, newAccount: { name: 'Otro', password: '12345678', confirmPassword: '12345678' } }), (e) => e instanceof InvitationError && e.code === 'ALREADY_ACCEPTED')) &&
+      repeated.alreadyAccepted === true && repeated.userId === newUser?.id,
+  );
 
   const toRevoke = await createInvitation({ workspaceId: INV.workspaceId, email: `revoked-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER });
   await revokeInvitation({ workspaceId: INV.workspaceId, invitationId: toRevoke.invitation.id, actorId: PA.id, via: 'platform' });
@@ -329,17 +336,33 @@ await assignCompSubscription({ workspaceId: INV.workspaceId, planCode: PlanCode.
   const back = await asUser({ id: other.userId, workspaceId: INV.workspaceId }, () => switchRoute(req('/api/workspaces/switch', { workspaceId: other.workspaceId })));
   check('16. El cambio de workspace funciona despues de aceptar', switched.status === 200 && back.status === 200);
 
-  // 17. users.max al aceptar (FREE = 1 usuario, ya esta el OWNER).
+  // 17. P0-F: toda invitacion reserva asiento. En FREE (1 usuario, ya esta el
+  // OWNER) no se puede ni crear; y si un downgrade deja una invitacion sin
+  // asiento, aceptarla da PLAN_LIMIT (defensa al aceptar).
   const FREE_WS = await makeWorkspace('inv-free');
-  const fullInvite = await createInvitation({ workspaceId: FREE_WS.workspaceId, email: `nocabe-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER });
-  const noRoom = await expectError(() => acceptInvitation({ token: fullInvite.token, newAccount: { name: 'Sin Cupo', password: '12345678', confirmPassword: '12345678' } }), (e) => isEntitlementError(e) && e.code === 'PLAN_LIMIT');
-  const stillPending = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: fullInvite.invitation.id } });
-  check('17. Sin cupo de usuarios la invitacion no se acepta (error de plan, sigue pendiente, sin User)', noRoom && stillPending.acceptedAt === null && (await prisma.user.count({ where: { email: `nocabe-${stamp}@p0d.test` } })) === 0);
+  const noSeat = await expectError(
+    () => createInvitation({ workspaceId: FREE_WS.workspaceId, email: `nocabe-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER, actorId: PA.id, via: 'platform' }),
+    (e) => isEntitlementError(e) && e.code === 'PLAN_LIMIT',
+  );
+  const DOWN = await makeWorkspace('inv-down');
+  await assignCompSubscription({ workspaceId: DOWN.workspaceId, planCode: PlanCode.START, ...cli });
+  const downInvite = await createInvitation({ workspaceId: DOWN.workspaceId, email: `nocabe-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER, actorId: PA.id, via: 'platform' });
+  await assignCompSubscription({ workspaceId: DOWN.workspaceId, planCode: PlanCode.FREE, ...cli });
+  const noRoom = await expectError(() => acceptInvitation({ token: downInvite.token, newAccount: { name: 'Sin Cupo', password: '12345678', confirmPassword: '12345678' } }), (e) => isEntitlementError(e) && e.code === 'PLAN_LIMIT');
+  const stillPending = await prisma.workspaceInvitation.findUniqueOrThrow({ where: { id: downInvite.invitation.id } });
+  check(
+    '17. Sin cupo: no se crea la invitacion; y una que quedo sin asiento no se acepta (PLAN_LIMIT, sigue pendiente, sin User)',
+    noSeat && noRoom && stillPending.acceptedAt === null && (await prisma.user.count({ where: { email: `nocabe-${stamp}@p0d.test` } })) === 0,
+  );
 
-  // 18. Carrera: START = 2 usuarios, 1 lugar libre, dos aceptaciones simultaneas.
+  // 18. Carrera al aceptar: PRO con 2 invitaciones; baja a START (1 asiento
+  // libre) → la mas antigua conserva el asiento, la otra queda bloqueada.
+  // Dos aceptaciones simultaneas: entra una.
   const RACE = await makeWorkspace('inv-race');
+  await assignCompSubscription({ workspaceId: RACE.workspaceId, planCode: PlanCode.PRO, ...cli });
+  const invites = [];
+  for (const n of [1, 2]) invites.push(await createInvitation({ workspaceId: RACE.workspaceId, email: `race-${n}-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER }));
   await assignCompSubscription({ workspaceId: RACE.workspaceId, planCode: PlanCode.START, ...cli });
-  const invites = await Promise.all([1, 2].map((n) => createInvitation({ workspaceId: RACE.workspaceId, email: `race-${n}-${stamp}@p0d.test`, role: WorkspaceRole.MEMBER })));
   const race = await Promise.allSettled(invites.map((inv, n) => acceptInvitation({ token: inv.token, newAccount: { name: `Race ${n}`, password: '12345678', confirmPassword: '12345678' } })));
   for (const r of race) if (r.status === 'fulfilled') createdUsers.push(r.value.userId);
   const members = await prisma.workspaceMembership.count({ where: { workspaceId: RACE.workspaceId, status: 'ACTIVE' } });

@@ -315,7 +315,7 @@ export function Sidebar({
             </div>
           )}
           {section('Sistema')}
-          {renderItems(navigation.system, { matchNested: false })}
+          {renderItems(navigation.system, { matchNested: true })}
           {isPlatformAdmin && (
             <>
               {section('Plataforma')}

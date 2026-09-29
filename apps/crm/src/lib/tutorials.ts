@@ -3,7 +3,7 @@
  * consejo la primera vez; la persona lo descarta y queda descartado SOLO para
  * ella y SOLO en ese workspace (WorkspaceUserPreference.dismissedTutorials).
  */
-export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit'] as const;
+export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit', 'team.first_visit'] as const;
 export type TutorialKey = (typeof TUTORIAL_KEYS)[number];
 
 export function isTutorialKey(value: unknown): value is TutorialKey {
@@ -22,6 +22,10 @@ export const TUTORIALS: Record<TutorialKey, { title: string; body: string }> = {
   'products.first_visit': {
     title: 'Tus productos',
     body: 'Crea un producto con su precio. Los digitales se entregan cuando el pago se confirma.',
+  },
+  'team.first_visit': {
+    title: 'Tu equipo',
+    body: 'Invita a quienes trabajan contigo. Cada invitación pendiente reserva un lugar del plan hasta que se acepta, vence o la revocas.',
   },
   'inbox.first_visit': {
     title: 'Inbox',

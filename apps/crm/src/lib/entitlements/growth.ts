@@ -1,10 +1,12 @@
 import { MembershipStatus, type WorkspaceRole } from '../../../generated/prisma/enums';
 import { withEntitlementLock } from './lock';
+import { assertSeatAvailable } from '../team/seats';
 
 /**
  * Alta de un miembro dentro del limite `users.max`, serializada (P0-C). Es la
  * unica puerta para sumar usuarios a un workspace existente; las invitaciones
  * de P0-D la usaran. Reactivar a alguien que ya es miembro ACTIVE no suma.
+ * P0-F: respeta tambien los asientos reservados por invitaciones pendientes.
  */
 export async function addMembershipWithinPlan(input: {
   workspaceId: string;
@@ -19,6 +21,7 @@ export async function addMembershipWithinPlan(input: {
     });
     if (existing?.status === MembershipStatus.ACTIVE) return existing;
     await guard.assertCanGrow();
+    await assertSeatAvailable(input.workspaceId, tx);
     return tx.workspaceMembership.upsert({
       where: { userId_workspaceId: { userId: input.userId, workspaceId: input.workspaceId } },
       create: {

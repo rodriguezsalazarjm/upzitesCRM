@@ -10,7 +10,7 @@ export const ecommercePreset: WorkspacePreset = {
   navigationOrder: ['home', 'inbox', 'orders', 'products', 'contacts', 'recovery', 'automations', 'ai', 'analytics'],
   defaultHiddenItems: ['pipeline', 'quotes'],
   dashboardWidgets: ['orders_today', 'revenue_today', 'new_contacts', 'unread_messages', 'automation_activity'],
-  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'import_contacts', 'setup_recovery', 'create_automation'],
+  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'import_contacts', 'setup_recovery', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram', 'shopify', 'mercado_pago'],
   recommendedAutomations: ['pago-limpia-seguimientos', 'mensaje-fallido-aviso', 'silencio-3-dias'],
 };

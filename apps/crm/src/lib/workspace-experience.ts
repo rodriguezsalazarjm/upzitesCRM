@@ -10,6 +10,7 @@ import { resolveChecklist, type ResolvedChecklist } from './onboarding-checklist
 import type { ChecklistRequirement, ChecklistTaskId } from './onboarding-checklist/tasks';
 import { getPreference, type WorkspacePreference } from './preferences';
 import { prisma } from './prisma';
+import { reservingInvitationWhere } from './team/seats';
 import { canonicalBusiness, type CanonicalBusiness } from './workspace-profile/business';
 import { resolvePreset, type ResolvedPreset } from './workspace-presets';
 
@@ -98,7 +99,9 @@ export async function checklistEvidence(workspaceId: string): Promise<Record<Che
     prisma.automationRule.count({ where: { workspaceId, isActive: true, presetKey: null } }),
     prisma.automationFlow.count({ where: { workspaceId, status: AutomationFlowStatus.PUBLISHED } }),
     prisma.workspaceMembership.count({ where: { workspaceId, status: MembershipStatus.ACTIVE } }),
-    prisma.workspaceInvitation.count({ where: { workspaceId, acceptedAt: null, revokedAt: null } }),
+    // Solo invitaciones que aun reservan asiento (no vencidas): abrir la
+    // pantalla o dejar vencer una invitacion no completa la tarea.
+    prisma.workspaceInvitation.count({ where: reservingInvitationWhere(workspaceId, new Date()) }),
   ]);
   return {
     setup_profile: Boolean(profile?.onboardingCompletedAt),
@@ -115,13 +118,15 @@ export async function checklistEvidence(workspaceId: string): Promise<Record<Che
 }
 
 export async function getChecklist(
-  experience: Pick<WorkspaceExperience, 'preset' | 'features' | 'limits'>,
+  experience: Pick<WorkspaceExperience, 'preset' | 'features' | 'limits' | 'profile'>,
   scope: { workspaceId: string; role: WorkspaceRole },
 ): Promise<ResolvedChecklist> {
   const workspaceId = scope.workspaceId;
   const completed = await checklistEvidence(workspaceId);
+  // Quien declaro trabajar solo no recibe "Invita a tu equipo" (queda notRelevant).
+  const solo = experience.profile.teamSize === 'SOLO';
   return resolveChecklist({
-    presetTasks: experience.preset.preset.onboardingChecklist,
+    presetTasks: experience.preset.preset.onboardingChecklist.filter((id) => !(solo && id === 'invite_team')),
     completed,
     role: scope.role,
     access: (requirement: ChecklistRequirement) => {

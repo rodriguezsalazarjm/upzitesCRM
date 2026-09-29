@@ -81,8 +81,12 @@ const ADMIN_APIS = [
   'integrations/mercado-pago/disconnect/route.ts',
   'integrations/channels/[channel]/connect/route.ts',
   'integrations/channels/[channel]/disconnect/route.ts',
+  // P0-F: gestion de equipo (permisos en lib/team, decididos en el servidor).
+  'team/invitations/route.ts',
+  'team/invitations/[id]/route.ts',
+  'team/members/[userId]/route.ts',
 ];
-const ROLE_CHECK = /\bcan(Manage|Approve|Activate|Publish)\w*\(|roleAllows\(|hasWorkspaceRole\(|WorkspaceRole\.(OWNER|ADMIN)|completeOnboarding\(|applyRecommendedPreset\(|activateWorkspace\(|suspendWorkspace\(/;
+const ROLE_CHECK = /\bcan(Manage|Approve|Activate|Publish)\w*\(|roleAllows\(|hasWorkspaceRole\(|WorkspaceRole\.(OWNER|ADMIN)|completeOnboarding\(|applyRecommendedPreset\(|activateWorkspace\(|suspendWorkspace\(|inviteTeamMember\(|changeWorkspaceRole\(|suspendMember\(|reactivateMember\(|revokeTeamInvitation\(|resendTeamInvitation\(/;
 // Los ultimos cuatro reciben el rol del contexto y lanzan FORBIDDEN dentro del lib.
 
 test('3. las APIs administrativas comprueban el rol en el servidor', () => {

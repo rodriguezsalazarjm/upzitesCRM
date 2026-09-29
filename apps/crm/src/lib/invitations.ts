@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
-import { MembershipStatus, WorkspaceRole } from '../../generated/prisma/enums';
+import type { Prisma } from '../../generated/prisma/client';
+import { InvitationOrigin, MembershipStatus, WorkspaceRole } from '../../generated/prisma/enums';
 import { prisma } from './prisma';
 import { recordAudit } from './domain/audit';
 import { normalizeEmail } from './identity';
@@ -7,21 +8,30 @@ import { hashPassword } from './password';
 import { getSessionSecret } from './session-token';
 import { withEntitlementLock } from './entitlements/lock';
 import { sendPlatformEmail, type PlatformEmailOutcome, type PlatformEmailSender } from './platform/transactional-email';
+import { assertInvitationHasSeat, assertSeatAvailable, reservingInvitationWhere } from './team/seats';
 
 /**
- * Invitaciones a un workspace (P0-D).
+ * Invitaciones a un workspace (P0-D; asientos y origen en P0-F). UN solo
+ * sistema: lo usan Platform Admin y la gestion de equipo del cliente.
  *
  *  - Token de 32 bytes aleatorios (base64url). En la base SOLO su HMAC: quien
  *    lea la tabla no puede aceptar nada. El token en claro se devuelve UNA vez
  *    a quien crea/reenvia; despues no se puede recuperar.
  *  - Un solo uso, TTL de 7 dias. Reenviar genera un token nuevo en la misma
- *    fila: el hash cambia y el enlace anterior deja de servir.
+ *    fila: el hash cambia, el enlace anterior deja de servir y NO se reserva
+ *    un segundo asiento.
+ *  - Asientos (team/seats): TODA invitacion pendiente y vigente reserva un
+ *    asiento de `users.max`, sea de origen WORKSPACE o PLATFORM. Crear (y
+ *    reenviar una vencida) ocurre bajo el lock de P0-C: dos invitaciones
+ *    simultaneas no toman el mismo ultimo asiento. Sin bypass para
+ *    PLATFORM_ADMIN ni SUPER_ADMIN: sobrepasar el limite, si alguna vez hace
+ *    falta, sera una accion explicita y auditada aparte. Aceptar vuelve a
+ *    comprobar el asiento como defensa adicional.
  *  - Aceptar: si el email no tiene cuenta, se crea la cuenta GLOBAL (nombre +
  *    contrasena) y la membership; si ya tiene, hay que estar autenticado como
  *    ESA cuenta y solo se agrega la membership. Nunca dos cuentas por email.
- *  - `users.max` se vuelve a comprobar al aceptar, bajo el lock de P0-C, y la
- *    fila de la invitacion se bloquea: dos aceptaciones simultaneas no superan
- *    el limite ni usan dos veces el mismo token.
+ *    Una membership SUSPENDED nunca se reactiva por invitacion. La misma cuenta
+ *    que ya acepto recibe una respuesta idempotente.
  */
 
 export const INVITATION_TTL_DAYS = 7;
@@ -37,6 +47,7 @@ export type InvitationErrorCode =
   | 'ACCOUNT_EXISTS'
   | 'INVALID_INPUT'
   | 'ALREADY_MEMBER'
+  | 'MEMBERSHIP_SUSPENDED'
   | 'NOT_PENDING';
 
 export class InvitationError extends Error {
@@ -64,6 +75,12 @@ export function invitationUrl(token: string) {
 
 type Actor = { actorId?: string | null; via?: 'platform' | 'workspace' | 'cli' };
 
+/** Nombres de auditoria: la gestion de equipo usa `workspace.invitation.*`. */
+function auditAction(origin: InvitationOrigin, name: 'created' | 'revoked' | 'resent') {
+  if (origin === InvitationOrigin.WORKSPACE) return `workspace.invitation.${name}`;
+  return name === 'resent' ? 'invitation.regenerated' : `invitation.${name}`;
+}
+
 async function platformAudit(action: string, workspaceId: string, actor: Actor, metadata: Record<string, unknown>) {
   if (actor.via !== 'platform') return;
   await prisma.platformAuditLog.create({
@@ -74,23 +91,27 @@ async function platformAudit(action: string, workspaceId: string, actor: Actor, 
 /**
  * Crea una invitacion y devuelve el token en claro (unica vez). Si ya habia
  * una pendiente para el mismo email en el workspace, se revoca: queda una
- * sola invitacion viva por persona.
+ * sola invitacion viva por persona (y una sola reserva de asiento).
  */
 export async function createInvitation(
-  input: { workspaceId: string; email: string; role: WorkspaceRole; now?: Date } & Actor,
+  input: { workspaceId: string; email: string; role: WorkspaceRole; origin?: InvitationOrigin; now?: Date } & Actor,
 ) {
   const email = normalizeEmail(input.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new InvitationError('INVALID_INPUT', 'Email invalido.');
   const now = input.now ?? new Date();
+  const origin = input.origin ?? InvitationOrigin.PLATFORM;
 
-  const member = await prisma.workspaceMembership.findFirst({
-    where: { workspaceId: input.workspaceId, status: MembershipStatus.ACTIVE, user: { email } },
-    select: { id: true },
+  const membership = await prisma.workspaceMembership.findFirst({
+    where: { workspaceId: input.workspaceId, user: { email } },
+    select: { status: true },
   });
-  if (member) throw new InvitationError('ALREADY_MEMBER', 'Esa persona ya es miembro del workspace.');
+  if (membership?.status === MembershipStatus.ACTIVE) throw new InvitationError('ALREADY_MEMBER', 'Esa persona ya es miembro del workspace.');
+  if (membership?.status === MembershipStatus.SUSPENDED) {
+    throw new InvitationError('MEMBERSHIP_SUSPENDED', 'Esa persona esta suspendida en este workspace: reactivala desde Equipo en vez de invitarla.');
+  }
 
   const token = newToken();
-  const invitation = await prisma.$transaction(async (tx) => {
+  const persist = async (tx: Prisma.TransactionClient) => {
     await tx.workspaceInvitation.updateMany({
       where: { workspaceId: input.workspaceId, email, acceptedAt: null, revokedAt: null },
       data: { revokedAt: now },
@@ -100,24 +121,33 @@ export async function createInvitation(
         workspaceId: input.workspaceId,
         email,
         role: input.role,
+        origin,
         tokenHash: hashInvitationToken(token),
         invitedByUserId: input.actorId ?? null,
         expiresAt: new Date(now.getTime() + INVITATION_TTL_DAYS * DAY_MS),
       },
-      select: { id: true, workspaceId: true, email: true, role: true, expiresAt: true },
+      select: { id: true, workspaceId: true, email: true, role: true, origin: true, expiresAt: true },
     });
     await recordAudit(
       {
         workspaceId: input.workspaceId,
         actorId: input.actorId ?? null,
-        action: 'invitation.created',
+        action: auditAction(origin, 'created'),
         entity: 'WorkspaceInvitation',
         entityId: created.id,
-        metadata: { email, role: input.role, via: input.via ?? 'workspace' },
+        metadata: { email, role: input.role, via: input.via ?? 'workspace', origin },
       },
       tx,
     );
     return created;
+  };
+
+  // Cualquier origen: lock central de asientos + chequeo de users.max.
+  const invitation = await withEntitlementLock(input.workspaceId, 'users.max', async (tx) => {
+    // Reinvitar al mismo email reemplaza su reserva: no suma un asiento.
+    const releasing = await tx.workspaceInvitation.count({ where: { ...reservingInvitationWhere(input.workspaceId, now), email } });
+    await assertSeatAvailable(input.workspaceId, tx, { releasing, now });
+    return persist(tx);
   });
   await platformAudit('invitation.created', input.workspaceId, input, { invitationId: invitation.id, email, role: input.role });
   return { invitation, token, url: invitationUrl(token) };
@@ -130,8 +160,9 @@ async function pendingInvitation(workspaceId: string, invitationId: string) {
   return invitation;
 }
 
+/** Revocar libera el asiento reservado en el acto. */
 export async function revokeInvitation(input: { workspaceId: string; invitationId: string; now?: Date } & Actor) {
-  await pendingInvitation(input.workspaceId, input.invitationId);
+  const invitation = await pendingInvitation(input.workspaceId, input.invitationId);
   const updated = await prisma.workspaceInvitation.updateMany({
     where: { id: input.invitationId, workspaceId: input.workspaceId, acceptedAt: null, revokedAt: null },
     data: { revokedAt: input.now ?? new Date() },
@@ -140,32 +171,49 @@ export async function revokeInvitation(input: { workspaceId: string; invitationI
   await recordAudit({
     workspaceId: input.workspaceId,
     actorId: input.actorId ?? null,
-    action: 'invitation.revoked',
+    action: auditAction(invitation.origin, 'revoked'),
     entity: 'WorkspaceInvitation',
     entityId: input.invitationId,
+    metadata: { email: invitation.email, role: invitation.role, via: input.via ?? 'workspace' },
   });
   await platformAudit('invitation.revoked', input.workspaceId, input, { invitationId: input.invitationId });
 }
 
-/** Regenera el token (invalida el anterior) y renueva el vencimiento. */
+/**
+ * Regenera el token (invalida el anterior) y renueva el vencimiento, en la
+ * MISMA fila: no reserva un asiento nuevo. Si estaba vencida (ya no
+ * reservaba), volver a reservar exige asiento libre, sea cual sea su origen.
+ */
 export async function resendInvitation(input: { workspaceId: string; invitationId: string; now?: Date } & Actor) {
   const invitation = await pendingInvitation(input.workspaceId, input.invitationId);
   const now = input.now ?? new Date();
   const token = newToken();
-  const updated = await prisma.workspaceInvitation.updateMany({
-    where: { id: invitation.id, workspaceId: input.workspaceId, acceptedAt: null, revokedAt: null },
-    data: { tokenHash: hashInvitationToken(token), expiresAt: new Date(now.getTime() + INVITATION_TTL_DAYS * DAY_MS) },
-  });
-  if (updated.count === 0) throw new InvitationError('NOT_PENDING', 'La invitacion ya no esta pendiente.');
+  const expiresAt = new Date(now.getTime() + INVITATION_TTL_DAYS * DAY_MS);
+  const regenerate = async (tx: Prisma.TransactionClient) => {
+    const updated = await tx.workspaceInvitation.updateMany({
+      where: { id: invitation.id, workspaceId: input.workspaceId, acceptedAt: null, revokedAt: null },
+      data: { tokenHash: hashInvitationToken(token), expiresAt },
+    });
+    if (updated.count === 0) throw new InvitationError('NOT_PENDING', 'La invitacion ya no esta pendiente.');
+  };
+  if (invitation.expiresAt <= now) {
+    await withEntitlementLock(input.workspaceId, 'users.max', async (tx) => {
+      await assertSeatAvailable(input.workspaceId, tx, { now });
+      await regenerate(tx);
+    });
+  } else {
+    await prisma.$transaction(regenerate);
+  }
   await recordAudit({
     workspaceId: input.workspaceId,
     actorId: input.actorId ?? null,
-    action: 'invitation.regenerated',
+    action: auditAction(invitation.origin, 'resent'),
     entity: 'WorkspaceInvitation',
     entityId: invitation.id,
+    metadata: { email: invitation.email, role: invitation.role, via: input.via ?? 'workspace' },
   });
   await platformAudit('invitation.regenerated', input.workspaceId, input, { invitationId: invitation.id });
-  return { invitation: { ...invitation, expiresAt: new Date(now.getTime() + INVITATION_TTL_DAYS * DAY_MS) }, token, url: invitationUrl(token) };
+  return { invitation: { ...invitation, expiresAt }, token, url: invitationUrl(token) };
 }
 
 /**
@@ -225,11 +273,18 @@ export async function inspectInvitation(token: string, now = new Date()): Promis
   return { status: 'VALID', ...base, accountExists: Boolean(account) };
 }
 
+function suspendedError() {
+  return new InvitationError(
+    'MEMBERSHIP_SUSPENDED',
+    'Tu acceso a este negocio esta suspendido. Pide a un owner o admin que te reactive; la invitacion no lo hace.',
+  );
+}
+
 /**
  * Acepta una invitacion.
  *  - `sessionUserId`: cuenta autenticada en este navegador (si hay).
  *  - `newAccount`: nombre + contrasena, solo si el email NO tiene cuenta.
- * Lanza InvitationError o EntitlementError (sin cupo de usuarios / suspendido).
+ * Lanza InvitationError o EntitlementError (sin asiento / suspendido).
  */
 export async function acceptInvitation(input: {
   token: string;
@@ -241,9 +296,15 @@ export async function acceptInvitation(input: {
   const tokenHash = hashInvitationToken(input.token);
   const found = await prisma.workspaceInvitation.findUnique({ where: { tokenHash } });
   if (!found) throw new InvitationError('NOT_FOUND', 'La invitacion no existe o el enlace ya no es valido.');
+  // Idempotente para la MISMA cuenta que ya acepto (doble click, reintento).
+  // Para cualquier otra cuenta, o sin sesion, el token ya no sirve.
+  const repeated = () => ({ userId: found.acceptedByUserId!, workspaceId: found.workspaceId, createdAccount: false, alreadyMember: true, alreadyAccepted: true });
+  if (found.acceptedAt) {
+    if (input.sessionUserId && found.acceptedByUserId === input.sessionUserId) return repeated();
+    throw new InvitationError('ALREADY_ACCEPTED', 'La invitacion ya fue usada.');
+  }
   // Estado primero (se revalida dentro del lock): un enlace usado, revocado o
   // vencido se explica antes de pedir datos.
-  if (found.acceptedAt) throw new InvitationError('ALREADY_ACCEPTED', 'La invitacion ya fue usada.');
   if (found.revokedAt) throw new InvitationError('REVOKED', 'La invitacion fue revocada.');
   if (found.expiresAt <= now) throw new InvitationError('EXPIRED', 'La invitacion vencio. Pide que te la reenvien.');
 
@@ -258,12 +319,17 @@ export async function acceptInvitation(input: {
     if (account.password !== account.confirmPassword) throw new InvitationError('INVALID_INPUT', 'Las contrasenas no coinciden.');
   }
 
-  return withEntitlementLock(found.workspaceId, 'users.max', async (tx, guard) => {
+  return withEntitlementLock(found.workspaceId, 'users.max', async (tx) => {
     // Un solo uso: la fila se bloquea y se relee dentro del lock.
     await tx.$queryRaw`SELECT id FROM workspace_invitations WHERE id = ${found.id} FOR UPDATE`;
     const invitation = await tx.workspaceInvitation.findUniqueOrThrow({ where: { id: found.id } });
     if (invitation.tokenHash !== tokenHash) throw new InvitationError('NOT_FOUND', 'El enlace ya no es valido.');
-    if (invitation.acceptedAt) throw new InvitationError('ALREADY_ACCEPTED', 'La invitacion ya fue usada.');
+    if (invitation.acceptedAt) {
+      if (input.sessionUserId && invitation.acceptedByUserId === input.sessionUserId) {
+        return { userId: invitation.acceptedByUserId!, workspaceId: invitation.workspaceId, createdAccount: false, alreadyMember: true, alreadyAccepted: true };
+      }
+      throw new InvitationError('ALREADY_ACCEPTED', 'La invitacion ya fue usada.');
+    }
     if (invitation.revokedAt) throw new InvitationError('REVOKED', 'La invitacion fue revocada.');
     if (invitation.expiresAt <= now) throw new InvitationError('EXPIRED', 'La invitacion vencio. Pide que te la reenvien.');
 
@@ -271,10 +337,14 @@ export async function acceptInvitation(input: {
     const membership = userId
       ? await tx.workspaceMembership.findUnique({ where: { userId_workspaceId: { userId, workspaceId: invitation.workspaceId } } })
       : null;
+    // Suspendido por un admin: la invitacion no lo revierte en silencio.
+    if (membership?.status === MembershipStatus.SUSPENDED) throw suspendedError();
     const alreadyMember = membership?.status === MembershipStatus.ACTIVE;
 
-    // Ya era miembro: respuesta segura e idempotente, sin gastar cupo.
-    if (!alreadyMember) await guard.assertCanGrow();
+    // Ya era miembro: respuesta segura e idempotente, sin gastar asiento. Si
+    // no, la invitacion debe conservar su asiento (un downgrade puede haberla
+    // dejado fuera: PLAN_LIMIT, la invitacion sigue pendiente).
+    if (!alreadyMember) await assertInvitationHasSeat(invitation.workspaceId, invitation.id, tx, now);
 
     if (!userId) {
       try {
@@ -297,10 +367,8 @@ export async function acceptInvitation(input: {
     }
 
     if (!alreadyMember) {
-      await tx.workspaceMembership.upsert({
-        where: { userId_workspaceId: { userId, workspaceId: invitation.workspaceId } },
-        create: { userId, workspaceId: invitation.workspaceId, role: invitation.role, invitedById: invitation.invitedByUserId },
-        update: { status: MembershipStatus.ACTIVE, role: invitation.role, planLimitedAt: null, planLimitedReason: null },
+      await tx.workspaceMembership.create({
+        data: { userId, workspaceId: invitation.workspaceId, role: invitation.role, invitedById: invitation.invitedByUserId },
       });
     }
     await tx.workspaceInvitation.update({ where: { id: invitation.id }, data: { acceptedAt: now, acceptedByUserId: userId } });
@@ -311,11 +379,11 @@ export async function acceptInvitation(input: {
         action: 'invitation.accepted',
         entity: 'WorkspaceInvitation',
         entityId: invitation.id,
-        metadata: { email: invitation.email, role: invitation.role, newAccount: !existing, alreadyMember },
+        metadata: { email: invitation.email, role: invitation.role, newAccount: !existing, alreadyMember, origin: invitation.origin },
       },
       tx,
     );
-    return { userId, workspaceId: invitation.workspaceId, createdAccount: !existing, alreadyMember };
+    return { userId, workspaceId: invitation.workspaceId, createdAccount: !existing, alreadyMember, alreadyAccepted: false };
   });
 }
 

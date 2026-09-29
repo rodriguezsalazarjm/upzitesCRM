@@ -94,14 +94,14 @@ export const CHECKLIST_TASKS: Record<ChecklistTaskId, ChecklistTaskDef> = {
     description: 'Deja que las tareas repetitivas se hagan solas.',
     href: '/automatizaciones',
   },
-  // Todavia NO hay pantalla de equipo dentro del workspace (las invitaciones
-  // salen de /platform). Ningun preset la usa hasta que exista: una tarea sin
-  // forma de hacerse seria una tarea imposible.
+  // P0-F: Configuracion → Equipo. Requiere un plan con mas de 1 usuario y
+  // rol OWNER/ADMIN (quien invita). Con teamSize SOLO no es relevante.
   invite_team: {
     id: 'invite_team',
     label: 'Invita a tu equipo',
     description: 'Suma a las personas que atienden contigo.',
-    href: '/configuracion',
+    href: '/configuracion/equipo',
     requires: { limit: 'users.max', min: 2 },
+    minRole: WorkspaceRole.ADMIN,
   },
 };

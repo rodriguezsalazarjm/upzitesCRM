@@ -23,6 +23,7 @@ const suites = [
   'smoke-p0c.ts',
   'smoke-p0d.ts',
   'smoke-p0e.ts',
+  'smoke-p0f.ts',
 ];
 
 const require = createRequire(import.meta.url);

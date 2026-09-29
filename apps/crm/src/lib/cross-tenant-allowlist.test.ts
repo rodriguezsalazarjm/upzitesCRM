@@ -44,6 +44,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/smoke-p0c.ts': { uses: 2, why: 'Test: limpia los workspaces de prueba y su auditoria de plataforma.' },
   'scripts/smoke-p0d.ts': { uses: 8, why: 'Test: auditoria de plataforma y limpieza de workspaces/cuentas de prueba.' },
   'scripts/smoke-p0e.ts': { uses: 7, why: 'Test: fixtures de usuarios (miembro, SUPER_ADMIN), verificacion del negocio interno y limpieza.' },
+  'scripts/smoke-p0f.ts': { uses: 3, why: 'Test: limpieza de workspaces, cuentas y auditoria de plataforma creadas por la suite.' },
 };
 
 /** Directorios de plataforma: todo lo que vive aqui es cross-tenant por diseno. */
