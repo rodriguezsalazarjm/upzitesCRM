@@ -4,6 +4,7 @@ import {
   PaymentProvider,
   PaymentStatus,
   ScheduledActionType,
+  type Prisma,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
@@ -97,10 +98,10 @@ export async function createOrderProviderCheckout(input: {
   workspaceId: string;
   orderId: string;
   actorId?: string | null;
-}) {
+}, db: typeof prisma | Prisma.TransactionClient = prisma) {
   await assertFeature(input.workspaceId, 'commerce.checkout');
 
-  const order = await prisma.customerOrder.findFirst({
+  const order = await db.customerOrder.findFirst({
     where: { id: input.orderId, workspaceId: input.workspaceId },
     include: { lines: true, contact: { select: { id: true, email: true } } },
   });
@@ -113,7 +114,8 @@ export async function createOrderProviderCheckout(input: {
 
   if (isLocalDemo()) {
     const providerUrl = `/demo-checkout/${order.id}`;
-    await prisma.customerOrder.update({ where: { id: order.id }, data: { status: OrderStatus.PENDING_PAYMENT, metadata: { fake: true, checkoutUrl: providerUrl, checkoutCreatedAt: new Date().toISOString() } } });
+    const current = order.metadata && typeof order.metadata === 'object' && !Array.isArray(order.metadata) ? order.metadata as Record<string, unknown> : {};
+    await db.customerOrder.update({ where: { id: order.id }, data: { status: OrderStatus.PENDING_PAYMENT, metadata: { ...current, fake: true, checkoutUrl: providerUrl, checkoutCreatedAt: new Date().toISOString(), preferenceTotal: order.total } as Prisma.InputJsonValue } });
     return { providerUrl, orderId: order.id };
   }
   const connection = await getValidWorkspaceMercadoPagoToken(input.workspaceId);
@@ -171,11 +173,12 @@ export async function createOrderProviderCheckout(input: {
   const checkoutUrl = preferenceCheckoutUrl(preference, connection.accessToken);
   if (!checkoutUrl) throw new CheckoutError('Mercado Pago no devolvio URL de pago.', 'PROVIDER');
 
-  await prisma.customerOrder.update({
+  const current = order.metadata && typeof order.metadata === 'object' && !Array.isArray(order.metadata) ? order.metadata as Record<string, unknown> : {};
+  await db.customerOrder.update({
     where: { id: order.id },
     data: {
       status: OrderStatus.PENDING_PAYMENT,
-      metadata: { preferenceId: preference.id ?? null, checkoutUrl, checkoutCreatedAt: new Date().toISOString() },
+      metadata: { ...current, preferenceId: preference.id ?? null, checkoutUrl, checkoutCreatedAt: new Date().toISOString(), preferenceTotal: order.total } as Prisma.InputJsonValue,
     },
   });
 
@@ -208,10 +211,10 @@ export async function upsertPayment(input: {
   currency: string;
   payerEmail?: string | null;
   metadata?: Record<string, unknown>;
-}) {
-  const existing = await prisma.payment.findUnique({
+}, db: Prisma.TransactionClient | typeof prisma = prisma) {
+  const existing = await db.payment.findUnique({
     where: { externalId: input.externalId },
-    select: { id: true, status: true, workspaceId: true },
+    select: { id: true, status: true, workspaceId: true, orderId: true },
   });
 
   if (existing) {
@@ -220,20 +223,21 @@ export async function upsertPayment(input: {
       return { payment: existing, alreadyProcessed: true };
     }
 
-    const updated = await prisma.payment.update({
+    const updated = await db.payment.update({
       where: { id: existing.id },
       data: {
         status: input.status,
         rawStatus: input.rawStatus,
         approvedAt: input.status === PaymentStatus.APPROVED ? new Date() : null,
+        metadata: input.metadata as never,
       },
-      select: { id: true, status: true, workspaceId: true },
+      select: { id: true, status: true, workspaceId: true, orderId: true },
     });
 
     return { payment: updated, alreadyProcessed: false };
   }
 
-  const created = await prisma.payment.create({
+  const created = await db.payment.create({
     data: {
       workspaceId: input.workspaceId,
       orderId: input.orderId,
@@ -247,7 +251,7 @@ export async function upsertPayment(input: {
       metadata: input.metadata as never,
       approvedAt: input.status === PaymentStatus.APPROVED ? new Date() : null,
     },
-    select: { id: true, status: true, workspaceId: true },
+    select: { id: true, status: true, workspaceId: true, orderId: true },
   });
 
   return { payment: created, alreadyProcessed: false };

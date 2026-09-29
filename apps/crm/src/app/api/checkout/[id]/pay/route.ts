@@ -14,6 +14,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const form = await request.formData().catch(() => null);
   const rawToken = form?.get('t');
   const token = typeof rawToken === 'string' ? rawToken : '';
+  // El browser solo expresa una decision booleana. Variante, precio, moneda y
+  // total se vuelven a resolver desde la orden y el catalogo bajo lock.
+  const includeBump = form?.get('includeBump') === 'on';
 
   const back = (error: string) => {
     const query = new URLSearchParams({ t: token, e: error });
@@ -23,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const limit = await consume('publicToken', `checkout:${callerKey(request)}`);
   if (!limit.allowed) return back('RATE_LIMITED');
 
-  const result = await startPublicCheckoutPayment(id, token);
+  const result = await startPublicCheckoutPayment(id, token, includeBump);
   if (!result.ok) return back(result.reason);
 
   return NextResponse.redirect(new URL(result.redirectUrl, request.url), 303);

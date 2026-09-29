@@ -134,6 +134,11 @@ export function getWorkspacePaymentClient(connection: WorkspaceMercadoPagoConnec
   return new Payment(new MercadoPagoConfig({ accessToken: connection.accessToken }));
 }
 
+/** Merchant orders de la cuenta de un workspace, para vincular pago y preference. */
+export function getWorkspaceMerchantOrderClient(connection: WorkspaceMercadoPagoConnection) {
+  return new MerchantOrder(new MercadoPagoConfig({ accessToken: connection.accessToken }));
+}
+
 /** Igual que verifyWebhookSignature, pero con el secreto propio del workspace. */
 export function verifyWorkspaceWebhookSignature(input: {
   xSignature: string | null;

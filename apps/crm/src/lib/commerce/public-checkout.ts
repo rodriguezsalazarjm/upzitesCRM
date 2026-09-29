@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentStatus, ProductStatus } from '../../../generated/prisma/client';
+import { OrderStatus, PaymentStatus, ProductStatus, type Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { createOrderProviderCheckout } from './checkout';
 import { isAllowedPaymentRedirect, maskEmail, verifyCheckoutToken } from './public-checkout-link';
@@ -36,6 +36,7 @@ export type PublicCheckoutView =
       orderId: string;
       workspaceName: string;
       item: { name: string; quantity: number; unitPrice: number };
+      bump: { name: string; unitPrice: number; selected: boolean } | null;
       total: number;
       currency: string;
       buyer: { name: string | null; email: string | null };
@@ -45,13 +46,15 @@ export type PublicCheckoutView =
 const PAID_STATUSES: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED];
 const PAYABLE_STATUSES: OrderStatus[] = [OrderStatus.DRAFT, OrderStatus.PENDING_PAYMENT];
 
-async function loadOrder(orderId: string) {
-  return prisma.customerOrder.findUnique({
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
+async function loadOrder(orderId: string, db: DbClient = prisma) {
+  return db.customerOrder.findUnique({
     where: { id: orderId },
     include: {
       workspace: { select: { name: true } },
       contact: { select: { firstName: true, lastName: true, email: true } },
-      lines: { include: { variant: { select: { id: true, isActive: true, product: { select: { workspaceId: true, status: true } } } } } },
+      lines: { include: { variant: { select: { id: true, priceClp: true, isActive: true, product: { select: { workspaceId: true, status: true, currency: true, metadata: true } } } } } },
       payments: { select: { status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
@@ -64,12 +67,61 @@ type LoadedOrder = NonNullable<Awaited<ReturnType<typeof loadOrder>>>;
  * ACTIVO del MISMO workspace, sin descuento, con total positivo y consistente.
  */
 function isSellable(order: LoadedOrder) {
-  if (order.lines.length !== 1) return false;
-  const [line] = order.lines;
+  if (order.lines.length < 1 || order.lines.length > 2) return false;
+  const line = mainLine(order);
+  if (!line) return false;
   const product = line.variant?.product;
   if (!product || !line.variant?.isActive || product.workspaceId !== order.workspaceId || product.status !== ProductStatus.ACTIVE) return false;
   if (line.quantity < 1 || line.total !== line.unitPrice * line.quantity) return false;
-  return order.discount === 0 && order.total > 0 && order.total === line.total;
+  if (order.discount !== 0 || order.total <= 0 || order.total !== order.lines.reduce((sum, item) => sum + item.total, 0)) return false;
+  return order.lines.every((item) => item.quantity === 1 && item.total === item.unitPrice && item.variant?.isActive && item.variant.product.workspaceId === order.workspaceId && item.variant.product.status === ProductStatus.ACTIVE && item.variant.product.currency === order.currency);
+}
+
+type CheckoutMetadata = {
+  mainVariantId?: unknown;
+  bumpVariantId?: unknown;
+  bumpSelected?: unknown;
+  checkoutUrl?: unknown;
+  checkoutCreatedAt?: unknown;
+  preferenceId?: unknown;
+  preferenceTotal?: unknown;
+  [key: string]: unknown;
+};
+
+function metadataOf(order: { metadata: unknown }): CheckoutMetadata {
+  return order.metadata && typeof order.metadata === 'object' && !Array.isArray(order.metadata)
+    ? { ...(order.metadata as CheckoutMetadata) }
+    : {};
+}
+
+function configuredBumpVariantId(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const bump = (metadata as { orderBump?: unknown }).orderBump;
+  if (!bump || typeof bump !== 'object' || Array.isArray(bump)) return null;
+  const variantId = (bump as { variantId?: unknown }).variantId;
+  return typeof variantId === 'string' && variantId.length > 0 ? variantId : null;
+}
+
+function mainLine(order: LoadedOrder) {
+  const configured = metadataOf(order).mainVariantId;
+  if (typeof configured === 'string') return order.lines.find((line) => line.variantId === configured) ?? null;
+  return order.lines.length === 1 ? order.lines[0] : null;
+}
+
+async function resolveBump(order: LoadedOrder, db: DbClient = prisma) {
+  const main = mainLine(order);
+  const bumpVariantId = configuredBumpVariantId(main?.variant?.product.metadata);
+  if (!main || !bumpVariantId || bumpVariantId === main.variantId) return null;
+  const variant = await db.productVariant.findFirst({
+    where: {
+      id: bumpVariantId,
+      isActive: true,
+      product: { workspaceId: order.workspaceId, status: ProductStatus.ACTIVE, currency: order.currency },
+    },
+    include: { product: { select: { name: true } } },
+  });
+  if (!variant || variant.priceClp <= 0) return null;
+  return { variantId: variant.id, name: variant.product.name, unitPrice: variant.priceClp };
 }
 
 function stateOf(order: LoadedOrder): PublicCheckoutState | null {
@@ -89,13 +141,16 @@ export async function loadPublicCheckout(orderId: string, token: string | null |
   // Un pedido ya pagado se muestra como pagado aunque luego se archive el producto.
   if (!state || (state !== 'PAID' && !isSellable(order))) return { ok: false, reason: 'UNAVAILABLE' };
 
-  const [line] = order.lines;
+  const line = mainLine(order)!;
+  const bump = await resolveBump(order);
+  const selected = bump ? order.lines.some((item) => item.variantId === bump.variantId) : false;
   const contactName = order.contact ? `${order.contact.firstName} ${order.contact.lastName ?? ''}`.trim() : '';
   return {
     ok: true,
     orderId: order.id,
     workspaceName: order.workspace.name,
     item: { name: line.name, quantity: line.quantity, unitPrice: line.unitPrice },
+    bump: bump ? { name: bump.name, unitPrice: bump.unitPrice, selected } : null,
     total: order.total,
     currency: order.currency,
     buyer: { name: contactName || order.customerName || null, email: maskEmail(order.contact?.email ?? order.customerEmail) },
@@ -114,7 +169,14 @@ export type StartPaymentResult =
  * reutiliza en vez de crear otra (un doble clic no genera dos preferencias ni
  * duplica la recuperacion de checkout).
  */
-export async function startPublicCheckoutPayment(orderId: string, token: string | null | undefined, now = new Date()): Promise<StartPaymentResult> {
+export async function startPublicCheckoutPayment(
+  orderId: string,
+  token: string | null | undefined,
+  includeBumpOrNow: boolean | Date = false,
+  nowArg = new Date(),
+): Promise<StartPaymentResult> {
+  const includeBump = typeof includeBumpOrNow === 'boolean' ? includeBumpOrNow : false;
+  const now = includeBumpOrNow instanceof Date ? includeBumpOrNow : nowArg;
   const check = verifyCheckoutToken(orderId, token, now);
   if (!check.ok) return { ok: false, reason: check.reason === 'EXPIRED' ? 'EXPIRED' : 'NOT_FOUND' };
 
@@ -122,19 +184,63 @@ export async function startPublicCheckoutPayment(orderId: string, token: string 
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`public_checkout:${orderId}`}, 0))`;
 
-      const order = await loadOrder(orderId);
+      let order = await loadOrder(orderId, tx);
       if (!order) return { ok: false, reason: 'NOT_FOUND' } as const;
       const state = stateOf(order);
       if (state === 'PAID') return { ok: false, reason: 'ALREADY_PAID' } as const;
       if (state === 'PENDING') return { ok: false, reason: 'PENDING' } as const;
       if (!state || !isSellable(order)) return { ok: false, reason: 'UNAVAILABLE' } as const;
 
-      const metadata = (order.metadata ?? {}) as { checkoutUrl?: unknown; checkoutCreatedAt?: unknown };
+      const main = mainLine(order);
+      const bump = await resolveBump(order, tx);
+      if (!main || (includeBump && !bump)) return { ok: false, reason: 'UNAVAILABLE' } as const;
+      const existingBump = bump ? order.lines.find((line) => line.variantId === bump.variantId) : null;
+      if (order.lines.some((line) => line.id !== main.id && line.id !== existingBump?.id)) {
+        return { ok: false, reason: 'UNAVAILABLE' } as const;
+      }
+
+      if (bump && includeBump && !existingBump) {
+        await tx.orderLine.create({
+          data: { orderId: order.id, variantId: bump.variantId, name: bump.name, unitPrice: bump.unitPrice, quantity: 1, total: bump.unitPrice },
+        });
+      } else if (bump && includeBump && existingBump && (existingBump.unitPrice !== bump.unitPrice || existingBump.name !== bump.name)) {
+        await tx.orderLine.update({
+          where: { id: existingBump.id },
+          data: { name: bump.name, unitPrice: bump.unitPrice, quantity: 1, total: bump.unitPrice },
+        });
+      } else if (bump && !includeBump && existingBump) {
+        await tx.orderLine.delete({ where: { id: existingBump.id } });
+      }
+
+      const total = main.total + (includeBump && bump ? bump.unitPrice : 0);
+      const previousMetadata = metadataOf(order);
+      const selectionChanged = total !== order.total || Boolean(existingBump) !== includeBump;
+      const nextMetadata: CheckoutMetadata = {
+        ...previousMetadata,
+        mainVariantId: main.variantId,
+        bumpVariantId: bump?.variantId ?? null,
+        bumpSelected: includeBump && Boolean(bump),
+      };
+      if (selectionChanged) {
+        delete nextMetadata.checkoutUrl;
+        delete nextMetadata.checkoutCreatedAt;
+        delete nextMetadata.preferenceId;
+        delete nextMetadata.preferenceTotal;
+      }
+      await tx.customerOrder.update({
+        where: { id: order.id },
+        data: { subtotal: total, total, metadata: nextMetadata as Prisma.InputJsonValue },
+      });
+      order = (await loadOrder(orderId, tx))!;
+
+      const metadata = metadataOf(order);
       const createdAt = typeof metadata.checkoutCreatedAt === 'string' ? Date.parse(metadata.checkoutCreatedAt) : Number.NaN;
+      const preferenceTotal = typeof metadata.preferenceTotal === 'number' ? metadata.preferenceTotal : order.total;
       if (
         order.status === OrderStatus.PENDING_PAYMENT &&
         typeof metadata.checkoutUrl === 'string' &&
         Number.isFinite(createdAt) &&
+        preferenceTotal === order.total &&
         now.getTime() - createdAt < PREFERENCE_REUSE_MS &&
         isAllowedPaymentRedirect(metadata.checkoutUrl)
       ) {
@@ -142,7 +248,7 @@ export async function startPublicCheckoutPayment(orderId: string, token: string 
       }
 
       try {
-        const checkout = await createOrderProviderCheckout({ workspaceId: order.workspaceId, orderId: order.id });
+        const checkout = await createOrderProviderCheckout({ workspaceId: order.workspaceId, orderId: order.id }, tx);
         if (!isAllowedPaymentRedirect(checkout.providerUrl)) return { ok: false, reason: 'PAYMENTS_UNAVAILABLE' } as const;
         return { ok: true, redirectUrl: checkout.providerUrl, reused: false } as const;
       } catch (error) {

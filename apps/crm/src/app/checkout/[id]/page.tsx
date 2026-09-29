@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { loadPublicCheckout } from '@/lib/commerce/public-checkout';
+import { OrderBumpForm } from './order-bump-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,16 +86,18 @@ export default async function PublicCheckoutPage({
         </p>
       ) : null}
 
-      <div className="mt-5 flex items-baseline justify-between border-t border-slate-100 pt-4">
-        <span className="text-sm text-slate-500">Total</span>
-        <span className="text-xl font-bold text-slate-900">{formatMoney(view.total, view.currency)}</span>
-      </div>
-
       {view.buyer.name || view.buyer.email ? (
         <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Comprador</p>
           {view.buyer.name ? <p className="mt-1 text-slate-900">{view.buyer.name}</p> : null}
           {view.buyer.email ? <p className="text-slate-500">{view.buyer.email}</p> : null}
+        </div>
+      ) : null}
+
+      {view.state === 'PAID' || waiting ? (
+        <div className="mt-5 flex items-baseline justify-between border-t border-slate-100 pt-4">
+          <span className="text-sm text-slate-500">Total</span>
+          <span className="text-xl font-bold text-slate-900">{formatMoney(view.total, view.currency)}</span>
         </div>
       ) : null}
 
@@ -114,14 +117,14 @@ export default async function PublicCheckoutPage({
             {returned === 'failure' ? (
               <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">El pago no se completó. Puedes intentarlo de nuevo.</p>
             ) : null}
-            {error && ERROR_TEXT[error] ? <p className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{ERROR_TEXT[error]}</p> : null}
-            <form method="post" action={`/api/checkout/${encodeURIComponent(view.orderId)}/pay`}>
-              <input type="hidden" name="t" value={token ?? ''} />
-              <button type="submit" className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700">
-                Pagar con Mercado Pago
-              </button>
-            </form>
-            <p className="mt-3 text-center text-[11px] text-slate-400">Serás redirigido a Mercado Pago para completar el pago de forma segura.</p>
+            <OrderBumpForm
+              orderId={view.orderId}
+              token={token ?? ''}
+              baseTotal={view.total - (view.bump?.selected ? view.bump.unitPrice : 0)}
+              currency={view.currency}
+              bump={view.bump}
+              errorText={error ? ERROR_TEXT[error] : null}
+            />
           </>
         )}
       </div>

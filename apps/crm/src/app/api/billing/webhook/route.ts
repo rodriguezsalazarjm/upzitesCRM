@@ -10,6 +10,7 @@ import { toMajorUnits } from '@/lib/billing/price-book';
 import { recordSaasPayment } from '@/lib/billing/subscription-admin';
 import {
   getPaymentClient,
+  getWorkspaceMerchantOrderClient,
   getWorkspacePaymentClient,
   verifyWebhookSignature,
   verifyWorkspaceWebhookSignature,
@@ -342,7 +343,7 @@ async function handleWorkspaceOrderWebhook(input: {
   // como de este workspace. Si no coincide, algo raro paso (preferencia mal
   // formada, o un intento de usar la URL de un workspace para otro pago) y
   // no se procesa.
-  if (metadata.workspaceId && metadata.workspaceId !== input.workspaceId) {
+  if (metadata.workspaceId !== input.workspaceId) {
     console.error('order_webhook_workspace_mismatch', {
       urlWorkspaceId: input.workspaceId,
       paymentWorkspaceId: metadata.workspaceId,
@@ -377,7 +378,46 @@ async function handleWorkspaceOrderWebhook(input: {
     return NextResponse.json({ message: 'El vendedor del pago no coincide con la conexion' }, { status: 409 });
   }
 
-  const orderId = typeof metadata.orderId === 'string' ? metadata.orderId : payment.external_reference;
+  const metadataOrderId = typeof metadata.orderId === 'string' ? metadata.orderId : null;
+  const externalReference = typeof payment.external_reference === 'string' ? payment.external_reference : null;
+  if (!metadataOrderId || !externalReference) {
+    console.error('order_webhook_missing_order_reference', {
+      workspaceId: input.workspaceId,
+      paymentId: input.dataId,
+      metadataOrderId,
+      externalReference,
+    });
+    return NextResponse.json({ message: 'Referencias del pedido ausentes' }, { status: 400 });
+  }
+  if (metadataOrderId && externalReference && metadataOrderId !== externalReference) {
+    console.error('order_webhook_order_reference_mismatch', {
+      workspaceId: input.workspaceId,
+      paymentId: input.dataId,
+      metadataOrderId,
+      externalReference,
+    });
+    return NextResponse.json({ message: 'Las referencias del pago no coinciden' }, { status: 400 });
+  }
+
+  let preferenceId: string | null = null;
+  const merchantOrderId = payment.order?.id;
+  if (merchantOrderId !== undefined && merchantOrderId !== null) {
+    try {
+      const merchantOrder = await getWorkspaceMerchantOrderClient(connection).get({ merchantOrderId: String(merchantOrderId) });
+      preferenceId = typeof merchantOrder.preference_id === 'string' && merchantOrder.preference_id
+        ? merchantOrder.preference_id
+        : null;
+    } catch (error) {
+      console.error('order_webhook_preference_lookup_failed', {
+        workspaceId: input.workspaceId,
+        paymentId: input.dataId,
+        error: error instanceof Error ? error.message : 'unknown',
+      });
+      return NextResponse.json({ message: 'No se pudo verificar la preferencia del pago' }, { status: 503 });
+    }
+  }
+
+  const orderId = metadataOrderId ?? externalReference;
   if (!orderId) {
     console.error('order_webhook_missing_order_id', { paymentId: input.dataId });
     return NextResponse.json({ message: 'orderId ausente' }, { status: 400 });
@@ -393,6 +433,8 @@ async function handleWorkspaceOrderWebhook(input: {
     payerEmail: payment.payer?.email ?? null,
     baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
     workspaceId: input.workspaceId,
+    externalReference,
+    preferenceId,
   });
 
   await prisma.mercadoPagoConnection.update({

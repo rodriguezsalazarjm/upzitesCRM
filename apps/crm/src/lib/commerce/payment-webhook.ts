@@ -30,6 +30,9 @@ export type OrderPaymentInput = {
   baseUrl: string;
   /** Workspace dueno de la cuenta que cobro. Si viene, el pedido debe ser suyo. */
   workspaceId?: string;
+  /** Valores obtenidos del payment reconsultado, nunca del return URL. */
+  externalReference?: string | null;
+  preferenceId?: string | null;
 };
 
 export type OrderPaymentResult = {
@@ -114,6 +117,10 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     return { handled: false, reason: 'pedido de otro workspace' };
   }
 
+  if (input.externalReference && input.externalReference !== order.id) {
+    return { handled: false, reason: 'external_reference no coincide con el pedido' };
+  }
+
   const workspaceId = order.workspaceId;
 
   // Un pago pendiente o rechazado se registra, pero NO entrega nada.
@@ -150,29 +157,61 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     return { handled: true, orderId: order.id, reason: `pago en estado ${input.rawStatus}`, delivered: 0 };
   }
 
-  // Validacion de monto: si lo cobrado no coincide con el total del pedido, se
-  // rechaza. Cubre una preferencia manipulada o un pedido editado despues de
-  // generar el checkout.
-  if (input.amount !== order.total) {
-    await recordAudit({
-      workspaceId,
-      action: 'order.payment_amount_mismatch',
-      entity: 'CustomerOrder',
-      entityId: order.id,
-      metadata: { expected: order.total, received: input.amount, paymentId: input.externalPaymentId },
-    });
-    return { handled: false, reason: 'el monto no coincide con el pedido' };
-  }
+  const orderMetadata = order.metadata && typeof order.metadata === 'object' && !Array.isArray(order.metadata)
+    ? order.metadata as Record<string, unknown>
+    : {};
+  const currentPreferenceId = typeof orderMetadata.preferenceId === 'string' ? orderMetadata.preferenceId : null;
+  const stalePreference = Boolean(input.preferenceId && currentPreferenceId && input.preferenceId !== currentPreferenceId);
+  const mismatch = input.amount !== order.total
+    ? { action: 'order.payment_amount_mismatch', reason: 'el monto no coincide con el pedido' }
+    : input.currency !== order.currency
+      ? { action: 'order.payment_currency_mismatch', reason: 'la moneda no coincide con el pedido' }
+      : stalePreference
+        ? { action: 'order.payment_stale_preference', reason: 'la preferencia no es la vigente del pedido' }
+      : null;
 
-  if (input.currency !== order.currency) {
-    await recordAudit({
+  if (mismatch) {
+    const evidence = {
+      validation: mismatch.action,
+      expectedAmount: order.total,
+      receivedAmount: input.amount,
+      expectedCurrency: order.currency,
+      receivedCurrency: input.currency,
+      preferenceId: input.preferenceId ?? null,
+      currentPreferenceId,
+      stalePreference,
+      externalReference: input.externalReference ?? null,
+    };
+    const { payment } = await upsertPayment({
       workspaceId,
-      action: 'order.payment_currency_mismatch',
-      entity: 'CustomerOrder',
-      entityId: order.id,
-      metadata: { expected: order.currency, received: input.currency },
+      orderId: order.id,
+      externalId: input.externalPaymentId,
+      status: PaymentStatus.APPROVED,
+      rawStatus: input.rawStatus,
+      amount: input.amount,
+      currency: input.currency,
+      payerEmail: input.payerEmail,
+      metadata: evidence,
     });
-    return { handled: false, reason: 'la moneda no coincide con el pedido' };
+    const existingAlert = await prisma.auditLog.findFirst({
+      where: {
+        workspaceId,
+        action: mismatch.action,
+        entity: 'Payment',
+        entityId: payment.id,
+      },
+      select: { id: true },
+    });
+    if (!existingAlert) {
+      await recordAudit({
+        workspaceId,
+        action: mismatch.action,
+        entity: 'Payment',
+        entityId: payment.id,
+        metadata: { ...evidence, orderId: order.id, paymentId: input.externalPaymentId },
+      });
+    }
+    return { handled: false, orderId: order.id, reason: mismatch.reason, delivered: 0 };
   }
 
   const { alreadyProcessed } = await upsertPayment({
@@ -184,6 +223,12 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     amount: input.amount,
     currency: input.currency,
     payerEmail: input.payerEmail,
+    metadata: {
+      preferenceId: input.preferenceId ?? null,
+      currentPreferenceId,
+      stalePreference,
+      externalReference: input.externalReference ?? null,
+    },
   });
 
   if (alreadyProcessed) {

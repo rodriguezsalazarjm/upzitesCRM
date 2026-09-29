@@ -251,6 +251,19 @@ console.log('\n== M. Produccion sin proveedor de email: nunca SENT, sin duplicar
 console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
 {
   const env = process.env as Record<string, string | undefined>;
+  const bumpProduct = await prisma.product.create({
+    data: {
+      workspaceId: W,
+      name: 'Audio complementario',
+      type: ProductType.DIGITAL,
+      status: ProductStatus.ACTIVE,
+      currency: 'CLP',
+      variants: { create: [{ name: 'Acceso bump', priceClp: 7900, isDefault: true }] },
+      assets: { create: [{ workspaceId: W, name: 'Acceso al audio', target: 'https://contenido.ledger.test/audio' }] },
+    },
+    include: { variants: true },
+  });
+  await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: bumpProduct.variants[0].id } } } });
   const newOrder = () => createOrder({ workspaceId: W, contactId: contact.id, customerEmail: contact.email, items: [{ variantId: product.variants[0].id, quantity: 1 }] });
   const tokenFor = (orderId: string) => signCheckoutToken(orderId);
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -269,8 +282,9 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
   );
   const view = await loadPublicCheckout(o1.id, tokenFor(o1.id));
   check(
-    'N1. Carga el pedido: producto, monto y moneda persistidos, comprador enmascarado, estado PAYABLE',
+    'N1. Checkout sin bump seleccionado muestra main + bump opcional desde DB y estado PAYABLE',
     view.ok && view.item.quantity === 1 && view.total === PRICE && view.currency === o1.currency && view.state === 'PAYABLE' &&
+      view.bump?.name === bumpProduct.name && view.bump.unitPrice === 7900 && view.bump.selected === false &&
       view.buyer.email === maskEmail(contact.email) && view.workspaceName.startsWith('Infoproducto interno'),
     JSON.stringify(view),
   );
@@ -353,10 +367,219 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
   try {
     const firstStart = await startPublicCheckoutPayment(o8.id, tokenFor(o8.id));
     const secondStart = await startPublicCheckoutPayment(o8.id, tokenFor(o8.id));
+    const mainOnly = await prisma.customerOrder.findUniqueOrThrow({ where: { id: o8.id }, select: { total: true, metadata: true, lines: true } });
     check(
-      'N7. CTA Pagar: la primera vez crea preference del workspace y la segunda reutiliza la misma URL',
-      firstStart.ok && !firstStart.reused && secondStart.ok && secondStart.reused && firstStart.redirectUrl === secondStart.redirectUrl,
+      'N7. Pagar main solamente: preference usa total main; click repetido reutiliza sin duplicar lineas',
+      firstStart.ok && !firstStart.reused && secondStart.ok && secondStart.reused && firstStart.redirectUrl === secondStart.redirectUrl &&
+        mainOnly.total === PRICE && mainOnly.lines.length === 1 && (mainOnly.metadata as { preferenceTotal?: number })?.preferenceTotal === PRICE,
       JSON.stringify({ firstStart, secondStart }),
+    );
+
+    const o9 = await newOrder();
+    const saasBeforeBump = await prisma.subscriptionPayment.count({ where: { workspaceId: W } });
+    const bumpFirst = await startPublicCheckoutPayment(o9.id, tokenFor(o9.id), true);
+    const bumpAgain = await startPublicCheckoutPayment(o9.id, tokenFor(o9.id), true);
+    const withBump = await prisma.customerOrder.findUniqueOrThrow({ where: { id: o9.id }, include: { lines: true } });
+    check(
+      'N8. Bump ON: una sola linea bump, total DB main+bump y preference con ese total; doble toggle/click no duplica',
+      bumpFirst.ok && !bumpFirst.reused && bumpAgain.ok && bumpAgain.reused && withBump.lines.length === 2 &&
+        withBump.total === PRICE + 7900 && (withBump.metadata as { preferenceTotal?: number })?.preferenceTotal === PRICE + 7900,
+      JSON.stringify({ bumpFirst, bumpAgain, total: withBump.total, lines: withBump.lines.length }),
+    );
+
+    const bumpOff = await startPublicCheckoutPayment(o9.id, tokenFor(o9.id), false);
+    const withoutBump = await prisma.customerOrder.findUniqueOrThrow({ where: { id: o9.id }, include: { lines: true } });
+    const bumpOnAgain = await startPublicCheckoutPayment(o9.id, tokenFor(o9.id), true);
+    const restored = await prisma.customerOrder.findUniqueOrThrow({ where: { id: o9.id }, include: { lines: true } });
+    check(
+      'N9. Bump OFF restaura total y reemplaza cache de preference; ON otra vez sigue sin duplicar',
+      bumpOff.ok && !bumpOff.reused && withoutBump.total === PRICE && withoutBump.lines.length === 1 &&
+        (withoutBump.metadata as { preferenceTotal?: number })?.preferenceTotal === PRICE &&
+        bumpOnAgain.ok && !bumpOnAgain.reused && restored.total === PRICE + 7900 && restored.lines.length === 2,
+    );
+
+    const beforeBumpSale = await ledger(W);
+    const bumpPay = () => processOrderPayment({ orderId: o9.id, externalPaymentId: `mp-bump-${o9.id}`, status: PaymentStatus.APPROVED, rawStatus: 'approved', amount: restored.total, currency: restored.currency, payerEmail: contact.email, baseUrl: 'https://crm.ledger.test', workspaceId: W });
+    const bumpPaid = await bumpPay();
+    const bumpRepeated = await bumpPay();
+    const bumpDeliveries = await prisma.digitalDelivery.findMany({ where: { orderId: o9.id }, include: { asset: { select: { productId: true } } } });
+    const bumpFulfillments = await prisma.fulfillmentOrder.findMany({ where: { orderId: o9.id } });
+    const afterBumpSale = await ledger(W);
+    const bumpDashboard = await loadDashboard(await getWorkspaceExperience({ workspaceId: W, userId: operator.id, role: WorkspaceRole.OWNER }), W);
+    const bumpRevenue = (bumpDashboard.widgets.find((w) => w.id === 'revenue_today')?.data as { value?: number } | null)?.value ?? 0;
+    const bumpTop = (bumpDashboard.widgets.find((w) => w.id === 'top_products')?.data as { rows?: { label: string; value: number }[] } | null)?.rows ?? [];
+    check(
+      'N10. Webhook repetido main+bump: un Payment, un fulfillment logico, dos DigitalDelivery y ambos productos en top',
+      bumpPaid.handled && bumpPaid.delivered === 2 && bumpRepeated.alreadyProcessed === true &&
+        afterBumpSale.payments === beforeBumpSale.payments + 1 && bumpFulfillments.length === 1 && bumpDeliveries.length === 2 &&
+        new Set(bumpDeliveries.map((delivery) => delivery.asset.productId)).size === 2 &&
+        bumpTop.some((row) => row.label.startsWith(product.name)) && bumpTop.some((row) => row.label.startsWith(bumpProduct.name)),
+      JSON.stringify({ deliveries: bumpDeliveries.length, fulfillments: bumpFulfillments.length, top: bumpTop }),
+    );
+    check(
+      'N11. Ledger/dashboard: una CustomerOrder, Payment total main+bump, revenue suma ambos y SaaS queda intacto',
+      (await prisma.payment.findFirstOrThrow({ where: { orderId: o9.id } })).amount === PRICE + 7900 &&
+        bumpRevenue >= PRICE + 7900 && (await prisma.subscriptionPayment.count({ where: { workspaceId: W } })) === saasBeforeBump,
+      `payment=${PRICE + 7900} revenue=${bumpRevenue}`,
+    );
+
+    const foreignBumpOrder = await newOrder();
+    await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: foreign.variants[0].id } } } });
+    const foreignView = await loadPublicCheckout(foreignBumpOrder.id, tokenFor(foreignBumpOrder.id));
+    const foreignStart = await startPublicCheckoutPayment(foreignBumpOrder.id, tokenFor(foreignBumpOrder.id), true);
+    await prisma.productVariant.update({ where: { id: bumpProduct.variants[0].id }, data: { isActive: false } });
+    await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: bumpProduct.variants[0].id } } } });
+    const inactiveOrder = await newOrder();
+    const inactiveStart = await startPublicCheckoutPayment(inactiveOrder.id, tokenFor(inactiveOrder.id), true);
+    await prisma.productVariant.update({ where: { id: bumpProduct.variants[0].id }, data: { isActive: true } });
+    check(
+      'N12. Seguridad bump: variante de otro workspace o inactiva no se muestra ni se acepta',
+      foreignView.ok && foreignView.bump === null && same(foreignStart, { ok: false, reason: 'UNAVAILABLE' }) && same(inactiveStart, { ok: false, reason: 'UNAVAILABLE' }),
+      JSON.stringify({ foreignStart, inactiveStart }),
+    );
+
+    // Preference vieja: el pago es real y se conserva como evidencia, pero el
+    // total/moneda actuales del pedido son la autoridad para entregar.
+    const hardeningMain = await prisma.product.create({
+      data: {
+        workspaceId: W,
+        name: 'Producto hardening',
+        type: ProductType.DIGITAL,
+        status: ProductStatus.ACTIVE,
+        currency: 'CLP',
+        variants: { create: [{ name: 'Main 5990', priceClp: 5990, isDefault: true }] },
+        assets: { create: [{ workspaceId: W, name: 'Entrega main hardening', target: 'https://contenido.ledger.test/hardening-main' }] },
+      },
+      include: { variants: true },
+    });
+    const hardeningBump = await prisma.product.create({
+      data: {
+        workspaceId: W,
+        name: 'Bump hardening',
+        type: ProductType.DIGITAL,
+        status: ProductStatus.ACTIVE,
+        currency: 'CLP',
+        variants: { create: [{ name: 'Bump 2990', priceClp: 2990, isDefault: true }] },
+        assets: { create: [{ workspaceId: W, name: 'Entrega bump hardening', target: 'https://contenido.ledger.test/hardening-bump' }] },
+      },
+      include: { variants: true },
+    });
+    await prisma.product.update({
+      where: { id: hardeningMain.id },
+      data: { metadata: { orderBump: { variantId: hardeningBump.variants[0].id } } },
+    });
+    const hardenedOrder = await createOrder({
+      workspaceId: W,
+      contactId: contact.id,
+      customerEmail: contact.email,
+      items: [{ variantId: hardeningMain.variants[0].id, quantity: 1 }],
+    });
+    await prisma.customerOrder.update({
+      where: { id: hardenedOrder.id },
+      data: { status: 'PENDING_PAYMENT', metadata: { preferenceId: 'preference-A', preferenceTotal: 5990 } },
+    });
+    await startPublicCheckoutPayment(hardenedOrder.id, tokenFor(hardenedOrder.id), true);
+    await prisma.customerOrder.update({
+      where: { id: hardenedOrder.id },
+      data: { metadata: { preferenceId: 'preference-B', preferenceTotal: 8980, bumpSelected: true, mainVariantId: hardeningMain.variants[0].id, bumpVariantId: hardeningBump.variants[0].id } },
+    });
+    const emailBeforeStale = await prisma.emailMessage.count({ where: { workspaceId: W, contactId: contact.id } });
+    const stalePaymentId = `mp-stale-${randomUUID()}`;
+    const stalePay = () => processOrderPayment({
+      orderId: hardenedOrder.id,
+      externalPaymentId: stalePaymentId,
+      status: PaymentStatus.APPROVED,
+      rawStatus: 'approved',
+      amount: 5990,
+      currency: 'CLP',
+      payerEmail: contact.email,
+      baseUrl: 'https://crm.ledger.test',
+      workspaceId: W,
+      externalReference: hardenedOrder.id,
+      preferenceId: 'preference-A',
+    });
+    const staleFirst = await stalePay();
+    const staleAgain = await stalePay();
+    const mismatchPayment = await prisma.payment.findUniqueOrThrow({ where: { externalId: stalePaymentId } });
+    const mismatchAlerts = await prisma.auditLog.count({ where: { workspaceId: W, action: 'order.payment_amount_mismatch', entity: 'Payment', entityId: mismatchPayment.id } });
+    const hardenedAfterStale = await prisma.customerOrder.findUniqueOrThrow({ where: { id: hardenedOrder.id } });
+    check(
+      'N13. Preference A (5990) queda stale ante order actual B (8980): Payment evidencia, sin PAID ni entrega/email',
+      !staleFirst.handled && !staleAgain.handled && mismatchPayment.status === 'APPROVED' && mismatchPayment.amount === 5990 &&
+        hardenedAfterStale.total === 8980 && !['CONFIRMED', 'FULFILLED'].includes(hardenedAfterStale.status) &&
+        (await prisma.fulfillmentOrder.count({ where: { orderId: hardenedOrder.id } })) === 0 &&
+        (await prisma.digitalDelivery.count({ where: { orderId: hardenedOrder.id } })) === 0 &&
+        (await prisma.emailMessage.count({ where: { workspaceId: W, contactId: contact.id } })) === emailBeforeStale,
+      JSON.stringify({ staleFirst, total: hardenedAfterStale.total, status: hardenedAfterStale.status }),
+    );
+    check(
+      'N14. Repetir webhook stale no duplica Payment ni alerta logica amount_mismatch',
+      (await prisma.payment.count({ where: { externalId: stalePaymentId } })) === 1 && mismatchAlerts === 1,
+      `alerts=${mismatchAlerts}`,
+    );
+
+    const wrongCurrencyId = `mp-currency-${randomUUID()}`;
+    const wrongCurrency = await processOrderPayment({
+      orderId: hardenedOrder.id,
+      externalPaymentId: wrongCurrencyId,
+      status: PaymentStatus.APPROVED,
+      rawStatus: 'approved',
+      amount: 8980,
+      currency: 'USD',
+      baseUrl: 'https://crm.ledger.test',
+      workspaceId: W,
+      externalReference: hardenedOrder.id,
+      preferenceId: 'preference-B',
+    });
+    check(
+      'N15. Moneda incorrecta conserva Payment aprobado, alerta y no entrega',
+      !wrongCurrency.handled && (await prisma.payment.findUniqueOrThrow({ where: { externalId: wrongCurrencyId } })).currency === 'USD' &&
+        (await prisma.auditLog.count({ where: { workspaceId: W, action: 'order.payment_currency_mismatch' } })) >= 1 &&
+        (await prisma.fulfillmentOrder.count({ where: { orderId: hardenedOrder.id } })) === 0,
+    );
+
+    const wrongOrder = await processOrderPayment({
+      orderId: hardenedOrder.id,
+      externalPaymentId: `mp-foreign-${randomUUID()}`,
+      status: PaymentStatus.APPROVED,
+      rawStatus: 'approved',
+      amount: 8980,
+      currency: 'CLP',
+      baseUrl: 'https://crm.ledger.test',
+      workspaceId: C,
+      externalReference: hardenedOrder.id,
+      preferenceId: 'preference-B',
+    });
+    check(
+      'N16. Pago asociado a otro workspace/order no crea Payment ni fulfillment',
+      !wrongOrder.handled && (await prisma.payment.count({ where: { externalId: { startsWith: 'mp-foreign-' }, orderId: hardenedOrder.id } })) === 0 &&
+        (await prisma.fulfillmentOrder.count({ where: { orderId: hardenedOrder.id } })) === 0,
+    );
+
+    const correctPaymentId = `mp-current-${randomUUID()}`;
+    const correctPay = () => processOrderPayment({
+      orderId: hardenedOrder.id,
+      externalPaymentId: correctPaymentId,
+      status: PaymentStatus.APPROVED,
+      rawStatus: 'approved',
+      amount: 8980,
+      currency: 'CLP',
+      payerEmail: contact.email,
+      baseUrl: 'https://crm.ledger.test',
+      workspaceId: W,
+      externalReference: hardenedOrder.id,
+      preferenceId: 'preference-B',
+    });
+    const correctA = await correctPay();
+    const correctB = await correctPay();
+    const correctC = await correctPay();
+    check(
+      'N17. Preference B correcta x3: una compra logica, un fulfillment y deliveries main+bump',
+      correctA.handled && correctA.delivered === 2 && correctB.alreadyProcessed === true && correctC.alreadyProcessed === true &&
+        (await prisma.customerOrder.findUniqueOrThrow({ where: { id: hardenedOrder.id } })).status === 'FULFILLED' &&
+        (await prisma.payment.count({ where: { externalId: correctPaymentId } })) === 1 &&
+        (await prisma.fulfillmentOrder.count({ where: { orderId: hardenedOrder.id } })) === 1 &&
+        (await prisma.digitalDelivery.count({ where: { orderId: hardenedOrder.id } })) === 2,
     );
   } finally {
     delete globals[guard];
