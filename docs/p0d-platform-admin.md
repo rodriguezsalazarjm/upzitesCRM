@@ -18,7 +18,7 @@ Estado: implementado en `feat/p0d-platform-admin` (desde `eba9b9f`). Migración
 Pruebas (ya ejecutado): `c2-owner-a@visual.test` es SUPER_ADMIN en crm_pruebas.
 
 ```bash
-node scripts/run-against-test-db.mjs scripts/platform-admin.ts grant <email> SUPER_ADMIN "bootstrap QA"
+node scripts/run-against-test-db.mjs scripts/platform-admin.ts grant <email> SUPER_ADMIN "bootstrap QA" --apply --confirm-host 127.0.0.1
 ```
 
 `run-against-test-db.mjs` fuerza `DATABASE_URL = TEST_DATABASE_URL` y aborta si
@@ -34,10 +34,11 @@ Producción (NO ejecutado; hacerlo recién tras desplegar y migrar):
 
 ```bash
 pnpm exec tsx scripts/platform-admin.ts list
-pnpm exec tsx scripts/platform-admin.ts grant <email-del-propietario> SUPER_ADMIN "bootstrap produccion"
+pnpm exec tsx scripts/platform-admin.ts grant <email-del-propietario> SUPER_ADMIN "bootstrap produccion"   # dry-run
+pnpm exec tsx scripts/platform-admin.ts grant <email-del-propietario> SUPER_ADMIN "bootstrap produccion" --apply --confirm-host <host>
 ```
 
-El script imprime `Base: host/db` antes de actuar: confirmar que es producción.
+grant/revoke son dry-run por defecto; solo escriben con `--apply --confirm-host <host>` igual al host de DATABASE_URL.
 El CLI usa la misma operación que la UI (`setPlatformRoleFromCli`): mismo
 advisory lock y tampoco deja quitar al último SUPER_ADMIN.
 
