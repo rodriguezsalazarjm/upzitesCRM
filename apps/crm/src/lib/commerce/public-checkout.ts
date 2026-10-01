@@ -54,7 +54,7 @@ async function loadOrder(orderId: string, db: DbClient = prisma) {
     include: {
       workspace: { select: { name: true } },
       contact: { select: { firstName: true, lastName: true, email: true } },
-      lines: { include: { variant: { select: { id: true, priceClp: true, isActive: true, product: { select: { workspaceId: true, status: true, currency: true, metadata: true } } } } } },
+      lines: { include: { variant: { select: { id: true, productId: true, priceClp: true, isActive: true, product: { select: { workspaceId: true, status: true, currency: true, metadata: true } } } } } },
       payments: { select: { status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
@@ -111,10 +111,12 @@ function mainLine(order: LoadedOrder) {
 async function resolveBump(order: LoadedOrder, db: DbClient = prisma) {
   const main = mainLine(order);
   const bumpVariantId = configuredBumpVariantId(main?.variant?.product.metadata);
-  if (!main || !bumpVariantId || bumpVariantId === main.variantId) return null;
+  if (!main?.variant || !bumpVariantId || bumpVariantId === main.variantId) return null;
   const variant = await db.productVariant.findFirst({
     where: {
       id: bumpVariantId,
+      // Ninguna variante del MISMO producto puede ser su adicional.
+      productId: { not: main.variant.productId },
       isActive: true,
       product: { workspaceId: order.workspaceId, status: ProductStatus.ACTIVE, currency: order.currency },
     },

@@ -39,7 +39,7 @@ Object.assign(process.env, {
   CRM_SESSION_SECRET: credentials.sessionSecret, INTEGRATION_ENCRYPTION_KEY: credentials.encryptionKey,
   LOCAL_VISUAL_TEST: '1', CRM_DEV_DEMO: 'false', EMAIL_PROVIDER: 'SCRIPTED',
   MEDIA_STORAGE_DRIVER: 'filesystem', NEXT_TELEMETRY_DISABLED: '1', CHECKPOINT_DISABLE: '1',
-  NEXT_PUBLIC_APP_URL: 'http://localhost:3101',
+  NEXT_PUBLIC_APP_URL: 'http://localhost:3101', NEXT_PUBLIC_CRM_BASE_URL: 'http://localhost:3101',
 });
 // Empty values prevent Next's dotenv loader from restoring real providers.
 for (const key of ['OPENAI_API_KEY', 'OPENAI_PROJECT_ID', 'META_APP_SECRET', 'WHATSAPP_SYSTEM_ACCESS_TOKEN',

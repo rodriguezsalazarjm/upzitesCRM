@@ -59,6 +59,9 @@ export async function createOrder(input: CreateOrderInput) {
   const byId = new Map(variants.map((variant) => [variant.id, variant]));
   const lines: Prisma.OrderLineCreateWithoutOrderInput[] = [];
   let subtotal = 0;
+  // La moneda del pedido es la del catalogo (montos enteros en unidades menores
+  // de esa moneda). Un pedido no mezcla monedas.
+  let currency: string | null = null;
 
   for (const item of input.items) {
     const variant = byId.get(item.variantId);
@@ -72,6 +75,11 @@ export async function createOrder(input: CreateOrderInput) {
     if (variant.inventory !== null && variant.inventory < item.quantity) {
       throw new OrderError(`${variant.product.name} no tiene stock suficiente.`, 'OUT_OF_STOCK');
     }
+
+    if (currency !== null && currency !== variant.product.currency) {
+      throw new OrderError('Un pedido no puede mezclar productos en distintas monedas.', 'INVALID_STATE');
+    }
+    currency = variant.product.currency;
 
     const quantity = Math.max(1, Math.floor(item.quantity));
     const total = variant.priceClp * quantity;
@@ -97,6 +105,7 @@ export async function createOrder(input: CreateOrderInput) {
       customerName: input.customerName ?? null,
       notes: input.notes,
       status: OrderStatus.DRAFT,
+      currency: currency ?? 'CLP',
       subtotal,
       total: subtotal,
       lines: { create: lines },

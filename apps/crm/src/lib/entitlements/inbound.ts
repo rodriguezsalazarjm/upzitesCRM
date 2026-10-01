@@ -11,7 +11,7 @@ import { getWorkspaceEntitlements, type Db } from './index';
  * Lo que SI se bloquea en el limite son las altas proactivas del negocio
  * (crear a mano, importar, duplicar): ver `withEntitlementLock`.
  */
-export type InboundSource = 'WHATSAPP' | 'INSTAGRAM' | 'MESSENGER' | 'TIKTOK' | 'FORM';
+export type InboundSource = 'WHATSAPP' | 'INSTAGRAM' | 'MESSENGER' | 'TIKTOK' | 'FORM' | 'CHECKOUT';
 
 export async function noteInboundContact(
   input: { workspaceId: string; contactId: string; source: InboundSource },

@@ -11,6 +11,7 @@ import { recordAudit } from '../domain/audit';
 import { assertFeature } from '../entitlements';
 import { cancelByKey, scheduleAction } from '../domain';
 import { getWorkspacePreferenceClient, preferenceCheckoutUrl } from '../mercado-pago';
+import { toMajorUnits } from '../billing/money';
 import { getValidWorkspaceMercadoPagoToken } from './mercado-pago-connection';
 import { publicCheckoutUrl } from './public-checkout-link';
 
@@ -138,7 +139,8 @@ export async function createOrderProviderCheckout(input: {
           title: line.name,
           quantity: line.quantity,
           currency_id: order.currency,
-          unit_price: line.unitPrice,
+          // Commerce guarda unidades menores; Mercado Pago espera mayores (en CLP son iguales).
+          unit_price: toMajorUnits(line.unitPrice, order.currency),
         })),
         // external_reference lleva el ID DEL PEDIDO, no el del workspace: es la
         // otra mitad de la discriminacion con el pago de suscripcion.

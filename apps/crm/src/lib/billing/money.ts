@@ -19,6 +19,16 @@ export function toMajorUnits(amountMinor: number, currency: string) {
   return amountMinor / 10 ** currencyExponent(currency);
 }
 
+/**
+ * Monto informado por un proveedor (unidades mayores, p. ej. 19.99) → unidades
+ * menores enteras. Con una moneda desconocida devuelve el entero redondeado:
+ * la comparacion contra el pedido fallara igual por moneda.
+ */
+export function providerAmountToMinor(amountMajor: number, currency: string) {
+  const exponent = CURRENCY_EXPONENT[currency.toUpperCase()] ?? 0;
+  return Math.round(amountMajor * 10 ** exponent);
+}
+
 export function formatMoney(amountMinor: number, currency: string) {
   const exponent = currencyExponent(currency);
   return new Intl.NumberFormat(currency === 'CLP' ? 'es-CL' : 'en-US', {

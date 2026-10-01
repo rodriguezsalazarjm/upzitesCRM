@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { loadPublicCheckout } from '@/lib/commerce/public-checkout';
+import { formatMinor as formatMoney } from '@/lib/commerce/product-studio/rules';
 import { OrderBumpForm } from './order-bump-form';
 
 export const dynamic = 'force-dynamic';
@@ -12,14 +13,6 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function formatMoney(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
 }
 
 const UNAVAILABLE_TEXT = {

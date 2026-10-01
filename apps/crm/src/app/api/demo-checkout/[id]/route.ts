@@ -9,6 +9,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const order = await prisma.customerOrder.findFirst({ where: { id, workspaceId: user.workspace.id } });
   if (!order || !(order.metadata as { fake?: boolean } | null)?.fake) return new Response(null, { status: 404 });
-  const data = await processOrderPayment({ orderId: order.id, externalPaymentId: `fake-payment:${order.id}`, status: 'APPROVED', rawStatus: 'approved', amount: order.total, currency: order.currency, baseUrl: 'http://localhost:3101' });
+  // El monto y la moneda salen del pedido guardado (nunca del navegador) y el
+  // pago queda marcado como simulado en Payment y en la auditoria.
+  const data = await processOrderPayment({ orderId: order.id, externalPaymentId: `fake-payment:${order.id}`, status: 'APPROVED', rawStatus: 'approved', amount: order.total, currency: order.currency, baseUrl: 'http://localhost:3101', workspaceId: user.workspace.id, simulated: true });
   return Response.json({ data });
 }

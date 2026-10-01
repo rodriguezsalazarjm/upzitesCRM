@@ -51,8 +51,10 @@ const SUSPENDED_ALLOWED_PATHS = [
   '/api/billing/webhook',
   '/api/capture/',
   '/api/email/unsubscribe',
-  // Checkout publico: lo usa el comprador, no la sesion del workspace.
+  // Checkout publico y compra de un producto: los usa el comprador, no la
+  // sesion del workspace.
   '/api/checkout/',
+  '/api/comprar/',
 ];
 
 function isAllowedWhileSuspended(path: string) {

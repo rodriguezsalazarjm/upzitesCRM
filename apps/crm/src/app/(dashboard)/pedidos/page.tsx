@@ -4,7 +4,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { requireCurrentUser } from '@/lib/auth';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
-import { formatCurrency } from '@/lib/mock-data';
+import { formatMinor } from '@/lib/commerce/product-studio/rules';
 import { prisma } from '@/lib/prisma';
 import { deliveryStatusLabel, deliveryStatusTone, orderStatusLabel, orderStatusTone, paymentStatusLabel, paymentStatusTone } from '@/lib/status-tone';
 
@@ -94,7 +94,7 @@ export default async function PedidosPage() {
                       )}
                       {downloads > 0 && <p className="mt-0.5 text-[10px] text-soft">{downloads} descarga(s)</p>}
                     </TableCell>
-                    <TableCell numeric>{formatCurrency(order.total)}</TableCell>
+                    <TableCell numeric>{formatMinor(order.total, order.currency)}</TableCell>
                     <TableCell muted className="hidden xl:table-cell">
                       {order.createdAt.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </TableCell>

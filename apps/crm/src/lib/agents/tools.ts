@@ -906,7 +906,7 @@ AGENT_TOOLS.push(
     }
     const result = await AGENT_TOOLS.find(t => t.name === 'create_checkout')!.execute({ variantId: variant.id, quantity: 1 }, ctx);
     if (!result.ok) return result;
-    return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: variant.priceClp, currency: 'CLP' } };
+    return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: variant.priceClp, currency: product.currency } };
   } },
   { name: 'updateLeadQualification', description: 'Registra necesidad y presupuesto aportados por el contacto.', schema: z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict(), hasSideEffects: true, execute: async (args, ctx) => {
     const parsed = z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict().safeParse(args);

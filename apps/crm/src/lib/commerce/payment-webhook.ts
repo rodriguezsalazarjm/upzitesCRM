@@ -33,6 +33,8 @@ export type OrderPaymentInput = {
   /** Valores obtenidos del payment reconsultado, nunca del return URL. */
   externalReference?: string | null;
   preferenceId?: string | null;
+  /** Pago SIMULADO (solo modo demo local, ver lib/testing/local-mode): queda marcado en Payment y auditoria. */
+  simulated?: boolean;
 };
 
 export type OrderPaymentResult = {
@@ -228,6 +230,7 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
       currentPreferenceId,
       stalePreference,
       externalReference: input.externalReference ?? null,
+      ...(input.simulated ? { simulated: true } : {}),
     },
   });
 
@@ -294,6 +297,7 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
       deliveries: delivery.deliveries.length,
       notifiedByWhatsapp: notified.whatsapp,
       notifiedByEmail: notified.email,
+      ...(input.simulated ? { simulated: true } : {}),
     },
   });
 

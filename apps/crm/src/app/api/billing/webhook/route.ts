@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { MONTHLY_PLAN_KEY, ensureMonthlyPlan } from '@/lib/subscription';
 import { ensurePlanCatalog } from '@/lib/billing/plan-catalog';
 import { toMajorUnits } from '@/lib/billing/price-book';
+import { providerAmountToMinor } from '@/lib/billing/money';
 import { recordSaasPayment } from '@/lib/billing/subscription-admin';
 import {
   getPaymentClient,
@@ -144,7 +145,8 @@ export async function POST(request: Request) {
       externalPaymentId: String(dataId),
       status: mapPaymentStatus(payment.status),
       rawStatus: String(payment.status ?? 'unknown'),
-      amount: Number(payment.transaction_amount ?? 0),
+      // El pedido guarda unidades menores; Mercado Pago informa mayores.
+      amount: providerAmountToMinor(Number(payment.transaction_amount ?? 0), String(payment.currency_id ?? 'CLP')),
       currency: String(payment.currency_id ?? 'CLP'),
       payerEmail: payment.payer?.email ?? null,
       baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
@@ -428,7 +430,8 @@ async function handleWorkspaceOrderWebhook(input: {
     externalPaymentId: String(input.dataId),
     status: mapPaymentStatus(payment.status),
     rawStatus: String(payment.status ?? 'unknown'),
-    amount: Number(payment.transaction_amount ?? 0),
+    // El pedido guarda unidades menores; Mercado Pago informa mayores.
+    amount: providerAmountToMinor(Number(payment.transaction_amount ?? 0), String(payment.currency_id ?? 'CLP')),
     currency: String(payment.currency_id ?? 'CLP'),
     payerEmail: payment.payer?.email ?? null,
     baseUrl: (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, ''),
