@@ -3,7 +3,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { StorageNotConfiguredError, resolveStorage, storageStatus } from './index';
+import { StorageNotConfiguredError, deliveryStorageStatus, resolveDeliveryStorage, resolveStorage, storageStatus } from './index';
 import { LOCAL_MEDIA_DIR } from './filesystem';
 
 /**
@@ -21,6 +21,7 @@ function withEnv(values: Record<string, string | undefined>) {
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
     'MEDIA_STORAGE_BUCKET',
+    'DELIVERY_STORAGE_BUCKET',
     'NODE_ENV',
   ]) {
     delete process.env[key];
@@ -153,6 +154,76 @@ test('Supabase: leer o borrar un objeto que ya no existe no lanza', async () => 
   } finally {
     globalThis.fetch = original;
   }
+});
+
+// --- Entregables (Punto 3) ---------------------------------------------------
+
+const SUPABASE = { SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'clave-de-prueba', MEDIA_STORAGE_BUCKET: 'media', NODE_ENV: 'production' };
+
+test('entregables: sin DELIVERY_STORAGE_BUCKET no se cae al bucket de medios', async () => {
+  withEnv(SUPABASE);
+  const status = deliveryStorageStatus();
+  assert.equal(status.configured, false);
+  assert.match(status.reason ?? '', /DELIVERY_STORAGE_BUCKET/);
+  await assert.rejects(() => resolveDeliveryStorage(), StorageNotConfiguredError);
+  // El de medios sigue configurado: son independientes.
+  assert.equal(storageStatus().configured, true);
+});
+
+test('entregables: el bucket de entregables no puede ser el de medios', () => {
+  withEnv({ ...SUPABASE, DELIVERY_STORAGE_BUCKET: 'media' });
+  assert.equal(deliveryStorageStatus().configured, false);
+});
+
+test('entregables: con su bucket, escribe en ese bucket y no en media', async () => {
+  withEnv({ ...SUPABASE, DELIVERY_STORAGE_BUCKET: 'deliverables' });
+  const original = globalThis.fetch;
+  const seen: { url: string; method: string; headers: Headers; body?: string }[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    seen.push({ url, method: init?.method ?? 'GET', headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined });
+    if (url.includes('/object/upload/sign/')) return Response.json({ url: '/object/upload/sign/deliverables/deliverables/ws/p/a.pdf?token=subida' });
+    if (url.includes('/object/sign/')) return Response.json({ signedURL: '/object/sign/deliverables/deliverables/ws/p/a.pdf?token=descarga' });
+    return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), { status: 206, headers: { 'content-range': 'bytes 0-3/123456' } });
+  }) as typeof fetch;
+  try {
+    const storage = await resolveDeliveryStorage();
+    const head = await storage.head('deliverables/ws/p/a.pdf', 4096);
+    assert.deepEqual(head, { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), size: 123456 });
+    assert.equal(seen[0].url, 'https://ref.supabase.co/storage/v1/object/deliverables/deliverables/ws/p/a.pdf');
+    assert.equal(seen[0].headers.get('range'), 'bytes=0-4095', 'solo se leen los primeros bytes');
+
+    const upload = await storage.signedUploadUrl!('deliverables/ws/p/a.pdf');
+    assert.equal(upload, 'https://ref.supabase.co/storage/v1/object/upload/sign/deliverables/deliverables/ws/p/a.pdf?token=subida');
+    assert.equal(seen[1].url, 'https://ref.supabase.co/storage/v1/object/upload/sign/deliverables/deliverables/ws/p/a.pdf');
+
+    const download = await storage.signedDownloadUrl!('deliverables/ws/p/a.pdf', { expiresInSeconds: 60, downloadName: 'Guía.pdf' });
+    assert.equal(new URL(download).searchParams.get('download'), 'Guía.pdf');
+    assert.equal(new URL(download).origin, 'https://ref.supabase.co');
+    assert.equal(JSON.parse(seen[2].body ?? '{}').expiresIn, 60, 'la URL firmada vive un minuto');
+    // La clave de servicio va en cabeceras al servidor de storage, nunca en la URL que llega al navegador.
+    assert.equal(download.includes('clave-de-prueba'), false);
+    assert.equal(upload.includes('clave-de-prueba'), false);
+    assert.ok(seen.every((call) => !call.url.includes('/object/media/')), 'nada va al bucket de medios');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('entregables: head de un objeto inexistente devuelve null; claves hostiles se rechazan', async () => {
+  localEnv();
+  const storage = await resolveDeliveryStorage();
+  assert.equal(await storage.head(scratchKey('no-esta.pdf'), 10), null);
+  const key = scratchKey('a.bin');
+  await storage.put(key, new Uint8Array([1, 2, 3, 4, 5, 6]), 'application/octet-stream');
+  assert.deepEqual(await storage.head(key, 4), { bytes: new Uint8Array([1, 2, 3, 4]), size: 6 });
+  await storage.remove(key);
+  for (const hostile of ['../x.pdf', 'deliverables/../../x.pdf', '/abs.pdf']) {
+    await assert.rejects(() => storage.head(hostile, 4), hostile);
+  }
+  // El disco local no firma URLs: la descarga la sirve la API, nunca una ruta publica.
+  assert.equal(storage.signedDownloadUrl, undefined);
+  assert.equal(storage.signedUploadUrl, undefined);
 });
 
 test('Supabase: SUPABASE_URL con ruta (/rest/v1/) se reduce al origen del proyecto', async () => {

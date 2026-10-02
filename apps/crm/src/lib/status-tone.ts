@@ -85,17 +85,19 @@ export const paymentStatusLabel: Record<string, string> = {
 };
 
 export const deliveryStatusTone: Record<string, StatusTone> = {
-  GRANTED: 'info',
-  SENT: 'info',
+  AVAILABLE: 'info',
+  SENT: 'success',
+  FAILED: 'warning',
   ACCESSED: 'success',
   REVOKED: 'danger',
   EXPIRED: 'neutral',
 };
 
 export const deliveryStatusLabel: Record<string, string> = {
-  GRANTED: 'Otorgado',
-  SENT: 'Enviado',
-  ACCESSED: 'Accedido',
-  REVOKED: 'Revocado',
-  EXPIRED: 'Vencido',
+  AVAILABLE: 'Disponible',
+  SENT: 'Enviada',
+  FAILED: 'Envío fallido',
+  ACCESSED: 'Accedida',
+  REVOKED: 'Revocada',
+  EXPIRED: 'Vencida',
 };

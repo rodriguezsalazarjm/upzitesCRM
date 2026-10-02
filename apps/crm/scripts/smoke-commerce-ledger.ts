@@ -402,17 +402,19 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
     const bumpPay = () => processOrderPayment({ orderId: o9.id, externalPaymentId: `mp-bump-${o9.id}`, status: PaymentStatus.APPROVED, rawStatus: 'approved', amount: restored.total, currency: restored.currency, payerEmail: contact.email, baseUrl: 'https://crm.ledger.test', workspaceId: W });
     const bumpPaid = await bumpPay();
     const bumpRepeated = await bumpPay();
-    const bumpDeliveries = await prisma.digitalDelivery.findMany({ where: { orderId: o9.id }, include: { asset: { select: { productId: true } } } });
+    // Punto 3: UNA entrega por pedido con los contenidos de main y bump copiados.
+    const bumpDeliveries = await prisma.digitalDelivery.findMany({ where: { orderId: o9.id }, include: { items: { include: { asset: { select: { productId: true } } } } } });
+    const bumpItems = bumpDeliveries.flatMap((delivery) => delivery.items);
     const bumpFulfillments = await prisma.fulfillmentOrder.findMany({ where: { orderId: o9.id } });
     const afterBumpSale = await ledger(W);
     const bumpDashboard = await loadDashboard(await getWorkspaceExperience({ workspaceId: W, userId: operator.id, role: WorkspaceRole.OWNER }), W);
     const bumpRevenue = (bumpDashboard.widgets.find((w) => w.id === 'revenue_today')?.data as { value?: number } | null)?.value ?? 0;
     const bumpTop = (bumpDashboard.widgets.find((w) => w.id === 'top_products')?.data as { rows?: { label: string; value: number }[] } | null)?.rows ?? [];
     check(
-      'N10. Webhook repetido main+bump: un Payment, un fulfillment logico, dos DigitalDelivery y ambos productos en top',
+      'N10. Webhook repetido main+bump: un Payment, un fulfillment logico, una DigitalDelivery con los contenidos de ambos y ambos productos en top',
       bumpPaid.handled && bumpPaid.delivered === 2 && bumpRepeated.alreadyProcessed === true &&
-        afterBumpSale.payments === beforeBumpSale.payments + 1 && bumpFulfillments.length === 1 && bumpDeliveries.length === 2 &&
-        new Set(bumpDeliveries.map((delivery) => delivery.asset.productId)).size === 2 &&
+        afterBumpSale.payments === beforeBumpSale.payments + 1 && bumpFulfillments.length === 1 && bumpDeliveries.length === 1 && bumpItems.length === 2 &&
+        new Set(bumpItems.map((item) => item.asset?.productId)).size === 2 &&
         bumpTop.some((row) => row.label.startsWith(product.name)) && bumpTop.some((row) => row.label.startsWith(bumpProduct.name)),
       JSON.stringify({ deliveries: bumpDeliveries.length, fulfillments: bumpFulfillments.length, top: bumpTop }),
     );
@@ -579,7 +581,8 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
         (await prisma.customerOrder.findUniqueOrThrow({ where: { id: hardenedOrder.id } })).status === 'FULFILLED' &&
         (await prisma.payment.count({ where: { externalId: correctPaymentId } })) === 1 &&
         (await prisma.fulfillmentOrder.count({ where: { orderId: hardenedOrder.id } })) === 1 &&
-        (await prisma.digitalDelivery.count({ where: { orderId: hardenedOrder.id } })) === 2,
+        (await prisma.digitalDelivery.count({ where: { orderId: hardenedOrder.id } })) === 1 &&
+        (await prisma.digitalDeliveryItem.count({ where: { delivery: { orderId: hardenedOrder.id } } })) === 2,
     );
   } finally {
     delete globals[guard];

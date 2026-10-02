@@ -18,8 +18,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ...rest,
       deliveries: deliveries.map((d) => ({
         id: d.id,
-        assetName: d.asset.name,
+        assetName: d.items.map((item) => item.name).join(', '),
+        items: d.items.map((item) => ({ name: item.name, productName: item.productName, format: item.format, downloadCount: item.downloadCount })),
         status: d.status,
+        attempts: d.attempts,
+        lastAttemptAt: d.lastAttemptAt,
+        revokedAt: d.revokedAt,
         downloadCount: d.downloadCount,
         maxDownloads: d.maxDownloads,
         lastAccessAt: d.lastAccessAt,

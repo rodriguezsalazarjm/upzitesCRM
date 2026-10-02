@@ -96,9 +96,24 @@ export default async function PublicCheckoutPage({
 
       <div className="mt-6" role="status">
         {view.state === 'PAID' ? (
-          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
-            <p className="font-semibold">Pago confirmado</p>
-            <p className="mt-1">Gracias por tu compra. Recibirás la confirmación de {view.workspaceName} por los medios que dejaste.</p>
+          <div className="space-y-3">
+            <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
+              <p className="font-semibold">Pago confirmado</p>
+              <p className="mt-1">Gracias por tu compra. Recibirás la confirmación de {view.workspaceName} por los medios que dejaste.</p>
+            </div>
+            {view.delivery?.kind === 'READY' ? (
+              <a
+                href={view.delivery.path}
+                rel="noreferrer"
+                className="flex min-h-11 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              >
+                Acceder a mi compra
+              </a>
+            ) : view.delivery?.kind === 'REVOKED' ? (
+              <p className="text-sm text-slate-500">El acceso a esta compra fue revocado por el vendedor.</p>
+            ) : view.delivery?.kind === 'PENDING' ? (
+              <p className="text-sm text-slate-500">Si compraste contenido digital, {view.workspaceName} te enviará el acceso.</p>
+            ) : null}
           </div>
         ) : waiting ? (
           <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">

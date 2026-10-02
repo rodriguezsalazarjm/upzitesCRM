@@ -45,6 +45,15 @@ export type NotifyResult = {
   email: boolean;
   /** Ningun canal funciono. Se levanto un aviso para que lo mande una persona. */
   needsHuman: boolean;
+  /**
+   * El email "salio" por el proveedor guionado de desarrollo/demo: no llego a
+   * ningun buzon real. Quien muestre el resultado tiene que decirlo.
+   */
+  emailSimulated?: boolean;
+  /** Canales que se intentaron y fallaron, con un motivo legible (sin tokens). */
+  failures?: string[];
+  /** Por que no se intento cada canal que no se intento. */
+  skipped?: string[];
 };
 
 function buildMessage(links: DeliveryLink[], workspaceName: string) {
@@ -62,17 +71,32 @@ function buildMessage(links: DeliveryLink[], workspaceName: string) {
   ].join('\n');
 }
 
+/** Por que no salio el email, en palabras del negocio (se muestra en el historial). */
+const EMAIL_SKIP_TEXT: Record<string, string> = {
+  NO_SENDER_DOMAIN: 'No hay un dominio de email configurado.',
+  DOMAIN_NOT_VERIFIED: 'El dominio de email no está verificado.',
+  NO_IDENTIFIER: 'El cliente no tiene email.',
+  NOT_FOUND: 'El contacto ya no existe.',
+  EMAIL_DISABLED: 'El envío de email está desactivado.',
+  SUBSCRIPTION_INACTIVE: 'La suscripción del negocio no está activa.',
+};
+
+/** Los nombres los escribe el negocio desde la interfaz: nunca se insertan como HTML. */
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
+}
+
 function buildHtml(links: DeliveryLink[], workspaceName: string) {
   const items = links
     .filter((link) => link.url)
-    .map(
-      (link) =>
-        `<li><strong>${link.assetName}</strong>: <a href="${link.url}">${link.url}</a></li>`,
-    )
+    .map((link) => {
+      const url = escapeHtml(link.url as string);
+      return `<li><strong>${escapeHtml(link.assetName)}</strong>: <a href="${url}">${url}</a></li>`;
+    })
     .join('');
 
   return [
-    `<p>Listo, tu compra en ${workspaceName} esta confirmada.</p>`,
+    `<p>Listo, tu compra en ${escapeHtml(workspaceName)} esta confirmada.</p>`,
     `<ul>${items}</ul>`,
     '<p>Guarda este correo: el enlace es personal y no se vuelve a enviar solo.</p>',
   ].join('');
@@ -87,7 +111,13 @@ export async function notifyDigitalDelivery(input: {
   const enviables = input.links.filter((link) => link.url);
 
   if (enviables.length === 0 || !input.contactId) {
-    return { whatsapp: false, email: false, needsHuman: enviables.length > 0 };
+    return {
+      whatsapp: false,
+      email: false,
+      needsHuman: enviables.length > 0,
+      failures: [],
+      skipped: [enviables.length === 0 ? 'No hay enlaces para enviar.' : 'El pedido no tiene un contacto al que enviarlo.'],
+    };
   }
 
   const workspace = await prisma.workspace.findUniqueOrThrow({
@@ -96,6 +126,9 @@ export async function notifyDigitalDelivery(input: {
   });
 
   const texto = buildMessage(enviables, workspace.name);
+
+  const failures: string[] = [];
+  const skipped: string[] = [];
 
   // --- WhatsApp ---
   let porWhatsapp = false;
@@ -123,7 +156,10 @@ export async function notifyDigitalDelivery(input: {
     } catch (error) {
       // No se corta: todavia queda el email. Se registra para poder explicarlo.
       console.error('delivery_notify_whatsapp_failed', { orderId: input.orderId, error });
+      failures.push('WhatsApp no aceptó el mensaje.');
     }
+  } else {
+    skipped.push('El cliente no tiene una conversación de WhatsApp abierta.');
   }
 
   // --- Email ---
@@ -139,6 +175,10 @@ export async function notifyDigitalDelivery(input: {
   });
 
   porEmail = resultado.status === 'SENT';
+  // El proveedor guionado (desarrollo/demo) firma sus ids asi: no llego a nadie.
+  const emailSimulated = resultado.status === 'SENT' && resultado.providerMessageId.startsWith('scripted-');
+  if (resultado.status === 'FAILED') failures.push('El email no se pudo enviar.');
+  if (resultado.status === 'SKIPPED') skipped.push(EMAIL_SKIP_TEXT[resultado.reason] ?? 'El email no estaba disponible.');
 
   const needsHuman = !porWhatsapp && !porEmail;
 
@@ -151,6 +191,7 @@ export async function notifyDigitalDelivery(input: {
       whatsapp: porWhatsapp,
       email: porEmail,
       emailReason: resultado.status === 'SENT' ? null : resultado.status === 'SKIPPED' ? resultado.reason : resultado.error,
+      emailSimulated,
       assets: enviables.length,
     },
   });
@@ -190,5 +231,5 @@ export async function notifyDigitalDelivery(input: {
     });
   }
 
-  return { whatsapp: porWhatsapp, email: porEmail, needsHuman };
+  return { whatsapp: porWhatsapp, email: porEmail, needsHuman, emailSimulated, failures, skipped };
 }

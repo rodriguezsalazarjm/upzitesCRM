@@ -1,6 +1,7 @@
 import { OrderStatus, PaymentStatus, ProductStatus, type Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { createOrderProviderCheckout } from './checkout';
+import { currentDeliveryToken } from './delivery';
 import { isAllowedPaymentRedirect, maskEmail, verifyCheckoutToken } from './public-checkout-link';
 
 /**
@@ -41,6 +42,11 @@ export type PublicCheckoutView =
       currency: string;
       buyer: { name: string | null; email: string | null };
       state: PublicCheckoutState;
+      /**
+       * Solo con el pedido pagado: enlace a la entrega digital (ruta relativa con
+       * su token), o el motivo por el que no lo hay. null si no aplica.
+       */
+      delivery: { kind: 'READY'; path: string } | { kind: 'REVOKED' } | { kind: 'PENDING' } | null;
     };
 
 const PAID_STATUSES: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED];
@@ -157,7 +163,24 @@ export async function loadPublicCheckout(orderId: string, token: string | null |
     currency: order.currency,
     buyer: { name: contactName || order.customerName || null, email: maskEmail(order.contact?.email ?? order.customerEmail) },
     state,
+    delivery: state === 'PAID' ? await buyerDelivery(order.id) : null,
   };
+}
+
+/**
+ * Acceso a la entrega desde la pagina post-compra (quien tiene el enlace
+ * firmado del checkout es el comprador). Sin entrega todavia: PENDING, y la
+ * pagina no promete nada que no exista.
+ */
+async function buyerDelivery(orderId: string): Promise<NonNullable<Extract<PublicCheckoutView, { ok: true }>['delivery']>> {
+  const deliveries = await prisma.digitalDelivery.findMany({ where: { orderId }, select: { id: true, tokenVersion: true, status: true }, orderBy: { createdAt: 'desc' } });
+  const current = deliveries.find((delivery) => delivery.tokenVersion > 0 && delivery.status !== 'REVOKED');
+  if (current) {
+    const token = currentDeliveryToken(current);
+    if (token) return { kind: 'READY', path: `/d/${token}` };
+  }
+  if (deliveries.length > 0 && deliveries.every((delivery) => delivery.status === 'REVOKED')) return { kind: 'REVOKED' };
+  return { kind: 'PENDING' };
 }
 
 export type StartPaymentResult =

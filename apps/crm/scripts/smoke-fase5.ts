@@ -35,6 +35,7 @@ import {
   hashDeliveryToken,
   resendDelivery,
   resolveDelivery,
+  resolveDeliveryItem,
 } from '../src/lib/commerce/delivery';
 import { scheduleAction } from '../src/lib/domain';
 import { AGENT_TOOLS } from '../src/lib/agents/tools';
@@ -348,7 +349,8 @@ let paidContactId = '';
   check('El pedido queda FULFILLED', reloaded?.status === OrderStatus.FULFILLED);
   check('Se registra el pago', reloaded?.payments[0]?.status === PaymentStatus.APPROVED);
   check('Se crea el fulfillment', (reloaded?.fulfillments.length ?? 0) === 1);
-  check('Se concede el acceso al asset', reloaded?.deliveries[0]?.assetId === asset.id);
+  // Punto 3: el asset entregado queda copiado en el item de la entrega.
+  check('Se concede el acceso al asset', reloaded?.deliveries[0]?.items[0]?.assetId === asset.id);
 
   const contactAfter = await prisma.contact.findUniqueOrThrow({ where: { id: contact.id } });
   check('El contacto pasa a CUSTOMER', contactAfter.lifecycleStatus === 'CUSTOMER');
@@ -449,22 +451,26 @@ let paidContactId = '';
   const delivery = await prisma.digitalDelivery.findFirstOrThrow({ where: { orderId: order.id } });
   check('El token se guarda HASHEADO, no en claro', delivery.tokenHash.length === 64);
 
-  // Se simula el token real regenerandolo por reenvio.
+  // El reenvio (Punto 3) devuelve el MISMO enlace de la entrega.
   const resent = await resendDelivery({
     workspaceId: A.workspaceId,
     deliveryId: delivery.id,
     baseUrl: BASE_URL,
   });
-  check('El reenvio devuelve una URL nueva', Boolean(resent?.url));
+  const resentUrl = resent && 'url' in resent ? resent.url : null;
+  check('El reenvio devuelve el enlace de la entrega', Boolean(resentUrl));
 
-  const token = resent!.url.split('/d/')[1];
+  const token = resentUrl!.split('/d/')[1];
   const resolved = await resolveDelivery(token);
-  check('El token nuevo resuelve el acceso', resolved.ok === true);
+  check('El token resuelve el acceso', resolved.ok === true);
 
+  // El acceso se cuenta por contenido abierto, no por ver la pagina.
+  const item = await prisma.digitalDeliveryItem.findFirstOrThrow({ where: { deliveryId: delivery.id } });
+  const opened = await resolveDeliveryItem(token, item.id);
   const stored = await prisma.digitalDelivery.findUniqueOrThrow({ where: { id: delivery.id } });
   check('El hash guardado corresponde al token', stored.tokenHash === hashDeliveryToken(token));
-  check('Se cuenta el acceso', stored.downloadCount === 1);
-  check('El token viejo deja de servir', (await resolveDelivery('token-inventado')).ok === false);
+  check('Se cuenta el acceso', opened.ok === true && stored.downloadCount === 1);
+  check('Un token inventado no sirve', (await resolveDelivery('token-inventado')).ok === false);
 
   // Limite de descargas.
   await prisma.digitalDelivery.update({

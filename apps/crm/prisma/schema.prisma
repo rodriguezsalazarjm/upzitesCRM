@@ -1750,22 +1750,45 @@ model ProductVariant {
   @@map("product_variants")
 }
 
-/// Lo que se entrega al comprar un digital: un archivo, un enlace o un codigo.
+/// Lo que se entrega al comprar un producto: un archivo, un enlace o un codigo.
+///
+/// Lo administra el Digital Asset Manager (Punto 3) desde Productos → Entrega
+/// digital. Una entrega ya hecha NO lee de aqui: copia cada asset a
+/// `DigitalDeliveryItem` al momento del pago, asi que editar, desactivar o
+/// reemplazar un asset solo afecta a las compras futuras.
 model DigitalAsset {
-  id          String           @id @default(cuid())
-  workspaceId String           @map("workspace_id")
-  productId   String           @map("product_id")
-  kind        DigitalAssetKind @default(LINK)
+  id          String              @id @default(cuid())
+  workspaceId String              @map("workspace_id")
+  productId   String              @map("product_id")
+  kind        DigitalAssetKind    @default(LINK)
+  /// Como se presenta: PDF, audio, ZIP, video o enlace. Null en assets
+  /// anteriores al Punto 3 (se deduce de `kind`).
+  format      DigitalAssetFormat?
   name        String
-  /// Para LINK: la URL de destino. Para FILE: la clave en el almacenamiento.
+  /// Para LINK: la URL de destino. Para FILE: la clave en el almacenamiento de
+  /// entregables (nunca una URL publica). Un reemplazo crea una clave nueva.
   target      String
-  createdAt   DateTime         @default(now()) @map("created_at")
+  /// Solo FILE: tipo verificado contra los bytes, tamano y nombre de descarga.
+  mimeType    String?             @map("mime_type")
+  sizeBytes   Int?                @map("size_bytes")
+  fileName    String?             @map("file_name")
+  /// Orden de entrega dentro del producto (ascendente).
+  position    Int                 @default(0)
+  /// Inactivo: sigue existiendo pero no entra en entregas nuevas.
+  isActive    Boolean             @default(true) @map("is_active")
+  /// Eliminado cuando ya habia sido entregado: se oculta y no se entrega mas,
+  /// pero la fila y el archivo sobreviven para las entregas previas.
+  archivedAt  DateTime?           @map("archived_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at")
 
-  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  deliveries DigitalDelivery[]
+  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product       Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  deliveries    DigitalDelivery[]
+  deliveryItems DigitalDeliveryItem[]
 
   @@index([workspaceId, productId])
+  @@index([productId, archivedAt, position])
   @@map("digital_assets")
 }
 
@@ -1865,37 +1888,87 @@ model FulfillmentOrder {
   @@map("fulfillment_orders")
 }
 
-/// Acceso concedido a un asset digital.
+/// Entrega digital de un pedido.
+///
+/// Desde el Punto 3 hay UNA entrega por pedido (`bundleOrderId` = id del
+/// pedido, unico: es lo que la hace idempotente) con un enlace seguro y sus
+/// assets copiados en `items`. Las filas anteriores eran una por asset
+/// (`assetId`, token aleatorio) y siguen funcionando: la migracion les creo su
+/// item.
 ///
 /// El token se guarda hasheado, igual que las contrasenas: quien lea la base no
-/// obtiene accesos utilizables. El unique (orderId, assetId) es lo que hace
-/// idempotente la entrega: un pago reintentado no genera un segundo acceso.
+/// obtiene accesos utilizables. Con `tokenVersion` > 0 el token se deriva con
+/// HMAC del secreto del servidor (id + version), por eso la pagina post-compra
+/// puede volver a mostrarlo sin guardarlo en claro.
 model DigitalDelivery {
   id            String         @id @default(cuid())
   workspaceId   String         @map("workspace_id")
   orderId       String         @map("order_id")
-  assetId       String         @map("asset_id")
+  /// Solo entregas anteriores al Punto 3 (una fila por asset).
+  assetId       String?        @map("asset_id")
+  /// Id del pedido en las entregas por pedido; null en las anteriores.
+  bundleOrderId String?        @unique @map("bundle_order_id")
   contactId     String?        @map("contact_id")
   tokenHash     String         @unique @map("token_hash")
-  status        DeliveryStatus @default(GRANTED)
+  /// 0 = token aleatorio heredado (no se puede volver a mostrar).
+  tokenVersion  Int            @default(0) @map("token_version")
+  status        DeliveryStatus @default(AVAILABLE)
   expiresAt     DateTime?      @map("expires_at")
+  /// Descargas permitidas POR ARCHIVO de la entrega.
   maxDownloads  Int            @default(20) @map("max_downloads")
   downloadCount Int            @default(0) @map("download_count")
   lastAccessAt  DateTime?      @map("last_access_at")
   sentAt        DateTime?      @map("sent_at")
+  /// Intentos de envio (el inicial y cada reenvio).
+  attempts      Int            @default(0)
+  lastAttemptAt DateTime?      @map("last_attempt_at")
+  /// Motivo legible del ultimo intento sin envio. Nunca un token ni un stack.
+  lastError     String?        @map("last_error")
   /// Cuando se revoco el acceso. Ante una disputa, saber el momento importa
   /// tanto como saber que se revoco.
   revokedAt     DateTime?      @map("revoked_at")
   createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  asset     DigitalAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  contact   Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order     CustomerOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // SetNull: borrar un asset nunca borra lo que ya se entrego.
+  asset     DigitalAsset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  contact   Contact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  items     DigitalDeliveryItem[]
 
   @@unique([orderId, assetId])
   @@index([workspaceId, createdAt])
   @@map("digital_deliveries")
+}
+
+/// Copia de un asset dentro de una entrega, tomada al momento del pago. Es lo
+/// que ve el comprador: cambios posteriores del asset no la reescriben.
+model DigitalDeliveryItem {
+  id            String              @id @default(cuid())
+  deliveryId    String              @map("delivery_id")
+  /// Asset de origen. SetNull: si el negocio lo borra, la copia sigue.
+  assetId       String?             @map("asset_id")
+  position      Int
+  productName   String              @map("product_name")
+  kind          DigitalAssetKind
+  format        DigitalAssetFormat?
+  name          String
+  target        String
+  mimeType      String?             @map("mime_type")
+  sizeBytes     Int?                @map("size_bytes")
+  fileName      String?             @map("file_name")
+  downloadCount Int                 @default(0) @map("download_count")
+  lastAccessAt  DateTime?           @map("last_access_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  delivery DigitalDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  asset    DigitalAsset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@unique([deliveryId, position])
+  @@index([assetId])
+  @@index([target])
+  @@map("digital_delivery_items")
 }
 
 // --- Fase 7: cotizador y aprobaciones ----------------------------------------
@@ -3160,6 +3233,14 @@ enum DigitalAssetKind {
   CODE
 }
 
+enum DigitalAssetFormat {
+  PDF
+  AUDIO
+  ZIP
+  VIDEO
+  LINK
+}
+
 enum PaymentProvider {
   MERCADO_PAGO
   SHOPIFY
@@ -3184,9 +3265,14 @@ enum FulfillmentStatus {
   CANCELLED
 }
 
+/// AVAILABLE: el enlace existe y funciona (aun sin envio). SENT: un canal
+/// existente lo envio. FAILED: el envio fallo (el enlace sigue funcionando).
+/// ACCESSED: solo filas anteriores al Punto 3; el acceso hoy se mide con
+/// `lastAccessAt`/`downloadCount`, no con el estado.
 enum DeliveryStatus {
-  GRANTED
+  AVAILABLE
   SENT
+  FAILED
   ACCESSED
   REVOKED
   EXPIRED

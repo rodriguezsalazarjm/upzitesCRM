@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -18,7 +19,7 @@ export default async function PedidosPage() {
     include: {
       lines: true,
       contact: { select: { firstName: true, lastName: true } },
-      deliveries: { select: { id: true, status: true, downloadCount: true } },
+      deliveries: { select: { id: true, status: true, downloadCount: true }, orderBy: { createdAt: 'asc' } },
       payments: { orderBy: { createdAt: 'desc' }, take: 1, select: { status: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -48,21 +49,18 @@ export default async function PedidosPage() {
             <TableBody>
               {orders.map((order) => {
                 const payment = order.payments[0];
-                const deliveryStatus = order.deliveries.length
-                  ? order.deliveries.some((d) => d.status === 'ACCESSED')
-                    ? 'ACCESSED'
-                    : order.deliveries[0].status
-                  : null;
+                // La entrega por pedido (Punto 3) manda; las anteriores eran una por asset.
+                const deliveryStatus = order.deliveries.length ? order.deliveries[order.deliveries.length - 1].status : null;
                 const downloads = order.deliveries.reduce((sum, delivery) => sum + delivery.downloadCount, 0);
 
                 return (
                   <TableRow key={order.id}>
                     <TableCell>
-                      <p className="truncate font-semibold text-carbon">
+                      <Link href={`/pedidos/${encodeURIComponent(order.id)}`} className="block truncate font-semibold text-carbon hover:text-electric hover:underline">
                         {order.contact
-                          ? `${order.contact.firstName} ${order.contact.lastName}`
+                          ? `${order.contact.firstName} ${order.contact.lastName ?? ''}`.trim()
                           : (order.customerName ?? 'Sin contacto')}
-                      </p>
+                      </Link>
                       <p className="truncate text-xs text-soft">
                         {order.lines.map((line) => `${line.quantity}× ${line.name}`).join(', ')}
                       </p>

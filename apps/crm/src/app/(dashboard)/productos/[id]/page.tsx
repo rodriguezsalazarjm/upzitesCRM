@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PackageCheck } from 'lucide-react';
+import { deliverySummary } from '@/lib/commerce/digital-assets/service';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { CheckoutLinkCard } from '@/components/products/checkout-link-card';
 import { CoverUploader } from '@/components/products/cover-uploader';
@@ -46,6 +49,32 @@ function MetricsCard({ metrics }: { metrics: StudioProductView['metrics'] }) {
   );
 }
 
+/** Acceso a Entrega digital: cuanto contenido activo hay y si falta. */
+function DeliveryCard({ productId, productType, summary }: { productId: string; productType: string; summary: { active: number; total: number } }) {
+  const missing = productType === 'DIGITAL' && summary.active === 0;
+  return (
+    <SettingsCard
+      icon={PackageCheck}
+      title="Entrega digital"
+      description={
+        summary.total === 0
+          ? productType === 'DIGITAL'
+            ? 'Qué recibe el comprador al pagar: archivos y enlaces.'
+            : 'Opcional: materiales digitales que se entregan al pagar.'
+          : `${summary.active} contenido${summary.active === 1 ? '' : 's'} activo${summary.active === 1 ? '' : 's'} de ${summary.total}.`
+      }
+    >
+      {missing && <p className="mb-3 rounded-lg bg-solar/30 px-3 py-2 text-xs text-warning-ink">Sin contenido activo: el comprador no recibiría nada.</p>}
+      <Link
+        href={`/productos/${encodeURIComponent(productId)}/entrega`}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-mist bg-paper px-4 text-sm font-semibold text-carbon hover:border-carbon focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric"
+      >
+        Configurar entrega digital
+      </Link>
+    </SettingsCard>
+  );
+}
+
 /** Editor de un producto del Product Sales Studio. */
 export default async function ProductStudioPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ creado?: string; duplicado?: string }> }) {
   const user = await requireCurrentUser();
@@ -55,7 +84,7 @@ export default async function ProductStudioPage({ params, searchParams }: { para
     if (error instanceof ProductStudioError && error.code === 'NOT_FOUND') notFound();
     throw error;
   });
-  const bumpOptions = await listBumpOptions(user.workspace.id, product.id);
+  const [bumpOptions, delivery] = await Promise.all([listBumpOptions(user.workspace.id, product.id), deliverySummary(user.workspace.id, product.id)]);
   const canEdit = canManageWorkspaceSettings(user.role);
   const readOnlyReason = product.syncedFromShopify
     ? 'Este producto se sincroniza desde Shopify: sus datos se editan en Shopify.'
@@ -110,6 +139,7 @@ export default async function ProductStudioPage({ params, searchParams }: { para
             />
             <div className="space-y-4">
               <CheckoutLinkCard productId={product.id} status={product.status} checkoutUrl={product.checkoutUrl} />
+              <DeliveryCard productId={product.id} productType={product.type} summary={delivery} />
               <CoverUploader productId={product.id} coverVersion={product.cover?.version ?? null} editable={canEdit && !readOnlyReason} />
               <MetricsCard metrics={product.metrics} />
             </div>

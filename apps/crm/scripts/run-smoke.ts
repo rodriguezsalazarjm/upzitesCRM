@@ -26,6 +26,7 @@ const suites = [
   'smoke-p0f.ts',
   'smoke-commerce-ledger.ts',
   'smoke-product-studio.ts',
+  'smoke-digital-delivery.ts',
 ];
 
 const require = createRequire(import.meta.url);

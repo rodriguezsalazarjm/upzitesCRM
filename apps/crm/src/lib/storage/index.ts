@@ -20,11 +20,27 @@ export class StorageNotConfiguredError extends Error {
 
 export type StoredBody = { bytes: Uint8Array; contentType: string };
 
+/** Primeros bytes de un objeto y su tamano total, sin descargarlo entero. */
+export type StoredHead = { bytes: Uint8Array; size: number };
+
 export type StorageDriver = {
   readonly name: 'supabase' | 'filesystem';
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<StoredBody | null>;
+  /** null si el objeto no existe. */
+  head(key: string, length: number): Promise<StoredHead | null>;
   remove(key: string): Promise<void>;
+  /**
+   * URL de descarga firmada y de vida corta, servida por el proveedor y no por
+   * nuestra funcion (que tiene tope de tamano de respuesta). Solo Supabase: con
+   * el disco local quien llama sirve el archivo el mismo.
+   */
+  signedDownloadUrl?(key: string, options: { expiresInSeconds: number; downloadName?: string }): Promise<string>;
+  /**
+   * URL para que el NAVEGADOR suba un objeto directo al bucket: vale solo para
+   * esa clave y por poco tiempo. Solo Supabase (ver `signedDownloadUrl`).
+   */
+  signedUploadUrl?(key: string): Promise<string>;
 };
 
 /**
@@ -67,6 +83,12 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
       .map(encodeURIComponent)
       .join('/')}`;
 
+  const signUrl = (action: 'sign' | 'upload/sign', key: string) =>
+    `${origin}/storage/v1/object/${action}/${encodeURIComponent(bucket)}/${key
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`;
+
   const headers = { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey };
 
   return {
@@ -101,6 +123,22 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
       };
     },
 
+    async head(key, length) {
+      assertKey(key);
+      const response = await fetch(objectUrl(key), {
+        headers: { ...headers, Range: `bytes=0-${Math.max(0, length - 1)}` },
+        cache: 'no-store',
+      });
+      if (await isMissingObject(response)) return null;
+      if (!response.ok) {
+        throw new Error(`El almacenamiento rechazo la lectura (HTTP ${response.status}).`);
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      // 206 trae "bytes 0-4095/123456"; un 200 (objeto menor que el rango) trae todo.
+      const total = /\/(\d+)\s*$/.exec(response.headers.get('content-range') ?? '')?.[1];
+      return { bytes: bytes.slice(0, length), size: total ? Number(total) : bytes.byteLength };
+    },
+
     async remove(key) {
       assertKey(key);
       const response = await fetch(objectUrl(key), { method: 'DELETE', headers });
@@ -108,6 +146,31 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
       if (!response.ok && !(await isMissingObject(response))) {
         throw new Error(`El almacenamiento rechazo el borrado (HTTP ${response.status}).`);
       }
+    },
+
+    async signedDownloadUrl(key, { expiresInSeconds, downloadName }) {
+      assertKey(key);
+      const response = await fetch(signUrl('sign', key), {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: expiresInSeconds }),
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`El almacenamiento no firmo la descarga (HTTP ${response.status}).`);
+      const body = (await response.json()) as { signedURL?: unknown };
+      if (typeof body.signedURL !== 'string') throw new Error('El almacenamiento no devolvio una URL firmada.');
+      const url = new URL(`${origin}/storage/v1${body.signedURL}`);
+      if (downloadName !== undefined) url.searchParams.set('download', downloadName);
+      return url.toString();
+    },
+
+    async signedUploadUrl(key) {
+      assertKey(key);
+      const response = await fetch(signUrl('upload/sign', key), { method: 'POST', headers, cache: 'no-store' });
+      if (!response.ok) throw new Error(`El almacenamiento no firmo la subida (HTTP ${response.status}).`);
+      const body = (await response.json()) as { url?: unknown };
+      if (typeof body.url !== 'string') throw new Error('El almacenamiento no devolvio una URL de subida.');
+      return `${origin}/storage/v1${body.url}`;
     },
   };
 }
@@ -188,6 +251,45 @@ export function storageStatus(): StorageStatus {
   }
 
   return { configured: true, driver: 'filesystem' };
+}
+
+// --- Entregables (Punto 3) --------------------------------------------------
+
+/**
+ * Bucket de los archivos que se entregan al comprador (PDF, audio, ZIP,
+ * video). Es OTRO bucket que el de medios a proposito: el de medios solo admite
+ * imagenes de hasta 5 MB y no se relaja para esto. Nunca se cae al de medios:
+ * sin `DELIVERY_STORAGE_BUCKET`, Supabase cuenta como no configurado.
+ */
+function deliveryBucket() {
+  return process.env.DELIVERY_STORAGE_BUCKET?.trim() || null;
+}
+
+export function deliveryStorageStatus(): StorageStatus {
+  const base = storageStatus();
+  if (!base.configured || base.driver !== 'supabase') return base;
+  const bucket = deliveryBucket();
+  if (!bucket) {
+    return { configured: false, driver: null, reason: 'Falta DELIVERY_STORAGE_BUCKET (bucket privado de entregables).' };
+  }
+  if (bucket === supabaseSettings().bucket) {
+    return { configured: false, driver: null, reason: 'DELIVERY_STORAGE_BUCKET no puede ser el bucket de medios.' };
+  }
+  return base;
+}
+
+/** Almacenamiento de entregables o `StorageNotConfiguredError`. */
+export async function resolveDeliveryStorage(): Promise<StorageDriver> {
+  const status = deliveryStorageStatus();
+  if (!status.configured) {
+    throw new StorageNotConfiguredError(status.reason ?? 'Almacenamiento de entregables no configurado.');
+  }
+  if (status.driver === 'supabase') {
+    const { url, key } = supabaseSettings();
+    return supabaseDriver(url as string, key as string, deliveryBucket() as string);
+  }
+  const { createFilesystemDriver } = await import('./filesystem');
+  return createFilesystemDriver(assertKey);
 }
 
 /**

@@ -133,7 +133,7 @@ export async function getOrder(workspaceId: string, orderId: string) {
       lines: true,
       payments: { orderBy: { createdAt: 'desc' } },
       fulfillments: true,
-      deliveries: { include: { asset: true } },
+      deliveries: { include: { items: { orderBy: { position: 'asc' } } } },
       contact: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });

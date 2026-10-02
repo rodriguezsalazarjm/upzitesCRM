@@ -9,8 +9,7 @@ import { formatMinor } from './money';
 import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
 import { cancelCheckoutRecovery, upsertPayment } from './checkout';
-import { grantDigitalDelivery } from './delivery';
-import { notifyDigitalDelivery } from './delivery-notify';
+import { grantDigitalDelivery, sendDelivery } from './delivery';
 
 /**
  * Procesa el pago de un PEDIDO (no de una suscripcion).
@@ -277,15 +276,13 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
   // D29: hasta ahora los accesos se generaban y se devolvian aqui, y nadie los
   // mandaba. El cliente pagaba y no recibia nada.
   //
-  // Solo se notifica lo recien generado: si el pago ya se habia procesado,
-  // `grantDigitalDelivery` devuelve tokens nulos —los validos son los de la
-  // primera vez— y reenviar seria mandar enlaces que no sirven.
-  const notified = await notifyDigitalDelivery({
-    workspaceId,
-    orderId: order.id,
-    contactId: order.contactId,
-    links: delivery.deliveries,
-  });
+  // Solo se envia lo recien generado: si la entrega ya existia, el envio (y su
+  // reenvio) ya ocurrio o es una accion explicita desde Pedidos. El intento
+  // queda registrado en la entrega (SENT / FAILED / sin canal), ver sendDelivery.
+  const sent = delivery.deliveryId && !delivery.alreadyDelivered
+    ? await sendDelivery({ workspaceId, deliveryId: delivery.deliveryId, baseUrl: input.baseUrl, reason: 'initial' })
+    : null;
+  const notified = sent?.ok ? sent.channels : { whatsapp: false, email: false };
 
   await recordAudit({
     workspaceId,
@@ -305,7 +302,9 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
   return {
     handled: true,
     orderId: order.id,
-    delivered: delivery.deliveries.filter((d) => d.token !== null).length,
+    // Contenidos entregados (archivos y enlaces), no filas: desde el Punto 3 hay
+    // una entrega por pedido con todos sus contenidos.
+    delivered: delivery.alreadyDelivered ? 0 : (delivery.items ?? 0),
     notified: notified.whatsapp || notified.email,
   };
 }

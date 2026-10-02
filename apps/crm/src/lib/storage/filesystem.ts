@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import type { StorageDriver } from './index';
 
@@ -53,6 +53,20 @@ export function createFilesystemDriver(assertKey: (key: string) => void): Storag
         };
       } catch {
         return null;
+      }
+    },
+
+    async head(key, length) {
+      const path = pathFor(key);
+      const handle = await open(path, 'r').catch(() => null);
+      if (!handle) return null;
+      try {
+        const { size } = await handle.stat();
+        const bytes = new Uint8Array(Math.min(length, size));
+        await handle.read(bytes, 0, bytes.byteLength, 0);
+        return { bytes, size };
+      } finally {
+        await handle.close();
       }
     },
 
