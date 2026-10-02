@@ -34,7 +34,7 @@ Object.assign(globalThis, { AsyncLocalStorage });
 
 const { PlanCode } = await import('../generated/prisma/client');
 const { crossTenantPrisma, prisma } = await import('../src/lib/prisma');
-const { storageStatus, resolveStorage } = await import('../src/lib/storage');
+const { storageStatus, resolveStorage, supabaseOrigin } = await import('../src/lib/storage');
 const { createCustomerWorkspace } = await import('../src/lib/subscription');
 const { assignCompSubscription } = await import('../src/lib/billing/subscription-admin');
 const { signProductKey } = await import('../src/lib/commerce/product-link');
@@ -57,7 +57,8 @@ const status = storageStatus();
 check('S0. La capa de storage resuelve el driver Supabase', status.configured && status.driver === 'supabase', JSON.stringify(status));
 
 // Configuracion del bucket (solo campos publicos de su configuracion).
-const base = process.env.SUPABASE_URL!.trim().replace(/\/+$/, '');
+// Mismo origen que usa la capa de storage (descarta rutas como /rest/v1/).
+const base = supabaseOrigin(process.env.SUPABASE_URL)!;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY!.trim();
 const bucketName = process.env.MEDIA_STORAGE_BUCKET!.trim();
 const bucketResponse = await fetch(`${base}/storage/v1/bucket/${encodeURIComponent(bucketName)}`, { headers: { Authorization: `Bearer ${key}`, apikey: key } });

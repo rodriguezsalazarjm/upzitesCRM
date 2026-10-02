@@ -144,3 +144,9 @@ cotizador son otros dominios y no cambian. La sincronización de Shopify
 La portada necesita el storage de medios configurado (`SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `MEDIA_STORAGE_BUCKET`). Sin él, subir una
 portada responde 503 con un mensaje claro y el resto del Studio funciona.
+
+Verificado contra el bucket real `media` (privado, 5 MB, jpeg/png/webp) con
+`scripts/qa-storage-cover.ts`. Dos compatibilidades del driver de Supabase
+(`lib/storage`): `SUPABASE_URL` se reduce a su origen (una URL pegada como
+`.../rest/v1/` funciona igual) y un objeto inexistente, que Supabase informa
+como HTTP 400 `NoSuchKey`, se trata como "no existe" al leer y al borrar.

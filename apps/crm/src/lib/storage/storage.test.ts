@@ -129,3 +129,51 @@ test('pedir Supabase sin sus claves no cae en silencio al disco', () => {
   assert.equal(status.configured, false);
   assert.match(status.reason ?? '', /SUPABASE_URL/);
 });
+
+test('Supabase: un objeto inexistente llega como 400 NoSuchKey y se trata como "no existe"', async () => {
+  const { isMissingObject } = await import('./index');
+  const notFound400 = new Response(JSON.stringify({ statusCode: '404', error: 'not_found', message: 'Object not found', code: 'NoSuchKey' }), { status: 400 });
+  assert.equal(await isMissingObject(notFound400), true);
+  assert.equal(await isMissingObject(new Response(null, { status: 404 })), true);
+  // Otros 400 (p. ej. tipo no permitido por el bucket) siguen siendo errores.
+  assert.equal(await isMissingObject(new Response(JSON.stringify({ statusCode: '415', error: 'invalid_mime_type' }), { status: 400 })), false);
+  assert.equal(await isMissingObject(new Response('no json', { status: 400 })), false);
+  assert.equal(await isMissingObject(new Response(null, { status: 500 })), false);
+});
+
+test('Supabase: leer o borrar un objeto que ya no existe no lanza', async () => {
+  withEnv({ SUPABASE_URL: 'https://proyecto.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'clave-de-prueba', MEDIA_STORAGE_BUCKET: 'media', NODE_ENV: 'test' });
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ statusCode: '404', code: 'NoSuchKey' }), { status: 400 })) as typeof fetch;
+  try {
+    const storage = await resolveStorage();
+    assert.equal(storage.name, 'supabase');
+    assert.equal(await storage.get('products/ws/p/x.png'), null);
+    await storage.remove('products/ws/p/x.png');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('Supabase: SUPABASE_URL con ruta (/rest/v1/) se reduce al origen del proyecto', async () => {
+  const { supabaseOrigin } = await import('./index');
+  assert.equal(supabaseOrigin('https://ref.supabase.co/rest/v1/'), 'https://ref.supabase.co');
+  assert.equal(supabaseOrigin(' https://ref.supabase.co/ '), 'https://ref.supabase.co');
+  assert.equal(supabaseOrigin('https://ref.supabase.co'), 'https://ref.supabase.co');
+  assert.equal(supabaseOrigin('no es una url'), undefined);
+  assert.equal(supabaseOrigin(''), undefined);
+
+  withEnv({ SUPABASE_URL: 'https://ref.supabase.co/rest/v1/', SUPABASE_SERVICE_ROLE_KEY: 'clave-de-prueba', MEDIA_STORAGE_BUCKET: 'media', NODE_ENV: 'test' });
+  const original = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seen.push(String(input));
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+  try {
+    await (await resolveStorage()).put('products/ws/p/x.png', new Uint8Array([1]), 'image/png');
+    assert.equal(seen[0], 'https://ref.supabase.co/storage/v1/object/media/products/ws/p/x.png');
+  } finally {
+    globalThis.fetch = original;
+  }
+});

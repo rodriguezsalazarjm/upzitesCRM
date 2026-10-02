@@ -47,6 +47,18 @@ export function assertKey(key: string) {
  * y el SDK traeria un arbol de dependencias entero para eso. La clave de
  * servicio salta las politicas de la tabla, asi que solo vive en el servidor.
  */
+/**
+ * Supabase Storage informa un objeto inexistente como HTTP 400 con
+ * `{ statusCode: "404", code: "NoSuchKey" }` (no como 404), tanto al leer como
+ * al borrar. Ambos casos significan "no existe".
+ */
+export async function isMissingObject(response: Response) {
+  if (response.status === 404) return true;
+  if (response.status !== 400) return false;
+  const body = (await response.clone().json().catch(() => null)) as { statusCode?: unknown; code?: unknown; error?: unknown } | null;
+  return body?.statusCode === '404' || body?.code === 'NoSuchKey' || body?.error === 'not_found';
+}
+
 function supabaseDriver(url: string, serviceKey: string, bucket: string): StorageDriver {
   const origin = url.replace(/\/+$/, '');
   const objectUrl = (key: string) =>
@@ -78,7 +90,7 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
     async get(key) {
       assertKey(key);
       const response = await fetch(objectUrl(key), { headers, cache: 'no-store' });
-      if (response.status === 404) return null;
+      if (await isMissingObject(response)) return null;
       if (!response.ok) {
         throw new Error(`El almacenamiento rechazo la lectura (HTTP ${response.status}).`);
       }
@@ -93,7 +105,7 @@ function supabaseDriver(url: string, serviceKey: string, bucket: string): Storag
       assertKey(key);
       const response = await fetch(objectUrl(key), { method: 'DELETE', headers });
       // Que ya no este es exactamente el resultado buscado.
-      if (!response.ok && response.status !== 404) {
+      if (!response.ok && !(await isMissingObject(response))) {
         throw new Error(`El almacenamiento rechazo el borrado (HTTP ${response.status}).`);
       }
     },
@@ -114,8 +126,24 @@ function requested() {
   return value === 'supabase' || value === 'filesystem' ? value : null;
 }
 
+/**
+ * La URL de un proyecto Supabase es solo un origen (`https://<ref>.supabase.co`).
+ * Es comun pegar la de la API REST (`.../rest/v1/`): la ruta se descarta, porque
+ * el storage vive en `<origen>/storage/v1`. Una URL invalida cuenta como ausente.
+ */
+export function supabaseOrigin(raw: string | undefined) {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function supabaseSettings() {
-  const url = process.env.SUPABASE_URL?.trim();
+  const url = supabaseOrigin(process.env.SUPABASE_URL);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   const bucket = process.env.MEDIA_STORAGE_BUCKET?.trim() || 'crm-media';
   return { url, key, bucket };
