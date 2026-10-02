@@ -112,9 +112,9 @@ async function loadBumpCandidate(db: Db, workspaceId: string, variantId: string)
     status: variant.product.status,
     currency: variant.product.currency,
     variantActive: variant.isActive,
-    price: variant.priceClp,
+    price: variant.priceMinor,
   };
-  return { candidate, label: offerLabel(variant.product.name, variant), price: variant.priceClp, currency: variant.product.currency, productId: variant.product.id };
+  return { candidate, label: offerLabel(variant.product.name, variant), price: variant.priceMinor, currency: variant.product.currency, productId: variant.product.id };
 }
 
 function parseInput(raw: unknown): ProductInput {
@@ -150,8 +150,8 @@ async function validateBump(tx: Prisma.TransactionClient, workspaceId: string, p
   return input.orderBump.variantId;
 }
 
-function readinessVariants(variants: { isDefault: boolean; isActive: boolean; priceClp: number; id: string }[]) {
-  return variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceClp }));
+function readinessVariants(variants: { isDefault: boolean; isActive: boolean; priceMinor: number; id: string }[]) {
+  return variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceMinor }));
 }
 
 // --- Crear / guardar ----------------------------------------------------------
@@ -177,8 +177,8 @@ export async function createStudioProduct(actor: StudioActor, raw: unknown) {
         ...(bumpVariantId ? { metadata: { orderBump: { variantId: bumpVariantId } } } : {}),
         variants: {
           create: [
-            { name: 'Estándar', sku: input.sku, priceClp: input.basePrice, isDefault: true, isActive: !hasOptions, inventory: null },
-            ...input.variants.map((variant) => ({ name: variant.name, sku: variant.sku, priceClp: variant.price, isActive: variant.isActive, isDefault: false, inventory: null })),
+            { name: 'Estándar', sku: input.sku, priceMinor: input.basePrice, isDefault: true, isActive: !hasOptions, inventory: null },
+            ...input.variants.map((variant) => ({ name: variant.name, sku: variant.sku, priceMinor: variant.price, isActive: variant.isActive, isDefault: false, inventory: null })),
           ],
         },
       },
@@ -232,9 +232,9 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
 
     const base = product.variants.find((variant) => variant.isDefault);
     if (base) {
-      await tx.productVariant.update({ where: { id: base.id }, data: { priceClp: input.basePrice, sku: input.sku, isActive: !hasOptions } });
+      await tx.productVariant.update({ where: { id: base.id }, data: { priceMinor: input.basePrice, sku: input.sku, isActive: !hasOptions } });
     } else {
-      await tx.productVariant.create({ data: { productId: product.id, name: 'Estándar', sku: input.sku, priceClp: input.basePrice, isDefault: true, isActive: !hasOptions, inventory: null } });
+      await tx.productVariant.create({ data: { productId: product.id, name: 'Estándar', sku: input.sku, priceMinor: input.basePrice, isDefault: true, isActive: !hasOptions, inventory: null } });
     }
 
     const keptIds = new Set(input.variants.map((variant) => variant.id).filter(Boolean));
@@ -250,7 +250,7 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
       }
     }
     for (const variant of input.variants) {
-      const data = { name: variant.name, sku: variant.sku, priceClp: variant.price, isActive: variant.isActive };
+      const data = { name: variant.name, sku: variant.sku, priceMinor: variant.price, isActive: variant.isActive };
       if (variant.id) await tx.productVariant.update({ where: { id: variant.id }, data });
       else await tx.productVariant.create({ data: { ...data, productId: product.id, isDefault: false, inventory: null } });
     }
@@ -363,7 +363,7 @@ export async function duplicateStudioProduct(actor: StudioActor, productId: stri
           create: source.variants.map((variant) => ({
             name: variant.name,
             sku: null,
-            priceClp: variant.priceClp,
+            priceMinor: variant.priceMinor,
             inventory: variant.inventory,
             isDefault: variant.isDefault,
             isActive: variant.isActive,
@@ -440,7 +440,7 @@ export async function listStudioProducts(workspaceId: string, filter: StudioFilt
   const [products, counts, sold] = await Promise.all([
     prisma.product.findMany({
       where: { workspaceId, ...(filter === 'all' ? {} : { status: filter }) },
-      include: { variants: { select: { id: true, isDefault: true, isActive: true, priceClp: true } } },
+      include: { variants: { select: { id: true, isDefault: true, isActive: true, priceMinor: true } } },
       orderBy: [{ updatedAt: 'desc' }],
     }),
     prisma.product.groupBy({ by: ['status'], where: { workspaceId }, _count: { _all: true } }),
@@ -461,7 +461,7 @@ export async function listStudioProducts(workspaceId: string, filter: StudioFilt
       ARCHIVED: countBy.ARCHIVED ?? 0,
     },
     products: products.map((product) => {
-      const variants = product.variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceClp }));
+      const variants = product.variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceMinor }));
       const cover = readCover(product.metadata);
       return {
         id: product.id,
@@ -489,12 +489,12 @@ export async function listBumpOptions(workspaceId: string, excludeProductId: str
     orderBy: { name: 'asc' },
   });
   return products.flatMap((product) => {
-    const variants = product.variants.map((variant) => ({ ...variant, price: variant.priceClp }));
+    const variants = product.variants.map((variant) => ({ ...variant, price: variant.priceMinor }));
     return sellableVariants(variants).variants.map((variant) => ({
       variantId: variant.id,
       productId: product.id,
       label: offerLabel(product.name, variant),
-      price: variant.priceClp,
+      price: variant.priceMinor,
       currency: product.currency,
       published: product.status === ProductStatus.ACTIVE,
     }));
@@ -556,7 +556,7 @@ export async function getStudioProduct(workspaceId: string, productId: string) {
     productsUsingAsBump(prisma, workspaceId, product.id, product.variants.map((variant) => variant.id)),
   ]);
   const cover = readCover(product.metadata);
-  const variants = product.variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceClp }));
+  const variants = product.variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceMinor }));
   const base = product.variants.find((variant) => variant.isDefault) ?? null;
   return {
     id: product.id,
@@ -565,11 +565,11 @@ export async function getStudioProduct(workspaceId: string, productId: string) {
     type: product.type,
     status: product.status as StudioProductStatus,
     currency: product.currency,
-    basePrice: base?.priceClp ?? 0,
+    basePrice: base?.priceMinor ?? 0,
     sku: base?.sku ?? null,
     options: product.variants
       .filter((variant) => !variant.isDefault)
-      .map((variant) => ({ id: variant.id, name: variant.name, sku: variant.sku, price: variant.priceClp, isActive: variant.isActive })),
+      .map((variant) => ({ id: variant.id, name: variant.name, sku: variant.sku, price: variant.priceMinor, isActive: variant.isActive })),
     bump,
     usedAsBumpBy: usedBy.map((item) => ({ id: item.id, name: item.name })),
     metrics,

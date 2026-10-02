@@ -1731,7 +1731,10 @@ model ProductVariant {
   externalId String?  @map("external_id")
   name       String
   sku        String?
-  priceClp   Int      @map("price_clp")
+  /// Precio en UNIDADES MENORES de `Product.currency` (ISO 4217): CLP 19990 =
+  /// $19.990, USD 1999 = US$19,99. Nunca asumir CLP: formatear y convertir con
+  /// lib/commerce/money. La columna conserva su nombre historico `price_clp`.
+  priceMinor Int      @map("price_clp")
   /// Null significa "sin control de stock" (tipico de un digital).
   inventory  Int?
   isDefault  Boolean  @default(false) @map("is_default")

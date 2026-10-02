@@ -5,6 +5,7 @@ import {
   PaymentStatus,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { formatMinor } from './money';
 import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
 import { cancelCheckoutRecovery, upsertPayment } from './checkout';
@@ -260,7 +261,7 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
         contactId: order.contactId,
         type: ActivityType.DEAL,
         title: 'Pago confirmado',
-        description: `Pedido por ${order.total} ${order.currency}.`,
+        description: `Pedido por ${formatMinor(order.total, order.currency)}.`,
       },
     });
   }

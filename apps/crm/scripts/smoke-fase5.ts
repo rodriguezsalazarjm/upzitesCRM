@@ -64,7 +64,7 @@ async function makeWorkspace(key: string) {
 }
 
 /** Producto digital con un asset entregable. */
-async function makeDigitalProduct(workspaceId: string, name: string, priceClp: number) {
+async function makeDigitalProduct(workspaceId: string, name: string, priceMinor: number) {
   const product = await prisma.product.create({
     data: {
       workspaceId,
@@ -72,7 +72,7 @@ async function makeDigitalProduct(workspaceId: string, name: string, priceClp: n
       description: 'Producto de prueba',
       type: ProductType.DIGITAL,
       status: ProductStatus.ACTIVE,
-      variants: { create: { name: 'Estandar', priceClp, isDefault: true, inventory: null } },
+      variants: { create: { name: 'Estandar', priceMinor, isDefault: true, inventory: null } },
       assets: {
         create: { workspaceId, kind: 'LINK', name: `${name} — acceso`, target: 'https://ejemplo.test/recurso' },
       },
@@ -115,7 +115,7 @@ const B = await makeWorkspace('b');
       name: 'Borrador oculto',
       type: ProductType.DIGITAL,
       status: ProductStatus.DRAFT,
-      variants: { create: { name: 'Estandar', priceClp: 1000, isDefault: true } },
+      variants: { create: { name: 'Estandar', priceMinor: 1000, isDefault: true } },
     },
   });
   const afterDraft = await listCatalog(A.workspaceId);
@@ -142,11 +142,11 @@ const B = await makeWorkspace('b');
   check('El pedido nace en DRAFT', order.status === OrderStatus.DRAFT);
 
   // Cambiar el precio del catalogo no reescribe lo ya pedido.
-  await prisma.productVariant.update({ where: { id: variant.id }, data: { priceClp: 99900 } });
+  await prisma.productVariant.update({ where: { id: variant.id }, data: { priceMinor: 99900 } });
   const reloaded = await getOrder(A.workspaceId, order.id);
   check('Subir el precio del catalogo NO cambia un pedido existente',
     reloaded?.lines[0].unitPrice === 49900 && reloaded?.total === 99800);
-  await prisma.productVariant.update({ where: { id: variant.id }, data: { priceClp: 49900 } });
+  await prisma.productVariant.update({ where: { id: variant.id }, data: { priceMinor: 49900 } });
 }
 
 // --- 3. Validaciones del pedido ---------------------------------------------
@@ -182,7 +182,7 @@ const B = await makeWorkspace('b');
       name: 'Producto fisico agotado',
       type: ProductType.PHYSICAL,
       status: ProductStatus.ACTIVE,
-      variants: { create: { name: 'Estandar', priceClp: 10000, isDefault: true, inventory: 0 } },
+      variants: { create: { name: 'Estandar', priceMinor: 10000, isDefault: true, inventory: 0 } },
     },
     include: { variants: true },
   });

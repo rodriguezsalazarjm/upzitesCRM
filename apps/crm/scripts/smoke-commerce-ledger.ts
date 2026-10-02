@@ -104,7 +104,7 @@ const product = await prisma.product.create({
     name: 'Devocional digital',
     type: ProductType.DIGITAL,
     status: ProductStatus.ACTIVE,
-    variants: { create: [{ name: 'Acceso', priceClp: PRICE, isDefault: true }] },
+    variants: { create: [{ name: 'Acceso', priceMinor: PRICE, isDefault: true }] },
     assets: { create: [{ workspaceId: W, name: 'Acceso al contenido', target: 'https://contenido.ledger.test/curso' }] },
   },
   include: { variants: true },
@@ -258,7 +258,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
       type: ProductType.DIGITAL,
       status: ProductStatus.ACTIVE,
       currency: 'CLP',
-      variants: { create: [{ name: 'Acceso bump', priceClp: 7900, isDefault: true }] },
+      variants: { create: [{ name: 'Acceso bump', priceMinor: 7900, isDefault: true }] },
       assets: { create: [{ workspaceId: W, name: 'Acceso al audio', target: 'https://contenido.ledger.test/audio' }] },
     },
     include: { variants: true },
@@ -325,7 +325,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
   const o3 = await newOrder();
   await prisma.orderLine.updateMany({ where: { orderId: o3.id }, data: { unitPrice: 1, total: 1 } });
   // Producto de OTRO workspace colgado de un pedido de W.
-  const foreign = await prisma.product.create({ data: { workspaceId: C, name: 'Ajeno', type: ProductType.DIGITAL, status: ProductStatus.ACTIVE, variants: { create: [{ name: 'Ajeno', priceClp: PRICE, isDefault: true }] } }, include: { variants: true } });
+  const foreign = await prisma.product.create({ data: { workspaceId: C, name: 'Ajeno', type: ProductType.DIGITAL, status: ProductStatus.ACTIVE, variants: { create: [{ name: 'Ajeno', priceMinor: PRICE, isDefault: true }] } }, include: { variants: true } });
   const o4 = await newOrder();
   await prisma.orderLine.updateMany({ where: { orderId: o4.id }, data: { variantId: foreign.variants[0].id } });
   // Dos items: fuera de la primera version.
@@ -447,7 +447,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
         type: ProductType.DIGITAL,
         status: ProductStatus.ACTIVE,
         currency: 'CLP',
-        variants: { create: [{ name: 'Main 5990', priceClp: 5990, isDefault: true }] },
+        variants: { create: [{ name: 'Main 5990', priceMinor: 5990, isDefault: true }] },
         assets: { create: [{ workspaceId: W, name: 'Entrega main hardening', target: 'https://contenido.ledger.test/hardening-main' }] },
       },
       include: { variants: true },
@@ -459,7 +459,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
         type: ProductType.DIGITAL,
         status: ProductStatus.ACTIVE,
         currency: 'CLP',
-        variants: { create: [{ name: 'Bump 2990', priceClp: 2990, isDefault: true }] },
+        variants: { create: [{ name: 'Bump 2990', priceMinor: 2990, isDefault: true }] },
         assets: { create: [{ workspaceId: W, name: 'Entrega bump hardening', target: 'https://contenido.ledger.test/hardening-bump' }] },
       },
       include: { variants: true },

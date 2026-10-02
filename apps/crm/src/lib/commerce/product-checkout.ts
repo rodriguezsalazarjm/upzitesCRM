@@ -53,7 +53,7 @@ async function loadProduct(productId: string) {
 type LoadedProduct = NonNullable<Awaited<ReturnType<typeof loadProduct>>>;
 
 function variantsOf(product: LoadedProduct) {
-  return product.variants.map((variant) => ({ ...variant, price: variant.priceClp }));
+  return product.variants.map((variant) => ({ ...variant, price: variant.priceMinor }));
 }
 
 /** Vista del producto tal como la ve el comprador (tambien la usa la vista previa). */
@@ -69,7 +69,7 @@ export function presentProduct(product: LoadedProduct, coverUrl: string | null):
     currency: product.currency,
     coverUrl,
     needsChoice: sellable.needsChoice,
-    options: sellable.variants.map((variant) => ({ id: variant.id, label: sellable.needsChoice ? variant.name : offerLabel(product.name, variant), price: variant.priceClp })),
+    options: sellable.variants.map((variant) => ({ id: variant.id, label: sellable.needsChoice ? variant.name : offerLabel(product.name, variant), price: variant.priceMinor })),
   };
 }
 

@@ -28,7 +28,7 @@ try {
     const definition = await prisma.agentDefinition.findFirstOrThrow({ where: { workspaceId: workspace.id, key: 'SALES' } });
     const version = await prisma.agentVersion.findFirstOrThrow({ where: { agentDefinitionId: definition.id } });
     await prisma.agentVersion.update({ where: { id: version.id }, data: { status: 'PUBLISHED', allowedTools: ALL_TOOL_NAMES } });
-    const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: `Producto ${key}`, status: 'ACTIVE', variants: { create: { name: 'Digital', priceClp: key === 'A' ? 5900 : 9900, isDefault: true } } } });
+    const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: `Producto ${key}`, status: 'ACTIVE', variants: { create: { name: 'Digital', priceMinor: key === 'A' ? 5900 : 9900, isDefault: true } } } });
     await prisma.knowledgeSource.create({ data: { workspaceId: workspace.id, type: 'FAQ', title: 'Horario', content: `Secreto de ${key}` } });
     return { workspaceId: workspace.id, user, account, contact, conversation, version, product };
   }

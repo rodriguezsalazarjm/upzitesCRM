@@ -72,7 +72,7 @@ async function makeDigitalProduct(workspaceId: string) {
       description: 'Infoproducto de prueba (Fase A)',
       type: ProductType.DIGITAL,
       status: ProductStatus.ACTIVE,
-      variants: { create: { name: 'Acceso', priceClp: 5990, isDefault: true, inventory: null } },
+      variants: { create: { name: 'Acceso', priceMinor: 5990, isDefault: true, inventory: null } },
       assets: {
         create: {
           workspaceId,

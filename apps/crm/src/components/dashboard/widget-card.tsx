@@ -4,11 +4,14 @@ import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import type { LoadedWidget } from '@/lib/workspace-experience';
 import { cn } from '@/lib/utils';
+import { exponentOf } from '@/lib/commerce/money';
 import { WidgetControls } from './dashboard-controls';
 
 function format(value: number, kind: 'number' | 'money', currency: string) {
   if (kind === 'money') {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency, maximumFractionDigits: 0, notation: value >= 1_000_000 ? 'compact' : 'standard' }).format(value);
+    // value llega en unidades MAYORES de la moneda del negocio (ver loaders/commerce).
+    const digits = exponentOf(currency);
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: digits, notation: value >= 1_000_000 ? 'compact' : 'standard' }).format(value);
   }
   return new Intl.NumberFormat('es-CL').format(value);
 }

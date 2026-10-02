@@ -46,6 +46,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/smoke-p0e.ts': { uses: 7, why: 'Test: fixtures de usuarios (miembro, SUPER_ADMIN), verificacion del negocio interno y limpieza.' },
   'scripts/smoke-p0f.ts': { uses: 3, why: 'Test: limpieza de workspaces, cuentas y auditoria de plataforma creadas por la suite.' },
   'scripts/smoke-commerce-ledger.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de ledger commerce vs SaaS.' },
+  'scripts/qa-storage-cover.ts': { uses: 2, why: 'QA de portadas contra storage real: limpieza de los workspaces y cuentas de prueba que crea.' },
   'scripts/smoke-product-studio.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke del Product Sales Studio.' },
 };
 

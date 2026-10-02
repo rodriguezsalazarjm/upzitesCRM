@@ -82,14 +82,14 @@ export async function createOrder(input: CreateOrderInput) {
     currency = variant.product.currency;
 
     const quantity = Math.max(1, Math.floor(item.quantity));
-    const total = variant.priceClp * quantity;
+    const total = variant.priceMinor * quantity;
     subtotal += total;
 
     lines.push({
       variant: { connect: { id: variant.id } },
       name: `${variant.product.name}${variant.isDefault ? '' : ` — ${variant.name}`}`,
       sku: variant.sku,
-      unitPrice: variant.priceClp,
+      unitPrice: variant.priceMinor,
       quantity,
       total,
     });
@@ -186,7 +186,7 @@ export async function listCatalog(workspaceId: string, query?: string) {
         : {}),
     },
     include: {
-      variants: { where: { isActive: true }, orderBy: { priceClp: 'asc' } },
+      variants: { where: { isActive: true }, orderBy: { priceMinor: 'asc' } },
       assets: { select: { id: true, kind: true, name: true } },
     },
     orderBy: { name: 'asc' },

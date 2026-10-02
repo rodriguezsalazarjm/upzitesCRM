@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { CURRENCY_EXPONENT } from '../../billing/money';
+import { exponentOf, formatMinor, majorText } from '../money';
+
+export { exponentOf, formatMinor };
 
 /**
  * Product Sales Studio — reglas puras (sin base de datos ni red).
@@ -10,8 +13,8 @@ import { CURRENCY_EXPONENT } from '../../billing/money';
  *
  * Dinero: enteros en unidades menores ISO 4217 (la convencion de
  * lib/billing/money): CLP exponente 0 (19990 = $19.990), USD exponente 2
- * (1999 = US$19,99). `ProductVariant.priceClp` guarda ese entero en la moneda
- * del producto (el nombre de la columna es historico).
+ * (1999 = US$19,99). `ProductVariant.priceMinor` guarda ese entero en la moneda
+ * del producto. Formato y precio con moneda: lib/commerce/money.
  */
 
 export const PRODUCT_TYPES = ['DIGITAL', 'PHYSICAL', 'SERVICE'] as const;
@@ -51,11 +54,6 @@ export const CURRENCY_LABEL: Record<StudioCurrency, string> = {
 
 // --- Dinero -----------------------------------------------------------------
 
-export function exponentOf(currency: string) {
-  const exponent = CURRENCY_EXPONENT[currency.toUpperCase()];
-  return exponent === undefined ? 0 : exponent;
-}
-
 /**
  * Texto escrito por una persona → unidades menores, o null si no es un monto.
  * CLP: "19.990", "19990" → 19990 (sin decimales). USD: "19.99", "19,99",
@@ -89,25 +87,7 @@ export function parseMoneyInput(raw: string, currency: string): number | null {
 
 /** Unidades menores → texto editable ("19990" / "19.99"). */
 export function minorToInput(amountMinor: number, currency: string) {
-  const exponent = exponentOf(currency);
-  if (exponent === 0) return String(amountMinor);
-  const whole = Math.floor(amountMinor / 10 ** exponent);
-  const fraction = String(amountMinor % 10 ** exponent).padStart(exponent, '0');
-  return `${whole}.${fraction}`;
-}
-
-export function formatMinor(amountMinor: number, currency: string) {
-  const exponent = exponentOf(currency);
-  try {
-    return new Intl.NumberFormat(currency === 'CLP' ? 'es-CL' : 'en-US', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: exponent,
-      maximumFractionDigits: exponent,
-    }).format(amountMinor / 10 ** exponent);
-  } catch {
-    return `${amountMinor} ${currency}`;
-  }
+  return majorText(amountMinor, currency);
 }
 
 // --- SKU --------------------------------------------------------------------

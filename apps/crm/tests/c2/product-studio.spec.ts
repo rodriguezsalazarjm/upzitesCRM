@@ -258,6 +258,16 @@ test('Listado: filtros, duplicar como borrador y archivar con confirmación', as
   await expect(page.getByRole('status').filter({ hasText: 'Producto despublicado' })).toBeVisible();
   await gotoStable(page, link);
   await expect(page.getByText('Este producto no está disponible')).toBeVisible();
+  // No filtra nombre ni precio de un producto que no esta a la venta.
+  await expect(page.getByText(BUMP)).toHaveCount(0);
+  await expect(page.getByText('$2.990')).toHaveCount(0);
+  // Firma manipulada o ausente: 404 (no revela si el producto existe).
+  const signed = new URL(link);
+  const key = signed.searchParams.get('k')!;
+  const tampered = await gotoStable(page, `${signed.pathname}?k=${key.slice(0, -2)}${key.endsWith('AA') ? 'BB' : 'AA'}`);
+  expect(tampered?.status()).toBe(404);
+  const unsigned = await gotoStable(page, signed.pathname);
+  expect(unsigned?.status()).toBe(404);
   await gotoStable(page, bumpUrl);
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Producto publicado' })).toBeVisible();

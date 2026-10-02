@@ -54,7 +54,7 @@ async function loadOrder(orderId: string, db: DbClient = prisma) {
     include: {
       workspace: { select: { name: true } },
       contact: { select: { firstName: true, lastName: true, email: true } },
-      lines: { include: { variant: { select: { id: true, productId: true, priceClp: true, isActive: true, product: { select: { workspaceId: true, status: true, currency: true, metadata: true } } } } } },
+      lines: { include: { variant: { select: { id: true, productId: true, priceMinor: true, isActive: true, product: { select: { workspaceId: true, status: true, currency: true, metadata: true } } } } } },
       payments: { select: { status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
@@ -122,8 +122,8 @@ async function resolveBump(order: LoadedOrder, db: DbClient = prisma) {
     },
     include: { product: { select: { name: true } } },
   });
-  if (!variant || variant.priceClp <= 0) return null;
-  return { variantId: variant.id, name: variant.product.name, unitPrice: variant.priceClp };
+  if (!variant || variant.priceMinor <= 0) return null;
+  return { variantId: variant.id, name: variant.product.name, unitPrice: variant.priceMinor };
 }
 
 function stateOf(order: LoadedOrder): PublicCheckoutState | null {

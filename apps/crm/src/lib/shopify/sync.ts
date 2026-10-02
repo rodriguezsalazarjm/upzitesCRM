@@ -67,6 +67,11 @@ export async function syncShopifyCatalog(input: {
 
       result.products += 1;
 
+      // Limitacion conocida (anterior al Product Sales Studio): la sincronizacion
+      // asume una tienda en CLP. El producto queda con la moneda por defecto
+      // (CLP) y el precio se redondea a entero, que en CLP coincide con las
+      // unidades menores de `priceMinor`. Una tienda en otra moneda necesita
+      // leer la moneda de la tienda y convertir con lib/commerce/money.
       const variants = ((raw.variants ?? {}) as Record<string, unknown>).nodes;
       const variantNodes = Array.isArray(variants) ? (variants as Record<string, unknown>[]) : [];
 
@@ -81,7 +86,7 @@ export async function syncShopifyCatalog(input: {
             externalId: variantExternalId,
             name: String(variant.title ?? 'Estandar'),
             sku: variant.sku ? String(variant.sku) : null,
-            priceClp: toIntAmount(variant.price),
+            priceMinor: toIntAmount(variant.price),
             inventory: typeof variant.inventoryQuantity === 'number' ? variant.inventoryQuantity : null,
             isDefault: index === 0,
             isActive: variant.availableForSale !== false,
@@ -89,7 +94,7 @@ export async function syncShopifyCatalog(input: {
           update: {
             name: String(variant.title ?? 'Estandar'),
             sku: variant.sku ? String(variant.sku) : null,
-            priceClp: toIntAmount(variant.price),
+            priceMinor: toIntAmount(variant.price),
             inventory: typeof variant.inventoryQuantity === 'number' ? variant.inventoryQuantity : null,
             isActive: variant.availableForSale !== false,
           },
@@ -139,7 +144,7 @@ export type LiveVariant = {
   externalId: string;
   title: string;
   sku: string | null;
-  priceClp: number;
+  priceMinor: number;
   inventory: number | null;
   availableForSale: boolean;
   productTitle: string;
@@ -167,7 +172,7 @@ export async function fetchLiveVariant(
     externalId: String(variant.id),
     title: String(variant.title ?? 'Estandar'),
     sku: variant.sku ? String(variant.sku) : null,
-    priceClp: toIntAmount(variant.price),
+    priceMinor: toIntAmount(variant.price),
     inventory: typeof variant.inventoryQuantity === 'number' ? variant.inventoryQuantity : null,
     availableForSale: variant.availableForSale !== false && product.status === 'ACTIVE',
     productTitle: String(product.title ?? ''),

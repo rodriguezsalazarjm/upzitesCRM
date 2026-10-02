@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { formatMinor, priceView, textMentionsPrice } from '../commerce/money';
 import {
   ActivityType,
   BuyingIntent,
@@ -413,7 +414,8 @@ export const AGENT_TOOLS: AgentTool[] = [
           variants: product.variants.map((variant) => ({
             variantId: variant.id,
             name: variant.name,
-            priceClp: variant.priceClp,
+            // Precio SIEMPRE con su moneda: el agente no debe suponer CLP.
+            price: priceView(variant.priceMinor, product.currency),
             available: variant.inventory === null || variant.inventory > 0,
           })),
         })),
@@ -446,7 +448,7 @@ export const AGENT_TOOLS: AgentTool[] = [
           variants: product.variants.map((v) => ({
             variantId: v.id,
             name: v.name,
-            priceClp: v.priceClp,
+            price: priceView(v.priceMinor, product.currency),
             available: v.inventory === null || v.inventory > 0,
           })),
         },
@@ -473,9 +475,9 @@ export const AGENT_TOOLS: AgentTool[] = [
         },
         select: {
           inventory: true,
-          priceClp: true,
+          priceMinor: true,
           externalId: true,
-          product: { select: { connectionId: true } },
+          product: { select: { connectionId: true, currency: true } },
         },
       });
 
@@ -497,7 +499,7 @@ export const AGENT_TOOLS: AgentTool[] = [
                   live.availableForSale &&
                   (live.inventory === null || live.inventory >= parsed.data.quantity),
                 unlimited: live.inventory === null,
-                priceClp: live.priceClp,
+                price: priceView(live.priceMinor, variant.product.currency),
                 source: 'shopify',
               },
             };
@@ -515,7 +517,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         data: {
           available: unlimited || variant.inventory! >= parsed.data.quantity,
           unlimited,
-          priceClp: variant.priceClp,
+          price: priceView(variant.priceMinor, variant.product.currency),
           source: 'internal',
         },
       };
@@ -573,7 +575,7 @@ export const AGENT_TOOLS: AgentTool[] = [
             email: parsed.data.email,
             // Precio de la copia local: si la tienda dice otro, se aborta en
             // vez de cobrar distinto de lo que se converso.
-            quotedPriceClp: variant.priceClp,
+            quotedPriceMinor: variant.priceMinor,
           });
 
           await audit(context, 'create_checkout', {
@@ -616,7 +618,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         // no lo inventa.
         return {
           ok: true,
-          data: { checkoutUrl: buyerFacingCheckoutUrl(checkout), publicUrl: checkout.publicUrl, totalClp: order.total, orderId: order.id },
+          data: { checkoutUrl: buyerFacingCheckoutUrl(checkout), publicUrl: checkout.publicUrl, total: priceView(order.total, order.currency), orderId: order.id },
         };
       } catch (error) {
         // P0-C: el plan no incluye cobros (defensa en runtime; la publicacion
@@ -683,7 +685,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         ok: true,
         data: {
           status: order.status,
-          totalClp: order.total,
+          total: priceView(order.total, order.currency),
           items: order.lines.map((line) => ({ name: line.name, quantity: line.quantity })),
           delivered: order.deliveries.length > 0,
           // El enlace de entrega NUNCA se devuelve al agente: si el cliente lo
@@ -897,16 +899,16 @@ AGENT_TOOLS.push(
     if (!ctx.conversationId || !await prisma.conversation.findFirst({ where: { id: ctx.conversationId, workspaceId: ctx.workspaceId, contactId: ctx.contactId! } })) return { ok: false, error: 'Conversación inválida.' };
     const recent = await prisma.message.findMany({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId }, orderBy: { createdAt: 'desc' }, take: 12 });
     const inbound = recent.find(m => m.direction === 'INBOUND');
-    const offer = recent.find(m => m.direction === 'OUTBOUND' && (m.text ?? '').includes(product.name) && (m.text ?? '').includes(String(variant.priceClp)));
+    const offer = recent.find(m => m.direction === 'OUTBOUND' && (m.text ?? '').includes(product.name) && textMentionsPrice(m.text ?? '', variant.priceMinor, product.currency));
     if (!inbound || !/^(sí|si|confirmo|confirmar)(\b|\s)/i.test((inbound.text ?? '').trim()) || !offer || offer.createdAt >= inbound.createdAt) return { ok: false, error: 'Se requiere confirmación explícita después de presentar producto y precio actual.' };
     const existing = await prisma.customerOrder.findFirst({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, status: { in: ['DRAFT', 'PENDING_PAYMENT'] }, lines: { some: { variantId: variant.id } } }, orderBy: { createdAt: 'desc' } });
     if (existing) {
       const publicUrl = publicCheckoutUrl(existing.id);
-      return { ok: true, data: { checkoutUrl: publicUrl, publicUrl, orderId: existing.id, displayName: product.name, displayPrice: existing.total, currency: existing.currency } };
+      return { ok: true, data: { checkoutUrl: publicUrl, publicUrl, orderId: existing.id, displayName: product.name, displayPrice: formatMinor(existing.total, existing.currency), currency: existing.currency } };
     }
     const result = await AGENT_TOOLS.find(t => t.name === 'create_checkout')!.execute({ variantId: variant.id, quantity: 1 }, ctx);
     if (!result.ok) return result;
-    return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: variant.priceClp, currency: product.currency } };
+    return { ok: true, data: { ...(result.data as Record<string, unknown>), displayName: product.name, displayPrice: formatMinor(variant.priceMinor, product.currency), currency: product.currency } };
   } },
   { name: 'updateLeadQualification', description: 'Registra necesidad y presupuesto aportados por el contacto.', schema: z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict(), hasSideEffects: true, execute: async (args, ctx) => {
     const parsed = z.object({ need: z.string().min(1).max(1000), budget: z.string().max(200).optional() }).strict().safeParse(args);

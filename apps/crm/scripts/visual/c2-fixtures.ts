@@ -21,7 +21,7 @@ try {
     const definition = await prisma.agentDefinition.findFirstOrThrow({ where: { workspaceId: workspace.id, key: 'SALES' } });
     const version = await prisma.agentVersion.findFirstOrThrow({ where: { agentDefinitionId: definition.id } });
     await prisma.agentVersion.update({ where: { id: version.id }, data: { status: 'PUBLISHED', publishedAt: new Date(), allowedTools: ALL_TOOL_NAMES, maxSteps: 8 } });
-    const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: key === 'a' ? '5 Minutos con Dios' : 'Producto exclusivo B', status: 'ACTIVE', type: 'DIGITAL', variants: { create: { name: 'Acceso digital', priceClp: key === 'a' ? 5900 : 12900, isDefault: true } }, assets: { create: { workspaceId: workspace.id, name: 'Recurso demo', kind: 'LINK', target: 'http://localhost:3101/sin-conexion' } } } });
+    const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: key === 'a' ? '5 Minutos con Dios' : 'Producto exclusivo B', status: 'ACTIVE', type: 'DIGITAL', variants: { create: { name: 'Acceso digital', priceMinor: key === 'a' ? 5900 : 12900, isDefault: true } }, assets: { create: { workspaceId: workspace.id, name: 'Recurso demo', kind: 'LINK', target: 'http://localhost:3101/sin-conexion' } } } });
     await prisma.knowledgeSource.create({ data: { workspaceId: workspace.id, type: 'FAQ', title: '¿Cuál es el horario?', content: key === 'a' ? 'Horario exclusivo A: lunes a viernes de 9 a 18.' : 'Horario exclusivo B: sábados de 10 a 14.' } });
     result[key] = { workspaceId: workspace.id, ownerId: user.id, email, agentId: definition.id, versionId: version.id, productId: product.id };
   }

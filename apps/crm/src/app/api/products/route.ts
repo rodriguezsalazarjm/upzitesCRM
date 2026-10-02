@@ -104,7 +104,7 @@ export async function POST(request: Request) {
           create: {
             name: 'Estandar',
             sku: input.sku,
-            priceClp: input.priceClp,
+            priceMinor: input.priceClp,
             isDefault: true,
             // Un digital no lleva control de stock.
             inventory: input.type === ProductType.DIGITAL ? null : (input.inventory ?? 0),

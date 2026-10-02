@@ -34,6 +34,11 @@ import { verifyCheckoutToken } from '../src/lib/commerce/public-checkout-link';
 import { signProductKey } from '../src/lib/commerce/product-link';
 import { loadPublicProduct } from '../src/lib/commerce/product-checkout';
 import { getStudioProduct, productMetrics } from '../src/lib/commerce/product-studio/service';
+import { formatMinor } from '../src/lib/commerce/money';
+import { createOrder } from '../src/lib/commerce/orders';
+import { providerAmountToMinor, toMajorUnits } from '../src/lib/billing/money';
+import { loadRevenueToday } from '../src/lib/dashboard/widgets/loaders/commerce';
+import { AGENT_TOOLS } from '../src/lib/agents/tools';
 import { asUser } from './fixtures/request-context';
 import { POST as createRoute } from '../src/app/api/products/studio/route';
 import { GET as getRoute, PATCH as saveRoute } from '../src/app/api/products/[id]/route';
@@ -144,8 +149,8 @@ const shirtId = await createdId(createdShirt);
   const base = product.variants.find((v) => v.isDefault);
   check(
     'A1. OWNER crea desde el Studio: BORRADOR del workspace activo, moneda, precio base y 3 variantes con SKU normalizado',
-    createdShirt.status === 201 && product.status === 'DRAFT' && product.currency === 'CLP' && base?.priceClp === 12990 && base.isActive === false && product.variants.length === 4 &&
-      product.variants.some((v) => v.sku === 'CAM-M' && v.priceClp === 13990) && product.description?.includes('<script>') === true,
+    createdShirt.status === 201 && product.status === 'DRAFT' && product.currency === 'CLP' && base?.priceMinor === 12990 && base.isActive === false && product.variants.length === 4 &&
+      product.variants.some((v) => v.sku === 'CAM-M' && v.priceMinor === 13990) && product.description?.includes('<script>') === true,
     `${createdShirt.status} variants=${product.variants.length}`,
   );
 }
@@ -222,7 +227,7 @@ const bProductId = (await prisma.product.findFirstOrThrow({ where: { workspaceId
   const bProduct = await prisma.product.findFirstOrThrow({ where: { id: bProductId, workspaceId: B.workspaceId } });
   check(
     'B3. B no puede adueñarse de una variante de A ni elegirla como producto adicional (400) y nada cambia',
-    smuggledVariant.status === 400 && crossBump.status === 400 && aVariantAfter.name === aVariant.name && aVariantAfter.priceClp === aVariant.priceClp && !(bProduct.metadata as { orderBump?: unknown } | null)?.orderBump,
+    smuggledVariant.status === 400 && crossBump.status === 400 && aVariantAfter.name === aVariant.name && aVariantAfter.priceMinor === aVariant.priceMinor && !(bProduct.metadata as { orderBump?: unknown } | null)?.orderBump,
     `${smuggledVariant.status}/${crossBump.status} ${(await body(crossBump)).message}`,
   );
 }
@@ -508,6 +513,168 @@ console.log('\n== Despublicar y archivar ==');
   const restore = await status(A.session, shirtId, 'restore');
   const restored = await prisma.product.findFirstOrThrow({ where: { id: shirtId, workspaceId: A.workspaceId } });
   check('G8. Restaurar devuelve el producto a BORRADOR (no se publica solo)', restore.status === 200 && restored.status === 'DRAFT');
+}
+
+// =============================================================================
+console.log('\n== J. Enlace público /comprar: firma, estados y aislamiento ==');
+{
+  const p = await createdId(await create(A.session, { name: 'Link QA', type: 'DIGITAL', currency: 'CLP', basePrice: 1000, variants: [{ name: 'Única', price: 1000, isActive: true }] }));
+  const key = signProductKey(p);
+  const viewDraft = await loadPublicProduct(p, key);
+  const buyDraft = await buy(p, {});
+  await status(A.session, p, 'publish');
+  const valid = await loadPublicProduct(p, key);
+  const missing = await loadPublicProduct(p, null);
+  const empty = await loadPublicProduct(p, '');
+  const tampered = await loadPublicProduct(p, `${key.slice(0, -1)}${key.endsWith('A') ? 'B' : 'A'}`);
+  const foreignKeyOnA = await loadPublicProduct(p, signProductKey(bProductId));
+  const bKeyOnB = await loadPublicProduct(bProductId, signProductKey(bProductId));
+  const bWithAKey = await loadPublicProduct(bProductId, key);
+  const routeMissing = await buyRoute(formReq(`/api/comprar/${p}`, { name: 'X', email: 'x@studio.test' }), params(p));
+  const routeTampered = await buyRoute(formReq(`/api/comprar/${p}`, { k: 'x'.repeat(32), name: 'X', email: 'x@studio.test' }), params(p));
+  const variantOfOtherWs = await buy(p, { variantId: (await variantsOf(bProductId))[0].id });
+  const ordersOf = () => prisma.customerOrder.count({ where: { workspaceId: A.workspaceId, lines: { some: { variant: { productId: p } } } } });
+  const ordersBefore = await ordersOf();
+  check(
+    'J1. Firma válida + ACTIVE → vista pública (solo datos de venta); sin firma, vacía, manipulada o de otro producto/negocio → NOT_FOUND idéntico',
+    valid.ok && valid.name === 'Link QA' && Object.keys(valid).every((k) => !['workspaceId', 'metadata', 'status', 'sku'].includes(k)) &&
+      [missing, empty, tampered, foreignKeyOnA, bWithAKey].every((v) => !v.ok && v.reason === 'NOT_FOUND') && !bKeyOnB.ok && bKeyOnB.reason === 'UNAVAILABLE',
+    JSON.stringify({ missing, tampered, foreignKeyOnA, bWithAKey, bKeyOnB }),
+  );
+  const locMissing = new URL(routeMissing.headers.get('location')!, 'http://x').searchParams.get('e');
+  const locTampered = new URL(routeTampered.headers.get('location')!, 'http://x').searchParams.get('e');
+  check('J2. Compra sin firma o con firma manipulada → mismo rechazo (NOT_FOUND) y ningún pedido', locMissing === 'NOT_FOUND' && locTampered === 'NOT_FOUND' && ordersBefore === 0, `${locMissing}/${locTampered}/${ordersBefore}`);
+  check('J3. DRAFT → "no disponible" sin nombre ni precio y sin pedido', !viewDraft.ok && viewDraft.reason === 'UNAVAILABLE' && Object.keys(viewDraft).sort().join() === 'ok,reason' && buyDraft.error === 'UNAVAILABLE');
+  check('J4. Variante de otro workspace en el enlace → INVALID_VARIANT sin pedido', variantOfOtherWs.error === 'INVALID_VARIANT' && (await ordersOf()) === 0);
+  await status(A.session, p, 'archive');
+  const viewArchived = await loadPublicProduct(p, key);
+  const buyArchived = await buy(p, {});
+  check(
+    'J5. ARCHIVED → misma respuesta que DRAFT (no revela el estado interno) y sin pedido',
+    !viewArchived.ok && JSON.stringify(viewArchived) === JSON.stringify(viewDraft) && buyArchived.error === 'UNAVAILABLE' && (await ordersOf()) === 0,
+  );
+}
+
+// =============================================================================
+console.log('\n== M. Multi-moneda: CLP y USD de punta a punta, sin mezclar ==');
+{
+  globals[guard] = true;
+  process.env.LOCAL_VISUAL_TEST = '1';
+  try {
+    type Case = { currency: 'CLP' | 'USD'; main: number; bump: number; total: number; display: string };
+    const cases: Case[] = [
+      { currency: 'CLP', main: 19990, bump: 2990, total: 22980, display: '$22.980' },
+      { currency: 'USD', main: 1999, bump: 299, total: 2298, display: '$22.98' },
+    ];
+    const ids: Record<string, { main: string; bump: string; bumpVariant: string }> = {};
+    for (const c of cases) {
+      const bumpP = await createdId(await create(A.session, { name: `Bump ${c.currency}`, type: 'DIGITAL', currency: c.currency, basePrice: c.bump }));
+      await status(A.session, bumpP, 'publish');
+      const bumpVariant = (await variantsOf(bumpP))[0].id;
+      const mainP = await createdId(await create(A.session, { name: `Main ${c.currency}`, type: 'DIGITAL', currency: c.currency, basePrice: c.main, orderBump: { enabled: true, variantId: bumpVariant } }));
+      await status(A.session, mainP, 'publish');
+      ids[c.currency] = { main: mainP, bump: bumpP, bumpVariant };
+      const purchase = await buy(mainP, {});
+      // El formulario intenta fijar total y moneda: se ignoran.
+      await payRoute(formReq(`/api/checkout/${purchase.orderId}/pay`, { t: purchase.token!, includeBump: 'on', total: '1', currency: c.currency === 'CLP' ? 'USD' : 'CLP' }), params(purchase.orderId!));
+      const before = await prisma.customerOrder.findFirstOrThrow({ where: { id: purchase.orderId!, workspaceId: A.workspaceId }, include: { lines: true } });
+      const pay = await asUser(A.session, () => demoPayRoute(jsonReq(`/api/demo-checkout/${purchase.orderId}`), params(purchase.orderId!)));
+      const after = await prisma.customerOrder.findFirstOrThrow({ where: { id: purchase.orderId!, workspaceId: A.workspaceId }, include: { payments: true } });
+      const mainLine = before.lines.find((l) => l.name === `Main ${c.currency}`);
+      const bumpLine = before.lines.find((l) => l.variantId === bumpVariant);
+      const metrics = await productMetrics(A.workspaceId, mainP);
+      const bumpMetrics = await productMetrics(A.workspaceId, bumpP);
+      check(
+        `M-${c.currency}. OrderLine ${c.main} + ${c.bump}, total ${c.total} (unidades menores), Payment simulado ${c.total} ${c.currency}, formato ${c.display}, métricas por moneda`,
+        pay.status === 200 && before.currency === c.currency && before.lines.length === 2 &&
+          mainLine?.unitPrice === c.main && mainLine.total === c.main && bumpLine?.unitPrice === c.bump && bumpLine.total === c.bump &&
+          before.total === c.total && before.subtotal === c.total &&
+          after.payments.length === 1 && after.payments[0].amount === c.total && after.payments[0].currency === c.currency &&
+          formatMinor(after.total, after.currency) === c.display &&
+          metrics.revenue.length === 1 && metrics.revenue[0].currency === c.currency && metrics.revenue[0].amount === c.main &&
+          bumpMetrics.revenue[0]?.currency === c.currency && bumpMetrics.revenue[0]?.amount === c.bump,
+        JSON.stringify({ total: before.total, lines: before.lines.map((l) => [l.unitPrice, l.total]), payment: after.payments[0] && [after.payments[0].amount, after.payments[0].currency], metrics: metrics.revenue }),
+      );
+    }
+    check('M-USD2. Borde Mercado Pago: se enviaría 22.98 (unidades mayores) y el webhook vuelve a 2298', toMajorUnits(2298, 'USD') === 22.98 && providerAmountToMinor(22.98, 'USD') === 2298);
+
+    // Prohibido mezclar monedas entre producto y adicional (Studio, motor y pedido).
+    const clpMain = await createdId(await create(A.session, { name: 'Mix CLP', type: 'DIGITAL', currency: 'CLP', basePrice: 5000 }));
+    const usdMain = await createdId(await create(A.session, { name: 'Mix USD', type: 'DIGITAL', currency: 'USD', basePrice: 500 }));
+    const clpWithUsdBump = await save(A.session, clpMain, { name: 'Mix CLP', type: 'DIGITAL', currency: 'CLP', basePrice: 5000, orderBump: { enabled: true, variantId: ids.USD.bumpVariant } });
+    const usdWithClpBump = await save(A.session, usdMain, { name: 'Mix USD', type: 'DIGITAL', currency: 'USD', basePrice: 500, orderBump: { enabled: true, variantId: ids.CLP.bumpVariant } });
+    const createMixed = await create(A.session, { name: 'Mix nuevo', type: 'DIGITAL', currency: 'USD', basePrice: 500, orderBump: { enabled: true, variantId: ids.CLP.bumpVariant } });
+    check(
+      'M-MIX1. Studio rechaza producto CLP + adicional USD y producto USD + adicional CLP (al guardar y al crear)',
+      clpWithUsdBump.status === 400 && usdWithClpBump.status === 400 && createMixed.status === 400 &&
+        /moneda/.test((await body(clpWithUsdBump)).message ?? '') && /moneda/.test((await body(usdWithClpBump)).message ?? ''),
+      `${clpWithUsdBump.status}/${usdWithClpBump.status}/${createMixed.status}`,
+    );
+    // Relacion mixta escrita por fuera del Studio: el motor del checkout tampoco la acepta.
+    await prisma.product.update({ where: { id: clpMain }, data: { metadata: { orderBump: { variantId: ids.USD.bumpVariant } } } });
+    await prisma.product.update({ where: { id: usdMain }, data: { metadata: { orderBump: { variantId: ids.CLP.bumpVariant } } } });
+    await status(A.session, clpMain, 'publish');
+    await status(A.session, usdMain, 'publish');
+    const outcomes: string[] = [];
+    for (const productId of [clpMain, usdMain]) {
+      const purchase = await buy(productId, {});
+      const view = await loadPublicCheckout(purchase.orderId!, purchase.token);
+      const forced = await payRoute(formReq(`/api/checkout/${purchase.orderId}/pay`, { t: purchase.token!, includeBump: 'on' }), params(purchase.orderId!));
+      const order = await prisma.customerOrder.findFirstOrThrow({ where: { id: purchase.orderId!, workspaceId: A.workspaceId }, include: { lines: true } });
+      outcomes.push(`${view.ok && view.bump === null}:${(forced.headers.get('location') ?? '').includes('e=UNAVAILABLE')}:${order.lines.length}`);
+    }
+    check('M-MIX2. Motor: un adicional de otra moneda no se ofrece ni se puede forzar (CLP→USD y USD→CLP)', outcomes.every((r) => r === 'true:true:1'), outcomes.join(' '));
+    const mixedOrder = await createOrder({ workspaceId: A.workspaceId, items: [{ variantId: (await variantsOf(clpMain))[0].id, quantity: 1 }, { variantId: (await variantsOf(usdMain))[0].id, quantity: 1 }] }).then(
+      () => 'creado',
+      (error: Error) => error.message,
+    );
+    check('M-MIX3. createOrder rechaza un pedido con líneas en CLP y USD', /monedas/.test(mixedOrder), mixedOrder);
+
+    // Dashboard: cada moneda por separado y en unidades mayores.
+    const ctx = { workspaceId: A.workspaceId, now: new Date(), timeZone: 'America/Santiago' };
+    const clpRevenue = await loadRevenueToday({ ...ctx, currency: 'CLP' });
+    const usdRevenue = await loadRevenueToday({ ...ctx, currency: 'USD' });
+    const clpExpected = (await prisma.customerOrder.aggregate({ where: { workspaceId: A.workspaceId, currency: 'CLP', status: { in: [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED] } }, _sum: { total: true } }))._sum.total ?? 0;
+    check(
+      'M-DASH. Ingresos del dashboard no mezclan monedas: CLP = solo pedidos CLP; USD = 22.98 (unidades mayores)',
+      clpRevenue.kind === 'stat' && clpRevenue.value === clpExpected && usdRevenue.kind === 'stat' && usdRevenue.value === 22.98,
+      JSON.stringify({ clp: clpRevenue.kind === 'stat' && clpRevenue.value, clpExpected, usd: usdRevenue.kind === 'stat' && usdRevenue.value }),
+    );
+
+    // Agente: el precio llega con su moneda y formato, nunca como "1999 CLP".
+    const search = AGENT_TOOLS.find((tool) => tool.name === 'search_products')!;
+    const found = await search.execute({ query: 'Main USD' }, { workspaceId: A.workspaceId, conversationId: null, contactId: null, agentRunId: 'smoke' } as never);
+    const foundData = found.ok ? found.data : undefined;
+    const price = (foundData as { variants: { price: { amountMinor: number; currency: string; display: string } }[] }[] | undefined)?.[0]?.variants[0]?.price;
+    check('M-AGENT. El agente recibe { amountMinor: 1999, currency: USD, display: $19.99 }', price?.amountMinor === 1999 && price.currency === 'USD' && price.display === '$19.99', JSON.stringify(foundData));
+
+    // Agente: crear el enlace exige que la oferta mencione el precio real CON su
+    // moneda ("$19.99"); los centavos sueltos ("1999") no cuentan como oferta.
+    const account = await prisma.channelAccount.create({ data: { workspaceId: A.workspaceId, channel: 'INSTAGRAM', externalAccountId: `studio-${stamp}`, status: 'CONNECTED', metadata: { fake: true } } });
+    const agentCheckout = async (productId: string, offerText: string) => {
+      const contact = await prisma.contact.create({ data: { workspaceId: A.workspaceId, firstName: 'Agente', lastName: 'Studio' } });
+      const conversation = await prisma.conversation.create({ data: { workspaceId: A.workspaceId, contactId: contact.id, channelType: 'INSTAGRAM', channelAccountId: account.id, mode: 'AI_ACTIVE' } });
+      const t0 = Date.now() - 60_000;
+      await prisma.message.create({ data: { workspaceId: A.workspaceId, conversationId: conversation.id, direction: 'OUTBOUND', senderType: 'AI', text: offerText, createdAt: new Date(t0) } });
+      await prisma.message.create({ data: { workspaceId: A.workspaceId, conversationId: conversation.id, direction: 'INBOUND', senderType: 'CONTACT', text: 'confirmo', createdAt: new Date(t0 + 1000) } });
+      const tool = AGENT_TOOLS.find((item) => item.name === 'createCheckoutLink')!;
+      return tool.execute({ productId }, { workspaceId: A.workspaceId, contactId: contact.id, conversationId: conversation.id, agentRunId: 'smoke' } as never);
+    };
+    const usdOk = await agentCheckout(ids.USD.main, 'Main USD queda en $19.99. ¿Lo confirmas?');
+    const usdCents = await agentCheckout(ids.USD.main, 'Main USD queda en 1999. ¿Lo confirmas?');
+    const clpOk = await agentCheckout(ids.CLP.main, 'Main CLP queda en $19.990. ¿Lo confirmas?');
+    const usdData = usdOk.ok ? (usdOk.data as { orderId: string; displayPrice: string; currency: string }) : null;
+    const usdOrder = usdData ? await prisma.customerOrder.findFirst({ where: { id: usdData.orderId, workspaceId: A.workspaceId } }) : null;
+    check(
+      'M-AGENT2. Agente: oferta "$19.99" + "confirmo" → pedido USD 1999 y precio mostrado $19.99; "1999" no vale como oferta; CLP "$19.990" también',
+      usdData?.displayPrice === '$19.99' && usdData.currency === 'USD' && usdOrder?.currency === 'USD' && usdOrder.total === 1999 && !usdCents.ok && clpOk.ok && (clpOk.data as { displayPrice: string }).displayPrice === '$19.990',
+      JSON.stringify({ usdOk, usdCents, clpOk }),
+    );
+  } finally {
+    delete globals[guard];
+    if (previousVisual === undefined) delete process.env.LOCAL_VISUAL_TEST;
+    else process.env.LOCAL_VISUAL_TEST = previousVisual;
+  }
 }
 
 // =============================================================================

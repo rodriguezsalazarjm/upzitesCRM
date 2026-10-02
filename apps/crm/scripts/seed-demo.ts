@@ -130,7 +130,7 @@ const curso = await prisma.product.create({
     description: 'Acceso inmediato al material completo.',
     type: 'DIGITAL',
     status: 'ACTIVE',
-    variants: { create: [{ name: 'Acceso completo', priceClp: 39000, isDefault: true }] },
+    variants: { create: [{ name: 'Acceso completo', priceMinor: 39000, isDefault: true }] },
     assets: {
       create: [{
         workspaceId: workspace.id,

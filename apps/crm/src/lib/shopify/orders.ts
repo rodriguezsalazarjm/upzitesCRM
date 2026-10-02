@@ -34,7 +34,7 @@ export type ShopifyCheckoutInput = {
   conversationId?: string | null;
   email?: string | null;
   /** Precio que el agente le dijo al cliente. Si cambio, se aborta. */
-  quotedPriceClp?: number;
+  quotedPriceMinor?: number;
 };
 
 export async function createShopifyCheckout(input: ShopifyCheckoutInput) {
@@ -58,16 +58,16 @@ export async function createShopifyCheckout(input: ShopifyCheckoutInput) {
 
   // Si el agente cotizo un precio y la tienda ahora dice otro, se aborta en vez
   // de cobrar distinto de lo prometido.
-  if (input.quotedPriceClp !== undefined && input.quotedPriceClp !== live.priceClp) {
+  if (input.quotedPriceMinor !== undefined && input.quotedPriceMinor !== live.priceMinor) {
     await recordAudit({
       workspaceId: input.workspaceId,
       action: 'shopify.price_changed_before_checkout',
       entity: 'CommerceConnection',
       entityId: input.connectionId,
-      metadata: { quoted: input.quotedPriceClp, live: live.priceClp, variant: live.externalId },
+      metadata: { quoted: input.quotedPriceMinor, live: live.priceMinor, variant: live.externalId },
     });
     throw new ShopifyOrderError(
-      `El precio cambio: ahora es ${live.priceClp}. Confirmalo con el cliente antes de continuar.`,
+      `El precio cambio: ahora es ${live.priceMinor}. Confirmalo con el cliente antes de continuar.`,
       'PRICE_CHANGED',
     );
   }
@@ -95,7 +95,7 @@ export async function createShopifyCheckout(input: ShopifyCheckoutInput) {
     throw new ShopifyOrderError('Shopify no devolvio un enlace de pago.', 'PROVIDER');
   }
 
-  const total = live.priceClp * input.quantity;
+  const total = live.priceMinor * input.quantity;
   const externalId = String(draft.id);
 
   // Copia local del pedido, idempotente por (workspace, proveedor, id externo).
@@ -122,7 +122,7 @@ export async function createShopifyCheckout(input: ShopifyCheckoutInput) {
         create: {
           name: `${live.productTitle}${live.title && live.title !== 'Default Title' ? ` — ${live.title}` : ''}`,
           sku: live.sku,
-          unitPrice: live.priceClp,
+          unitPrice: live.priceMinor,
           quantity: input.quantity,
           total,
         },
@@ -143,7 +143,7 @@ export async function createShopifyCheckout(input: ShopifyCheckoutInput) {
     orderId: order.id,
     checkoutUrl: invoiceUrl,
     totalClp: total,
-    unitPriceClp: live.priceClp,
+    unitPriceMinor: live.priceMinor,
     productName: live.productTitle,
   };
 }

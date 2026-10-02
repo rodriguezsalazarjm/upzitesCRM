@@ -612,7 +612,7 @@ console.log('\n== Ecommerce ==');
       productId: producto.id,
       name: 'Unica',
       sku: `sku-${stamp}`,
-      priceClp: 25000,
+      priceMinor: 25000,
       inventory: 0,
     },
   });
@@ -627,8 +627,8 @@ console.log('\n== Ecommerce ==');
     JSON.stringify(agotada).includes('0') || JSON.stringify(agotada).toLowerCase().includes('false'));
 
   // --- Cambio de precio entre recomendacion y checkout ---
-  const precioAntes = variante.priceClp;
-  await prisma.productVariant.update({ where: { id: variante.id }, data: { priceClp: 30000, inventory: 5 } });
+  const precioAntes = variante.priceMinor;
+  await prisma.productVariant.update({ where: { id: variante.id }, data: { priceMinor: 30000, inventory: 5 } });
 
   const contacto = await prisma.contact.create({
     data: { workspaceId: A.workspaceId, firstName: 'Ecom', lastName: 'Critico', email: `ec-${stamp}@t.test` },
@@ -712,7 +712,7 @@ console.log('\n== Ecommerce ==');
       name: 'Curso critico',
       type: 'DIGITAL',
       status: 'ACTIVE',
-      variants: { create: [{ name: 'Acceso', priceClp: 49000, isDefault: true }] },
+      variants: { create: [{ name: 'Acceso', priceMinor: 49000, isDefault: true }] },
       assets: {
         create: [{
           workspaceId: A.workspaceId,
@@ -1087,7 +1087,7 @@ console.log('\n== Deuda corregida ==');
       name: 'Digital notificado',
       type: 'DIGITAL',
       status: 'ACTIVE',
-      variants: { create: [{ name: 'Acceso', priceClp: 15000, isDefault: true }] },
+      variants: { create: [{ name: 'Acceso', priceMinor: 15000, isDefault: true }] },
       assets: {
         create: [
           {

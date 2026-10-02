@@ -239,7 +239,7 @@ const B = await makeWorkspace('b', SHOP_B);
   // Se busca el producto por su SKU: findMany no garantiza orden, y tomar
   // products[0] hacia fallar el test cuando la base devolvia el otro primero.
   const polera = products.find((p) => p.variants.some((v) => v.sku === 'POL-S'));
-  check('El precio viene de Shopify', polera?.variants.every((v) => v.priceClp === 12990) === true);
+  check('El precio viene de Shopify', polera?.variants.every((v) => v.priceMinor === 12990) === true);
   check('El inventario viene de Shopify', polera?.variants.some((v) => v.inventory === 0) === true);
 
   // Re-sincronizar NO duplica.
@@ -291,7 +291,7 @@ const B = await makeWorkspace('b', SHOP_B);
   });
 
   const live = await fetchLiveVariant(fetcher, 'gid://shopify/ProductVariant/11');
-  check('La consulta viva devuelve el precio actual', live?.priceClp === 15990);
+  check('La consulta viva devuelve el precio actual', live?.priceMinor === 15990);
   check('Y el stock actual', live?.inventory === 2);
 
   const missing = await fetchLiveVariant(fetcher, 'gid://shopify/ProductVariant/999');
@@ -350,7 +350,7 @@ const B = await makeWorkspace('b', SHOP_B);
       externalVariantId: 'gid://shopify/ProductVariant/11',
       quantity: 1,
       // El agente habia cotizado 12.990; la tienda ahora dice 19.990.
-      quotedPriceClp: 12990,
+      quotedPriceMinor: 12990,
     });
   } catch (error) {
     priceChanged = error instanceof ShopifyOrderError && error.code === 'PRICE_CHANGED';

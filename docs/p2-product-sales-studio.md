@@ -27,8 +27,11 @@ y se reutiliza el checkout y el motor de order bump del Punto 1.
 - **Precio base** = variante `isDefault`. Con variantes, la por defecto queda
   inactiva y el comprador elige una de las activas (`sellableVariants`).
 - **Dinero**: enteros en unidades menores ISO 4217 (convención de
-  `lib/billing/money`): CLP exponente 0, USD exponente 2. `priceClp` guarda
-  ese entero en la moneda del producto (nombre de columna histórico). La
+  `lib/billing/money`): CLP exponente 0, USD exponente 2.
+  `ProductVariant.priceMinor` (antes `priceClp`; la columna sigue siendo
+  `price_clp` vía `@map`, sin migración) guarda ese entero en la moneda del
+  producto. Formato y precio con moneda: `lib/commerce/money`
+  (`formatMinor`, `priceView`, `textMentionsPrice`). La
   conversión a unidades mayores ocurre solo en el borde con Mercado Pago
   (`toMajorUnits` al crear la preferencia, `providerAmountToMinor` en el
   webhook). Para CLP ambas son identidad.
@@ -104,7 +107,15 @@ suman.
 
 - `npm run test:commerce` (incluye `product-studio/rules.test.ts` y
   `product-link.test.ts`).
-- `scripts/smoke-product-studio.ts` (en `test:smoke:all`).
+- `npm run test:commerce` incluye también `money.test.ts` (CLP 19.990 + 2.990 =
+  22.980 sin división por 100; USD 19.99 + 2.99 = 22.98 en centavos).
+- `scripts/smoke-product-studio.ts` (en `test:smoke:all`): incluye enlace
+  público (firma válida/ausente/manipulada, DRAFT/ACTIVE/ARCHIVED, otro
+  workspace) y multi-moneda (OrderLine, total, pago simulado, formato,
+  métricas, mezcla CLP/USD rechazada, dashboard por moneda y agente).
+- Storage real: `node scripts/run-against-test-db.mjs scripts/qa-storage-cover.ts`
+  con `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `MEDIA_STORAGE_BUCKET` en
+  `apps/crm/.env.storage.local` (ignorado por git). Base de pruebas, bucket real.
 - E2E (Playwright, `tests/c2/product-studio.spec.ts`): con el servidor visual
   (`npm run visual:dev` o el lanzador `crm-preview-visual`, :3101) corre
   `npm run test:e2e:studio`, que primero rehace la base de cuentas
@@ -113,6 +124,20 @@ suman.
   (filtros, duplicar, archivar, despublicar), responsive móvil/tablet y
   teclado/foco. No editar `src/` mientras corre: el servidor de desarrollo
   recarga la pestaña.
+
+## Consumidores de precios auditados
+
+Catálogo y pedidos (`orders.ts`, `product-checkout.ts`, `public-checkout.ts`,
+Studio, duplicar, métricas por moneda) ya operaban en la moneda del producto.
+Se corrigieron los que asumían CLP: el agente (`agents/tools.ts` entrega
+`price: { amountMinor, currency, display }` y `total` con moneda; la
+confirmación de oferta usa `textMentionsPrice`), el proveedor demo local, el
+resumen de conversación, la actividad de pago confirmado, el demo checkout y
+los widgets de Commerce del dashboard (solo la moneda del negocio, en
+unidades mayores). `SubscriptionPlan.priceClp` (SaaS) y `unitPriceClp` del
+cotizador son otros dominios y no cambian. La sincronización de Shopify
+(anterior al Studio) asume una tienda en CLP; está documentado en
+`shopify/sync.ts`.
 
 ## Producción
 

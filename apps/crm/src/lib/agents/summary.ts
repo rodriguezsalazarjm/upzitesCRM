@@ -1,5 +1,6 @@
 import { MessageDirection, QuoteStatus } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { formatMinor } from '../commerce/money';
 
 /**
  * Resumen de una conversacion larga.
@@ -127,7 +128,7 @@ export async function buildConversationSummary(conversationId: string): Promise<
     });
 
     for (const pedido of pedidos) {
-      partes.push(`Pedido por ${pedido.total} ${pedido.currency}: ${pedido.status.toLowerCase()}.`);
+      partes.push(`Pedido por ${formatMinor(pedido.total, pedido.currency)}: ${pedido.status.toLowerCase()}.`);
     }
   }
 

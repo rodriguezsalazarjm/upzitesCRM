@@ -200,7 +200,7 @@ async function makeProduct(ws: Ws) {
       name: 'Producto P0-C',
       type: ProductType.DIGITAL,
       status: ProductStatus.ACTIVE,
-      variants: { create: { name: 'Acceso', priceClp: 4990, isDefault: true, inventory: null } },
+      variants: { create: { name: 'Acceso', priceMinor: 4990, isDefault: true, inventory: null } },
     },
     include: { variants: true },
   });
