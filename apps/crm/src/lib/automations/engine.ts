@@ -512,7 +512,7 @@ async function executeAction(
     }
 
     case 'CREATE_CHECKOUT': {
-      const result = await toolByName('createCheckoutLink')!.execute({ productId: String(params.productId ?? '') }, { workspaceId: ctx.workspaceId, contactId: ctx.contactId, conversationId: ctx.conversationId, agentRunId: ctx.runId });
+      const result = await toolByName('createCheckoutLink')!.execute({}, { workspaceId: ctx.workspaceId, productId: String(params.productId ?? ''), contactId: ctx.contactId, conversationId: ctx.conversationId, agentRunId: ctx.runId });
       if (!result.ok) return { kind: 'ERROR', error: result.error };
       await prisma.automationFlowVersion.update({ where: { id: ctx.flowVersionId }, data: { checkoutsCreated: { increment: 1 } } });
       const checkout = result.data as Record<string, unknown>;

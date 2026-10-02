@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { formatMinor, priceView, textMentionsPrice } from '../commerce/money';
+import { formatMinor, priceView } from '../commerce/money';
 import {
   ActivityType,
   BuyingIntent,
@@ -24,6 +24,7 @@ import { createQuote, listQuotableServices, QuoteError, requestReview } from '..
 import { queuePushSafely } from '../push/events';
 import type { ToolSpec } from './provider';
 import { searchKnowledge } from './knowledge';
+import { activeProductCheckoutArgsSchema } from '../product-sales-brain/rules';
 
 /**
  * Herramientas del agente.
@@ -38,6 +39,8 @@ import { searchKnowledge } from './knowledge';
  */
 export type ToolContext = {
   workspaceId: string;
+  /** Producto fijado por la conversacion; nunca viene de argumentos del modelo. */
+  productId?: string | null;
   conversationId: string | null;
   contactId: string | null;
   agentRunId: string;
@@ -399,14 +402,15 @@ export const AGENT_TOOLS: AgentTool[] = [
     execute: async (args, context) => {
       const parsed = z.object({ query: z.string().optional() }).safeParse(args);
       const products = await listCatalog(context.workspaceId, parsed.success ? parsed.data.query : undefined);
+      const scopedProducts = context.productId ? products.filter((product) => product.id === context.productId) : products;
 
-      if (products.length === 0) {
+      if (scopedProducts.length === 0) {
         return { ok: false, error: 'No hay productos en el catalogo.' };
       }
 
       return {
         ok: true,
-        data: products.map((product) => ({
+        data: scopedProducts.map((product) => ({
           productId: product.id,
           name: product.name,
           description: product.description,
@@ -433,7 +437,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       if (!parsed.success) return { ok: false, error: 'Falta el productId.' };
 
       const product = await prisma.product.findFirst({
-        where: { id: parsed.data.productId, workspaceId: context.workspaceId, status: 'ACTIVE' },
+        where: { id: context.productId ?? parsed.data.productId, workspaceId: context.workspaceId, status: 'ACTIVE' },
         include: { variants: { where: { isActive: true } } },
       });
 
@@ -471,7 +475,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         where: {
           id: parsed.data.variantId,
           isActive: true,
-          product: { workspaceId: context.workspaceId, status: 'ACTIVE' },
+          product: { workspaceId: context.workspaceId, status: 'ACTIVE', ...(context.productId ? { id: context.productId } : {}) },
         },
         select: {
           inventory: true,
@@ -549,7 +553,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       // El producto puede venir del catalogo interno o de Shopify. La variante
       // dice de cual, y cada origen cobra distinto.
       const variant = await prisma.productVariant.findFirst({
-        where: { id: parsed.data.variantId, product: { workspaceId: context.workspaceId } },
+        where: { id: parsed.data.variantId, product: { workspaceId: context.workspaceId, status: 'ACTIVE', ...(context.productId ? { id: context.productId } : {}) } },
         include: { product: { select: { connectionId: true } } },
       });
 
@@ -890,17 +894,16 @@ AGENT_TOOLS.push(
     return { ok: true, data: await searchKnowledge(ctx.workspaceId, parsed.data.query) };
   } },
   { name: 'getServices', description: 'Servicios publicados del catálogo del workspace.', schema: z.object({}).strict(), hasSideEffects: false, execute: async (_args, ctx) => ({ ok: true, data: await listQuotableServices(ctx.workspaceId) }) },
-  { name: 'createCheckoutLink', description: 'Crea un checkout del producto confirmado por el cliente; el backend calcula precio y moneda.', schema: z.object({ productId: z.string().min(1) }).strict(), hasSideEffects: true, execute: async (args, ctx) => {
-    const parsed = z.object({ productId: z.string().min(1) }).strict().safeParse(args);
-    if (!parsed.success || !await requireContact(ctx)) return { ok: false, error: 'Producto o contacto inválido.' };
-    const product = await prisma.product.findFirst({ where: { id: parsed.data.productId, workspaceId: ctx.workspaceId, status: 'ACTIVE' }, include: { variants: { where: { isActive: true }, orderBy: { isDefault: 'desc' }, take: 1 } } });
+  { name: 'createCheckoutLink', description: 'Crea un checkout exclusivamente para el producto activo confirmado por el cliente; el backend calcula precio y moneda. No recibe productId.', schema: activeProductCheckoutArgsSchema, hasSideEffects: true, execute: async (args, ctx) => {
+    const parsed = activeProductCheckoutArgsSchema.safeParse(args);
+    if (!parsed.success || !ctx.productId || !await requireContact(ctx)) return { ok: false, error: 'No hay un producto activo autorizado para esta conversación.' };
+    const product = await prisma.product.findFirst({ where: { id: ctx.productId, workspaceId: ctx.workspaceId, status: 'ACTIVE' }, include: { variants: { where: { isActive: true }, orderBy: { isDefault: 'desc' }, take: 1 } } });
     const variant = product?.variants[0];
     if (!product || !variant) return { ok: false, error: 'Producto no disponible en este workspace.' };
     if (!ctx.conversationId || !await prisma.conversation.findFirst({ where: { id: ctx.conversationId, workspaceId: ctx.workspaceId, contactId: ctx.contactId! } })) return { ok: false, error: 'Conversación inválida.' };
     const recent = await prisma.message.findMany({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId }, orderBy: { createdAt: 'desc' }, take: 12 });
     const inbound = recent.find(m => m.direction === 'INBOUND');
-    const offer = recent.find(m => m.direction === 'OUTBOUND' && (m.text ?? '').includes(product.name) && textMentionsPrice(m.text ?? '', variant.priceMinor, product.currency));
-    if (!inbound || !/^(sí|si|confirmo|confirmar)(\b|\s)/i.test((inbound.text ?? '').trim()) || !offer || offer.createdAt >= inbound.createdAt) return { ok: false, error: 'Se requiere confirmación explícita después de presentar producto y precio actual.' };
+    if (!inbound || !/^(sí|si|confirmo|confirmar|quiero comprar|comprar)(\b|\s)/i.test((inbound.text ?? '').trim())) return { ok: false, error: 'Se requiere confirmación explícita de intención de compra.' };
     const existing = await prisma.customerOrder.findFirst({ where: { workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, status: { in: ['DRAFT', 'PENDING_PAYMENT'] }, lines: { some: { variantId: variant.id } } }, orderBy: { createdAt: 'desc' } });
     if (existing) {
       const publicUrl = publicCheckoutUrl(existing.id);

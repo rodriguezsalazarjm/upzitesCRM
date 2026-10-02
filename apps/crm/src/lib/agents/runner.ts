@@ -31,6 +31,7 @@ import { checkAiCredits, recordAiCredits } from '../entitlements/ai-credits';
 import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
 import { queuePushSafely } from '../push/events';
+import { loadExistingGlobalSalesContext, loadProductSalesLayer } from '../product-sales-brain/context';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -49,6 +50,8 @@ export type RunAgentInput = {
   allowedTools?: string[];
   exitConditions?: string[];
   maxTurns?: number;
+  /** En el simulador solo permite crear un pedido DRAFT y su link firmado. */
+  allowSimulatorCheckout?: boolean;
 };
 
 export type RunAgentResult = {
@@ -58,6 +61,7 @@ export type RunAgentResult = {
   escalated?: boolean;
   skippedReason?: string;
   toolCalls?: { name: string; ok: boolean }[];
+  context?: { productId: string | null; productContextId: string | null; productContextUpdatedAt: string | null };
 };
 
 /**
@@ -132,6 +136,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     include: {
       contact: { select: { id: true, firstName: true, lastName: true } },
       workspace: { select: { name: true } },
+      product: { select: { id: true } },
     },
   });
 
@@ -242,10 +247,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       conversation,
       version: { ...published.version,
         instructions: [published.version.instructions, input.goal ? `Objetivo de este paso: ${input.goal}` : '', input.exitConditions?.length ? `Condiciones de salida: ${input.exitConditions.join('; ')}` : ''].filter(Boolean).join('\n'),
-        allowedTools: input.allowedTools ? published.version.allowedTools.filter(t => input.allowedTools!.includes(t)) : published.version.allowedTools,
+        allowedTools: input.allowedTools
+          ? published.version.allowedTools.filter(t => input.allowedTools!.includes(t))
+          : conversation.product
+            ? [...new Set([...published.version.allowedTools, 'createCheckoutLink'])]
+            : published.version.allowedTools,
         maxSteps: Math.min(published.version.maxSteps, input.maxTurns ?? published.version.maxSteps),
       },
       dryRun: input.dryRun ?? false,
+      allowSimulatorCheckout: input.allowSimulatorCheckout ?? false,
       startedAt,
     });
   } catch (error) {
@@ -292,6 +302,7 @@ type LoopInput = {
     lockVersion: number;
     contact: { id: string; firstName: string; lastName: string };
     workspace: { name: string };
+    product: { id: string } | null;
   };
   version: {
     id: string;
@@ -302,6 +313,7 @@ type LoopInput = {
     maxSteps: number;
   };
   dryRun: boolean;
+  allowSimulatorCheckout: boolean;
   startedAt: number;
 };
 
@@ -346,14 +358,21 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     });
   }
 
+  const [globalContext, productLayer] = await Promise.all([
+    loadExistingGlobalSalesContext(run.workspaceId),
+    loadProductSalesLayer(run.workspaceId, conversation.product?.id ?? null),
+  ]);
   const instructions = buildInstructions({
     agentInstructions: version.instructions,
     workspaceName: conversation.workspace.name,
     contactName: conversation.contact.firstName,
+    globalContext,
+    productContext: productLayer?.content,
   });
 
   const toolContext: ToolContext = {
     workspaceId: run.workspaceId,
+    productId: productLayer?.productId ?? null,
     conversationId: conversation.id,
     contactId: conversation.contact.id,
     agentRunId: run.id,
@@ -425,7 +444,8 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
         return { status: AgentRunStatus.ABORTED, runId: run.id, skippedReason: 'Control humano cambió durante la ejecución.' };
       }
       const validated = tool.schema.safeParse(call.arguments);
-      const result = !validated.success ? { ok: false as const, error: 'Argumentos inválidos.' } : input.dryRun && tool.hasSideEffects
+      const simulatorCheckout = input.dryRun && input.allowSimulatorCheckout && call.name === 'createCheckoutLink';
+      const result = !validated.success ? { ok: false as const, error: 'Argumentos inválidos.' } : input.dryRun && tool.hasSideEffects && !simulatorCheckout
         ? { ok: true as const, data: { simulated: true, tool: call.name } }
         : await tool.execute(validated.data, toolContext);
       toolCalls.push({ name: call.name, ok: result.ok });
@@ -543,6 +563,7 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     reply,
     escalated,
     toolCalls: toolCalls.map(({ name, ok }) => ({ name, ok })),
+    context: { productId: productLayer?.productId ?? null, productContextId: productLayer?.contextId ?? null, productContextUpdatedAt: productLayer?.updatedAt.toISOString() ?? null },
   };
 }
 

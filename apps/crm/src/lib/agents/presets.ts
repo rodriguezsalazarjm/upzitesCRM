@@ -53,6 +53,9 @@ Como trabajas:
     'search_products',
     'get_product',
     'check_inventory',
+    // Seguro solo cuando la conversacion tiene un Product Context fijado por
+    // el servidor; la tool no acepta productId, precio ni moneda del modelo.
+    'createCheckoutLink',
     'get_payment_status',
     'get_order_status',
   ],

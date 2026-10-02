@@ -8,39 +8,39 @@ datasource db {
 }
 
 model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  publicKey String   @unique @default(cuid()) @map("public_key")
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  publicKey  String   @unique @default(cuid()) @map("public_key")
   /// Negocio propio de Upzites (o de QA). SOLO para reporting de plataforma:
   /// excluye el workspace de MRR, churn y conteo de clientes SaaS. No cambia
   /// aislamiento, permisos ni comportamiento del workspace.
-  isInternal Boolean @default(false) @map("is_internal")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  users           User[]
-  memberships     WorkspaceMembership[]
-  userPreferences WorkspaceUserPreference[]
-  invitations     WorkspaceInvitation[]
-  lastActiveUsers User[]                @relation("UserLastActiveWorkspace")
-  supportSessions SupportSession[]
-  companies       Company[]
-  contacts        Contact[]
-  pipelineStages  PipelineStage[]
-  opportunities   Opportunity[]
-  activities      Activity[]
-  leadSources     LeadSource[]
-  forms           Form[]
-  formSubmissions FormSubmission[]
-  webEvents       WebEvent[]
-  integrations    Integration[]
-  automationRules AutomationRule[]
-  aiInsights      AiInsight[]
-  auditLogs       AuditLog[]
+  users                User[]
+  memberships          WorkspaceMembership[]
+  userPreferences      WorkspaceUserPreference[]
+  invitations          WorkspaceInvitation[]
+  lastActiveUsers      User[]                    @relation("UserLastActiveWorkspace")
+  supportSessions      SupportSession[]
+  companies            Company[]
+  contacts             Contact[]
+  pipelineStages       PipelineStage[]
+  opportunities        Opportunity[]
+  activities           Activity[]
+  leadSources          LeadSource[]
+  forms                Form[]
+  formSubmissions      FormSubmission[]
+  webEvents            WebEvent[]
+  integrations         Integration[]
+  automationRules      AutomationRule[]
+  aiInsights           AiInsight[]
+  auditLogs            AuditLog[]
   /// Una sola suscripcion por workspace (P0-B). El historial financiero vive
   /// en SubscriptionPayment y AuditLog.
-  subscription    WorkspaceSubscription?
+  subscription         WorkspaceSubscription?
   subscriptionPayments SubscriptionPayment[]
 
   contactConsents    ContactChannelConsent[]
@@ -64,21 +64,22 @@ model Workspace {
   commerceConnections   CommerceConnection[]
   mercadoPagoConnection MercadoPagoConnection?
   products              Product[]
-  orders              CustomerOrder[]
-  payments            Payment[]
-  digitalAssets       DigitalAsset[]
-  digitalDeliveries   DigitalDelivery[]
+  productSalesBrains    ProductSalesBrain[]
+  orders                CustomerOrder[]
+  payments              Payment[]
+  digitalAssets         DigitalAsset[]
+  digitalDeliveries     DigitalDelivery[]
 
   pricingRuleSets  PricingRuleSet[]
   quotes           Quote[]
   approvalRequests ApprovalRequest[]
 
-  featureFlags   FeatureFlag[]
+  featureFlags FeatureFlag[]
 
-  profile        WorkspaceProfile?
-  activation     WorkspaceActivation?
-  usageCounters  UsageCounter[]
-  alerts         WorkspaceAlert[]
+  profile           WorkspaceProfile?
+  activation        WorkspaceActivation?
+  usageCounters     UsageCounter[]
+  alerts            WorkspaceAlert[]
   pushSubscriptions PushSubscription[]
 
   messagingPolicy    MessagingPolicy?
@@ -92,59 +93,58 @@ model Workspace {
   emailEvents        EmailEvent[]
   contactSendLogs    ContactSendLog[]
 
-  mediaAssets        MediaAsset[]
+  mediaAssets MediaAsset[]
 
   channelAccounts          ChannelAccount[]
   contactChannelIdentities ContactChannelIdentity[]
   channelEvents            ChannelEvent[]
   automationFlows          AutomationFlow[]
   automationFlowRuns       AutomationFlowRun[]
+  knowledgeSources         KnowledgeSource[]
 
   @@map("workspaces")
-  knowledgeSources KnowledgeSource[]
-
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id                    String       @id @default(cuid())
   /// LEGACY (P0-FOUNDATION): workspace "de origen". Desde el step 2 es nullable
   /// y las altas nuevas NO lo escriben: la pertenencia vive en
   /// `WorkspaceMembership`. Se elimina en el step 3.
-  workspaceId  String?  @map("workspace_id")
-  name         String
+  workspaceId           String?      @map("workspace_id")
+  name                  String
   /// Unico GLOBAL (step 2): una persona = una cuenta, con memberships en N
   /// workspaces. Siempre normalizado (trim + minusculas).
-  email        String   @unique
-  passwordHash String   @map("password_hash")
+  email                 String       @unique
+  passwordHash          String       @map("password_hash")
   /// LEGACY: reemplazado por `WorkspaceMembership.role`. No leer.
-  role         UserRole @default(SALES)
+  role                  UserRole     @default(SALES)
   /// Autorizacion sobre la PLATAFORMA. Independiente de cualquier workspace:
   /// ser OWNER de un workspace no concede nada aqui.
-  platformRole PlatformRole @default(USER) @map("platform_role")
+  platformRole          PlatformRole @default(USER) @map("platform_role")
   /// Preferencia, NO autorizacion: a que workspace entrar al iniciar sesion.
   /// Siempre se re-verifica contra memberships.
-  lastActiveWorkspaceId String? @map("last_active_workspace_id")
+  lastActiveWorkspaceId String?      @map("last_active_workspace_id")
   /// Version de credenciales. Cada cookie lleva la version con la que se
   /// emitio; si no coincide, la sesion es invalida. Subirla (reset de
   /// contrasena, "cerrar sesion en todos los dispositivos") invalida TODAS
   /// las sesiones abiertas. Cookies sin version = 0.
-  sessionVersion Int      @default(0) @map("session_version")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  sessionVersion        Int          @default(0) @map("session_version")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
 
   /// SetNull: borrar el workspace de origen NO borra una cuenta global que
   /// puede pertenecer a otros workspaces.
-  workspace           Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  lastActiveWorkspace Workspace?           @relation("UserLastActiveWorkspace", fields: [lastActiveWorkspaceId], references: [id], onDelete: SetNull)
-  memberships         WorkspaceMembership[]
-  workspacePreferences WorkspaceUserPreference[]
-  supportSessions     SupportSession[]
-  ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
-  ownedContacts       Contact[]            @relation("ContactOwner")
-  createdActivities   Activity[]           @relation("ActivityCreator")
-  passwordResetTokens PasswordResetToken[]
-  assignedConversations Conversation[]     @relation("ConversationAssignee")
-  sentMessages          Message[]          @relation("MessageSender")
+  workspace             Workspace?                @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  lastActiveWorkspace   Workspace?                @relation("UserLastActiveWorkspace", fields: [lastActiveWorkspaceId], references: [id], onDelete: SetNull)
+  memberships           WorkspaceMembership[]
+  workspacePreferences  WorkspaceUserPreference[]
+  supportSessions       SupportSession[]
+  ownedOpportunities    Opportunity[]             @relation("OpportunityOwner")
+  ownedContacts         Contact[]                 @relation("ContactOwner")
+  createdActivities     Activity[]                @relation("ActivityCreator")
+  passwordResetTokens   PasswordResetToken[]
+  assignedConversations Conversation[]            @relation("ConversationAssignee")
+  sentMessages          Message[]                 @relation("MessageSender")
   pushSubscriptions     PushSubscription[]
   platformAdmin         PlatformAdmin?
 
@@ -158,24 +158,24 @@ model User {
 /// Pertenencia de un usuario a un workspace. Un usuario puede operar varios
 /// negocios con la misma cuenta, con un rol distinto en cada uno.
 model WorkspaceMembership {
-  id          String           @id @default(cuid())
-  userId      String           @map("user_id")
-  workspaceId String           @map("workspace_id")
-  role        WorkspaceRole    @default(MEMBER)
+  id                String           @id @default(cuid())
+  userId            String           @map("user_id")
+  workspaceId       String           @map("workspace_id")
+  role              WorkspaceRole    @default(MEMBER)
   /// SUSPENDED conserva la historia (duenos de contactos, asignaciones) sin
   /// dar acceso ni contar para `users.max`.
-  status      MembershipStatus @default(ACTIVE)
-  invitedById String?          @map("invited_by_id")
+  status            MembershipStatus @default(ACTIVE)
+  invitedById       String?          @map("invited_by_id")
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
   /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
   /// estado que decidio el usuario.
-  planLimitedAt     DateTime? @map("plan_limited_at")
+  planLimitedAt     DateTime?        @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
-  planLimitedReason String?   @map("plan_limited_reason")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  planLimitedReason String?          @map("plan_limited_reason")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -190,25 +190,25 @@ model WorkspaceMembership {
 /// nuevo e invalida el anterior (cambia el hash). Aceptar crea la cuenta global
 /// si el email no existe, o agrega la membership a la cuenta existente.
 model WorkspaceInvitation {
-  id               String        @id @default(cuid())
-  workspaceId      String        @map("workspace_id")
+  id               String           @id @default(cuid())
+  workspaceId      String           @map("workspace_id")
   /// Normalizado (trim + minusculas).
   email            String
-  role             WorkspaceRole @default(MEMBER)
-  tokenHash        String        @unique @map("token_hash")
-  invitedByUserId  String?       @map("invited_by_user_id")
-  expiresAt        DateTime      @map("expires_at")
-  acceptedAt       DateTime?     @map("accepted_at")
-  acceptedByUserId String?       @map("accepted_by_user_id")
-  revokedAt        DateTime?     @map("revoked_at")
+  role             WorkspaceRole    @default(MEMBER)
+  tokenHash        String           @unique @map("token_hash")
+  invitedByUserId  String?          @map("invited_by_user_id")
+  expiresAt        DateTime         @map("expires_at")
+  acceptedAt       DateTime?        @map("accepted_at")
+  acceptedByUserId String?          @map("accepted_by_user_id")
+  revokedAt        DateTime?        @map("revoked_at")
   /// Ultimo envio por email de plataforma (null = solo enlace copiado).
-  lastSentAt       DateTime?     @map("last_sent_at")
+  lastSentAt       DateTime?        @map("last_sent_at")
   /// P0-F: quien la creo. WORKSPACE = gestion de equipo del cliente; PLATFORM
   /// = Platform Admin (P0-D). Un ADMIN del workspace solo gestiona las
   /// WORKSPACE de rol MEMBER. Filas previas = PLATFORM (unico origen hasta P0-F).
   origin           InvitationOrigin @default(PLATFORM)
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   invitedBy  User?     @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
@@ -350,9 +350,9 @@ model Contact {
   leadScore       Int             @default(0) @map("lead_score")
   scoreUpdatedAt  DateTime?       @map("score_updated_at")
 
-  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  company          Company?               @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  owner            User?                  @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workspace        Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company          Company?                @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner            User?                   @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   opportunities    Opportunity[]
   activities       Activity[]
   formSubmissions  FormSubmission[]
@@ -574,9 +574,9 @@ model AutomationRule {
 
   /// Ventana de deduplicacion por contacto, en minutos. Evita que un mismo
   /// contacto dispare la misma regla dos veces seguidas.
-  dedupeMinutes Int       @default(0) @map("dedupe_minutes")
-  lastRunAt     DateTime? @map("last_run_at")
-  runCount      Int       @default(0) @map("run_count")
+  dedupeMinutes     Int       @default(0) @map("dedupe_minutes")
+  lastRunAt         DateTime? @map("last_run_at")
+  runCount          Int       @default(0) @map("run_count")
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
@@ -585,8 +585,8 @@ model AutomationRule {
   planLimitedAt     DateTime? @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
   planLimitedReason String?   @map("plan_limited_reason")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   workspace  Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   executions AutomationExecution[]
@@ -619,18 +619,18 @@ model AiInsight {
 }
 
 model SubscriptionPlan {
-  id          String   @id @default(cuid())
-  key         String   @unique
+  id          String    @id @default(cuid())
+  key         String    @unique
   /// Codigo comercial formal (P0-B). null = plan legacy (monthly, beta-*): las
   /// suscripciones que lo usan siguen resolviendose con sus propios terminos,
   /// pero ya no se vende. El precio NO vive aqui: ver PlanPrice.
   code        PlanCode? @unique
   name        String
-  priceClp    Int      @map("price_clp")
-  maxUsers    Int      @map("max_users")
-  maxContacts Int      @map("max_contacts")
-  features    String[] @default([])
-  createdAt   DateTime @default(now()) @map("created_at")
+  priceClp    Int       @map("price_clp")
+  maxUsers    Int       @map("max_users")
+  maxContacts Int       @map("max_contacts")
+  features    String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   /// Fase 9: que puede hacer el plan. Claves de `PlanCapability`, validadas con
   /// Zod al leerlas. `features` sigue siendo texto para mostrar en la pagina de
@@ -681,8 +681,8 @@ model WorkspaceSubscription {
   notes              String?
   updatedById        String?       @map("updated_by_id")
 
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   plan      SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
@@ -775,17 +775,17 @@ model AuditLog {
 /// Consentimiento por canal. Es independiente para WhatsApp, email y publicidad:
 /// aceptar recibir la confirmacion de una compra no habilita marketing.
 model ContactChannelConsent {
-  id          String        @id @default(cuid())
-  workspaceId String        @map("workspace_id")
-  contactId   String        @map("contact_id")
+  id          String         @id @default(cuid())
+  workspaceId String         @map("workspace_id")
+  contactId   String         @map("contact_id")
   channel     ConsentChannel
-  status      ConsentStatus @default(UNKNOWN)
+  status      ConsentStatus  @default(UNKNOWN)
   source      String?
   evidence    Json?
-  grantedAt   DateTime?     @map("granted_at")
-  revokedAt   DateTime?     @map("revoked_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  grantedAt   DateTime?      @map("granted_at")
+  revokedAt   DateTime?      @map("revoked_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -926,9 +926,9 @@ model WhatsAppChannel {
   /// usarlo (downgrade, vencimiento). Solo lo escribe
   /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
   /// estado que decidio el usuario.
-  planLimitedAt     DateTime? @map("plan_limited_at")
+  planLimitedAt        DateTime?             @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
-  planLimitedReason String?   @map("plan_limited_reason")
+  planLimitedReason    String?               @map("plan_limited_reason")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
 
@@ -977,33 +977,33 @@ enum ChannelAccountStatus {
 /// para una cuenta y no para otra). La UI nunca debe ofrecer una automatizacion
 /// cuya capability no este en esta lista.
 model ChannelAccount {
-  id                    String                   @id @default(cuid())
-  workspaceId           String                   @map("workspace_id")
+  id                    String                  @id @default(cuid())
+  workspaceId           String                  @map("workspace_id")
   channel               Channel
-  connectionMethod      ChannelConnectionMethod  @default(MANUAL) @map("connection_method")
-  externalAccountId     String                   @map("external_account_id")
-  displayName           String?                  @map("display_name")
-  accessTokenEncrypted  String?                  @map("access_token_encrypted")
-  refreshTokenEncrypted String?                  @map("refresh_token_encrypted")
-  accessTokenExpiresAt  DateTime?                @map("access_token_expires_at")
+  connectionMethod      ChannelConnectionMethod @default(MANUAL) @map("connection_method")
+  externalAccountId     String                  @map("external_account_id")
+  displayName           String?                 @map("display_name")
+  accessTokenEncrypted  String?                 @map("access_token_encrypted")
+  refreshTokenEncrypted String?                 @map("refresh_token_encrypted")
+  accessTokenExpiresAt  DateTime?               @map("access_token_expires_at")
   scopes                String?
-  capabilities          String[]                 @default([])
-  status                ChannelAccountStatus     @default(DISCONNECTED)
-  connectedAt           DateTime?                @map("connected_at")
-  lastVerifiedAt        DateTime?                @map("last_verified_at")
-  lastErrorCode         String?                  @map("last_error_code")
-  lastError             String?                  @map("last_error")
+  capabilities          String[]                @default([])
+  status                ChannelAccountStatus    @default(DISCONNECTED)
+  connectedAt           DateTime?               @map("connected_at")
+  lastVerifiedAt        DateTime?               @map("last_verified_at")
+  lastErrorCode         String?                 @map("last_error_code")
+  lastError             String?                 @map("last_error")
   metadata              Json?
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
   /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
   /// estado que decidio el usuario.
-  planLimitedAt     DateTime? @map("plan_limited_at")
+  planLimitedAt         DateTime?               @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
-  planLimitedReason String?   @map("plan_limited_reason")
-  createdAt             DateTime                 @default(now()) @map("created_at")
-  updatedAt             DateTime                 @updatedAt @map("updated_at")
+  planLimitedReason     String?                 @map("plan_limited_reason")
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
 
   workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations Conversation[]
@@ -1110,6 +1110,9 @@ model Conversation {
   channelId                   String?            @map("channel_id")
   channelAccountId            String?            @map("channel_account_id")
   contactId                   String             @map("contact_id")
+  /// Producto comercial activo. El par con workspaceId se valida por FK para
+  /// que una conversacion nunca pueda cargar contexto de otro tenant.
+  productId                   String?            @map("product_id")
   assignedUserId              String?            @map("assigned_user_id")
   mode                        ConversationMode   @default(WAITING)
   status                      ConversationStatus @default(OPEN)
@@ -1125,22 +1128,24 @@ model Conversation {
   createdAt                   DateTime           @default(now()) @map("created_at")
   updatedAt                   DateTime           @updatedAt @map("updated_at")
 
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  channel        WhatsAppChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelAccount ChannelAccount?  @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
-  contact   Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  assignee   User?                    @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages   Message[]
-  agentRuns  AgentRun[]
-  agentState ConversationAgentState?
-  mediaAssets MediaAsset[]
-  flowRuns   AutomationFlowRun[]
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel        WhatsAppChannel?        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount?         @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  contact        Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  product        Product?                @relation(fields: [productId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  assignee       User?                   @relation("ConversationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages       Message[]
+  agentRuns      AgentRun[]
+  agentState     ConversationAgentState?
+  mediaAssets    MediaAsset[]
+  flowRuns       AutomationFlowRun[]
 
   @@unique([channelId, contactId])
   @@unique([channelAccountId, contactId])
   @@index([workspaceId, status, lastMessageAt])
   @@index([workspaceId, assignedUserId])
   @@index([workspaceId, channelType])
+  @@index([productId, workspaceId])
   @@map("conversations")
 }
 
@@ -1200,33 +1205,33 @@ enum MediaAssetStatus {
 /// nosotros. El identificador del proveedor caduca; el archivo no puede vivir
 /// solo alli.
 model MediaAsset {
-  id             String           @id @default(cuid())
-  workspaceId    String           @map("workspace_id")
-  conversationId String?          @map("conversation_id")
-  messageId      String?          @unique @map("message_id")
-  provider       String           @default("whatsapp")
-  externalMediaId String          @map("external_media_id")
-  kind           MessageType
-  status         MediaAssetStatus @default(PENDING)
+  id               String           @id @default(cuid())
+  workspaceId      String           @map("workspace_id")
+  conversationId   String?          @map("conversation_id")
+  messageId        String?          @unique @map("message_id")
+  provider         String           @default("whatsapp")
+  externalMediaId  String           @map("external_media_id")
+  kind             MessageType
+  status           MediaAssetStatus @default(PENDING)
   /// Tipo declarado por el proveedor: sirve para decidir, nunca para servir.
-  declaredMime   String?          @map("declared_mime")
+  declaredMime     String?          @map("declared_mime")
   /// Tipo con el que se guardo y con el que se sirve.
-  mimeType       String?          @map("mime_type")
+  mimeType         String?          @map("mime_type")
   /// La firma de los bytes confirmo el tipo. Solo lo confirmado se muestra
   /// dentro de la pagina; lo demas se descarga.
-  contentConfirmed Boolean        @default(false) @map("content_confirmed")
-  fileName       String?          @map("file_name")
-  sizeBytes      Int?             @map("size_bytes")
-  sha256         String?
-  storageDriver  String?          @map("storage_driver")
-  storageKey     String?          @map("storage_key")
-  attempts       Int              @default(0)
-  error          String?
-  downloadedAt   DateTime?        @map("downloaded_at")
-  expiresAt      DateTime?        @map("expires_at")
-  purgedAt       DateTime?        @map("purged_at")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  contentConfirmed Boolean          @default(false) @map("content_confirmed")
+  fileName         String?          @map("file_name")
+  sizeBytes        Int?             @map("size_bytes")
+  sha256           String?
+  storageDriver    String?          @map("storage_driver")
+  storageKey       String?          @map("storage_key")
+  attempts         Int              @default(0)
+  error            String?
+  downloadedAt     DateTime?        @map("downloaded_at")
+  expiresAt        DateTime?        @map("expires_at")
+  purgedAt         DateTime?        @map("purged_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -1372,24 +1377,24 @@ enum AutomationFlowRunStatus {
 /// DRAFT/PUBLISHED real vive en AutomationFlowVersion, exactamente como
 /// AgentDefinition.isActive vs AgentVersion.status.
 model AutomationFlow {
-  id            String               @id @default(cuid())
-  workspaceId   String               @map("workspace_id")
-  name          String
-  description   String?
-  status        AutomationFlowStatus @default(DRAFT)
-  channelScope  Channel[]            @default([]) @map("channel_scope")
-  createdById   String?              @map("created_by")
-  updatedById   String?              @map("updated_by")
+  id                String               @id @default(cuid())
+  workspaceId       String               @map("workspace_id")
+  name              String
+  description       String?
+  status            AutomationFlowStatus @default(DRAFT)
+  channelScope      Channel[]            @default([]) @map("channel_scope")
+  createdById       String?              @map("created_by")
+  updatedById       String?              @map("updated_by")
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
   /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
   /// estado que decidio el usuario.
-  planLimitedAt     DateTime? @map("plan_limited_at")
+  planLimitedAt     DateTime?            @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
-  planLimitedReason String?   @map("plan_limited_reason")
-  createdAt     DateTime             @default(now()) @map("created_at")
-  updatedAt     DateTime             @updatedAt @map("updated_at")
+  planLimitedReason String?              @map("plan_limited_reason")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
   workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   versions  AutomationFlowVersion[]
@@ -1405,24 +1410,24 @@ model AutomationFlow {
 /// src/lib/automations/schema.ts, no tipados aqui — el grafo es datos, igual
 /// que las reglas de PricingRuleSet o las condiciones de AutomationRule.
 model AutomationFlowVersion {
-  id               String                @id @default(cuid())
-  flowId           String                @map("flow_id")
+  id               String               @id @default(cuid())
+  flowId           String               @map("flow_id")
   version          Int
-  status           AutomationFlowStatus  @default(DRAFT)
+  status           AutomationFlowStatus @default(DRAFT)
   trigger          Json
   nodes            Json
   edges            Json
-  publishedAt      DateTime?             @map("published_at")
+  publishedAt      DateTime?            @map("published_at")
   // Metricas basicas (spec: "no analytics avanzados, pero registrar esto").
-  runsStarted      Int                   @default(0) @map("runs_started")
-  runsCompleted    Int                   @default(0) @map("runs_completed")
-  runsFailed       Int                   @default(0) @map("runs_failed")
-  messagesSent     Int                   @default(0) @map("messages_sent")
-  checkoutsCreated Int                   @default(0) @map("checkouts_created")
-  paymentsApproved Int                   @default(0) @map("payments_approved")
-  handoffs         Int                   @default(0)
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  runsStarted      Int                  @default(0) @map("runs_started")
+  runsCompleted    Int                  @default(0) @map("runs_completed")
+  runsFailed       Int                  @default(0) @map("runs_failed")
+  messagesSent     Int                  @default(0) @map("messages_sent")
+  checkoutsCreated Int                  @default(0) @map("checkouts_created")
+  paymentsApproved Int                  @default(0) @map("payments_approved")
+  handoffs         Int                  @default(0)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
 
   flow AutomationFlow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
   runs AutomationFlowRun[]
@@ -1460,11 +1465,11 @@ model AutomationFlowRun {
   createdAt        DateTime                @default(now()) @map("created_at")
   updatedAt        DateTime                @updatedAt @map("updated_at")
 
-  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  flow        AutomationFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  flowVersion AutomationFlowVersion @relation(fields: [flowVersionId], references: [id], onDelete: Cascade)
-  contact     Contact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  conversation Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow         AutomationFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flowVersion  AutomationFlowVersion @relation(fields: [flowVersionId], references: [id], onDelete: Cascade)
+  contact      Contact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  conversation Conversation?         @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   // Idempotencia de arranque: el mismo evento disparador nunca crea dos runs
   // de la misma version. `triggerDedupeKey` puede ser null (un run manual/de
@@ -1480,20 +1485,20 @@ model AutomationFlowRun {
 /// copiado. `requiredCapabilities` se compara contra
 /// ChannelAccount.capabilities antes de permitir instalar/publicar.
 model AutomationTemplate {
-  id                   String   @id @default(cuid())
-  key                  String   @unique
+  id                   String    @id @default(cuid())
+  key                  String    @unique
   name                 String
   description          String?
   supportedChannels    Channel[] @map("supported_channels")
-  requiredCapabilities String[] @default([]) @map("required_capabilities")
+  requiredCapabilities String[]  @default([]) @map("required_capabilities")
   trigger              Json
   nodes                Json
   edges                Json
-  requiredFields       Json?    @map("required_fields")
-  tags                 String[] @default([])
+  requiredFields       Json?     @map("required_fields")
+  tags                 String[]  @default([])
   settings             Json?
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@map("automation_templates")
 }
@@ -1503,12 +1508,12 @@ model AutomationTemplate {
 /// Agente de un workspace. La definicion es estable; lo que cambia son sus
 /// versiones, para poder editar sin afectar lo que ya esta en produccion.
 model AgentDefinition {
-  id          String    @id @default(cuid())
-  workspaceId String    @map("workspace_id")
-  key         AgentKind
-  name        String
-  purpose     String?
-  isActive    Boolean   @default(true) @map("is_active")
+  id                String    @id @default(cuid())
+  workspaceId       String    @map("workspace_id")
+  key               AgentKind
+  name              String
+  purpose           String?
+  isActive          Boolean   @default(true) @map("is_active")
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
@@ -1517,8 +1522,8 @@ model AgentDefinition {
   planLimitedAt     DateTime? @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
   planLimitedReason String?   @map("plan_limited_reason")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   versions  AgentVersion[]
@@ -1652,32 +1657,32 @@ model CommerceConnection {
 ///  - MANUAL: el operador pega su propio access token y secreto de webhook
 ///    (Fase A original). Sigue disponible como modo avanzado/legacy.
 model MercadoPagoConnection {
-  id                      String                      @id @default(cuid())
-  workspaceId             String                      @unique @map("workspace_id")
-  connectionMethod        MercadoPagoConnectionMethod @default(MANUAL) @map("connection_method")
-  mode                    MercadoPagoMode             @default(TEST)
+  id                     String                      @id @default(cuid())
+  workspaceId            String                      @unique @map("workspace_id")
+  connectionMethod       MercadoPagoConnectionMethod @default(MANUAL) @map("connection_method")
+  mode                   MercadoPagoMode             @default(TEST)
   /// ID de usuario/vendedor de Mercado Pago (OAuth: `user_id` de la respuesta
   /// de token; MANUAL: se resuelve con GET /users/me al conectar). Es lo que
   /// el webhook compara contra `collector_id` del pago para atar cada
   /// notificacion a la cuenta correcta, incluso si alguien manipula la URL.
-  mercadoPagoUserId       String?                     @map("mercado_pago_user_id")
-  publicKey               String?                     @map("public_key")
-  accessTokenEncrypted    String?                     @map("access_token_encrypted")
+  mercadoPagoUserId      String?                     @map("mercado_pago_user_id")
+  publicKey              String?                     @map("public_key")
+  accessTokenEncrypted   String?                     @map("access_token_encrypted")
   /// Solo OAuth: null en conexiones MANUAL (no hay refresh token que pedir).
-  refreshTokenEncrypted   String?                     @map("refresh_token_encrypted")
-  accessTokenExpiresAt    DateTime?                   @map("access_token_expires_at")
+  refreshTokenEncrypted  String?                     @map("refresh_token_encrypted")
+  accessTokenExpiresAt   DateTime?                   @map("access_token_expires_at")
   /// Solo MANUAL: en OAuth el secreto es el de la aplicacion (entorno), no de
   /// esta fila.
-  webhookSecretEncrypted  String?                     @map("webhook_secret_encrypted")
-  scopes                  String?
-  status                  MercadoPagoConnectionStatus @default(DISCONNECTED)
-  connectedAt             DateTime?                   @map("connected_at")
-  lastRefreshAt           DateTime?                   @map("last_refresh_at")
-  lastVerifiedAt          DateTime?                   @map("last_verified_at")
-  lastErrorCode           String?                     @map("last_error_code")
-  lastError               String?                     @map("last_error")
-  createdAt               DateTime                    @default(now()) @map("created_at")
-  updatedAt               DateTime                    @updatedAt @map("updated_at")
+  webhookSecretEncrypted String?                     @map("webhook_secret_encrypted")
+  scopes                 String?
+  status                 MercadoPagoConnectionStatus @default(DISCONNECTED)
+  connectedAt            DateTime?                   @map("connected_at")
+  lastRefreshAt          DateTime?                   @map("last_refresh_at")
+  lastVerifiedAt         DateTime?                   @map("last_verified_at")
+  lastErrorCode          String?                     @map("last_error_code")
+  lastError              String?                     @map("last_error")
+  createdAt              DateTime                    @default(now()) @map("created_at")
+  updatedAt              DateTime                    @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -1713,15 +1718,57 @@ model Product {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  connection CommerceConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  variants   ProductVariant[]
-  assets     DigitalAsset[]
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection    CommerceConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  variants      ProductVariant[]
+  assets        DigitalAsset[]
+  salesBrain    ProductSalesBrain?
+  conversations Conversation[]
 
   @@unique([connectionId, externalId])
+  @@unique([id, workspaceId])
   @@index([workspaceId, status])
   @@index([workspaceId, type])
   @@map("products")
+}
+
+/// Entrenamiento comercial estructurado de UN producto. No es una base de
+/// conocimiento global ni almacena documentos: es la capa explicita que el
+/// runtime carga solo cuando la conversacion tiene ese producto activo.
+model ProductSalesBrain {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @map("workspace_id")
+  productId           String   @unique @map("product_id")
+  productWhat         String?  @map("product_what")
+  idealFor            String?  @map("ideal_for")
+  problems            String?
+  benefits            String?
+  differentiators     String?
+  targetAudience      String?  @map("target_audience")
+  buyerPersona        String?  @map("buyer_persona")
+  faqs                Json     @default("[]")
+  objections          Json     @default("[]")
+  socialProof         String?  @map("social_proof")
+  guarantee           String?
+  policies            String?
+  salesTone           String?  @map("sales_tone")
+  prohibitedClaims    String?  @map("prohibited_claims")
+  askWhen             String?  @map("ask_when")
+  offerWhen           String?  @map("offer_when")
+  checkoutWhen        String?  @map("checkout_when")
+  insistWhen          String?  @map("insist_when")
+  stopWhen            String?  @map("stop_when")
+  handoffWhen         String?  @map("handoff_when")
+  specialInstructions String?  @map("special_instructions")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@unique([productId, workspaceId])
+  @@index([workspaceId, updatedAt])
+  @@map("product_sales_brains")
 }
 
 /// Variante vendible. Un producto simple tiene una sola, marcada `isDefault`.
@@ -1815,8 +1862,8 @@ model CustomerOrder {
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lines        OrderLine[]
   payments     Payment[]
   fulfillments FulfillmentOrder[]
@@ -2012,17 +2059,17 @@ model PricingRuleSet {
 /// Guarda los datos de entrada y el desglose completo: una cotizacion aprobada
 /// tiene que poder reconstruirse anos despues aunque las reglas hayan cambiado.
 model Quote {
-  id             String      @id @default(cuid())
-  workspaceId    String      @map("workspace_id")
-  contactId      String?     @map("contact_id")
-  opportunityId  String?     @map("opportunity_id")
-  conversationId String?     @map("conversation_id")
-  ruleSetId      String      @map("rule_set_id")
-  serviceKey     String      @map("service_key")
+  id             String  @id @default(cuid())
+  workspaceId    String  @map("workspace_id")
+  contactId      String? @map("contact_id")
+  opportunityId  String? @map("opportunity_id")
+  conversationId String? @map("conversation_id")
+  ruleSetId      String  @map("rule_set_id")
+  serviceKey     String  @map("service_key")
 
   /// Numero legible para el cliente: COT-0001.
-  number  String
-  version Int    @default(1)
+  number        String
+  version       Int     @default(1)
   /// Version anterior, cuando esta cotizacion la reemplaza.
   parentQuoteId String? @map("parent_quote_id")
 
@@ -2189,9 +2236,9 @@ model Journey {
   entryConditions Json? @map("entry_conditions")
   exitConditions  Json? @map("exit_conditions")
 
-  version     Int       @default(1)
-  publishedAt DateTime? @map("published_at")
-  pausedAt    DateTime? @map("paused_at")
+  version           Int       @default(1)
+  publishedAt       DateTime? @map("published_at")
+  pausedAt          DateTime? @map("paused_at")
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
@@ -2514,31 +2561,31 @@ model ContactSendLog {
 /// activar. La beta es multivertical y esto es lo mas cerca que esta de
 /// reconocer un rubro: tres formas de vender, no tres rubros.
 model WorkspaceProfile {
-  id          String       @id @default(cuid())
-  workspaceId String       @unique @map("workspace_id")
+  id          String @id @default(cuid())
+  workspaceId String @unique @map("workspace_id")
 
-  businessType BusinessType @default(UNDEFINED) @map("business_type")
+  businessType            BusinessType     @default(UNDEFINED) @map("business_type")
   /// Solo con businessType = ECOMMERCE (P0-E). Reemplaza al legacy
   /// `businessType = INFOPRODUCT` (migrado a ECOMMERCE + INFOPRODUCT).
-  commerceSubtype CommerceSubtype? @map("commerce_subtype")
-  primaryGoal     PrimaryGoal?     @map("primary_goal")
-  teamSize        TeamSize?        @map("team_size")
+  commerceSubtype         CommerceSubtype? @map("commerce_subtype")
+  primaryGoal             PrimaryGoal?     @map("primary_goal")
+  teamSize                TeamSize?        @map("team_size")
   /// Canales donde el negocio habla con sus clientes (WHATSAPP, INSTAGRAM,
   /// MESSENGER, WEB, ONLINE_STORE). Informativo: no conecta nada.
-  preferredChannels String[] @default([]) @map("preferred_channels")
+  preferredChannels       String[]         @default([]) @map("preferred_channels")
   /// Preset de experiencia aplicado (`services`, `infoproduct`...). El preset
   /// vive en codigo (src/lib/workspace-presets); aqui solo clave y version.
   /// null = se deduce del businessType. Nunca concede capacidades.
-  presetKey               String?   @map("preset_key")
-  presetVersion           Int?      @map("preset_version")
-  onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
-  onboardingCompletedById String?   @map("onboarding_completed_by")
+  presetKey               String?          @map("preset_key")
+  presetVersion           Int?             @map("preset_version")
+  onboardingCompletedAt   DateTime?        @map("onboarding_completed_at")
+  onboardingCompletedById String?          @map("onboarding_completed_by")
   /// Rubro declarado por el cliente. Es independiente de `businessType`, que
   /// describe la modalidad de venta y condiciona el onboarding.
-  industry      String?
-  industryOther String?      @map("industry_other")
-  currency     String       @default("CLP")
-  country      String       @default("CL")
+  industry                String?
+  industryOther           String?          @map("industry_other")
+  currency                String           @default("CLP")
+  country                 String           @default("CL")
 
   /// Horario de atencion humana. Minutos desde medianoche, en la zona de
   /// `MessagingPolicy`.
@@ -2549,10 +2596,10 @@ model WorkspaceProfile {
 
   /// Lo que el agente puede decir del negocio. Es conocimiento, no prompt: se
   /// inyecta como contexto y no reemplaza las instrucciones del agente.
-  about           String?
-  policies        String?
-  shippingInfo    String? @map("shipping_info")
-  returnsPolicy   String? @map("returns_policy")
+  about         String?
+  policies      String?
+  shippingInfo  String? @map("shipping_info")
+  returnsPolicy String? @map("returns_policy")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2571,18 +2618,18 @@ model WorkspaceUserPreference {
   workspaceId String @map("workspace_id")
 
   /// Solo escritorio. En movil se ignora (drawer de ancho fijo).
-  sidebarWidth       Int?     @map("sidebar_width")
-  sidebarCollapsed   Boolean  @default(false) @map("sidebar_collapsed")
+  sidebarWidth             Int?     @map("sidebar_width")
+  sidebarCollapsed         Boolean  @default(false) @map("sidebar_collapsed")
   /// Ids de navegacion en el orden elegido. Incluir un id que el preset
   /// oculta lo vuelve a mostrar.
-  navOrder           String[] @default([]) @map("nav_order")
-  hiddenNavItems     String[] @default([]) @map("hidden_nav_items")
+  navOrder                 String[] @default([]) @map("nav_order")
+  hiddenNavItems           String[] @default([]) @map("hidden_nav_items")
   /// [{ id, position, size, hidden }]. null = layout del preset.
-  dashboardLayout    Json?    @map("dashboard_layout")
-  dismissedTutorials String[] @default([]) @map("dismissed_tutorials")
+  dashboardLayout          Json?    @map("dashboard_layout")
+  dismissedTutorials       String[] @default([]) @map("dismissed_tutorials")
   /// Estado personal del checklist ({ hidden: true }). El avance NO se
   /// guarda: se calcula del estado real.
-  onboardingChecklistState Json? @map("onboarding_checklist_state")
+  onboardingChecklistState Json?    @map("onboarding_checklist_state")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2656,14 +2703,14 @@ model WorkspaceAlert {
   kind        AlertKind
   severity    AlertSeverity @default(WARNING)
 
-  title   String
-  detail  String?
+  title     String
+  detail    String?
   /// Identifica el motivo del aviso. Unico mientras sigue abierto.
-  dedupeKey String @map("dedupe_key")
+  dedupeKey String  @map("dedupe_key")
 
-  resolvedAt   DateTime? @map("resolved_at")
-  acknowledgedAt DateTime? @map("acknowledged_at")
-  acknowledgedById String? @map("acknowledged_by")
+  resolvedAt       DateTime? @map("resolved_at")
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  acknowledgedById String?   @map("acknowledged_by")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2750,9 +2797,9 @@ model FeatureFlag {
 /// El precio es una escritura por peticion en los endpoints protegidos. Se
 /// acepta: son login, captura publica y webhooks, no el trafico normal.
 model RateLimitWindow {
-  id     String @id @default(cuid())
+  id          String   @id @default(cuid())
   /// Identifica al limitado: `login:<ip>`, `capture:<formId>`, etc.
-  bucket String
+  bucket      String
   /// Inicio de la ventana, truncado. Dos peticiones de la misma ventana
   /// comparten fila.
   windowStart DateTime @map("window_start")
@@ -3055,7 +3102,6 @@ enum ScheduledActionStatus {
   FAILED
 }
 
-
 // --- Fase 2: enums de mensajeria ---------------------------------------------
 
 enum WhatsAppChannelStatus {
@@ -3129,7 +3175,6 @@ enum OutboxStatus {
   CANCELLED
 }
 
-
 // --- Fase 3: enums de cola y automatizaciones --------------------------------
 
 enum JobType {
@@ -3180,7 +3225,6 @@ enum AutomationExecutionStatus {
   FAILED
 }
 
-
 // --- Fase 4: enums de agentes -------------------------------------------------
 
 enum AgentKind {
@@ -3206,7 +3250,6 @@ enum AgentRunStatus {
   /// Corto por limite de pasos o de tokens.
   ABORTED
 }
-
 
 // --- Fase 5: enums de comercio ------------------------------------------------
 
@@ -3278,7 +3321,6 @@ enum DeliveryStatus {
   EXPIRED
 }
 
-
 // --- Fase 7: enums del cotizador ---------------------------------------------
 
 enum PricingRuleSetStatus {
@@ -3307,7 +3349,6 @@ enum ApprovalStatus {
   REJECTED
   CHANGES_REQUESTED
 }
-
 
 // --- Fase 8: enums de recuperacion, email y campanas -------------------------
 
@@ -3418,7 +3459,6 @@ enum SendCategory {
   OPERATIONAL
 }
 
-
 // --- Fase 9: enums de onboarding, planes y consumo ---------------------------
 
 /// Como vende el cliente. Decide que pasos del onboarding son obligatorios,
@@ -3480,18 +3520,18 @@ enum AlertSeverity {
   CRITICAL
 }
 
-
 /// Structured knowledge; product/service prices remain in their original catalogs.
 model KnowledgeSource {
-  id String @id @default(cuid())
-  workspaceId String @map("workspace_id")
-  type String
-  title String
-  content String
-  isActive Boolean @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  workspaceId String    @map("workspace_id")
+  type        String
+  title       String
+  content     String
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@index([workspaceId, type, isActive])
   @@map("knowledge_sources")
 }
