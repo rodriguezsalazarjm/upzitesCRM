@@ -648,17 +648,18 @@ console.log('\n== M. Multi-moneda: CLP y USD de punta a punta, sin mezclar ==');
     const price = (foundData as { variants: { price: { amountMinor: number; currency: string; display: string } }[] }[] | undefined)?.[0]?.variants[0]?.price;
     check('M-AGENT. El agente recibe { amountMinor: 1999, currency: USD, display: $19.99 }', price?.amountMinor === 1999 && price.currency === 'USD' && price.display === '$19.99', JSON.stringify(foundData));
 
-    // Agente: crear el enlace exige que la oferta mencione el precio real CON su
-    // moneda ("$19.99"); los centavos sueltos ("1999") no cuentan como oferta.
+    // Agente: el producto se fija en la conversación/contexto del servidor; el
+    // modelo no envía productId, precio ni moneda. La confirmación explícita es
+    // suficiente y el backend recupera el precio real del catálogo.
     const account = await prisma.channelAccount.create({ data: { workspaceId: A.workspaceId, channel: 'INSTAGRAM', externalAccountId: `studio-${stamp}`, status: 'CONNECTED', metadata: { fake: true } } });
     const agentCheckout = async (productId: string, offerText: string) => {
       const contact = await prisma.contact.create({ data: { workspaceId: A.workspaceId, firstName: 'Agente', lastName: 'Studio' } });
-      const conversation = await prisma.conversation.create({ data: { workspaceId: A.workspaceId, contactId: contact.id, channelType: 'INSTAGRAM', channelAccountId: account.id, mode: 'AI_ACTIVE' } });
+      const conversation = await prisma.conversation.create({ data: { workspaceId: A.workspaceId, contactId: contact.id, productId, channelType: 'INSTAGRAM', channelAccountId: account.id, mode: 'AI_ACTIVE' } });
       const t0 = Date.now() - 60_000;
       await prisma.message.create({ data: { workspaceId: A.workspaceId, conversationId: conversation.id, direction: 'OUTBOUND', senderType: 'AI', text: offerText, createdAt: new Date(t0) } });
       await prisma.message.create({ data: { workspaceId: A.workspaceId, conversationId: conversation.id, direction: 'INBOUND', senderType: 'CONTACT', text: 'confirmo', createdAt: new Date(t0 + 1000) } });
       const tool = AGENT_TOOLS.find((item) => item.name === 'createCheckoutLink')!;
-      return tool.execute({ productId }, { workspaceId: A.workspaceId, contactId: contact.id, conversationId: conversation.id, agentRunId: 'smoke' } as never);
+      return tool.execute({}, { workspaceId: A.workspaceId, productId, contactId: contact.id, conversationId: conversation.id, agentRunId: 'smoke' } as never);
     };
     const usdOk = await agentCheckout(ids.USD.main, 'Main USD queda en $19.99. ¿Lo confirmas?');
     const usdCents = await agentCheckout(ids.USD.main, 'Main USD queda en 1999. ¿Lo confirmas?');
@@ -666,8 +667,8 @@ console.log('\n== M. Multi-moneda: CLP y USD de punta a punta, sin mezclar ==');
     const usdData = usdOk.ok ? (usdOk.data as { orderId: string; displayPrice: string; currency: string }) : null;
     const usdOrder = usdData ? await prisma.customerOrder.findFirst({ where: { id: usdData.orderId, workspaceId: A.workspaceId } }) : null;
     check(
-      'M-AGENT2. Agente: oferta "$19.99" + "confirmo" → pedido USD 1999 y precio mostrado $19.99; "1999" no vale como oferta; CLP "$19.990" también',
-      usdData?.displayPrice === '$19.99' && usdData.currency === 'USD' && usdOrder?.currency === 'USD' && usdOrder.total === 1999 && !usdCents.ok && clpOk.ok && (clpOk.data as { displayPrice: string }).displayPrice === '$19.990',
+      'M-AGENT2. Producto activo + "confirmo" → precio/moneda server-side para USD y CLP, sin aceptar productId del modelo',
+      usdData?.displayPrice === '$19.99' && usdData.currency === 'USD' && usdOrder?.currency === 'USD' && usdOrder.total === 1999 && usdCents.ok && clpOk.ok && (clpOk.data as { displayPrice: string }).displayPrice === '$19.990',
       JSON.stringify({ usdOk, usdCents, clpOk }),
     );
   } finally {

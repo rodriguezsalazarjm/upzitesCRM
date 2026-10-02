@@ -21,6 +21,8 @@
     "test:push": "tsx --test src/lib/push/*.test.ts",
     "test:billing": "tsx --test src/lib/billing/*.test.ts",
     "test:commerce": "tsx --test src/lib/commerce/*.test.ts src/lib/commerce/product-studio/*.test.ts src/lib/commerce/digital-assets/*.test.ts src/lib/email/*.test.ts",
+    "test:product-sales-ai": "tsx --test src/lib/product-sales-brain/*.test.ts",
+    "test:smoke:product-sales-ai": "node scripts/visual/run.mjs p4",
     "test:mercado-pago": "tsx --test src/lib/mercado-pago.test.ts src/lib/commerce/mercado-pago-oauth-state.test.ts",
     "test:test-safety": "tsx --test src/lib/testing/*.test.ts",
     "test:smoke": "tsx scripts/smoke-critico.ts",
@@ -42,6 +44,7 @@
     "test:team": "tsx --test src/lib/team/*.test.ts",
     "test:presets": "tsx --test src/lib/workspace-presets/*.test.ts src/lib/navigation/*.test.ts",
     "test:e2e:studio": "node scripts/visual/run.mjs studio && playwright test -c playwright.c2.config.ts product-studio",
+    "test:e2e:product-sales-ai": "node scripts/visual/run.mjs studio && playwright test -c playwright.c2.config.ts product-sales-ai",
     "test:e2e:delivery": "node scripts/visual/run.mjs studio && playwright test -c playwright.c2.config.ts digital-delivery",
     "test:foundation": "tsx --test src/lib/cross-tenant-allowlist.test.ts src/lib/session-token.test.ts src/lib/workspace-access.test.ts src/lib/tenant-guard.test.ts src/lib/commerce/payment-class.test.ts"
   },
