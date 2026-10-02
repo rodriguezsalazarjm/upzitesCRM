@@ -77,6 +77,12 @@ Las reglas del Product Brain influyen en FAQ, objeciones, prohibiciones, datos d
 
 Se reutiliza `OpenAIProvider` (Responses API, `OPENAI_API_KEY`/`OPENAI_PROJECT_ID`) y `LocalKnowledgeProvider` para pruebas deterministas. No se agregó proveedor, SDK, modelo ni variable nueva. El smoke real solo debe ejecutarse donde `OPENAI_API_KEY` ya esté configurada; nunca se registra ni se envía al cliente.
 
+### DEFERRED BY USER — OpenAI real provider smoke
+
+La credencial se detectó y autenticó correctamente, pero OpenAI respondió `429` con `error.code=credit_balance_exhausted` y `error.type=insufficient_quota`. No existe un fallo de código conocido: el usuario decidió explícitamente no cargar créditos de OpenAI API por ahora y retomar este smoke cuando decida agregarlos.
+
+Seguimiento obligatorio antes del release final: cargar créditos y ejecutar el smoke real mediante el mismo `runAgent` de producción. Esta verificación externa pospuesta no sustituye ni invalida las pruebas deterministas del runtime.
+
 ## Verificación
 
 - pruebas puras: límites, estado, Alpha/Beta, capas global/producto, CLP/USD y mass assignment;
