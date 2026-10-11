@@ -1,35 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-
-const SERVICES = [
-  "Branding y Dirección Visual",
-  "Diseño y Desarrollo Web",
-  "E-commerce",
-  "Marketing Digital y Contenido",
-  "Ads y Performance",
-  "Apps Móviles",
-  "Automatización e Inteligencia Artificial",
-  "Soluciones Express",
-  "No estoy seguro, quiero orientación",
-];
-
-const BUDGETS = [
-  "Menos de $500.000 CLP",
-  "$500.000 - $1.500.000 CLP",
-  "$1.500.000 - $3.000.000 CLP",
-  "$3.000.000 - $6.000.000 CLP",
-  "Más de $6.000.000 CLP",
-  "Prefiero definirlo con ustedes",
-];
-
-const URGENCIES = [
-  "Esta semana",
-  "Este mes",
-  "1 a 3 meses",
-  "Estoy planificando",
-];
+import { CONTACT_BUDGETS as BUDGETS, CONTACT_SERVICES as SERVICES, CONTACT_URGENCIES as URGENCIES } from "@/lib/contact-options";
+import { HoneypotField, TurnstileField, useFormProtection, type TurnstileHandle } from "@/components/FormProtection";
 
 type FormState = {
   name: string;
@@ -76,6 +50,8 @@ export function ContactForm() {
   const [state, setState] = useState<FormState>(initialState);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const protection = useFormProtection(turnstileRef);
   const whatsappUrl = useMemo(() => {
     const text = encodeURIComponent(`Hola UPZITES, quiero conversar sobre ${state.service}.`);
     return `https://wa.me/56978167863?text=${text}`;
@@ -87,12 +63,19 @@ export function ContactForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const missingToken = protection.missingTokenMessage();
+    if (missingToken) {
+      setStatus("error");
+      setMessage(missingToken);
+      return;
+    }
     setStatus("sending");
     setMessage("");
 
     const payload = {
       ...state,
       ...getUtmParams(),
+      ...protection.fields(),
       pageUrl: window.location.href,
       referrer: document.referrer,
     };
@@ -101,10 +84,11 @@ export function ContactForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    });
-    const result = await response.json().catch(() => null);
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
+    protection.afterSubmit();
 
-    if (!response.ok) {
+    if (!response?.ok) {
       setStatus("error");
       setMessage(result?.message ?? "No pudimos enviar el formulario. Inténtalo nuevamente.");
       return;
@@ -135,29 +119,30 @@ export function ContactForm() {
       </aside>
 
       <form className="bigcta-form contact-page-form" onSubmit={submit}>
+        <HoneypotField value={protection.honeypot} onChange={protection.setHoneypot} />
         <div className="field">
           <label htmlFor="contact-name">Nombre</label>
-          <input id="contact-name" value={state.name} onChange={(e) => update("name", e.target.value)} placeholder="Tu nombre" required />
+          <input id="contact-name" maxLength={120} value={state.name} onChange={(e) => update("name", e.target.value)} placeholder="Tu nombre" required />
         </div>
         <div className="field">
           <label htmlFor="contact-email">Email</label>
-          <input id="contact-email" type="email" value={state.email} onChange={(e) => update("email", e.target.value)} placeholder="tu@empresa.com" required />
+          <input id="contact-email" maxLength={254} type="email" value={state.email} onChange={(e) => update("email", e.target.value)} placeholder="tu@empresa.com" required />
         </div>
         <div className="field">
           <label htmlFor="contact-phone">Telefono</label>
-          <input id="contact-phone" value={state.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+56 9..." />
+          <input id="contact-phone" maxLength={40} value={state.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+56 9..." />
         </div>
         <div className="field">
           <label htmlFor="contact-whatsapp">WhatsApp</label>
-          <input id="contact-whatsapp" value={state.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} placeholder="+56 9..." />
+          <input id="contact-whatsapp" maxLength={40} value={state.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} placeholder="+56 9..." />
         </div>
         <div className="field">
           <label htmlFor="contact-company">Empresa / proyecto</label>
-          <input id="contact-company" value={state.company} onChange={(e) => update("company", e.target.value)} placeholder="Nombre de la marca" />
+          <input id="contact-company" maxLength={160} value={state.company} onChange={(e) => update("company", e.target.value)} placeholder="Nombre de la marca" />
         </div>
         <div className="field">
           <label htmlFor="contact-industry">Rubro / nicho</label>
-          <input id="contact-industry" value={state.industry} onChange={(e) => update("industry", e.target.value)} placeholder="Ej: salud, restaurante, inmobiliaria" />
+          <input id="contact-industry" maxLength={160} value={state.industry} onChange={(e) => update("industry", e.target.value)} placeholder="Ej: salud, restaurante, inmobiliaria" />
         </div>
         <div className="field">
           <label htmlFor="contact-service">Servicio de interés</label>
@@ -193,6 +178,7 @@ export function ContactForm() {
             value={state.message}
             onChange={(e) => update("message", e.target.value)}
             rows={5}
+            maxLength={10000}
             placeholder="Contexto, objetivos, fecha ideal, referencias, problemas actuales..."
             required
           />
@@ -202,6 +188,7 @@ export function ContactForm() {
             {status === "sending" ? "Enviando..." : "Enviar solicitud"} <span className="arr">&#8599;</span>
           </button>
           {message && <small role="status">{message}</small>}
+          <TurnstileField ref={turnstileRef} />
         </div>
       </form>
     </div>

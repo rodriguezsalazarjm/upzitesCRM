@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { sendContactNotification, sendContactConfirmation } from "@/lib/resend";
+import {
+  EMAIL_RULES,
+  IP_RULES,
+  MAX_BODY_BYTES,
+  consumeRateLimit,
+  detectBotTrap,
+  getClientIp,
+  isFastSubmit,
+  isForeignOrigin,
+  validateContact,
+  verifyTurnstile,
+  type ContactPayload,
+} from "@/lib/contact-security";
 
-type ContactPayload = Record<string, string | boolean | null>;
-
-const requiredFields = ["name", "email", "message"];
-
-function asString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
+const SUCCESS_MESSAGE = "Solicitud recibida con exito.";
 
 function getCrmBaseUrl() {
   return (process.env.NEXT_PUBLIC_CRM_BASE_URL ?? "").replace(/\/+$/, "");
@@ -36,73 +43,114 @@ async function forwardToCrm(payload: ContactPayload) {
   return { synced: true };
 }
 
-export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
+function reject(message: string, status: number, headers?: HeadersInit) {
+  return NextResponse.json({ ok: false, message }, { status, headers });
+}
 
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ message: "Solicitud invalida" }, { status: 400 });
+/** Log sin datos personales: solo el motivo, para ver el spam en los logs de Vercel. */
+function logDiscard(reason: string) {
+  console.info("contact_form_discarded", { reason });
+}
+
+export async function POST(request: Request) {
+  if (isForeignOrigin(request)) {
+    logDiscard("foreign_origin");
+    return reject("Solicitud invalida", 403);
   }
 
-  const payload: ContactPayload = {
-    name: asString(body.name),
-    email: asString(body.email),
-    phone: asString(body.whatsapp) || asString(body.phone),
-    whatsapp: asString(body.whatsapp),
-    instagram: asString(body.instagram),
-    kind: asString(body.kind),
-    briefType: asString(body.briefType),
-    company: asString(body.company),
-    industry: asString(body.industry),
-    service: asString(body.service),
-    budget: asString(body.budget),
-    urgency: asString(body.urgency),
-    message: asString(body.message),
-    consent: Boolean(body.consent),
-    pageUrl: asString(body.pageUrl),
-    referrer: asString(body.referrer),
-    utmSource: asString(body.utmSource),
-    utmMedium: asString(body.utmMedium),
-    utmCampaign: asString(body.utmCampaign),
-  };
+  if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return reject("Solicitud invalida", 415);
+  }
 
-  const missing = requiredFields.filter((field) => !payload[field]);
-  if (missing.length > 0 || !payload.consent) {
-    return NextResponse.json(
-      { message: "Completa los campos obligatorios y acepta el consentimiento." },
-      { status: 400 },
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (declaredLength > MAX_BODY_BYTES) {
+    return reject("Solicitud invalida", 413);
+  }
+
+  const raw = await request.text().catch(() => "");
+  if (raw.length > MAX_BODY_BYTES) {
+    return reject("Solicitud invalida", 413);
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = null;
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return reject("Solicitud invalida", 400);
+  }
+  const input = body as Record<string, unknown>;
+
+  // Bot de navegador: se le responde como si hubiera funcionado, para no
+  // enseñarle qué lo delató. No se envía correo ni se crea lead.
+  const trap = detectBotTrap(input);
+  if (trap) {
+    logDiscard(trap);
+    return NextResponse.json({ ok: true, message: SUCCESS_MESSAGE });
+  }
+
+  // Solo señal: el envío rápido sigue el flujo normal (ver isFastSubmit).
+  if (isFastSubmit(input)) {
+    console.info("contact_form_fast_submit");
+  }
+
+  const validation = validateContact(input);
+  if (!validation.ok) {
+    return reject(validation.message, 400);
+  }
+  const payload = validation.payload;
+
+  const ip = getClientIp(request);
+  const ipLimit = await consumeRateLimit("ip", ip, IP_RULES);
+  if (!ipLimit.allowed) {
+    logDiscard("rate_limit_ip");
+    return reject(
+      "Recibimos varias solicitudes seguidas. Espera unos minutos o escríbenos por WhatsApp.",
+      429,
+      { "Retry-After": String(ipLimit.retryAfterSeconds) },
     );
   }
 
-  const [emailResult, confirmationResult] = await Promise.all([
+  const turnstile = await verifyTurnstile(input.turnstileToken, ip);
+  if (!turnstile.ok) {
+    logDiscard(`turnstile:${turnstile.reason}`);
+    return turnstile.unavailable
+      ? reject("No pudimos verificar el envío. Inténtalo en unos minutos o escríbenos por WhatsApp.", 503)
+      : reject("No pudimos verificar que no eres un robot. Recarga la página e inténtalo nuevamente.", 403);
+  }
+
+  // Después de Turnstile a propósito: así un bot sin token no puede agotar el
+  // cupo de un email ajeno y bloquearle el contacto a esa persona.
+  const emailLimit = await consumeRateLimit("email", payload.email, EMAIL_RULES);
+  if (!emailLimit.allowed) {
+    logDiscard("rate_limit_email");
+    return reject(
+      "Ya recibimos varias solicitudes desde este email hoy. Te responderemos pronto.",
+      429,
+      { "Retry-After": String(emailLimit.retryAfterSeconds) },
+    );
+  }
+
+  await Promise.all([
     sendContactNotification(payload).catch((error) => {
       console.error("contact_form_email_error", error);
-      return { sent: false, reason: "send_failed" };
     }),
     sendContactConfirmation(payload).catch((error) => {
       console.error("contact_form_confirmation_error", error);
-      return { sent: false, reason: "send_failed" };
     }),
   ]);
 
   try {
-    const crm = await forwardToCrm(payload);
-    return NextResponse.json({
-      ok: true,
-      crm,
-      email: emailResult,
-      confirmation: confirmationResult,
-      message: "Solicitud recibida con exito.",
-    });
+    await forwardToCrm(payload);
+    console.info("contact_form_accepted");
+    return NextResponse.json({ ok: true, message: SUCCESS_MESSAGE });
   } catch (error) {
     console.error("contact_form_crm_error", error);
-    return NextResponse.json(
-      {
-        ok: true,
-        crm: { synced: false, reason: "CRM capture failed" },
-        email: emailResult,
-      confirmation: confirmationResult,
-        message: "Solicitud recibida. Revisaremos el mensaje y te contactaremos pronto.",
-      },
-    );
+    return NextResponse.json({
+      ok: true,
+      message: "Solicitud recibida. Revisaremos el mensaje y te contactaremos pronto.",
+    });
   }
 }

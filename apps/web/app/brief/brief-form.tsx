@@ -1,6 +1,8 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { BRIEF_BUDGETS, CONTACT_URGENCIES } from "@/lib/contact-options";
+import { HoneypotField, TurnstileField, useFormProtection, type TurnstileHandle } from "@/components/FormProtection";
 
 type BriefKind = "marca" | "marca-personal";
 
@@ -21,13 +23,13 @@ const COMMON_FIELDS: BriefField[] = [
     key: "budget",
     label: "Presupuesto aproximado",
     type: "select",
-    options: ["Menos de $500.000 CLP", "$500.000 - $1.500.000 CLP", "$1.500.000 - $3.000.000 CLP", "Más de $3.000.000 CLP", "Prefiero definirlo con ustedes"],
+    options: BRIEF_BUDGETS,
   },
   {
     key: "urgency",
     label: "Urgencia",
     type: "select",
-    options: ["Esta semana", "Este mes", "1 a 3 meses", "Estoy planificando"],
+    options: CONTACT_URGENCIES,
   },
 ];
 
@@ -72,6 +74,8 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const protection = useFormProtection(turnstileRef);
 
   function update(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -79,6 +83,12 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const missingToken = protection.missingTokenMessage();
+    if (missingToken) {
+      setStatus("error");
+      setMessage(missingToken);
+      return;
+    }
     setStatus("sending");
     setMessage("");
 
@@ -92,13 +102,15 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
         service: kind === "marca" ? "Branding y Dirección Visual" : "Branding personal",
         message: buildMessage(kind, values),
         consent,
+        ...protection.fields(),
         pageUrl: window.location.href,
         referrer: document.referrer,
       }),
-    });
-    const result = await response.json().catch(() => null);
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
+    protection.afterSubmit();
 
-    if (!response.ok) {
+    if (!response?.ok) {
       setStatus("error");
       setMessage(result?.message ?? "No pudimos enviar el brief. Inténtalo nuevamente.");
       return;
@@ -112,6 +124,7 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
 
   return (
     <form className="bigcta-form brief-page-form" onSubmit={submit}>
+      <HoneypotField value={protection.honeypot} onChange={protection.setHoneypot} />
       {fields.map((field) => (
         <div className={`field${field.type === "textarea" ? " field-full" : ""}`} key={field.key}>
           <label htmlFor={`brief-${field.key}`}>{field.label}</label>
@@ -121,6 +134,7 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
               value={values[field.key] ?? ""}
               onChange={(event) => update(field.key, event.target.value)}
               rows={4}
+              maxLength={2000}
               required={field.required}
             />
           ) : field.type === "select" ? (
@@ -152,6 +166,7 @@ export function BriefForm({ kind }: { kind: BriefKind }) {
           {status === "sending" ? "Enviando..." : "Enviar brief"} <span className="arr">&rarr;</span>
         </button>
         {message && <small role="status">{message}</small>}
+        <TurnstileField ref={turnstileRef} />
       </div>
     </form>
   );

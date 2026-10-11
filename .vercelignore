@@ -13,3 +13,10 @@ build
 /scripts
 .codex-logs
 *.tsbuildinfo
+
+# Credenciales: ningún archivo .env real se sube, en ninguna carpeta (p. ej.
+# apps/crm/.env). Sin "/" el patrón aplica a cualquier profundidad. Las
+# plantillas .env.example no tienen secretos y se conservan.
+.env
+.env.*
+!.env.example

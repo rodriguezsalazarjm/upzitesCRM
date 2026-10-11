@@ -10,6 +10,8 @@ import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 import { BriefForms } from "./BriefForms";
 import { trackCompleteRegistration, trackLead } from "@/lib/meta-pixel";
+import { HOME_CTA_SCOPES } from "@/lib/contact-options";
+import { HoneypotField, TurnstileField, useFormProtection, type TurnstileHandle } from "./FormProtection";
 
 // ---------- Top nav -------------------------------------------------
 export function TopNav() {
@@ -671,10 +673,17 @@ export function BigCTA() {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const protection = useFormProtection(turnstileRef);
   function update(k: string, v: string | boolean) { setState((s) => ({ ...s, [k]: v })); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const missingToken = protection.missingTokenMessage();
+    if (missingToken) {
+      setError(missingToken);
+      return;
+    }
     setSending(true);
     setError("");
 
@@ -688,19 +697,21 @@ export function BigCTA() {
         service: state.scope,
         message: state.brief || `Solicitud de ${state.scope} desde la home.`,
         consent: state.consent,
+        ...protection.fields(),
         pageUrl: window.location.href,
         referrer: document.referrer,
       }),
-    });
-    const result = await response.json().catch(() => null);
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
     setSending(false);
+    protection.afterSubmit();
 
-    if (!response.ok) {
+    if (!response?.ok) {
       setError(result?.message ?? "No pudimos enviar tu brief. Inténtalo nuevamente.");
       return;
     }
 
-    trackLead({ currency: "CLP" });
+    if (!protection.isTrapped()) trackLead({ currency: "CLP" });
     setSent(true);
   }
 
@@ -757,33 +768,28 @@ export function BigCTA() {
               </div>
             ) : (
               <form className="bigcta-form" onSubmit={submit}>
+                <HoneypotField value={protection.honeypot} onChange={protection.setHoneypot} />
                 <div className="field">
                   <label htmlFor="cta-name">Nombre</label>
-                  <input id="cta-name" value={state.name} onChange={(e) => update("name", e.target.value)} placeholder="Tu nombre" required />
+                  <input id="cta-name" maxLength={120} value={state.name} onChange={(e) => update("name", e.target.value)} placeholder="Tu nombre" required />
                 </div>
                 <div className="field">
                   <label htmlFor="cta-email">Email</label>
-                  <input id="cta-email" type="email" value={state.email} onChange={(e) => update("email", e.target.value)} placeholder="tu@marca.com" required />
+                  <input id="cta-email" type="email" maxLength={254} value={state.email} onChange={(e) => update("email", e.target.value)} placeholder="tu@marca.com" required />
                 </div>
                 <div className="field">
                   <label htmlFor="cta-brand">Marca / proyecto</label>
-                  <input id="cta-brand" value={state.brand} onChange={(e) => update("brand", e.target.value)} placeholder="Nombre del proyecto" />
+                  <input id="cta-brand" maxLength={160} value={state.brand} onChange={(e) => update("brand", e.target.value)} placeholder="Nombre del proyecto" />
                 </div>
                 <div className="field">
                   <label htmlFor="cta-scope">Qué necesitas</label>
                   <select id="cta-scope" value={state.scope} onChange={(e) => update("scope", e.target.value)}>
-                    <option>Branding estratégico</option>
-                    <option>Web de alto rendimiento</option>
-                    <option>E-commerce</option>
-                    <option>UX / UI</option>
-                    <option>Dirección creativa</option>
-                    <option>Auditoría de marca</option>
-                    <option>Otro · Conversemos</option>
+                    {HOME_CTA_SCOPES.map((scope) => <option key={scope}>{scope}</option>)}
                   </select>
                 </div>
                 <div className="field field-full">
                   <label htmlFor="cta-brief">Cuéntanos del proyecto</label>
-                  <textarea id="cta-brief" value={state.brief} onChange={(e) => update("brief", e.target.value)} rows={3} placeholder="Contexto, objetivos, fechas, presupuesto aproximado..." />
+                  <textarea id="cta-brief" value={state.brief} onChange={(e) => update("brief", e.target.value)} rows={3} maxLength={10000} placeholder="Contexto, objetivos, fechas, presupuesto aproximado..." />
                 </div>
                 <label className="contact-page-consent field-full">
                   <input type="checkbox" checked={state.consent} onChange={(e) => update("consent", e.target.checked)} required />
@@ -794,6 +800,7 @@ export function BigCTA() {
                     {sending ? "Enviando..." : "Enviar brief a contacto@upzites.com"} <span className="arr">&#8599;</span>
                   </button>
                   <small role="status">{error || "Al enviar aceptas que respondamos por correo. Cero spam."}</small>
+                  <TurnstileField ref={turnstileRef} />
                 </div>
               </form>
             )}
