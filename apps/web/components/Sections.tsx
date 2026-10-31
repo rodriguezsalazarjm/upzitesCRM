@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Brand, Eyebrow, Reveal, Pill, Stamp, Sticker, Barcode } from "./Atoms";
 import { EXPRESS_SOLUTIONS, SERVICES } from "@/lib/services";
 import { HeroBackground } from "./HeroBackground";
-import { CountUp } from "./CountUp";
 import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 import { BriefForms } from "./BriefForms";
@@ -542,7 +541,7 @@ export function Stats() {
   const stats = [
     { num: "+120", lbl: "Marcas posicionadas", sub: "Desde 2017" },
     { num: <>2.4<span className="em">×</span></>, lbl: "Conversión promedio", sub: "Post-rebrand" },
-    { num: <CountUp to={150} prefix="+" />, lbl: "Webs creadas", sub: "En Chile" },
+    { num: "+100", lbl: "Webs creadas", sub: "En Chile" },
     { num: "48H", lbl: "Tiempo de respuesta", sub: "A cada brief" },
   ];
   return (
