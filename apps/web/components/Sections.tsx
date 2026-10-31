@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Brand, Eyebrow, Reveal, Pill, Stamp, Sticker, Barcode } from "./Atoms";
 import { EXPRESS_SOLUTIONS, SERVICES } from "@/lib/services";
 import { HeroBackground } from "./HeroBackground";
+import { HeroCollage } from "./HeroCollage";
 import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 import { BriefForms } from "./BriefForms";
@@ -47,7 +48,7 @@ export function TopNav() {
               </Link>
             </div>
           </div>
-          <Link href="/#ia">IA</Link>
+          <Link href="/servicios/automatizacion-ia">IA</Link>
           <Link href="/nosotros">Nosotros</Link>
           <Link href="/#projects">Proyectos</Link>
           <Link href="/blog">Noticias</Link>
@@ -81,7 +82,7 @@ export function TopNav() {
             <Link href="/" onClick={close}>Inicio</Link>
             <Link href="/#soluciones-express" onClick={close}>Soluciones</Link>
             <Link href="/nosotros" onClick={close}>Nosotros</Link>
-            <Link href="/#ia" onClick={close}>IA</Link>
+            <Link href="/servicios/automatizacion-ia" onClick={close}>IA</Link>
             <Link href="/#projects" onClick={close}>Proyectos</Link>
             <Link href="/blog" onClick={close}>Noticias</Link>
             <Link href="/contacto" onClick={close}>Contacto</Link>
@@ -128,6 +129,8 @@ export function Hero() {
           <span className="hero-title-line">el <span className="hl">crecimiento</span></span><br />
           <span className="hero-title-line">de tu <span className="red">marca</span><span className="dot">.</span></span>
         </h1>
+
+        <HeroCollage />
 
         <div className="hero-foot">
           <p className="hero-sub">

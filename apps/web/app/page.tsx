@@ -2,7 +2,6 @@ import { TopNav, Hero, Marquee, Services, ExpressSolutions, Projects, Process, S
 import { ScheduleMeeting } from "@/components/ExtraSections";
 import { QuienesSomos } from "@/components/QuienesSomos";
 import { TechMarquee } from "@/components/TechMarquee";
-import { SmartLayer } from "@/components/SmartLayer";
 import { ViewContentOnLoad } from "@/components/MetaPixelEvents";
 import { OurWorkScene } from "@/components/OurWorkScene";
 
@@ -26,9 +25,6 @@ export default function Home() {
 
       {/* Express solutions */}
       <ExpressSolutions />
-
-      {/* Smart layer — AI & automation as a premium extension */}
-      <SmartLayer />
 
       {/* Tech / tooling stack marquee */}
       <TechMarquee />

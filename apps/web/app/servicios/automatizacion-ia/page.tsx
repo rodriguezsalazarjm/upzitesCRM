@@ -217,9 +217,7 @@ export default function AutomatizacionIaPage() {
               Para marcas que quieren funcionar mejor: atención que no duerme,
               procesos que fluyen y un equipo libre para crecer.
             </p>
-            <Link href="/#contact" className="btn btn-lime btn-lg">Quiero automatizar <span className="arr">↗</span></Link>
-            <Link href="/#ia" className="btn btn-light btn-lg">Ver la capa IA <span className="arr">↗</span></Link>
-          </Reveal>
+            <Link href="/#contact" className="btn btn-lime btn-lg">Quiero automatizar <span className="arr">↗</span></Link>          </Reveal>
         </div>
       </section>
 
