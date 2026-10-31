@@ -10,7 +10,7 @@ import { ProjectsGallery } from "./ProjectsGallery";
 import { SocialLinks, UPZITES_SOCIALS } from "./SocialIcons";
 import { BriefForms } from "./BriefForms";
 import { trackCompleteRegistration, trackLead } from "@/lib/meta-pixel";
-import { HOME_CTA_SCOPES } from "@/lib/contact-options";
+import { HOME_CTA_SCOPES, NEWSLETTER_KIND } from "@/lib/contact-options";
 import { HoneypotField, TurnstileField, useFormProtection, type TurnstileHandle } from "./FormProtection";
 
 // ---------- Top nav -------------------------------------------------
@@ -819,6 +819,10 @@ export function BigCTA() {
 export function Footer() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const protection = useFormProtection(turnstileRef);
   const bigwordRef = useRef<HTMLDivElement>(null);
 
   // "Studio Desing" sube desde abajo al entrar en viewport (one-shot reveal).
@@ -858,12 +862,44 @@ export function Footer() {
     };
   }, []);
 
-  function submit(e: React.FormEvent) {
+  // Va al mismo endpoint que los formularios de contacto: hereda el antispam y
+  // llega como correo a contacto@upzites.com. El nombre y el mensaje son fijos
+  // porque el endpoint los exige y aquí solo se pide el email.
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (email) {
-      trackCompleteRegistration({ registration_method: "newsletter" });
-      setDone(true);
+    const missingToken = protection.missingTokenMessage();
+    if (missingToken) {
+      setError(missingToken);
+      return;
     }
+    setSending(true);
+    setError("");
+
+    const response = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: NEWSLETTER_KIND,
+        name: "Suscriptor newsletter",
+        email,
+        message: "Suscripción a la newsletter desde el footer de upzites.com.",
+        consent: true,
+        ...protection.fields(),
+        pageUrl: window.location.href,
+        referrer: document.referrer,
+      }),
+    }).catch(() => null);
+    const result = await response?.json().catch(() => null);
+    setSending(false);
+    protection.afterSubmit();
+
+    if (!response?.ok) {
+      setError(result?.message ?? "No pudimos suscribirte. Inténtalo nuevamente.");
+      return;
+    }
+
+    if (!protection.isTrapped()) trackCompleteRegistration({ registration_method: "newsletter" });
+    setDone(true);
   }
 
   return (
@@ -912,14 +948,20 @@ export function Footer() {
               </p>
             ) : (
               <form className="newsletter" onSubmit={submit}>
+                <HoneypotField value={protection.honeypot} onChange={protection.setHoneypot} />
                 <div className="newsletter-row">
                   <input
-                    type="email" placeholder="tu@email.com"
+                    type="email" placeholder="tu@email.com" aria-label="Tu email" maxLength={254}
                     value={email} onChange={(e) => setEmail(e.target.value)} required
                   />
-                  <button type="submit" aria-label="Suscribirme">&#8599;</button>
+                  <button type="submit" aria-label="Suscribirme" disabled={sending}>&#8599;</button>
                 </div>
-                <span className="newsletter-note">Una vez al mes · Sin spam · Cancelas cuando quieras</span>
+                <span className="newsletter-note" role="status">
+                  {error || (
+                    <>Una vez al mes · Sin spam · Cancelas cuando quieras. Al suscribirte aceptas la <Link href="/privacidad">política de privacidad</Link>.</>
+                  )}
+                </span>
+                <TurnstileField ref={turnstileRef} />
               </form>
             )}
           </div>

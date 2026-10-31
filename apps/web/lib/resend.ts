@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { NEWSLETTER_KIND } from "@/lib/contact-options";
 
 const CONTACT_NOTIFICATION_TO = "contacto@upzites.com";
 const FROM = "UPZITES <noreply@upzites.com>";
@@ -31,10 +32,11 @@ export async function sendContactNotification(payload: Record<string, string | b
   const get = (k: string) => (typeof payload[k] === "string" ? (payload[k] as string) : "");
   const name = get("name");
   const email = get("email");
+  const isNewsletter = get("kind") === NEWSLETTER_KIND;
 
   const html = `
     <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;">
-      <h2 style="font-size:18px;color:#111;margin:0 0 4px;">Nuevo mensaje de contacto</h2>
+      <h2 style="font-size:18px;color:#111;margin:0 0 4px;">${isNewsletter ? "Nueva suscripción a la newsletter" : "Nuevo mensaje de contacto"}</h2>
       <p style="font-size:13px;color:#8A8178;margin:0 0 18px;">Recibido desde el formulario de upzites.com</p>
       <table style="border-collapse:collapse;width:100%;">
         ${row("Nombre", name)}
@@ -60,7 +62,7 @@ export async function sendContactNotification(payload: Record<string, string | b
       from: FROM,
       to: CONTACT_NOTIFICATION_TO,
       replyTo: email || undefined,
-      subject: `Nuevo contacto: ${name || "Sin nombre"}`,
+      subject: isNewsletter ? `Nueva suscripción newsletter: ${email}` : `Nuevo contacto: ${name || "Sin nombre"}`,
       html,
     });
     if (result.error) throw new Error(result.error.message);
@@ -82,6 +84,8 @@ export async function sendContactConfirmation(payload: Record<string, string | b
   const name = get("name");
   const email = get("email");
   if (!email) return { sent: false, reason: "no recipient email" };
+
+  if (get("kind") === NEWSLETTER_KIND) return sendNewsletterWelcome(resend, email);
 
   const firstName = name.trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `Hola ${escapeHtml(firstName)},` : "Hola,";
@@ -115,6 +119,40 @@ export async function sendContactConfirmation(payload: Record<string, string | b
     return { sent: true, id: result.data?.id };
   } catch (error) {
     console.error("resend_confirmation_error", error);
+    return { sent: false, reason: "send_failed" };
+  }
+}
+
+async function sendNewsletterWelcome(resend: Resend, email: string) {
+  const html = `
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:520px;margin:0 auto;color:#111;">
+      <p style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#8A8178;margin:0 0 18px;">UPZITES · Tropical Underground</p>
+      <h2 style="font-size:19px;margin:0 0 14px;">Ya estás dentro.</h2>
+      <p style="font-size:14.5px;line-height:1.6;margin:0 0 12px;">
+        Gracias por suscribirte a la newsletter de UPZITES. Una vez al mes te
+        enviaremos ideas de branding, web y estrategia digital. Sin spam.
+      </p>
+      <p style="font-size:14.5px;line-height:1.6;margin:0 0 22px;">
+        Si no quieres recibirla, responde este correo o escríbenos a
+        <a href="mailto:contacto@upzites.com" style="color:#111;">contacto@upzites.com</a>
+        y te damos de baja.
+      </p>
+      <p style="font-size:13px;color:#8A8178;margin:0;">— El equipo de UPZITES</p>
+    </div>
+  `;
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      replyTo: CONTACT_NOTIFICATION_TO,
+      subject: "Bienvenido a la newsletter · UPZITES",
+      html,
+    });
+    if (result.error) throw new Error(result.error.message);
+    return { sent: true, id: result.data?.id };
+  } catch (error) {
+    console.error("resend_newsletter_welcome_error", error);
     return { sent: false, reason: "send_failed" };
   }
 }

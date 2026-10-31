@@ -604,7 +604,7 @@
 
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0057FF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#0057FF&quot;,&quot;#FF3B30&quot;,&quot;#FFBA00&quot;,&quot;#FF5CA8&quot;]},&quot;whatsappNumber&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;56912345678&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showTechStack&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0057FF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#0057FF&quot;,&quot;#FF3B30&quot;,&quot;#FFBA00&quot;,&quot;#FF5CA8&quot;]},&quot;whatsappNumber&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;56978167863&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showTechStack&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
 class Component extends DCLogic {
   state = { open: 0 };
 
@@ -613,7 +613,7 @@ class Component extends DCLogic {
   }
 
   renderVals() {
-    const raw = (this.props.whatsappNumber || "56912345678").replace(/[^0-9]/g, "");
+    const raw = (this.props.whatsappNumber || "56978167863").replace(/[^0-9]/g, "");
     const msg = encodeURIComponent("Hola, quiero cotizar CRM UPZITES para mi empresa. Necesito ordenar clientes, leads, ventas y seguimiento comercial.");
     const waLink = "https://wa.me/" + raw + "?text=" + msg;
 

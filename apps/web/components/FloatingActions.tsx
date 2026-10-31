@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { trackContact } from "@/lib/meta-pixel";
+import { waLink } from "@/lib/whatsapp";
 
-const WA_NUMBER = "56978167863";
-const WA_MSG = encodeURIComponent("Hola UPZITES 👋, quiero información sobre sus servicios.");
+const WA_HREF = waLink("Hola UPZITES 👋, quiero información sobre sus servicios.");
 
 export function FloatingActions() {
   const [tip, setTip] = useState(false);
@@ -81,7 +81,7 @@ export function FloatingActions() {
       </a>
       <a
         className="fab-btn fab-wa"
-        href={`https://wa.me/${WA_NUMBER}text=${WA_MSG}`}
+        href={WA_HREF}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Escríbenos por WhatsApp"

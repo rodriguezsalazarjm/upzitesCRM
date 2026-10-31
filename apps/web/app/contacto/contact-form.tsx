@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CONTACT_BUDGETS as BUDGETS, CONTACT_SERVICES as SERVICES, CONTACT_URGENCIES as URGENCIES } from "@/lib/contact-options";
 import { HoneypotField, TurnstileField, useFormProtection, type TurnstileHandle } from "@/components/FormProtection";
+import { waLink } from "@/lib/whatsapp";
 
 type FormState = {
   name: string;
@@ -52,10 +53,10 @@ export function ContactForm() {
   const [message, setMessage] = useState("");
   const turnstileRef = useRef<TurnstileHandle>(null);
   const protection = useFormProtection(turnstileRef);
-  const whatsappUrl = useMemo(() => {
-    const text = encodeURIComponent(`Hola UPZITES, quiero conversar sobre ${state.service}.`);
-    return `https://wa.me/56978167863?text=${text}`;
-  }, [state.service]);
+  const whatsappUrl = useMemo(
+    () => waLink(`Hola UPZITES, quiero conversar sobre ${state.service}.`),
+    [state.service],
+  );
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((current) => ({ ...current, [key]: value }));

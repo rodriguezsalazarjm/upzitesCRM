@@ -54,13 +54,13 @@ const ICONS: Record<SocialType, ReactNode> = {
 };
 
 export const UPZITES_SOCIALS: SocialLink[] = [
-  { type: "instagram", url: "https://www.instagram.com/upzitesigsh=OXRpZDNxYm53aTI2" },
+  { type: "instagram", url: "https://www.instagram.com/upzites/" },
   { type: "facebook", url: "https://www.facebook.com/share/1acUMQkSkZ/" },
 ];
 
 export const JOSE_SOCIALS: SocialLink[] = [
-  { type: "instagram", url: "https://www.instagram.com/josemarodrizigsh=MW5pZXB3NHQyYzU2cQ==" },
-  { type: "tiktok", url: "https://www.tiktok.com/@josemarodriz_r=1&_t=ZS-96YAA5fpwoi" },
+  { type: "instagram", url: "https://www.instagram.com/josemarodriz/" },
+  { type: "tiktok", url: "https://www.tiktok.com/@josemarodriz" },
   { type: "x", url: "https://x.com/Zalazarjmr" },
   { type: "threads", url: "https://www.threads.com/@joserodrizg" },
   { type: "linkedin", url: "https://www.linkedin.com/in/jose-rodr%C3%ADguez-400547138/" },

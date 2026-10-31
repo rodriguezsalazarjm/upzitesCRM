@@ -63,7 +63,8 @@ export const ALLOWED_SERVICES = new Set([...CONTACT_SERVICES, ...HOME_CTA_SCOPES
 export const ALLOWED_BUDGETS = new Set([...CONTACT_BUDGETS, ...BRIEF_BUDGETS]);
 export const ALLOWED_URGENCIES = new Set(CONTACT_URGENCIES);
 export const ALLOWED_BRIEF_TYPES = new Set(BRIEF_TYPES);
-export const ALLOWED_KINDS = new Set(["brief"]);
+export const NEWSLETTER_KIND = "newsletter";
+export const ALLOWED_KINDS = new Set(["brief", NEWSLETTER_KIND]);
 
 /** Nombre del campo trampa. Lo comparten los formularios y el endpoint. */
 export const HONEYPOT_FIELD = "website";

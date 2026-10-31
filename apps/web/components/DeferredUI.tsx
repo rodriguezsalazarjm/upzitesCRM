@@ -13,10 +13,6 @@ const FloatingActions = dynamic(
   () => import("./FloatingActions").then((m) => m.FloatingActions),
   { ssr: false }
 );
-const PromoPopup = dynamic(
-  () => import("./PromoPopup").then((m) => m.PromoPopup),
-  { ssr: false }
-);
 const CookieConsent = dynamic(
   () => import("./CookieConsent").then((m) => m.CookieConsent),
   { ssr: false }
@@ -27,7 +23,6 @@ export function DeferredUI() {
     <>
       <ScrollProgress />
       <FloatingActions />
-      <PromoPopup />
       <CookieConsent />
     </>
   );

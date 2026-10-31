@@ -33,7 +33,7 @@ function Hero() {
       <div className="shell" style={{ position: "relative" }}>
         <div className="hero-runner">
           <span>UPZ · 0001 · TROPICAL UNDERGROUND<span className="dot"></span>SANTIAGO DE CHILE</span>
-          <span>+56 9 7317 8796 <span className="dot"></span> CONTACTO@UPZITES.COM</span>
+          <span>+56 9 7816 7863 <span className="dot"></span> CONTACTO@UPZITES.COM</span>
         </div>
 
         <Stamp text="UPZITES · TROPICAL UNDERGROUND · STUDIO · " bg="var(--upz-electric)" color="var(--upz-off-white)" />

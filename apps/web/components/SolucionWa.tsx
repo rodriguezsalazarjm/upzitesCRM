@@ -1,8 +1,7 @@
 "use client";
 
 import { trackContact, trackLead } from "@/lib/meta-pixel";
-
-const WA_NUMBER = "56978167863";
+import { waLink } from "@/lib/whatsapp";
 
 declare global {
   interface Window {
@@ -43,7 +42,7 @@ export function SolucionWa({
   contentCategory,
   sourceSection,
 }: SolucionWaProps) {
-  const href = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`;
+  const href = waLink(message);
 
   const track = () => {
     // Solo incluimos las claves definidas: Meta descarta el evento entero si
