@@ -4,6 +4,7 @@ import { prisma } from '../../src/lib/prisma';
 import { isLocalDemo } from '../../src/lib/testing/local-mode';
 import { createCustomerWorkspace } from '../../src/lib/subscription';
 import { ALL_TOOL_NAMES, toolByName } from '../../src/lib/agents/tools';
+import { createManualSource } from '../../src/lib/workspace-knowledge/service';
 import { runAgent } from '../../src/lib/agents/runner';
 import { ScriptedProvider, type ModelProvider, type ModelResponse } from '../../src/lib/agents/provider';
 import { generateQuickFlow } from '../../src/lib/automations/catalog';
@@ -29,7 +30,7 @@ try {
     const version = await prisma.agentVersion.findFirstOrThrow({ where: { agentDefinitionId: definition.id } });
     await prisma.agentVersion.update({ where: { id: version.id }, data: { status: 'PUBLISHED', allowedTools: ALL_TOOL_NAMES } });
     const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: `Producto ${key}`, status: 'ACTIVE', variants: { create: { name: 'Digital', priceMinor: key === 'A' ? 5900 : 9900, isDefault: true } } } });
-    await prisma.knowledgeSource.create({ data: { workspaceId: workspace.id, type: 'FAQ', title: 'Horario', content: `Secreto de ${key}` } });
+    await createManualSource({ userId: user.id, workspaceId: workspace.id, role: 'OWNER' }, { kind: 'MANUAL', title: 'Horario', content: `Secreto de ${key}` });
     return { workspaceId: workspace.id, user, account, contact, conversation, version, product };
   }
   const A = await tenant('A'), B = await tenant('B');

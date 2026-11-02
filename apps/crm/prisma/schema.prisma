@@ -101,6 +101,7 @@ model Workspace {
   automationFlows          AutomationFlow[]
   automationFlowRuns       AutomationFlowRun[]
   knowledgeSources         KnowledgeSource[]
+  knowledgeChunks          KnowledgeChunk[]
 
   @@map("workspaces")
 }
@@ -2601,6 +2602,18 @@ model WorkspaceProfile {
   shippingInfo  String? @map("shipping_info")
   returnsPolicy String? @map("returns_policy")
 
+  /// Conocimiento global estructurado del negocio (Punto 5). ProductSalesBrain
+  /// conserva por separado los hechos específicos de cada producto.
+  tradeName           String? @map("trade_name")
+  location            String?
+  paymentMethods      String? @map("payment_methods")
+  serviceChannels     String? @map("service_channels")
+  globalFaqs          Json    @default("[]") @map("global_faqs")
+  brandTone           String? @map("brand_tone")
+  escalationRules     String? @map("escalation_rules")
+  contactInfo         String? @map("contact_info")
+  generalInstructions String? @map("general_instructions")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -3520,18 +3533,70 @@ enum AlertSeverity {
   CRITICAL
 }
 
-/// Structured knowledge; product/service prices remain in their original catalogs.
-model KnowledgeSource {
-  id          String    @id @default(cuid())
-  workspaceId String    @map("workspace_id")
-  type        String
-  title       String
-  content     String
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+enum KnowledgeSourceType {
+  /// Valores legacy preservados por compatibilidad.
+  TEXT
+  FAQ
+  POLICY
+  MANUAL
+  URL
+  PDF
+  TEXT_FILE
+}
 
+enum KnowledgeProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+/// Fuente global del workspace. Product/service prices and ProductSalesBrain
+/// remain in their original domains and are never copied here.
+model KnowledgeSource {
+  id              String                    @id @default(cuid())
+  workspaceId     String                    @map("workspace_id")
+  type            KnowledgeSourceType
+  title           String
+  /// Última extracción válida. El contenido no se vuelve a descargar por turno.
+  content         String                    @default("")
+  url             String?
+  storageKey      String?                   @map("storage_key")
+  originalName    String?                   @map("original_name")
+  mimeType        String?                   @map("mime_type")
+  sizeBytes       Int?                      @map("size_bytes")
+  status          KnowledgeProcessingStatus @default(READY)
+  processingError String?                   @map("processing_error")
+  metadata        Json?
+  isActive        Boolean                   @default(true) @map("is_active")
+  ingestedAt      DateTime?                 @map("ingested_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  workspace       Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks          KnowledgeChunk[]
+
+  @@unique([id, workspaceId])
   @@index([workspaceId, type, isActive])
+  @@index([workspaceId, status, isActive, updatedAt])
   @@map("knowledge_sources")
+}
+
+/// Unidad acotada de retrieval. `searchVector` es generated + GIN en la
+/// migración: Prisma no escribe esa columna.
+model KnowledgeChunk {
+  id           String                   @id @default(cuid())
+  workspaceId  String                   @map("workspace_id")
+  sourceId     String                   @map("source_id")
+  position     Int
+  content      String
+  searchVector Unsupported("tsvector")? @map("search_vector")
+  metadata     Json?
+  createdAt    DateTime                 @default(now()) @map("created_at")
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  source    KnowledgeSource @relation(fields: [sourceId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@unique([sourceId, position])
+  @@index([workspaceId, sourceId])
+  @@map("knowledge_chunks")
 }

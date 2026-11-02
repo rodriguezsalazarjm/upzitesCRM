@@ -11,8 +11,9 @@ const commands = {
   worker: [require.resolve('tsx/cli'), 'scripts/visual/worker.ts'],
   check: [require.resolve('tsx/cli'), 'scripts/visual/check.ts'],
   p4: [require.resolve('tsx/cli'), 'scripts/smoke-product-sales-ai.ts'],
+  p5: [require.resolve('tsx/cli'), 'scripts/smoke-workspace-knowledge.ts'],
 };
-if (!commands[mode]) throw Error('Usa prepare, studio, dev, build, worker, check o p4.');
+if (!commands[mode]) throw Error('Usa prepare, studio, dev, build, worker, check, p4 o p5.');
 const preload = fileURLToPath(new URL('./preload.cjs', import.meta.url)).replaceAll('\\', '/');
 const child = spawn(process.execPath, commands[mode], {
   cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: 'inherit', windowsHide: true,

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { prisma } from '../../src/lib/prisma';
 import { createCustomerWorkspace } from '../../src/lib/subscription';
 import { ALL_TOOL_NAMES } from '../../src/lib/agents/tools';
+import { createManualSource } from '../../src/lib/workspace-knowledge/service';
 import { isLocalDemo } from '../../src/lib/testing/local-mode';
 if (!isLocalDemo()) throw new Error('Usa el preload visual protegido.');
 const credentials = JSON.parse(readFileSync('.local-visual/accounts.json', 'utf8'));
@@ -22,7 +23,7 @@ try {
     const version = await prisma.agentVersion.findFirstOrThrow({ where: { agentDefinitionId: definition.id } });
     await prisma.agentVersion.update({ where: { id: version.id }, data: { status: 'PUBLISHED', publishedAt: new Date(), allowedTools: ALL_TOOL_NAMES, maxSteps: 8 } });
     const product = await prisma.product.create({ data: { workspaceId: workspace.id, name: key === 'a' ? '5 Minutos con Dios' : 'Producto exclusivo B', status: 'ACTIVE', type: 'DIGITAL', variants: { create: { name: 'Acceso digital', priceMinor: key === 'a' ? 5900 : 12900, isDefault: true } }, assets: { create: { workspaceId: workspace.id, name: 'Recurso demo', kind: 'LINK', target: 'http://localhost:3101/sin-conexion' } } } });
-    await prisma.knowledgeSource.create({ data: { workspaceId: workspace.id, type: 'FAQ', title: '¿Cuál es el horario?', content: key === 'a' ? 'Horario exclusivo A: lunes a viernes de 9 a 18.' : 'Horario exclusivo B: sábados de 10 a 14.' } });
+    await createManualSource({ userId: user.id, workspaceId: workspace.id, role: 'OWNER' }, { kind: 'MANUAL', title: '¿Cuál es el horario?', content: key === 'a' ? 'Horario exclusivo A: lunes a viernes de 9 a 18.' : 'Horario exclusivo B: sábados de 10 a 14.' });
     result[key] = { workspaceId: workspace.id, ownerId: user.id, email, agentId: definition.id, versionId: version.id, productId: product.id };
   }
   writeFileSync('.local-visual/c2.json', JSON.stringify(result, null, 2));

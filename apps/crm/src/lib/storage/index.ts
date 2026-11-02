@@ -292,6 +292,40 @@ export async function resolveDeliveryStorage(): Promise<StorageDriver> {
   return createFilesystemDriver(assertKey);
 }
 
+// --- Workspace Knowledge (Punto 5) -----------------------------------------
+
+function knowledgeBucket() {
+  return process.env.KNOWLEDGE_STORAGE_BUCKET?.trim() || null;
+}
+
+export function knowledgeStorageStatus(): StorageStatus {
+  const base = storageStatus();
+  if (!base.configured || base.driver !== 'supabase') return base;
+  const bucket = knowledgeBucket();
+  if (!bucket) {
+    return { configured: false, driver: null, reason: 'Falta KNOWLEDGE_STORAGE_BUCKET (bucket privado de conocimiento).' };
+  }
+  const mediaBucket = supabaseSettings().bucket;
+  if (bucket === mediaBucket || bucket === deliveryBucket()) {
+    return { configured: false, driver: null, reason: 'KNOWLEDGE_STORAGE_BUCKET debe ser distinto de media y deliverables.' };
+  }
+  return base;
+}
+
+/** Storage privado de documentos de conocimiento; disco local solo en dev/QA. */
+export async function resolveKnowledgeStorage(): Promise<StorageDriver> {
+  const status = knowledgeStorageStatus();
+  if (!status.configured) {
+    throw new StorageNotConfiguredError(status.reason ?? 'Almacenamiento de conocimiento no configurado.');
+  }
+  if (status.driver === 'supabase') {
+    const { url, key } = supabaseSettings();
+    return supabaseDriver(url as string, key as string, knowledgeBucket() as string);
+  }
+  const { createFilesystemDriver } = await import('./filesystem');
+  return createFilesystemDriver(assertKey);
+}
+
 /**
  * Devuelve el almacenamiento activo o lanza `StorageNotConfiguredError`.
  *

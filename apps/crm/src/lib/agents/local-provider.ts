@@ -37,13 +37,25 @@ export class LocalKnowledgeProvider implements ModelProvider {
     if (prohibited && /(promete|garantiza|duplicar)/i.test(last)) return { text: `No puedo hacer esa promesa. ${prohibited.trim()}`, toolCalls: [], inputTokens: 0, outputTokens: 0 };
     const guarantee = input.instructions.match(/\[GUARANTEE\]\n([^\[]+)/)?.[1] ?? '';
     if (/garant[ií]a/i.test(last) && /No configurada/i.test(guarantee)) return { text: 'No tengo una garantía configurada y no quiero inventar ese dato. Puedo pedir que una persona lo confirme.', toolCalls: [], inputTokens: 0, outputTokens: 0 };
+    if (/garant[ií]a/i.test(last) && guarantee.trim()) return { text: guarantee.trim(), toolCalls: [], inputTokens: 0, outputTokens: 0 };
     const objectionBlock = input.instructions.match(/\[OBJECTIONS\]\n([\s\S]*?)(?=\n\n\[|$)/)?.[1] ?? '';
     const objection = objectionBlock.match(/Objeción: ([^\n]+)\nRespuesta sugerida: ([^\n]+)/);
     if (objection && /(caro|precio|costoso)/i.test(last)) return { text: objection[2], toolCalls: [], inputTokens: 0, outputTokens: 0 };
     const faqBlock = input.instructions.match(/\[FAQ\]\n([\s\S]*?)(?=\n\n\[|$)/)?.[1] ?? '';
     const faq = faqBlock.match(/P: ([^\n]+)\nR: ([^\n]+)/);
     if (faq && last) return { text: faq[2], toolCalls: [], inputTokens: 0, outputTokens: 0 };
+    const globalFaqs = [...input.instructions.matchAll(/FAQ global — P: ([^\n]+)\nR: ([^\n]+)/g)];
+    const globalFaq = globalFaqs.find((match) => match[1].toLocaleLowerCase('es').split(/\W+/).some((word) => word.length > 3 && last.toLocaleLowerCase('es').includes(word)));
+    if (globalFaq) return { text: globalFaq[2], toolCalls: [], inputTokens: 0, outputTokens: 0 };
+    const structured = input.instructions.match(/\[STRUCTURED BUSINESS PROFILE\]\n([\s\S]*?)(?=\n\n\[UNTRUSTED KNOWLEDGE CONTENT|\n\[LEVEL 2)/)?.[1] ?? '';
+    for (const [pattern, label] of [[/horario|atienden/i, 'Horario'], [/ubicaci[oó]n|d[oó]nde|direcci[oó]n/i, 'Ubicación'], [/pago|pagar/i, 'Medios de pago'], [/contacto|tel[eé]fono|correo/i, 'Contacto']] as const) {
+      if (!pattern.test(last)) continue;
+      const value = structured.match(new RegExp(`^${label}: (.+)$`, 'mi'))?.[1];
+      if (value) return { text: `${label}: ${value}`, toolCalls: [], inputTokens: 0, outputTokens: 0 };
+    }
+    const retrieved = input.instructions.match(/SOURCE 1 id=[^\n]+\n([\s\S]*?)(?=\n\nSOURCE|\n\[LEVEL 2|$)/)?.[1]?.trim();
+    if (retrieved) return { text: retrieved, toolCalls: [], inputTokens: 0, outputTokens: 0 };
     if (productName) return { text: `${productName}${price ? ` cuesta ${price}` : ''}. ¿Te gustaría comprar?`, toolCalls: [], inputTokens: 0, outputTokens: 0 };
-    return { text: 'Demostración local: recibí tu mensaje. Configura el entrenamiento comercial del producto para responder con ese contexto.', toolCalls: [], inputTokens: 0, outputTokens: 0 };
+    return { text: 'No tengo ese dato en el conocimiento configurado. Puedo pedir una aclaración o derivarte con una persona.', toolCalls: [], inputTokens: 0, outputTokens: 0 };
   }
 }

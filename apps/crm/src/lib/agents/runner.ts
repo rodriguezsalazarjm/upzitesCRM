@@ -31,7 +31,8 @@ import { checkAiCredits, recordAiCredits } from '../entitlements/ai-credits';
 import { isWorkspaceActive } from '../onboarding/activation';
 import { isEnabled } from '../ops/flags';
 import { queuePushSafely } from '../push/events';
-import { loadExistingGlobalSalesContext, loadProductSalesLayer } from '../product-sales-brain/context';
+import { loadProductSalesLayer } from '../product-sales-brain/context';
+import { loadWorkspaceKnowledgeLayer } from '../workspace-knowledge/context';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -61,7 +62,13 @@ export type RunAgentResult = {
   escalated?: boolean;
   skippedReason?: string;
   toolCalls?: { name: string; ok: boolean }[];
-  context?: { productId: string | null; productContextId: string | null; productContextUpdatedAt: string | null };
+  context?: {
+    productId: string | null;
+    productContextId: string | null;
+    productContextUpdatedAt: string | null;
+    workspaceSourceIds: string[];
+    workspaceChunks: { id: string; sourceId: string; sourceType: string; title: string }[];
+  };
 };
 
 /**
@@ -358,16 +365,16 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     });
   }
 
-  const [globalContext, productLayer] = await Promise.all([
-    loadExistingGlobalSalesContext(run.workspaceId),
+  const [workspaceLayer, productLayer] = await Promise.all([
+    loadWorkspaceKnowledgeLayer(run.workspaceId, lastInbound?.text ?? ''),
     loadProductSalesLayer(run.workspaceId, conversation.product?.id ?? null),
   ]);
   const instructions = buildInstructions({
     agentInstructions: version.instructions,
     workspaceName: conversation.workspace.name,
     contactName: conversation.contact.firstName,
-    globalContext,
-    productContext: productLayer?.content,
+    workspaceKnowledge: workspaceLayer.content,
+    productKnowledge: productLayer?.content,
   });
 
   const toolContext: ToolContext = {
@@ -563,7 +570,13 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     reply,
     escalated,
     toolCalls: toolCalls.map(({ name, ok }) => ({ name, ok })),
-    context: { productId: productLayer?.productId ?? null, productContextId: productLayer?.contextId ?? null, productContextUpdatedAt: productLayer?.updatedAt.toISOString() ?? null },
+    context: {
+      productId: productLayer?.productId ?? null,
+      productContextId: productLayer?.contextId ?? null,
+      productContextUpdatedAt: productLayer?.updatedAt.toISOString() ?? null,
+      workspaceSourceIds: workspaceLayer.sourceIds,
+      workspaceChunks: workspaceLayer.chunks,
+    },
   };
 }
 

@@ -23,6 +23,8 @@
     "test:commerce": "tsx --test src/lib/commerce/*.test.ts src/lib/commerce/product-studio/*.test.ts src/lib/commerce/digital-assets/*.test.ts src/lib/email/*.test.ts",
     "test:product-sales-ai": "tsx --test src/lib/product-sales-brain/*.test.ts",
     "test:smoke:product-sales-ai": "node scripts/visual/run.mjs p4",
+    "test:workspace-knowledge": "tsx --test src/lib/workspace-knowledge/*.test.ts",
+    "test:smoke:workspace-knowledge": "node scripts/visual/run.mjs p5",
     "test:mercado-pago": "tsx --test src/lib/mercado-pago.test.ts src/lib/commerce/mercado-pago-oauth-state.test.ts",
     "test:test-safety": "tsx --test src/lib/testing/*.test.ts",
     "test:smoke": "tsx scripts/smoke-critico.ts",
@@ -72,6 +74,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.6.0",
+    "unpdf": "1.8.1",
     "web-push": "^3.6.7",
     "zod": "^3.22.4",
     "zustand": "^4.4.7"

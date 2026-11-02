@@ -48,16 +48,6 @@ export function buildProductSalesContext(input: {
   ].filter(Boolean).join('\n\n');
 }
 
-export async function loadExistingGlobalSalesContext(workspaceId: string) {
-  const { prisma } = await import('../prisma');
-  const profile = await prisma.workspaceProfile.findUnique({
-    where: { workspaceId },
-    select: { about: true, policies: true, shippingInfo: true, returnsPolicy: true },
-  });
-  if (!profile) return '';
-  return section('EXISTING WORKSPACE CONTEXT', [profile.about, profile.policies, profile.shippingInfo, profile.returnsPolicy]);
-}
-
 export async function loadProductSalesLayer(workspaceId: string, productId: string | null) {
   if (!productId) return null;
   const { prisma } = await import('../prisma');
