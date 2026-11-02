@@ -1,0 +1,1711 @@
+UPZITES FLOW — PLAN MAESTRO DE PRODUCTO
+Versión congelada de planificación
+Fecha: 29-09-2026
+
+OBJETIVO GENERAL
+Construir Upzites Flow como una plataforma SaaS multi-workspace capaz de centralizar ventas, atención, automatizaciones, IA, comercio digital, publicación social y operación diaria de distintos tipos de negocio, con una experiencia adaptativa por rubro.
+
+REGLA DE CONTROL
+Cada bloque tiene un “HITO DE FINALIZACIÓN”. Cuando ese hito se cumpla y las pruebas estén verdes, el bloque se considera CONCLUIDO y no se vuelve a ampliar salvo que aparezca un bug, una exigencia legal/API o una decisión explícita de producto.
+
+==================================================
+0. NÚCLEO SaaS / FUNDACIÓN — CONCLUIDO
+==================================================
+
+Incluye:
+- Usuarios globales.
+- Multi-workspace.
+- WorkspaceMembership.
+- Roles de plataforma y roles por workspace.
+- SUPER_ADMIN / PLATFORM_ADMIN.
+- Soporte READ_ONLY / READ_WRITE.
+- Sesión activa por workspace.
+- Protección cross-tenant.
+- Suscripciones FREE / START / PRO / SCALE.
+- BillingSource FREE / MANUAL / MERCADO_PAGO / COMP / TRIAL.
+- Price Book.
+- Billing manual.
+- Ledger SaaS separado del ledger Commerce.
+- Entitlements centralizados.
+- Límites por plan.
+- Reconciliación de recursos en downgrade.
+- Invitaciones de workspace.
+- Gestión de equipo.
+- Asientos reservados por invitaciones.
+- Protección del último OWNER.
+- Recuperación de contraseña.
+- Invalidación global de sesiones.
+- Platform Admin.
+- P0-A a P0-F.
+- Adaptive Workspace base.
+- Dashboard modular base.
+- Onboarding base.
+- Presets SERVICES / ECOMMERCE / INFOPRODUCT / APPOINTMENTS / GENERAL.
+
+HITO DE FINALIZACIÓN:
+P0-A → P0-F y Adaptive Workspace con tests completos, build verde, working tree limpio y commits cerrados.
+ESTADO: CONCLUIDO.
+
+==================================================
+1. RELEASE READINESS BASE — CONCLUIDO
+==================================================
+
+Incluye:
+- Inventario de commits desde producción.
+- Rehearsal local de migraciones.
+- Inventario de migraciones pendientes.
+- Bootstrap dry-run.
+- Protección de host en scripts.
+- Smoke de ledger commerce.
+- Documentación de release.
+- Checkout público.
+- Hardening de email transaccional.
+- Order bump reusable.
+- Protección contra stale Mercado Pago preference.
+- Validación amount/currency antes de fulfillment.
+- PublicUrl como URL canónica buyer-facing.
+
+HITO DE FINALIZACIÓN:
+Rehearsal limpio, migraciones aplicables sin drift, checkout público y order bump idempotentes, ledger Commerce/SaaS aislado y tests verdes.
+ESTADO: CONCLUIDO.
+
+==================================================
+2. PRODUCT SALES STUDIO
+==================================================
+
+OBJETIVO
+Permitir que un usuario cree, configure, publique y venda productos sin tocar código, metadata ni base de datos.
+
+DEBE INCLUIR
+- Lista de productos.
+- Crear / editar producto.
+- Nombre.
+- Descripción.
+- Imagen/portada.
+- Tipo: digital, físico, servicio.
+- Estado: borrador / activo / archivado.
+- Moneda.
+- Precio.
+- Variantes.
+- SKU opcional.
+- Producto principal.
+- Vista previa de checkout.
+- Configuración de oferta.
+- Configuración de order bump desde UI.
+- Publicar / despublicar.
+- Duplicar producto.
+- Métricas básicas del producto.
+
+NO DEBE REQUERIR
+- Editar JSON.
+- Editar metadata manualmente.
+- Scripts de Codex.
+- SQL manual.
+
+HITO DE FINALIZACIÓN:
+Un OWNER/ADMIN crea desde la UI un producto nuevo, le asigna precio, configura un order bump, publica, genera un checkout y realiza una venta simulada sin tocar código ni base de datos.
+
+ESTADO: PENDIENTE.
+
+==================================================
+3. DIGITAL ASSET MANAGER / ENTREGA DIGITAL
+==================================================
+
+OBJETIVO
+Permitir cargar y administrar lo que se entrega al comprador.
+
+DEBE INCLUIR
+- PDF.
+- Audio.
+- ZIP.
+- Video o enlace.
+- URL externa.
+- Varios archivos por producto.
+- Activar/desactivar assets.
+- Orden de entrega.
+- Vista previa.
+- Protección por DigitalDelivery.
+- Link con token seguro.
+- Revocación si corresponde.
+- Entrega de múltiples assets.
+- Historial de entrega.
+- Reenvío manual.
+- Estado SENT / FAILED / AVAILABLE.
+
+FUTURO
+- Storage propio.
+- Media Storage.
+- Expiración configurable.
+- Límites por tamaño.
+
+HITO DE FINALIZACIÓN:
+El usuario carga un archivo o link desde la UI, lo asocia a un producto, se simula un pago aprobado y el comprador recibe acceso mediante DigitalDelivery sin intervención manual.
+
+ESTADO: PENDIENTE.
+
+==================================================
+4. IA DE VENTAS POR PRODUCTO
+==================================================
+
+OBJETIVO
+Que cada producto tenga su propio “cerebro comercial”.
+
+CAMPOS / SECCIONES
+- Qué es el producto.
+- Para quién es.
+- Problemas que resuelve.
+- Beneficios.
+- Diferenciadores.
+- Público objetivo.
+- Buyer persona.
+- Preguntas frecuentes.
+- Objeciones.
+- Respuestas sugeridas.
+- Prueba social.
+- Garantía.
+- Políticas.
+- Tono de venta.
+- Qué NO debe decir.
+- Cuándo hacer preguntas.
+- Cuándo presentar oferta.
+- Cuándo enviar checkout.
+- Cuándo insistir.
+- Cuándo dejar de insistir.
+- Cuándo pasar a humano.
+- Instrucciones especiales.
+
+COMPORTAMIENTO
+- IA carga contexto del producto asociado a la conversación/campaña.
+- No usar un prompt gigante con todos los productos.
+- Permitir conocimiento global + conocimiento por producto.
+
+HITO DE FINALIZACIÓN:
+Se crea un producto desde UI, se completa su entrenamiento comercial y un agente puede conversar con un lead de prueba, responder objeciones usando ese conocimiento y enviar el checkout correcto.
+
+ESTADO: PENDIENTE.
+
+==================================================
+5. BASE DE CONOCIMIENTO DEL NEGOCIO
+==================================================
+
+OBJETIVO
+Separar conocimiento global del negocio del conocimiento específico de cada producto.
+
+DEBE INCLUIR
+- Nombre comercial.
+- Descripción del negocio.
+- Horarios.
+- Ubicación.
+- Políticas.
+- Medios de pago.
+- Formas de atención.
+- FAQs globales.
+- Tono de marca.
+- Reglas de escalamiento.
+- Documentos.
+- URLs.
+- PDFs.
+- Manuales.
+- Datos de contacto.
+- Instrucciones generales.
+
+NIVELES
+1. Workspace Knowledge.
+2. Product Knowledge.
+3. Automation/Agent Instructions.
+
+HITO DE FINALIZACIÓN:
+Un agente puede responder correctamente preguntas generales del negocio y preguntas específicas de producto usando fuentes separadas y sin mezclar contextos.
+
+ESTADO: PENDIENTE.
+
+==================================================
+6. OFERTAS, ORDER BUMP Y UPSELLS
+==================================================
+
+YA EXISTE
+- Motor de order bump.
+- Checkout main + bump.
+- Protección de totals.
+- Fulfillment de ambos productos.
+
+FALTA
+- UI para configurar order bump.
+- Copy del bump.
+- Imagen.
+- Precio.
+- Activar/desactivar.
+- Prioridad.
+- Analytics del bump.
+
+UPSSELL POSTCOMPRA
+- Pantalla post-pago.
+- Oferta adicional.
+- Aceptar/rechazar.
+- Checkout adicional o mecanismo de pago seguro.
+- Medición de take rate.
+
+HITO DE FINALIZACIÓN:
+Desde UI se configura producto principal + bump; el comprador puede comprar ambos; luego existe al menos un upsell postcompra configurable y medible.
+
+ESTADO: PARCIAL.
+
+==================================================
+7. SEGUIMIENTO COMERCIAL CONFIGURABLE
+==================================================
+
+OBJETIVO
+Permitir definir seguimiento por producto/campaña.
+
+DEBE INCLUIR
+- +1 hora.
+- +24 horas.
+- +72 horas.
+- Tiempos personalizados.
+- Mensaje fijo o IA.
+- Condición “si no respondió”.
+- Condición “si no compró”.
+- Detener al comprar.
+- Detener si humano toma conversación.
+- Máximo de intentos.
+- Horarios permitidos.
+- Canal de seguimiento.
+- Plantilla WhatsApp cuando aplique.
+
+HITO DE FINALIZACIÓN:
+Un lead que no compra entra automáticamente en seguimiento, recibe la secuencia configurada, la secuencia se detiene al comprar y no genera mensajes duplicados.
+
+ESTADO: PENDIENTE.
+
+==================================================
+8. WHATSAPP CHANNEL MANAGER
+==================================================
+
+OBJETIVO
+Gestionar números de WhatsApp desde Upzites Flow.
+
+UI
+Canales → WhatsApp
+
+POR NÚMERO
+- Nombre interno.
+- Número.
+- Estado.
+- WABA.
+- Phone Number ID.
+- Tipo de uso: ventas / soporte / general.
+- Agente IA predeterminado.
+- Producto predeterminado.
+- Automatización predeterminada.
+- Fallback humano.
+- Horario.
+- Estado webhook.
+- Última actividad.
+- Errores.
+
+ACCIONES
+- Agregar número.
+- Conectar.
+- Desconectar.
+- Probar webhook.
+- Probar mensaje.
+- Seleccionar agente/producto.
+
+HITO DE FINALIZACIÓN:
+Un OWNER conecta un número desde UI, asigna un agente y producto por defecto, recibe un mensaje de prueba y la conversación entra al Inbox con el contexto correcto.
+
+ESTADO: PENDIENTE.
+
+==================================================
+9. CAMPAIGN ROUTING META → PRODUCTO → IA
+==================================================
+
+OBJETIVO
+Saber qué vender según el anuncio/campaña que originó el lead.
+
+DEBE INCLUIR
+- Campaign ID.
+- Ad Set ID.
+- Ad ID.
+- Source/referral cuando Meta lo entregue.
+- Número receptor.
+- Producto asociado.
+- Agente asociado.
+- Automatización asociada.
+- Fallback por número.
+- Fallback general del workspace.
+
+LÓGICA
+Campaign/Ad match
+→ producto
+→ agente
+→ automatización
+→ conversación
+
+FALLBACK
+Si no hay attribution:
+→ número predeterminado
+→ producto/agente predeterminado.
+
+HITO DE FINALIZACIÓN:
+Dos anuncios distintos enviados al mismo número generan conversaciones que cargan automáticamente productos/agentes diferentes según su origen.
+
+ESTADO: PENDIENTE.
+
+==================================================
+10. CTWA / ATRIBUCIÓN META ADS
+==================================================
+
+OBJETIVO
+Registrar la mayor cantidad posible de contexto Click-to-WhatsApp.
+
+DEBE INCLUIR
+- Referral data.
+- Ad/campaign identifiers disponibles.
+- Contact source.
+- First touch.
+- Last touch si se decide.
+- Asociar conversión a order/payment.
+- Atribución básica.
+- Métricas de campaña.
+
+HITO DE FINALIZACIÓN:
+Una venta proveniente de un anuncio CTWA puede rastrearse desde la conversación hasta CustomerOrder/Payment y mostrarse en analytics.
+
+ESTADO: PENDIENTE.
+
+==================================================
+11. INSTAGRAM AUTOMATIONS — ESTILO MANYCHAT
+==================================================
+
+OBJETIVO
+Convertir Instagram en un canal automatizable visualmente.
+
+TRIGGERS
+- Nuevo DM.
+- Keyword en DM.
+- Comentario en post/reel.
+- Keyword en comentario.
+- Cualquier comentario.
+- Reply a Story si API lo permite.
+- Mención si API lo permite.
+- Follow-up.
+- Evento commerce.
+- Compra/no compra.
+
+ACCIONES
+- Enviar DM.
+- Responder.
+- Esperar.
+- Condición.
+- Tag.
+- Campo personalizado.
+- Crear/actualizar contacto.
+- Llamar IA.
+- Enviar producto.
+- Crear checkout.
+- Enviar publicUrl.
+- Pasar a humano.
+- Iniciar otro flujo.
+- Detener flujo.
+- Notificar staff.
+
+CASO CLAVE
+“Comenta BIBLIA”
+→ webhook
+→ detecta comentario
+→ DM automático
+→ IA
+→ producto
+→ checkout
+→ venta.
+
+HITO DE FINALIZACIÓN:
+Una prueba real de Instagram hace comentario con keyword, Upzites Flow recibe el webhook, dispara un flow, envía DM, continúa con IA y puede generar un checkout.
+
+ESTADO: PENDIENTE.
+
+==================================================
+12. FLOW BUILDER — COMPLETAR PRODUCTO COMERCIAL
+==================================================
+
+YA EXISTE
+- Builder visual.
+- React Flow.
+- Nodos.
+- Validación.
+- Persistencia.
+- Runtime.
+- IA.
+- Algunas automatizaciones.
+
+FALTA / REVISAR
+- Triggers Instagram.
+- Triggers WhatsApp.
+- Comment → DM.
+- Keywords.
+- Delay/wait.
+- Condiciones avanzadas.
+- Branches.
+- Commerce actions.
+- Recovery actions.
+- Handoff.
+- Templates.
+- Debugger.
+- Historial de ejecuciones.
+- Métricas por flow.
+- Test flow.
+- Versiones publicadas.
+
+HITO DE FINALIZACIÓN:
+Un usuario no técnico construye desde el Builder un flow Instagram/WhatsApp completo, lo publica, dispara con un evento real y puede ver la ejecución y resultado.
+
+ESTADO: PARCIAL.
+
+==================================================
+13. PLANTILLAS DE AUTOMATIZACIÓN
+==================================================
+
+OBJETIVO
+No obligar al cliente a empezar desde cero.
+
+PLANTILLAS INICIALES
+- Comentario → DM.
+- Keyword → respuesta.
+- Lead nuevo → IA.
+- Venta de infoproducto.
+- Recuperación checkout.
+- Follow-up 1h/24h/72h.
+- Cotización servicios.
+- Agendar cita.
+- FAQ + handoff.
+- Postventa.
+- Recuperación de lead frío.
+
+HITO DE FINALIZACIÓN:
+El usuario elige una plantilla, completa un pequeño wizard, publica y obtiene un flow operativo sin editar nodos manualmente.
+
+ESTADO: PENDIENTE.
+
+==================================================
+14. ADAPTIVE EXPERIENCE POR RUBRO
+==================================================
+
+YA EXISTE BASE
+- WorkspaceProfile.
+- Presets.
+- Navegación adaptativa.
+- Widgets.
+- Preferencias.
+- Onboarding.
+- Checklist.
+
+FALTA PROFUNDIZAR
+SERVICES
+- Pipeline.
+- Cotizaciones.
+- Actividades.
+- Leads.
+- Automatizaciones recomendadas.
+
+INFOPRODUCT
+- Productos.
+- Pedidos.
+- Recovery.
+- IA ventas.
+- Commerce analytics.
+
+ECOMMERCE
+- Productos.
+- Pedidos.
+- Clientes.
+- Shopify.
+- Recuperación.
+
+APPOINTMENTS
+- Contactos.
+- Conversaciones.
+- Automatizaciones.
+- Agenda futura.
+
+GENERAL
+- Experiencia neutra.
+
+DEBE ADAPTAR
+- Sidebar.
+- Dashboard.
+- Checklist.
+- Tutoriales.
+- CTAs.
+- Plantillas.
+- Ejemplos.
+- Automatizaciones recomendadas.
+- Terminología.
+
+HITO DE FINALIZACIÓN:
+Dos workspaces del mismo usuario, de rubros distintos, muestran una experiencia claramente distinta y útil desde el primer ingreso, sin perder acceso a módulos permitidos por su plan.
+
+ESTADO: PARCIAL.
+
+==================================================
+15. PERSONALIZACIÓN DE INTERFAZ
+==================================================
+
+YA EXISTE BASE
+- Sidebar width.
+- Collapse.
+- Hidden modules.
+- Dashboard layout.
+- User × Workspace preferences.
+
+FALTA
+- Reordenamiento drag & drop de menú.
+- Personalización de dashboard más cómoda.
+- Mostrar/ocultar módulos desde UI.
+- Restaurar recomendaciones.
+- Posible branding ligero del negocio:
+  - logo/avatar.
+  - nombre.
+  - foto.
+- Preferencias de experiencia.
+- Guardado consistente desktop/mobile.
+
+HITO DE FINALIZACIÓN:
+Un usuario puede personalizar navegación y dashboard desde UI, recargar y cambiar de workspace sin que las preferencias se mezclen.
+
+ESTADO: PARCIAL.
+
+==================================================
+16. ONBOARDING / TUTORIAL DEL PRIMER CONTACTO
+==================================================
+
+OBJETIVO
+Que un cliente nuevo entienda qué hacer sin entrenamiento externo.
+
+FLUJO
+1. Tipo de negocio.
+2. Objetivo.
+3. Canales.
+4. Equipo.
+5. Primer producto/servicio.
+6. IA.
+7. Primera automatización.
+8. Primera venta o primer lead.
+
+DEBE INCLUIR
+- Progreso.
+- Saltar.
+- Continuar después.
+- OWNER/ADMIN.
+- MEMBER recibe experiencia no bloqueante.
+- Adaptación por rubro.
+- Enlaces directos a cada configuración.
+
+HITO DE FINALIZACIÓN:
+Un usuario nuevo completa el onboarding sin ayuda humana y llega a un workspace operativo con al menos un canal, producto/servicio y automatización configurados.
+
+ESTADO: PARCIAL.
+
+==================================================
+17. TUTORIALES CONTEXTUALES
+==================================================
+
+YA EXISTE BASE
+- dismissedTutorials.
+
+FALTA
+- Primera visita a Inbox.
+- Primera visita a Pipeline.
+- Primera visita a Productos.
+- Primera visita a Automatizaciones.
+- Primera visita a IA.
+- Primera visita a Recovery.
+- Primera visita a Social Publisher.
+- “Volver a mostrar consejos”.
+
+HITO DE FINALIZACIÓN:
+Cada módulo prioritario tiene una ayuda breve de primera visita, puede descartarse por usuario/workspace y puede restaurarse desde Configuración.
+
+ESTADO: PARCIAL.
+
+==================================================
+18. CHECKLIST DE ACTIVACIÓN
+==================================================
+
+OBJETIVO
+Mostrar “qué falta para tener el negocio funcionando”.
+
+EJEMPLO
+✓ Configura negocio
+✓ Crea producto
+○ Conecta WhatsApp
+○ Conecta Instagram
+○ Entrena IA
+○ Activa automatización
+○ Invita equipo
+○ Primera venta
+
+DEBE SER
+- Adaptativo.
+- Basado en estado real.
+- Con entitlements.
+- Sin tareas imposibles.
+- Con links directos.
+- Por workspace.
+
+HITO DE FINALIZACIÓN:
+El checklist refleja correctamente el estado real del workspace y llega a 100% únicamente cuando los elementos definidos por el preset están realmente configurados.
+
+ESTADO: PARCIAL.
+
+==================================================
+19. SOCIAL PUBLISHER
+==================================================
+
+OBJETIVO
+Planificar, programar y publicar contenido desde Upzites Flow.
+
+REDES INICIALES
+- Instagram.
+- TikTok.
+- Facebook después si conviene.
+
+FUNCIONES
+- Nuevo post.
+- Borrador.
+- Programar.
+- Publicar ahora.
+- Caption.
+- Hashtags.
+- Media.
+- Seleccionar cuenta.
+- Fecha/hora.
+- Estado.
+- Fallos.
+- Reintentos.
+- Historial.
+
+HITO DE FINALIZACIÓN:
+Desde Upzites Flow se programa y publica correctamente al menos un contenido real en Instagram y uno en TikTok, mostrando estado final y errores si ocurren.
+
+ESTADO: PENDIENTE.
+
+==================================================
+20. CALENDARIO EDITORIAL
+==================================================
+
+OBJETIVO
+Ver y organizar todo el contenido programado.
+
+VISTAS
+- Mes.
+- Semana.
+- Lista.
+- Por red.
+- Por cuenta.
+
+ACCIONES
+- Arrastrar fecha.
+- Editar.
+- Duplicar.
+- Cancelar.
+- Publicar ahora.
+- Filtrar.
+
+HITO DE FINALIZACIÓN:
+El usuario puede planificar una semana completa, cambiar fechas con drag & drop y los cambios quedan sincronizados con la programación real.
+
+ESTADO: PENDIENTE.
+
+==================================================
+21. VISUAL FEED PLANNER / GRID DESIGNER
+==================================================
+
+OBJETIVO
+Diseñar visualmente el feed antes de publicar.
+
+EXPERIENCIA
+- Grid de 3 columnas estilo Instagram.
+- Posts reales publicados.
+- Posts programados.
+- Borradores.
+- Mockups/miniaturas reales.
+- Drag & drop.
+- Reordenar publicaciones futuras.
+- Ver impacto visual.
+- Placeholder de contenido futuro.
+- Duplicar estructura.
+- Zoom/preview.
+- Desktop y tablet.
+
+IMPORTANTE
+Mover una pieza en el Feed Planner debe poder:
+- cambiar el orden visual propuesto;
+- opcionalmente ajustar su programación;
+- advertir si el orden real de publicación no coincide con el diseño.
+
+NO DEBE
+- alterar posts ya publicados.
+- fingir que Instagram permite reordenar publicaciones históricas.
+
+HITO DE FINALIZACIÓN:
+El usuario carga o selecciona al menos 9 piezas reales, las visualiza como grid 3×3, las reorganiza con drag & drop y guarda un plan de publicación cuyo orden coincide con la cuadrícula prevista.
+
+ESTADO: PENDIENTE.
+
+==================================================
+22. CONTENT LIBRARY
+==================================================
+
+OBJETIVO
+Biblioteca reutilizable de activos creativos.
+
+DEBE INCLUIR
+- Imágenes.
+- Videos.
+- Portadas.
+- Creativos.
+- Captions.
+- Hashtags.
+- Etiquetas.
+- Carpetas/colecciones.
+- Filtro por marca/workspace.
+- Estado usado/no usado.
+- Relación con publicaciones.
+- Preview.
+
+HITO DE FINALIZACIÓN:
+Un usuario carga contenido una sola vez y puede reutilizarlo en varias publicaciones y planners sin volver a subir el archivo.
+
+ESTADO: PENDIENTE.
+
+==================================================
+23. IA PARA CONTENIDO
+==================================================
+
+OBJETIVO
+Asistir la creación, no reemplazar el control creativo.
+
+FUNCIONES
+- Ideas.
+- Hooks.
+- Captions.
+- CTA.
+- Hashtags.
+- Variaciones.
+- Adaptar Instagram → TikTok.
+- Calendario sugerido.
+- Pilares de contenido.
+- Reescritura por tono.
+- Sugerir qué tipo de pieza falta.
+
+FUTURO
+- Generación visual integrada.
+- Reutilización automática de contenido.
+
+HITO DE FINALIZACIÓN:
+Desde una pieza/borrador el usuario genera y guarda variantes para Instagram y TikTok y puede programarlas sin copiar/pegar fuera de Flow.
+
+ESTADO: PENDIENTE.
+
+==================================================
+24. IA ASISTENTE DEL FEED
+==================================================
+
+OBJETIVO
+Ayudar a mantener equilibrio visual y estratégico.
+
+PUEDE SUGERIR
+- Demasiadas promos seguidas.
+- Falta contenido educativo.
+- Falta prueba social.
+- Alternancia foto/diseño/video.
+- Distribución de pilares.
+- Orden visual.
+- Próxima pieza recomendada.
+
+NO DEBE
+- Reordenar automáticamente sin aprobación.
+
+HITO DE FINALIZACIÓN:
+El sistema analiza un grid planificado y produce recomendaciones accionables que el usuario puede aceptar o ignorar sin modificar el plan automáticamente.
+
+ESTADO: PENDIENTE.
+
+==================================================
+25. EMAIL REAL / DOMINIOS
+==================================================
+
+OBJETIVO
+Eliminar mocks de los flujos reales.
+
+PLATFORM TRANSACTIONAL
+- Invitaciones.
+- Password reset.
+- Seguridad.
+
+TENANT TRANSACTIONAL
+- Entrega digital.
+- Recibos/notificaciones.
+- Postcompra.
+
+FALTA
+- RESEND_API_KEY.
+- PLATFORM_EMAIL_FROM.
+- EMAIL_PROVIDER.
+- EMAIL_WEBHOOK_SECRET.
+- Dominio verificado.
+- Webhooks de delivery/bounces.
+
+HITO DE FINALIZACIÓN:
+Invitación, password reset y entrega digital llegan a un email real desde dominios verificados y los estados de entrega se registran correctamente.
+
+ESTADO: PENDIENTE EXTERNO/CONFIGURACIÓN.
+
+==================================================
+26. WHATSAPP TEMPLATES
+==================================================
+
+OBJETIVO
+Permitir mensajes fuera de ventana de 24 horas.
+
+DEBE INCLUIR
+- Registro de templates.
+- Estado Meta.
+- Idioma.
+- Variables.
+- Categoría.
+- Selección por recovery.
+- Selección por follow-up.
+- Fallback cuando no hay template válido.
+- Errores claros.
+
+HITO DE FINALIZACIÓN:
+Un recovery +24h utiliza un template aprobado real, se entrega correctamente y queda registrado en la conversación.
+
+ESTADO: PENDIENTE.
+
+==================================================
+27. MERCADO PAGO TEST E2E
+==================================================
+
+YA EXISTE
+- Checkout.
+- Workspace connection.
+- Webhook.
+- Order.
+- Payment.
+- Fulfillment.
+- Delivery.
+- Bump.
+- Stale preference protection.
+
+FALTA
+- Vendedor TEST.
+- Comprador TEST.
+- Token TEST.
+- Tunnel/webhook.
+- Round trip real.
+
+HITO DE FINALIZACIÓN:
+Un pago Mercado Pago TEST recorre publicUrl → MP → webhook → PAID → fulfillment → DigitalDelivery sin mocks y sin usar credenciales productivas.
+
+ESTADO: PENDIENTE EXTERNO/CONFIGURACIÓN.
+
+==================================================
+28. INSTAGRAM / META REAL E2E
+==================================================
+
+OBJETIVO
+Cerrar la integración real, no solo OAuth.
+
+DEBE VERIFICAR
+- Cuenta conectada.
+- subscribed_apps.
+- messages.
+- comments.
+- webhook.
+- DM entrante.
+- comentario.
+- comment → DM.
+- errores visibles.
+- reconnect.
+- scopes aprobados.
+
+HITO DE FINALIZACIÓN:
+Desde la cuenta real de Instagram se recibe un DM y un comentario, ambos aparecen en Flow y al menos un trigger automático responde correctamente.
+
+ESTADO: PENDIENTE.
+
+==================================================
+29. TIKTOK INTEGRATION
+==================================================
+
+OBJETIVO
+Soportar publicación y después automatizaciones/analytics según APIs disponibles.
+
+PRIMER ALCANCE
+- OAuth.
+- Cuenta.
+- Publicación de video.
+- Estado.
+- Errores.
+- Programación.
+- Analytics disponibles.
+
+HITO DE FINALIZACIÓN:
+Se conecta una cuenta TikTok real y se publica/programa un video de prueba desde Flow con estado confirmado.
+
+ESTADO: PENDIENTE.
+
+==================================================
+30. ANALYTICS / FUNNEL / ATTRIBUTION
+==================================================
+
+OBJETIVO
+Ver el recorrido comercial completo.
+
+FUNNEL
+Ad
+→ Lead
+→ Conversation
+→ Checkout
+→ Payment
+→ Bump
+→ Recovery
+→ Revenue
+
+MÉTRICAS
+- Leads.
+- Conversaciones.
+- Conversión conversación→checkout.
+- Checkout→venta.
+- Bump take rate.
+- Recovery revenue.
+- Revenue.
+- Producto.
+- Agente.
+- Campaña.
+- Canal.
+- ROAS cuando haya datos de spend.
+
+HITO DE FINALIZACIÓN:
+Una venta de prueba puede recorrerse visualmente desde fuente/campaña hasta Payment y aparecer correctamente en el funnel y revenue del workspace.
+
+ESTADO: PARCIAL.
+
+==================================================
+31. PAYMENT EXCEPTIONS / CONCILIACIÓN
+==================================================
+
+OBJETIVO
+Gestionar casos que el motor ya detecta pero hoy requieren intervención técnica.
+
+CASOS
+- Amount mismatch.
+- Currency mismatch.
+- Stale preference.
+- Pago sin order.
+- Duplicados externos.
+- Refund.
+- Chargeback futuro.
+
+UI
+- Cola de incidencias.
+- Evidencia.
+- Acción requerida.
+- Resolver.
+- Nota.
+- Refund manual cuando se implemente.
+
+HITO DE FINALIZACIÓN:
+Un pago mismatch aparece automáticamente en un panel de incidencias y un operador puede marcar su resolución sin tocar base de datos.
+
+ESTADO: PENDIENTE.
+
+==================================================
+32. CONFIGURAR UPZITES COMO NEGOCIO REAL
+==================================================
+
+PERFIL
+- Internal.
+- SCALE + COMP.
+- SERVICES.
+- Pipeline.
+- Cotizaciones.
+- Contactos.
+- Inbox.
+- Automatizaciones.
+- IA.
+- Dashboard.
+
+HITO DE FINALIZACIÓN:
+UPZITES opera desde Flow con al menos un lead real que entra, se gestiona, avanza por pipeline y genera una cotización/venta.
+
+ESTADO: PENDIENTE CONFIGURACIÓN.
+
+==================================================
+33. CONFIGURAR 5 MINUTOS CON DIOS COMO NEGOCIO REAL
+==================================================
+
+PERFIL
+- Internal.
+- SCALE + COMP.
+- ECOMMERCE.
+- INFOPRODUCT.
+
+PRIMERA OFERTA
+- Producto: 30 experiencias guiadas.
+- Precio: CLP 5.990.
+- Bump: 7 audios.
+- Precio bump: CLP 2.990.
+
+DEBE CONFIGURARSE DESDE UI
+- Producto.
+- Assets.
+- IA ventas.
+- Objeciones.
+- Oferta.
+- Bump.
+- Seguimiento.
+- WhatsApp.
+- Checkout.
+- Recovery.
+- Delivery.
+
+HITO DE FINALIZACIÓN:
+El producto completo se configura desde Upzites Flow sin código y un lead QA recorre conversación → checkout → pago de prueba → fulfillment → entrega.
+
+ESTADO: PENDIENTE.
+
+==================================================
+34. PRIMER FUNNEL REAL META ADS → VENTA
+==================================================
+
+OBJETIVO
+Demostrar el negocio de punta a punta.
+
+FLUJO
+Meta Ads
+→ WhatsApp / Instagram
+→ Lead
+→ IA
+→ Objeciones
+→ Oferta
+→ Checkout
+→ Payment
+→ Delivery
+→ Follow-up.
+
+HITO DE FINALIZACIÓN:
+Una campaña real genera al menos un lead trazable que completa el flujo dentro de Upzites Flow y queda asociado a su fuente/campaña.
+
+ESTADO: PENDIENTE.
+
+==================================================
+35. RELEASE A PRODUCCIÓN
+==================================================
+
+YA PREPARADO
+- Rehearsal.
+- Inventario de migraciones.
+- Bootstrap.
+- Rollback plan.
+
+SECUENCIA
+1. Freeze.
+2. Backup pg_dump.
+3. Confirmar env.
+4. migrate deploy.
+5. Bootstrap inmediatamente.
+6. SUPER_ADMIN.
+7. Internal workspaces.
+8. Deploy.
+9. Smoke.
+10. Monitor.
+
+IMPORTANTE
+UPZITES puede quedar FREE/limitado si reconciliación corre entre migración y bootstrap. La ventana debe tratar migración + bootstrap como parte de la misma operación.
+
+HITO DE FINALIZACIÓN:
+Producción queda en HEAD objetivo, todas las migraciones están aplicadas, bootstrap correcto, smoke crítico verde y no existen errores severos en logs/health después de la ventana.
+
+ESTADO: PENDIENTE.
+
+==================================================
+36. POST-LAUNCH / OBSERVABILIDAD
+==================================================
+
+OBJETIVO
+Operar el SaaS sin depender de descubrir problemas por clientes.
+
+DEBE INCLUIR
+- Health.
+- Error monitoring.
+- Webhook failures.
+- Failed jobs.
+- Payment exceptions.
+- Email failures.
+- Channel disconnects.
+- Automation failures.
+- Alertas internas.
+- Auditoría.
+
+HITO DE FINALIZACIÓN:
+Los fallos críticos de canales, pagos, emails y automatizaciones pueden detectarse desde Flow/monitoring antes de depender de un reporte manual del cliente.
+
+ESTADO: PENDIENTE.
+
+
+==================================================
+37. QUOTE STUDIO / GENERADOR DE COTIZACIONES PDF
+==================================================
+
+OBJETIVO
+Permitir que cada empresa cree cotizaciones profesionales, rápidas y adaptadas a su forma de vender, sin obligarla a usar una plantilla rígida ni convertir Upzites Flow en un software de diseño complejo.
+
+PRINCIPIO DE PRODUCTO
+NO construir un editor libre tipo Canva.
+
+La solución debe ser:
+- modular;
+- rápida;
+- segura;
+- fácil de mantener;
+- adaptable por rubro;
+- suficientemente personalizable para verse propia de cada marca.
+
+MODELO PROPUESTO
+Usar un sistema de PLANTILLAS POR BLOQUES.
+
+Cada workspace puede tener una o varias plantillas de cotización.
+
+Ejemplos:
+- Cotización estándar.
+- Proyecto web.
+- Instalación técnica.
+- Servicio mensual.
+- Productos.
+- Cotización rápida.
+- Propuesta premium.
+
+Cada plantilla se construye con bloques reordenables, no con posicionamiento libre por píxeles.
+
+BLOQUES DISPONIBLES
+- Logo / identidad.
+- Encabezado.
+- Datos de la empresa.
+- Datos del cliente.
+- Número de cotización.
+- Fecha.
+- Fecha de vencimiento.
+- Ejecutivo responsable.
+- Título.
+- Introducción.
+- Tabla de productos/servicios.
+- Subtotal.
+- Descuento.
+- Impuestos.
+- Costos adicionales.
+- Total.
+- Forma de pago.
+- Condiciones comerciales.
+- Validez de la oferta.
+- Plazos de entrega.
+- Notas.
+- Términos.
+- Firma.
+- CTA / datos de contacto.
+- Footer.
+
+PERSONALIZACIÓN VISUAL
+Brand Kit por workspace:
+
+- Logo.
+- Nombre comercial.
+- Colores principales.
+- Color de acento.
+- Tipografía de títulos.
+- Tipografía de cuerpo.
+- Tamaños predefinidos.
+- Bordes.
+- Espaciado.
+- Estilo de tablas.
+- Estilo de encabezado/footer.
+
+TIPOGRAFÍAS
+Para mantener el sistema simple:
+- catálogo curado de tipografías soportadas;
+- fuentes web seguras / Google Fonts cuando corresponda;
+- evitar inicialmente uploads arbitrarios de fuentes.
+
+No permitir CSS arbitrario del cliente.
+
+EDITOR DE PLANTILLA
+Experiencia recomendada:
+
+IZQUIERDA:
+bloques disponibles.
+
+CENTRO:
+preview en vivo de la cotización.
+
+DERECHA:
+propiedades del bloque seleccionado.
+
+Acciones:
+- agregar bloque;
+- eliminar;
+- arrastrar/reordenar;
+- duplicar;
+- mostrar/ocultar;
+- editar estilos permitidos;
+- guardar plantilla;
+- duplicar plantilla.
+
+NO usar canvas de posicionamiento libre en la primera versión.
+
+MOTOR DE CÁLCULO
+Debe ser muy rápido para usuarios que generan varias cotizaciones por día.
+
+Cada línea puede incluir:
+- producto/servicio;
+- descripción;
+- cantidad;
+- unidad;
+- precio unitario;
+- descuento;
+- impuesto;
+- subtotal.
+
+Cálculo automático:
+cantidad × precio
+− descuento
++ impuesto
++ cargos
+= total.
+
+Debe admitir:
+- CLP.
+- USD.
+- moneda definida por workspace.
+- precios con o sin impuesto.
+- descuento por línea.
+- descuento global.
+- IVA configurable cuando corresponda.
+
+NO permitir fórmulas arbitrarias ejecutables.
+
+Si más adelante se necesitan fórmulas:
+usar un conjunto limitado de operaciones declarativas y seguras.
+
+CATÁLOGO REUTILIZABLE
+Para acelerar la creación:
+
+- guardar servicios frecuentes;
+- guardar productos frecuentes;
+- precio sugerido;
+- descripción estándar;
+- unidad;
+- impuesto;
+- categoría.
+
+Ejemplo:
+
+“Diseño web corporativo”
+→ $XXX
+→ descripción precargada.
+
+El usuario puede modificarlo en una cotización concreta sin alterar el catálogo.
+
+DATOS DEL CLIENTE
+Reutilizar:
+- Contact.
+- Company.
+- Opportunity.
+
+Al crear una cotización:
+seleccionar contacto/empresa
+→ datos se completan automáticamente.
+
+También permitir cliente rápido sin tener que abandonar la cotización.
+
+WORKFLOW DE COTIZACIÓN
+Estados iniciales:
+
+DRAFT
+READY
+SENT
+VIEWED
+ACCEPTED
+REJECTED
+EXPIRED
+CANCELLED
+
+Futuro:
+PARTIALLY_PAID
+PAID
+
+ACCIONES RÁPIDAS
+- Nueva cotización.
+- Duplicar.
+- Editar.
+- Generar PDF.
+- Descargar PDF.
+- Copiar link.
+- Enviar por email.
+- Enviar por WhatsApp.
+- Marcar aceptada/rechazada.
+- Convertir en nueva versión.
+
+NUMERACIÓN
+Por workspace.
+
+Ejemplo:
+COT-2026-0001
+
+Configurable:
+- prefijo;
+- correlativo;
+- año;
+- reinicio anual opcional.
+
+PDF
+Generación server-side.
+
+Requisitos:
+- resultado determinístico;
+- mismo diseño en preview y PDF;
+- buena impresión A4;
+- saltos de página seguros;
+- tablas que continúan correctamente;
+- logo e imágenes optimizadas;
+- tipografías soportadas;
+- no depender del navegador del cliente.
+
+VERSIONADO
+Cuando una cotización se envía:
+
+guardar un snapshot de:
+- líneas;
+- precios;
+- descuentos;
+- impuestos;
+- textos;
+- datos cliente;
+- branding/template relevante.
+
+Editar posteriormente debe crear una nueva versión o dejar claro que el documento enviado era una versión anterior.
+
+Esto evita que una cotización histórica cambie porque el usuario cambió:
+- logo;
+- plantilla;
+- precio;
+- términos.
+
+COTIZACIÓN DESDE PIPELINE
+Desde Opportunity:
+
+[ Crear cotización ]
+
+Debe precargar:
+- cliente;
+- empresa;
+- oportunidad;
+- ejecutivo.
+
+La cotización queda relacionada con la Opportunity.
+
+FUTURO
+Cotización aceptada
+→ avanzar pipeline automáticamente.
+
+ENVÍO
+Desde la propia cotización:
+
+[ Enviar por email ]
+[ Enviar por WhatsApp ]
+[ Descargar PDF ]
+[ Copiar enlace ]
+
+El envío puede adjuntar PDF y además incluir un link web seguro.
+
+PÁGINA PÚBLICA OPCIONAL
+/quote/[token]
+
+Puede mostrar:
+- cotización;
+- descargar PDF;
+- aceptar;
+- rechazar;
+- dejar comentario.
+
+No es obligatoria para el MVP, pero la arquitectura debe permitirla.
+
+MÉTRICAS
+- creadas;
+- enviadas;
+- vistas;
+- aceptadas;
+- rechazadas;
+- vencidas;
+- tasa de aceptación;
+- valor cotizado;
+- valor aceptado;
+- tiempo medio de aceptación.
+
+ADAPTACIÓN POR RUBRO
+El sistema se adapta principalmente mediante PLANTILLAS, no mediante código distinto por cliente.
+
+SERVICES:
+servicios + horas + proyectos.
+
+INSTALACIONES:
+materiales + mano de obra + metros/unidades.
+
+AGENCIA:
+packs + mensualidades + extras.
+
+ECOMMERCE/B2B:
+productos + cantidades + descuentos.
+
+Así evitamos programar un cotizador diferente para cada industria.
+
+SEGURIDAD
+- Workspace isolation.
+- PDF solo accesible por usuario autorizado o token público seguro.
+- Totales calculados server-side.
+- No confiar en importes manipulados por cliente.
+- Auditoría de envío/aceptación.
+- Historial de versiones.
+
+HITO DE FINALIZACIÓN:
+Un OWNER/ADMIN crea una plantilla con su logo, colores y tipografías; genera una cotización con varias líneas, cantidades, descuentos e impuestos; los totales se calculan automáticamente; genera un PDF profesional; lo envía desde Upzites Flow; y puede duplicar la cotización para crear otra en menos de un minuto sin tocar código.
+
+ESTADO: PENDIENTE.
+
+==================================================
+38. EMAIL CLIENT LITE / CORREO DENTRO DE UPZITES FLOW
+==================================================
+
+OBJETIVO
+Permitir leer y enviar correos comerciales básicos desde Upzites Flow sin intentar reemplazar Gmail u Outlook.
+
+ALCANCE
+Mantenerlo deliberadamente simple.
+
+DEBE PERMITIR
+- Conectar una cuenta de correo.
+- Ver Inbox.
+- Ver enviados.
+- Abrir un correo.
+- Ver hilo/conversación.
+- Redactar.
+- Responder.
+- Reenviar.
+- Adjuntar archivos.
+- Adjuntar una cotización PDF.
+- Asociar correo a Contact.
+- Asociar correo a Company.
+- Asociar correo a Opportunity.
+- Buscar por persona/asunto.
+- Estado leído/no leído.
+- Archivar.
+
+NO CONSTRUIR INICIALMENTE
+- Calendario.
+- Contactos de Google/Microsoft completos.
+- Reglas complejas.
+- Filtros avanzados.
+- Spam engine.
+- Offline.
+- Gestión completa de carpetas/labels.
+- Firma visual avanzada.
+- Cliente de correo equivalente a Gmail.
+
+PROVEEDORES INICIALES
+Preferencia:
+- Gmail mediante OAuth/API.
+- Microsoft 365 / Outlook mediante OAuth/Graph.
+
+Futuro:
+- IMAP/SMTP genérico si realmente es necesario.
+
+SEGURIDAD
+- OAuth.
+- Tokens cifrados.
+- Revocación.
+- Scopes mínimos.
+- Workspace isolation.
+- Nunca almacenar passwords de correo.
+
+INBOX UNIFICADO
+Ruta sugerida:
+
+Inbox
+→ Conversaciones
+→ WhatsApp
+→ Instagram
+→ Email
+
+o filtro de canales dentro del Inbox existente.
+
+Cada hilo debe mostrar claramente:
+- canal;
+- remitente;
+- asunto;
+- fecha;
+- adjuntos;
+- contacto relacionado.
+
+CRM CONTEXT
+Al abrir un email de una persona conocida mostrar lateralmente:
+- contacto;
+- empresa;
+- oportunidad;
+- últimas actividades;
+- cotizaciones;
+- pedidos cuando corresponda.
+
+COTIZACIONES
+Desde Quote Studio:
+
+[ Enviar por email ]
+
+Debe abrir un compose precargado con:
+- destinatario;
+- asunto;
+- mensaje;
+- PDF adjunto;
+- opcionalmente link público.
+
+Al enviarlo:
+- cotización pasa a SENT;
+- se registra actividad;
+- email queda en thread;
+- queda relacionado al Contact/Opportunity.
+
+RESPUESTAS
+Si el cliente responde:
+- aparece en Inbox;
+- queda relacionada con el contacto;
+- puede notificar al responsable;
+- puede actualizar “última actividad”.
+
+AUTOMATIZACIONES FUTURAS
+Eventos útiles:
+- email recibido;
+- email respondido;
+- cotización enviada;
+- cotización sin respuesta X días.
+
+Acciones:
+- enviar email;
+- crear tarea;
+- notificar;
+- follow-up.
+
+IMPORTANTE
+Separar tres conceptos:
+
+1. PLATFORM TRANSACTIONAL EMAIL
+Invitaciones, password reset, seguridad.
+
+2. TENANT TRANSACTIONAL EMAIL
+Entregas, pedidos, notificaciones automáticas.
+
+3. USER MAILBOX
+Correo humano del cliente: leer, responder y enviar desde su propia cuenta.
+
+No mezclar credenciales ni quotas entre ellos.
+
+HITO DE FINALIZACIÓN:
+Un usuario conecta su Gmail o Microsoft 365, recibe y lee un correo dentro de Flow, responde desde Flow, envía una cotización PDF desde Quote Studio y toda la conversación queda asociada correctamente al contacto y oportunidad.
+
+ESTADO: PENDIENTE.
+
+==================================================
+ORDEN DE IMPLEMENTACIÓN CONGELADO
+==================================================
+
+FASE 1 — SELF-SERVICE COMMERCE
+2. Product Sales Studio
+3. Digital Asset Manager
+4. IA de ventas por producto
+5. Base de conocimiento
+6. UI de ofertas / bump
+7. Seguimiento
+
+FASE 2 — CANALES Y AUTOMATIZACIÓN COMERCIAL
+8. WhatsApp Manager
+9. Campaign Routing
+10. CTWA
+11. Instagram ManyChat-style
+12. Flow Builder
+13. Templates
+
+FASE 3 — EXPERIENCIA DEL CLIENTE
+14. Adaptive Experience
+15. Personalización UI
+16. Onboarding
+17. Tutoriales
+18. Checklist
+
+FASE 4 — SOCIAL
+19. Social Publisher
+20. Calendario
+21. Visual Feed Planner
+22. Content Library
+23. IA de contenido
+24. IA asistente del feed
+
+FASE 5 — OPERACIÓN COMERCIAL / DOCUMENTOS
+37. Quote Studio / Cotizaciones PDF
+38. Email Client Lite
+
+FASE 6 — INTEGRACIONES REALES
+25. Email transaccional real
+26. WhatsApp Templates
+27. MP TEST
+28. Instagram E2E
+29. TikTok
+
+FASE 7 — ANALYTICS / OPERACIÓN
+30. Funnel/Attribution
+31. Payment Exceptions
+
+FASE 8 — NEGOCIOS REALES
+32. UPZITES
+33. 5 Minutos con Dios
+34. Funnel real Meta Ads
+
+FASE 9 — PRODUCCIÓN
+35. Release
+36. Observabilidad
+
+==================================================
+CRITERIO GLOBAL DE “LISTO”
+==================================================
+
+Upzites Flow se considerará listo para lanzamiento comercial cuando:
+
+1. Un cliente pueda registrarse/invitarse.
+2. Configure su negocio sin ayuda técnica.
+3. Conecte al menos WhatsApp o Instagram.
+4. Cree un producto/servicio desde UI.
+5. Entrene su IA.
+6. Active una automatización.
+7. Reciba un lead.
+8. La IA pueda atenderlo.
+9. Se pueda generar una venta o conversión.
+10. El sistema pueda verificar pago cuando aplique.
+11. Entregue el producto automáticamente cuando aplique.
+12. El dashboard refleje el resultado.
+13. El cliente pueda gestionar su equipo.
+14. El workspace adapte la experiencia a su rubro.
+15. Los fallos principales sean observables.
+16. Todo lo anterior pueda hacerse sin tocar código o base de datos.
+17. Un negocio de servicios pueda crear, calcular, generar y enviar una cotización PDF profesional desde Flow.
+18. Un usuario pueda leer y responder correos básicos desde su cuenta conectada y relacionarlos con contactos/oportunidades.
+
+FIN DEL PLAN MAESTRO
