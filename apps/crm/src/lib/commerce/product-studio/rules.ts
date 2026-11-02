@@ -147,10 +147,7 @@ export const productInputSchema = z
     basePrice: priceSchema,
     sku: skuSchema,
     variants: z.array(variantInputSchema).max(MAX_VARIANTS, `Máximo ${MAX_VARIANTS} variantes.`).default([]),
-    orderBump: z
-      .object({ enabled: z.boolean(), variantId: idSchema.nullable().optional() })
-      .strict()
-      .default({ enabled: false }),
+    // Las ofertas (bump y upsell) se editan aparte, en lib/commerce/offers.
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -176,10 +173,6 @@ export const productInputSchema = z
         skus.set(variant.sku, `variants.${index}`);
       }
     });
-
-    if (value.orderBump.enabled && !value.orderBump.variantId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['orderBump', 'variantId'], message: 'Elige el producto adicional que se ofrecerá en el checkout.' });
-    }
   });
 
 export type ProductInput = z.infer<typeof productInputSchema>;

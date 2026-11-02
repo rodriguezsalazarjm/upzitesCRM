@@ -7,17 +7,13 @@ import { SOLD_ORDER_STATUSES } from '../../dashboard/widgets/loaders/commerce';
 import { productCheckoutUrl } from '../product-link';
 import { copyCover, coverBelongsTo, readCover, removeCoverObject, storeCover, type CoverRef } from './cover';
 import {
-  BUMP_ISSUE_TEXT,
-  bumpProblem,
   copyName,
-  isBlockingBumpIssue,
   offerLabel,
   priceFrom,
   productInputSchema,
   publishBlockers,
   sellableVariants,
   type BumpCandidate,
-  type BumpIssue,
   type ProductInput,
   type StatusAction,
   type StudioProductStatus,
@@ -29,9 +25,9 @@ import {
  * Extiende los modelos existentes (Product / ProductVariant), no crea otros:
  *  - precio base = variante por defecto (`isDefault`); con variantes, la por
  *    defecto queda inactiva y el comprador elige una de las activas;
- *  - el producto adicional (order bump) se guarda donde lo lee el motor del
- *    Punto 1: `Product.metadata.orderBump.variantId`. El Studio solo lo
- *    escribe validado; nadie edita metadata a mano;
+ *  - las ofertas (order bump y upsell) viven en `ProductOffer` y se administran
+ *    en lib/commerce/offers; aqui solo se mantienen coherentes al archivar,
+ *    duplicar o quitar variantes;
  *  - la portada vive en `Product.metadata.cover` (ver cover.ts).
  *
  * Toda funcion recibe el actor ya resuelto por la sesion (workspace ACTIVO y
@@ -56,7 +52,7 @@ export class ProductStudioError extends Error {
 
 type Db = typeof prisma | Prisma.TransactionClient;
 
-function assertCanManage(actor: StudioActor) {
+export function assertCanManage(actor: StudioActor) {
   if (!canManageWorkspaceSettings(actor.role)) {
     throw new ProductStudioError('FORBIDDEN', 'Solo el propietario o un administrador del negocio pueden modificar productos.');
   }
@@ -66,20 +62,13 @@ function metaOf(metadata: unknown): Record<string, unknown> {
   return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? { ...(metadata as Record<string, unknown>) } : {};
 }
 
-export function bumpVariantIdOf(metadata: unknown) {
-  const bump = metaOf(metadata).orderBump;
-  if (!bump || typeof bump !== 'object' || Array.isArray(bump)) return null;
-  const variantId = (bump as { variantId?: unknown }).variantId;
-  return typeof variantId === 'string' && variantId.length > 0 ? variantId : null;
-}
-
-async function lockWorkspaceCatalog(tx: Prisma.TransactionClient, workspaceId: string) {
+export async function lockWorkspaceCatalog(tx: Prisma.TransactionClient, workspaceId: string) {
   // Serializa las escrituras del catalogo de un workspace: unicidad de SKU y
   // relaciones de producto adicional se validan sin carreras.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`product-studio:${workspaceId}`}, 0))`;
 }
 
-async function loadOwned(db: Db, workspaceId: string, productId: string) {
+export async function loadOwned(db: Db, workspaceId: string, productId: string) {
   const product = await db.product.findFirst({
     where: { id: productId, workspaceId },
     include: { variants: { orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }] } },
@@ -90,7 +79,7 @@ async function loadOwned(db: Db, workspaceId: string, productId: string) {
 
 type OwnedProduct = Awaited<ReturnType<typeof loadOwned>>;
 
-function assertEditable(product: OwnedProduct) {
+export function assertEditable(product: OwnedProduct) {
   if (product.connectionId) {
     throw new ProductStudioError('READ_ONLY', 'Este producto se sincroniza desde Shopify: edítalo en Shopify.');
   }
@@ -100,7 +89,7 @@ function assertEditable(product: OwnedProduct) {
 }
 
 /** Variante candidata a producto adicional, SIEMPRE acotada al workspace. */
-async function loadBumpCandidate(db: Db, workspaceId: string, variantId: string) {
+export async function loadBumpCandidate(db: Db, workspaceId: string, variantId: string) {
   const variant = await db.productVariant.findFirst({
     where: { id: variantId, product: { workspaceId } },
     include: { product: { select: { id: true, workspaceId: true, status: true, currency: true, name: true } } },
@@ -142,12 +131,13 @@ async function assertSkusFree(tx: Prisma.TransactionClient, workspaceId: string,
   }
 }
 
-async function validateBump(tx: Prisma.TransactionClient, workspaceId: string, productId: string | null, input: ProductInput) {
-  if (!input.orderBump.enabled || !input.orderBump.variantId) return null;
-  const loaded = await loadBumpCandidate(tx, workspaceId, input.orderBump.variantId);
-  const issue = bumpProblem({ mainProductId: productId, workspaceId, currency: input.currency, candidate: loaded?.candidate ?? null });
-  if (isBlockingBumpIssue(issue)) throw new ProductStudioError('INVALID', BUMP_ISSUE_TEXT[issue!], 'orderBump.variantId');
-  return input.orderBump.variantId;
+/** Una oferta se cobra en la moneda del producto: cambiar la moneda con ofertas en otra la romperia. */
+async function assertOffersKeepCurrency(tx: Prisma.TransactionClient, workspaceId: string, productId: string, currency: string) {
+  const clash = await tx.productOffer.findFirst({
+    where: { workspaceId, productId, archivedAt: null, offerVariant: { product: { currency: { not: currency } } } },
+    select: { id: true },
+  });
+  if (clash) throw new ProductStudioError('INVALID', 'Este producto tiene ofertas en otra moneda. Quítalas o cámbialas en Ofertas antes de cambiar la moneda.', 'currency');
 }
 
 function readinessVariants(variants: { isDefault: boolean; isActive: boolean; priceMinor: number; id: string }[]) {
@@ -164,7 +154,6 @@ export async function createStudioProduct(actor: StudioActor, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     await lockWorkspaceCatalog(tx, actor.workspaceId);
     await assertSkusFree(tx, actor.workspaceId, null, input);
-    const bumpVariantId = await validateBump(tx, actor.workspaceId, null, input);
     const hasOptions = input.variants.length > 0;
     const product = await tx.product.create({
       data: {
@@ -174,7 +163,6 @@ export async function createStudioProduct(actor: StudioActor, raw: unknown) {
         type: input.type,
         currency: input.currency,
         status: ProductStatus.DRAFT,
-        ...(bumpVariantId ? { metadata: { orderBump: { variantId: bumpVariantId } } } : {}),
         variants: {
           create: [
             { name: 'Estándar', sku: input.sku, priceMinor: input.basePrice, isDefault: true, isActive: !hasOptions, inventory: null },
@@ -185,7 +173,7 @@ export async function createStudioProduct(actor: StudioActor, raw: unknown) {
       select: { id: true, name: true, type: true },
     });
     await recordAudit(
-      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.created', entity: 'Product', entityId: product.id, metadata: { name: product.name, type: product.type, via: 'studio', variants: input.variants.length, orderBump: Boolean(bumpVariantId) } },
+      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.created', entity: 'Product', entityId: product.id, metadata: { name: product.name, type: product.type, via: 'studio', variants: input.variants.length } },
       tx,
     );
     return { id: product.id };
@@ -212,12 +200,8 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
     });
 
     await assertSkusFree(tx, actor.workspaceId, product.id, input);
-    const bumpVariantId = await validateBump(tx, actor.workspaceId, product.id, input);
+    if (input.currency !== product.currency) await assertOffersKeepCurrency(tx, actor.workspaceId, product.id, input.currency);
     const hasOptions = input.variants.length > 0;
-
-    const metadata = metaOf(product.metadata);
-    if (bumpVariantId) metadata.orderBump = { variantId: bumpVariantId };
-    else delete metadata.orderBump;
 
     await tx.product.update({
       where: { id: product.id },
@@ -226,7 +210,6 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
         description: input.description || null,
         type: input.type,
         currency: input.currency,
-        metadata: metadata as Prisma.InputJsonValue,
       },
     });
 
@@ -240,9 +223,13 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
     const keptIds = new Set(input.variants.map((variant) => variant.id).filter(Boolean));
     const deactivated: string[] = [];
     for (const variant of options.filter((candidate) => !keptIds.has(candidate.id))) {
-      // Una variante con pedidos no se borra: el historial la referencia.
-      const lines = await tx.orderLine.count({ where: { variantId: variant.id } });
-      if (lines > 0) {
+      // Una variante con pedidos u ofrecida en alguna oferta no se borra: el
+      // historial (o la oferta) la referencia. Queda desactivada.
+      const [lines, offers] = await Promise.all([
+        tx.orderLine.count({ where: { variantId: variant.id } }),
+        tx.productOffer.count({ where: { offerVariantId: variant.id } }),
+      ]);
+      if (lines > 0 || offers > 0) {
         await tx.productVariant.update({ where: { id: variant.id }, data: { isActive: false } });
         deactivated.push(variant.name);
       } else {
@@ -264,7 +251,7 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
     }
 
     await recordAudit(
-      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.updated', entity: 'Product', entityId: product.id, metadata: { via: 'studio', variants: input.variants.length, orderBump: bumpVariantId, deactivatedVariants: deactivated } },
+      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.updated', entity: 'Product', entityId: product.id, metadata: { via: 'studio', variants: input.variants.length, deactivatedVariants: deactivated } },
       tx,
     );
     return { id: product.id, deactivatedVariants: deactivated };
@@ -273,16 +260,11 @@ export async function saveStudioProduct(actor: StudioActor, productId: string, r
 
 // --- Estado ---------------------------------------------------------------------
 
-/** Productos del workspace que ofrecen alguna variante de `productId` como adicional. */
-async function productsUsingAsBump(db: Db, workspaceId: string, productId: string, variantIds: string[]) {
-  if (variantIds.length === 0) return [];
+/** Productos del workspace que ofrecen `productId` (bump o upsell) en una oferta activa. */
+async function productsUsingAsBump(db: Db, workspaceId: string, productId: string) {
   return db.product.findMany({
-    where: {
-      workspaceId,
-      id: { not: productId },
-      OR: variantIds.map((variantId) => ({ metadata: { path: ['orderBump', 'variantId'], equals: variantId } })),
-    },
-    select: { id: true, name: true, status: true, metadata: true },
+    where: { workspaceId, id: { not: productId }, offers: { some: { workspaceId, archivedAt: null, isActive: true, offerVariant: { productId } } } },
+    select: { id: true, name: true, status: true },
     orderBy: { name: 'asc' },
   });
 }
@@ -309,14 +291,13 @@ export async function changeStudioProductStatus(actor: StudioActor, productId: s
     } else if (action === 'archive') {
       to = ProductStatus.ARCHIVED;
       if (from !== ProductStatus.ARCHIVED) {
-        // Un archivado no puede quedar como adicional de nadie: se quita la
-        // relacion de los productos que lo ofrecian (quedan auditados).
-        const users = await productsUsingAsBump(tx, actor.workspaceId, product.id, product.variants.map((variant) => variant.id));
-        for (const user of users) {
-          const metadata = metaOf(user.metadata);
-          delete metadata.orderBump;
-          await tx.product.update({ where: { id: user.id }, data: { metadata: metadata as Prisma.InputJsonValue } });
-        }
+        // Un archivado no puede ofrecerse en ninguna oferta: las que lo
+        // ofrecian quedan pausadas (con su copy y su medicion) y auditadas.
+        const users = await productsUsingAsBump(tx, actor.workspaceId, product.id);
+        await tx.productOffer.updateMany({
+          where: { workspaceId: actor.workspaceId, archivedAt: null, isActive: true, offerVariant: { productId: product.id } },
+          data: { isActive: false },
+        });
         detachedFrom = users.map((user) => user.name);
       }
     } else {
@@ -339,8 +320,8 @@ export async function changeStudioProductStatus(actor: StudioActor, productId: s
 
 /**
  * Copia como BORRADOR del mismo workspace: datos comerciales, variantes (ids
- * nuevos, sin SKU porque el SKU es unico en el catalogo) y la configuracion
- * del producto adicional. No copia pedidos, pagos, metricas ni entregables.
+ * nuevos, sin SKU porque el SKU es unico en el catalogo) y sus ofertas (bump y
+ * upsell, sin su medicion). No copia pedidos, pagos, metricas ni entregables.
  */
 export async function duplicateStudioProduct(actor: StudioActor, productId: string) {
   assertCanManage(actor);
@@ -349,7 +330,7 @@ export async function duplicateStudioProduct(actor: StudioActor, productId: stri
   const created = await prisma.$transaction(async (tx) => {
     await lockWorkspaceCatalog(tx, actor.workspaceId);
     const source = await loadOwned(tx, actor.workspaceId, productId);
-    const bumpVariantId = bumpVariantIdOf(source.metadata);
+    const offers = await tx.productOffer.findMany({ where: { workspaceId: actor.workspaceId, productId: source.id, archivedAt: null } });
     const copy = await tx.product.create({
       data: {
         workspaceId: actor.workspaceId,
@@ -358,7 +339,6 @@ export async function duplicateStudioProduct(actor: StudioActor, productId: stri
         type: source.type,
         currency: source.currency,
         status: ProductStatus.DRAFT,
-        ...(bumpVariantId ? { metadata: { orderBump: { variantId: bumpVariantId } } } : {}),
         variants: {
           create: source.variants.map((variant) => ({
             name: variant.name,
@@ -372,8 +352,24 @@ export async function duplicateStudioProduct(actor: StudioActor, productId: stri
       },
       select: { id: true, name: true },
     });
+    if (offers.length > 0) {
+      await tx.productOffer.createMany({
+        data: offers.map((offer) => ({
+          workspaceId: actor.workspaceId,
+          productId: copy.id,
+          kind: offer.kind,
+          offerVariantId: offer.offerVariantId,
+          headline: offer.headline,
+          description: offer.description,
+          priceMinor: offer.priceMinor,
+          showImage: offer.showImage,
+          priority: offer.priority,
+          isActive: offer.isActive,
+        })),
+      });
+    }
     await recordAudit(
-      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.duplicated', entity: 'Product', entityId: copy.id, metadata: { sourceId: source.id } },
+      { workspaceId: actor.workspaceId, actorId: actor.userId, action: 'product.duplicated', entity: 'Product', entityId: copy.id, metadata: { sourceId: source.id, offers: offers.length } },
       tx,
     );
     return { id: copy.id, cover: readCover(source.metadata), sourceId: source.id };
@@ -481,7 +477,7 @@ export async function listStudioProducts(workspaceId: string, filter: StudioFilt
   };
 }
 
-/** Opciones que pueden ofrecerse como producto adicional de `excludeProductId`. */
+/** Opciones que pueden ofrecerse (bump o upsell) en las ofertas de `excludeProductId`. */
 export async function listBumpOptions(workspaceId: string, excludeProductId: string | null) {
   const products = await prisma.product.findMany({
     where: { workspaceId, status: { not: ProductStatus.ARCHIVED }, ...(excludeProductId ? { id: { not: excludeProductId } } : {}) },
@@ -490,6 +486,8 @@ export async function listBumpOptions(workspaceId: string, excludeProductId: str
   });
   return products.flatMap((product) => {
     const variants = product.variants.map((variant) => ({ ...variant, price: variant.priceMinor }));
+    const cover = readCover(product.metadata);
+    const imageUrl = cover ? `/api/products/${encodeURIComponent(product.id)}/cover?v=${encodeURIComponent(cover.uploadedAt || cover.key)}` : null;
     return sellableVariants(variants).variants.map((variant) => ({
       variantId: variant.id,
       productId: product.id,
@@ -497,6 +495,7 @@ export async function listBumpOptions(workspaceId: string, excludeProductId: str
       price: variant.priceMinor,
       currency: product.currency,
       published: product.status === ProductStatus.ACTIVE,
+      imageUrl,
     }));
   });
 }
@@ -537,24 +536,9 @@ export async function productMetrics(workspaceId: string, productId: string): Pr
   };
 }
 
-export type BumpView = { variantId: string; label: string; price: number; currency: string; issue: BumpIssue | null } | null;
-
-/** Salud de la relacion guardada: lo que el checkout mostrara (o por que no). */
-export async function describeBump(workspaceId: string, product: { id: string; currency: string; metadata: unknown }): Promise<BumpView> {
-  const variantId = bumpVariantIdOf(product.metadata);
-  if (!variantId) return null;
-  const loaded = await loadBumpCandidate(prisma, workspaceId, variantId);
-  const issue = bumpProblem({ mainProductId: product.id, workspaceId, currency: product.currency, candidate: loaded?.candidate ?? null });
-  return { variantId, label: loaded?.label ?? 'Producto adicional', price: loaded?.price ?? 0, currency: loaded?.currency ?? product.currency, issue };
-}
-
 export async function getStudioProduct(workspaceId: string, productId: string) {
   const product = await loadOwned(prisma, workspaceId, productId);
-  const [bump, metrics, usedBy] = await Promise.all([
-    describeBump(workspaceId, product),
-    productMetrics(workspaceId, product.id),
-    productsUsingAsBump(prisma, workspaceId, product.id, product.variants.map((variant) => variant.id)),
-  ]);
+  const [metrics, usedBy] = await Promise.all([productMetrics(workspaceId, product.id), productsUsingAsBump(prisma, workspaceId, product.id)]);
   const cover = readCover(product.metadata);
   const variants = product.variants.map((variant) => ({ id: variant.id, isDefault: variant.isDefault, isActive: variant.isActive, price: variant.priceMinor }));
   const base = product.variants.find((variant) => variant.isDefault) ?? null;
@@ -570,7 +554,6 @@ export async function getStudioProduct(workspaceId: string, productId: string) {
     options: product.variants
       .filter((variant) => !variant.isDefault)
       .map((variant) => ({ id: variant.id, name: variant.name, sku: variant.sku, price: variant.priceMinor, isActive: variant.isActive })),
-    bump,
     usedAsBumpBy: usedBy.map((item) => ({ id: item.id, name: item.name })),
     metrics,
     cover: cover ? { version: cover.uploadedAt || cover.key } : null,

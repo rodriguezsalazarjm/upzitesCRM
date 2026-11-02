@@ -102,6 +102,8 @@ model Workspace {
   automationFlowRuns       AutomationFlowRun[]
   knowledgeSources         KnowledgeSource[]
   knowledgeChunks          KnowledgeChunk[]
+  productOffers            ProductOffer[]
+  orderOffers              OrderOffer[]
 
   @@map("workspaces")
 }
@@ -1724,6 +1726,7 @@ model Product {
   variants      ProductVariant[]
   assets        DigitalAsset[]
   salesBrain    ProductSalesBrain?
+  offers        ProductOffer[]
   conversations Conversation[]
 
   @@unique([connectionId, externalId])
@@ -1790,8 +1793,9 @@ model ProductVariant {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  product Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  lines   OrderLine[]
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lines     OrderLine[]
+  offeredIn ProductOffer[]
 
   @@unique([productId, externalId])
   @@index([productId, isActive])
@@ -1869,11 +1873,77 @@ model CustomerOrder {
   payments     Payment[]
   fulfillments FulfillmentOrder[]
   deliveries   DigitalDelivery[]
+  offers       OrderOffer[]       @relation("OrderOffers")
+  upsellSource OrderOffer?        @relation("UpsellResultOrder")
 
+  @@unique([id, workspaceId])
   @@unique([workspaceId, provider, externalId])
   @@index([workspaceId, status, createdAt])
   @@index([workspaceId, contactId])
   @@map("customer_orders")
+}
+
+/// Oferta comercial de un producto (Punto 6): order bump antes de pagar o
+/// upsell despues del pago. Ofrece una variante de OTRO producto del mismo
+/// workspace, con copy y precio propios. `priority` ordena las ofertas del
+/// mismo tipo: el checkout muestra la primera disponible (las demas son
+/// respaldo si esa deja de estar a la venta).
+model ProductOffer {
+  id             String    @id @default(cuid())
+  workspaceId    String    @map("workspace_id")
+  productId      String    @map("product_id")
+  kind           OfferKind
+  offerVariantId String    @map("offer_variant_id")
+  headline       String
+  description    String?
+  /// Precio especial en unidades menores de la moneda del producto. Null = precio de la variante.
+  priceMinor     Int?      @map("price_minor")
+  showImage      Boolean   @default(true) @map("show_image")
+  priority       Int       @default(0)
+  isActive       Boolean   @default(true) @map("is_active")
+  /// Oferta eliminada que ya tenia historial: deja de mostrarse y su medicion se conserva.
+  archivedAt     DateTime? @map("archived_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product      Product        @relation(fields: [productId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  offerVariant ProductVariant @relation(fields: [offerVariantId], references: [id], onDelete: Restrict)
+  orderOffers  OrderOffer[]
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, productId, kind, priority])
+  @@index([offerVariantId])
+  @@map("product_offers")
+}
+
+/// Una oferta mostrada en un pedido concreto y lo que decidio el comprador.
+/// Es la base de la medicion (take rate) y la llave de idempotencia del upsell:
+/// una sola fila por pedido y oferta, y un solo pedido adicional por upsell.
+model OrderOffer {
+  id             String           @id @default(cuid())
+  workspaceId    String           @map("workspace_id")
+  orderId        String           @map("order_id")
+  offerId        String           @map("offer_id")
+  kind           OfferKind
+  /// Snapshot de lo ofrecido al mostrarla (o al decidir).
+  offerVariantId String?          @map("offer_variant_id")
+  priceMinor     Int              @map("price_minor")
+  status         OrderOfferStatus @default(SHOWN)
+  /// Upsell aceptado: pedido adicional que lo cobra.
+  resultOrderId  String?          @unique @map("result_order_id")
+  shownAt        DateTime         @default(now()) @map("shown_at")
+  decidedAt      DateTime?        @map("decided_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order       CustomerOrder  @relation("OrderOffers", fields: [orderId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  offer       ProductOffer   @relation(fields: [offerId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  resultOrder CustomerOrder? @relation("UpsellResultOrder", fields: [resultOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, offerId])
+  @@index([workspaceId, offerId, status])
+  @@map("order_offers")
 }
 
 model OrderLine {
@@ -3045,6 +3115,19 @@ enum ConversationMode {
 }
 
 /// Estado de un pedido. Las entidades de comercio llegan en las Fases 5 y 6.
+/// Tipo de oferta de un producto (Punto 6).
+enum OfferKind {
+  ORDER_BUMP
+  UPSELL
+}
+
+/// Que paso con una oferta mostrada en un pedido.
+enum OrderOfferStatus {
+  SHOWN
+  ACCEPTED
+  DECLINED
+}
+
 enum OrderStatus {
   DRAFT
   PENDING_PAYMENT

@@ -119,7 +119,7 @@ const exists = async (objectKey: string) => Boolean(await (await resolveDelivery
 const A = await makeWorkspace('a');
 const B = await makeWorkspace('b');
 try {
-  const product = await asUser(A, () => createProductRoute(req('/api/products/studio', { name: 'Entregables QA', type: 'DIGITAL', currency: 'CLP', basePrice: 1000, description: '', sku: '', variants: [], orderBump: { enabled: false, variantId: null } })));
+  const product = await asUser(A, () => createProductRoute(req('/api/products/studio', { name: 'Entregables QA', type: 'DIGITAL', currency: 'CLP', basePrice: 1000, description: '', sku: '', variants: [] })));
   const productId = String(((await product.json()) as { data?: { id?: string } }).data?.id ?? '');
   await prisma.product.update({ where: { id: productId }, data: { status: 'ACTIVE' } });
 

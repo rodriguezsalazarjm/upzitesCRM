@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return handleStudio(async () => NextResponse.json({ data: await getStudioProduct(user.workspace.id, id) }));
 }
 
-/** Guarda informacion, precio, variantes y producto adicional (OWNER/ADMIN). */
+/** Guarda informacion, precio y variantes (OWNER/ADMIN). Las ofertas van por /offers. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireCurrentUser();
   const { id } = await params;

@@ -78,6 +78,11 @@ const internal = await createPlatformClient({
   initialBusiness: { businessType: 'ECOMMERCE', commerceSubtype: 'INFOPRODUCT' },
 });
 const W = internal.workspaceId;
+/** Order bump del producto (Punto 6: ProductOffer de prioridad 0), escrito directo como haria un fixture. */
+async function setBump(productId: string, variantId: string) {
+  await prisma.productOffer.deleteMany({ where: { productId, kind: 'ORDER_BUMP' } });
+  await prisma.productOffer.create({ data: { workspaceId: W, productId, kind: 'ORDER_BUMP', offerVariantId: variantId, headline: 'Agregar también' } });
+}
 createdWorkspaces.push(W);
 await completeOnboarding({ userId: operator.id, workspaceId: W, role: WorkspaceRole.OWNER }, {
   businessType: 'ECOMMERCE',
@@ -263,7 +268,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
     },
     include: { variants: true },
   });
-  await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: bumpProduct.variants[0].id } } } });
+  await setBump(product.id, bumpProduct.variants[0].id);
   const newOrder = () => createOrder({ workspaceId: W, contactId: contact.id, customerEmail: contact.email, items: [{ variantId: product.variants[0].id, quantity: 1 }] });
   const tokenFor = (orderId: string) => signCheckoutToken(orderId);
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -426,11 +431,11 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
     );
 
     const foreignBumpOrder = await newOrder();
-    await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: foreign.variants[0].id } } } });
+    await setBump(product.id, foreign.variants[0].id);
     const foreignView = await loadPublicCheckout(foreignBumpOrder.id, tokenFor(foreignBumpOrder.id));
     const foreignStart = await startPublicCheckoutPayment(foreignBumpOrder.id, tokenFor(foreignBumpOrder.id), true);
     await prisma.productVariant.update({ where: { id: bumpProduct.variants[0].id }, data: { isActive: false } });
-    await prisma.product.update({ where: { id: product.id }, data: { metadata: { orderBump: { variantId: bumpProduct.variants[0].id } } } });
+    await setBump(product.id, bumpProduct.variants[0].id);
     const inactiveOrder = await newOrder();
     const inactiveStart = await startPublicCheckoutPayment(inactiveOrder.id, tokenFor(inactiveOrder.id), true);
     await prisma.productVariant.update({ where: { id: bumpProduct.variants[0].id }, data: { isActive: true } });
@@ -466,10 +471,7 @@ console.log('\n== N. Checkout publico /checkout/[id] (cualquier workspace) ==');
       },
       include: { variants: true },
     });
-    await prisma.product.update({
-      where: { id: hardeningMain.id },
-      data: { metadata: { orderBump: { variantId: hardeningBump.variants[0].id } } },
-    });
+    await setBump(hardeningMain.id, hardeningBump.variants[0].id);
     const hardenedOrder = await createOrder({
       workspaceId: W,
       contactId: contact.id,

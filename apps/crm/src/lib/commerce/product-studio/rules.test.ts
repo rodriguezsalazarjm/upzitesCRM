@@ -70,16 +70,14 @@ test('payload: whitelist estricta, sin claves extra ni montos invalidos', () => 
   const parsed = productInputSchema.parse({ ...valid, description: '  <b>hola</b>  ', sku: ' cam ' });
   assert.equal(parsed.description, '<b>hola</b>', 'la descripcion se guarda como texto (se renderiza escapada)');
   assert.equal(parsed.sku, 'CAM');
-  assert.deepEqual(parsed.orderBump, { enabled: false });
+  assert.equal(productInputSchema.safeParse({ ...valid, orderBump: { enabled: false } }).success, false, 'las ofertas se editan en /offers, no en el producto');
 });
 
-test('payload: variantes con nombre y SKU unicos; bump activo exige producto', () => {
+test('payload: variantes con nombre y SKU unicos', () => {
   const dupName = productInputSchema.safeParse({ ...valid, variants: [{ name: 'M', price: 1, isActive: true }, { name: 'm', price: 1, isActive: true }] });
   assert.equal(dupName.success, false);
   const dupSku = productInputSchema.safeParse({ ...valid, sku: 'X', variants: [{ name: 'M', sku: 'x', price: 1, isActive: true }] });
   assert.equal(dupSku.success, false);
-  const bumpWithout = productInputSchema.safeParse({ ...valid, orderBump: { enabled: true } });
-  assert.equal(bumpWithout.success, false);
   const tooMany = productInputSchema.safeParse({ ...valid, variants: Array.from({ length: 51 }, (_, i) => ({ name: `V${i}`, price: 1, isActive: true })) });
   assert.equal(tooMany.success, false);
 });

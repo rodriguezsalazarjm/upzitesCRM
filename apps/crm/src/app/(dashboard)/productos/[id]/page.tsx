@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Bot, PackageCheck } from 'lucide-react';
+import { Bot, Gift, PackageCheck } from 'lucide-react';
 import { deliverySummary } from '@/lib/commerce/digital-assets/service';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { CheckoutLinkCard } from '@/components/products/checkout-link-card';
@@ -12,8 +12,9 @@ import { SettingsCard } from '@/components/ui/settings-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageWorkspaceSettings } from '@/lib/workspace-roles';
-import { getStudioProduct, listBumpOptions, ProductStudioError, type StudioProductView } from '@/lib/commerce/product-studio/service';
-import { BUMP_ISSUE_TEXT, STATUS_LABEL, STUDIO_CURRENCIES, formatMinor, type StudioCurrency, type StudioProductType } from '@/lib/commerce/product-studio/rules';
+import { offerSummary } from '@/lib/commerce/offers/service';
+import { getStudioProduct, ProductStudioError, type StudioProductView } from '@/lib/commerce/product-studio/service';
+import { STATUS_LABEL, STUDIO_CURRENCIES, formatMinor, type StudioCurrency, type StudioProductType } from '@/lib/commerce/product-studio/rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +86,23 @@ function SalesBrainCard({ productId }: { productId: string }) {
   );
 }
 
+/** Acceso a Ofertas (Punto 6): order bump y upsell postcompra. */
+function OffersCard({ productId, summary }: { productId: string; summary: Awaited<ReturnType<typeof offerSummary>> }) {
+  const part = (count: { active: number; paused: number }, one: string, many: string) =>
+    count.active + count.paused === 0 ? null : `${count.active} ${count.active === 1 ? one : many} activo${count.active === 1 ? '' : 's'}${count.paused ? ` (${count.paused} en pausa)` : ''}`;
+  const text = [part(summary.bumps, 'order bump', 'order bumps'), part(summary.upsells, 'upsell', 'upsells')].filter(Boolean).join(' · ');
+  return (
+    <SettingsCard icon={Gift} title="Ofertas" description={text || 'Order bump antes de pagar y upsell después del pago, con su medición.'}>
+      <Link
+        href={`/productos/${encodeURIComponent(productId)}/ofertas`}
+        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-mist bg-paper px-4 text-sm font-semibold text-carbon hover:border-carbon focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric"
+      >
+        Configurar ofertas
+      </Link>
+    </SettingsCard>
+  );
+}
+
 /** Editor de un producto del Product Sales Studio. */
 export default async function ProductStudioPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ creado?: string; duplicado?: string }> }) {
   const user = await requireCurrentUser();
@@ -94,7 +112,7 @@ export default async function ProductStudioPage({ params, searchParams }: { para
     if (error instanceof ProductStudioError && error.code === 'NOT_FOUND') notFound();
     throw error;
   });
-  const [bumpOptions, delivery] = await Promise.all([listBumpOptions(user.workspace.id, product.id), deliverySummary(user.workspace.id, product.id)]);
+  const [offers, delivery] = await Promise.all([offerSummary(user.workspace.id, product.id), deliverySummary(user.workspace.id, product.id)]);
   const canEdit = canManageWorkspaceSettings(user.role);
   const readOnlyReason = product.syncedFromShopify
     ? 'Este producto se sincroniza desde Shopify: sus datos se editan en Shopify.'
@@ -127,7 +145,7 @@ export default async function ProductStudioPage({ params, searchParams }: { para
             usedAsBumpBy={product.usedAsBumpBy.map((item) => item.name)}
           />
           {product.usedAsBumpBy.length > 0 && (
-            <p className="text-xs text-soft">Se ofrece como producto adicional en: {product.usedAsBumpBy.map((item) => item.name).join(', ')}.</p>
+            <p className="text-xs text-soft">Se ofrece en las ofertas de: {product.usedAsBumpBy.map((item) => item.name).join(', ')}.</p>
           )}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
             <ProductEditor
@@ -140,15 +158,13 @@ export default async function ProductStudioPage({ params, searchParams }: { para
                 basePrice: product.basePrice,
                 sku: product.sku,
                 options: product.options,
-                bumpVariantId: product.bump?.variantId ?? null,
               }}
-              bumpOptions={bumpOptions}
               canEdit={canEdit}
               readOnlyReason={readOnlyReason}
-              bumpWarning={product.bump?.issue ? BUMP_ISSUE_TEXT[product.bump.issue] : null}
             />
             <div className="space-y-4">
               <SalesBrainCard productId={product.id} />
+              <OffersCard productId={product.id} summary={offers} />
               <CheckoutLinkCard productId={product.id} status={product.status} checkoutUrl={product.checkoutUrl} />
               <DeliveryCard productId={product.id} productType={product.type} summary={delivery} />
               <CoverUploader productId={product.id} coverVersion={product.cover?.version ?? null} editable={canEdit && !readOnlyReason} />

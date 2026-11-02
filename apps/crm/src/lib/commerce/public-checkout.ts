@@ -1,8 +1,12 @@
-import { OrderStatus, PaymentStatus, ProductStatus, type Prisma } from '../../../generated/prisma/client';
+import { OfferKind, OrderOfferStatus, OrderStatus, PaymentStatus, ProductStatus, type Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { recordAudit } from '../domain/audit';
+import { assertFeature, isEntitlementError } from '../entitlements';
 import { createOrderProviderCheckout } from './checkout';
 import { currentDeliveryToken } from './delivery';
-import { isAllowedPaymentRedirect, maskEmail, verifyCheckoutToken } from './public-checkout-link';
+import { clearOtherBumpDecisions, recordOfferDecision, recordOfferShown, resolveOffer, type ResolvedOffer } from './offers/service';
+import type { UpsellDecision } from './offers/rules';
+import { isAllowedPaymentRedirect, maskEmail, publicCheckoutUrl, signCheckoutToken, verifyCheckoutToken } from './public-checkout-link';
 
 /**
  * Checkout PUBLICO de un pedido: `/checkout/[id]?t=<token>`.
@@ -15,13 +19,18 @@ import { isAllowedPaymentRedirect, maskEmail, verifyCheckoutToken } from './publ
  *  - El id solo no basta: el enlace lleva un token HMAC atado al pedido y con
  *    vencimiento. Sin token valido no se muestra nada del comprador.
  *  - Precio, moneda y producto salen del pedido guardado. El formulario de pago
- *    no envia montos: solo el token.
+ *    no envia montos: solo el token y la decision de sumar el bump.
  *  - El estado mostrado sale de la base (pedido + pagos). Lo que Mercado Pago
  *    agrega a la URL de retorno solo elige el texto mientras llega el webhook.
  *  - Se cobra con la conexion de Mercado Pago DEL WORKSPACE del pedido
  *    (createOrderProviderCheckout), nunca con la cuenta SaaS de Upzites.
- *  - Por ahora, un solo item y sin descuentos (lo que cobra la preferencia es
- *    exactamente el total del pedido).
+ *  - Sin descuentos: lo que cobra la preferencia es exactamente el total del
+ *    pedido (producto principal + bump si se eligio).
+ *
+ * Punto 6: el bump sale de `ProductOffer` (prioridad, copy, precio especial) y,
+ * con el pedido pagado, se ofrece el upsell postcompra. Aceptarlo crea un
+ * pedido ADICIONAL (`metadata.source = 'upsell'`) con su propio pago: Checkout
+ * Pro no permite volver a cobrar sin que el comprador autorice de nuevo.
  */
 
 /** Una preferencia ya creada se reutiliza durante este tiempo (doble clic, volver atras). */
@@ -30,6 +39,14 @@ export const PREFERENCE_REUSE_MS = 24 * 3_600_000;
 export type PublicCheckoutState = 'PAYABLE' | 'PENDING' | 'PAID';
 export type PublicCheckoutUnavailable = 'NOT_FOUND' | 'EXPIRED' | 'UNAVAILABLE';
 
+export type PublicBump = { offerId: string; name: string; headline: string; description: string | null; imageUrl: string | null; unitPrice: number; selected: boolean };
+
+export type PublicUpsell =
+  | { status: 'OPEN'; headline: string; description: string | null; imageUrl: string | null; name: string; unitPrice: number }
+  | { status: 'ACCEPTED'; name: string; unitPrice: number; checkoutPath: string }
+  | { status: 'PAID'; name: string; unitPrice: number; checkoutPath: string }
+  | { status: 'DECLINED' };
+
 export type PublicCheckoutView =
   | { ok: false; reason: PublicCheckoutUnavailable }
   | {
@@ -37,11 +54,15 @@ export type PublicCheckoutView =
       orderId: string;
       workspaceName: string;
       item: { name: string; quantity: number; unitPrice: number };
-      bump: { name: string; unitPrice: number; selected: boolean } | null;
+      bump: PublicBump | null;
       total: number;
       currency: string;
       buyer: { name: string | null; email: string | null };
       state: PublicCheckoutState;
+      /** Pedido adicional creado al aceptar un upsell. */
+      isUpsell: boolean;
+      /** Solo con el pedido pagado (y si no es ya un upsell). */
+      upsell: PublicUpsell | null;
       /**
        * Solo con el pedido pagado: enlace a la entrega digital (ruta relativa con
        * su token), o el motivo por el que no lo hay. null si no aplica.
@@ -84,8 +105,10 @@ function isSellable(order: LoadedOrder) {
 }
 
 type CheckoutMetadata = {
+  source?: unknown;
   mainVariantId?: unknown;
   bumpVariantId?: unknown;
+  bumpOfferId?: unknown;
   bumpSelected?: unknown;
   checkoutUrl?: unknown;
   checkoutCreatedAt?: unknown;
@@ -100,12 +123,13 @@ function metadataOf(order: { metadata: unknown }): CheckoutMetadata {
     : {};
 }
 
-function configuredBumpVariantId(metadata: unknown) {
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
-  const bump = (metadata as { orderBump?: unknown }).orderBump;
-  if (!bump || typeof bump !== 'object' || Array.isArray(bump)) return null;
-  const variantId = (bump as { variantId?: unknown }).variantId;
-  return typeof variantId === 'string' && variantId.length > 0 ? variantId : null;
+function stringOrNull(value: unknown) {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/** Pedido adicional nacido de un upsell: no ofrece bump ni otro upsell (sin cadenas). */
+function isUpsellOrder(order: { metadata: unknown }) {
+  return metadataOf(order).source === 'upsell';
 }
 
 function mainLine(order: LoadedOrder) {
@@ -115,21 +139,16 @@ function mainLine(order: LoadedOrder) {
 }
 
 async function resolveBump(order: LoadedOrder, db: DbClient = prisma) {
+  if (isUpsellOrder(order)) return null;
   const main = mainLine(order);
-  const bumpVariantId = configuredBumpVariantId(main?.variant?.product.metadata);
-  if (!main?.variant || !bumpVariantId || bumpVariantId === main.variantId) return null;
-  const variant = await db.productVariant.findFirst({
-    where: {
-      id: bumpVariantId,
-      // Ninguna variante del MISMO producto puede ser su adicional.
-      productId: { not: main.variant.productId },
-      isActive: true,
-      product: { workspaceId: order.workspaceId, status: ProductStatus.ACTIVE, currency: order.currency },
-    },
-    include: { product: { select: { name: true } } },
+  if (!main?.variant) return null;
+  return resolveOffer(db, {
+    workspaceId: order.workspaceId,
+    productId: main.variant.productId,
+    currency: order.currency,
+    kind: OfferKind.ORDER_BUMP,
+    preferOfferId: stringOrNull(metadataOf(order).bumpOfferId),
   });
-  if (!variant || variant.priceMinor <= 0) return null;
-  return { variantId: variant.id, name: variant.product.name, unitPrice: variant.priceMinor };
 }
 
 function stateOf(order: LoadedOrder): PublicCheckoutState | null {
@@ -150,7 +169,9 @@ export async function loadPublicCheckout(orderId: string, token: string | null |
   if (!state || (state !== 'PAID' && !isSellable(order))) return { ok: false, reason: 'UNAVAILABLE' };
 
   const line = mainLine(order)!;
-  const bump = await resolveBump(order);
+  const bump = state === 'PAID' ? null : await resolveBump(order);
+  // Medicion: el bump cuenta como mostrado solo cuando el comprador puede elegirlo.
+  if (bump && state === 'PAYABLE') await recordOfferShown(prisma, { workspaceId: order.workspaceId, orderId: order.id, offer: bump });
   const selected = bump ? order.lines.some((item) => item.variantId === bump.variantId) : false;
   const contactName = order.contact ? `${order.contact.firstName} ${order.contact.lastName ?? ''}`.trim() : '';
   return {
@@ -158,11 +179,13 @@ export async function loadPublicCheckout(orderId: string, token: string | null |
     orderId: order.id,
     workspaceName: order.workspace.name,
     item: { name: line.name, quantity: line.quantity, unitPrice: line.unitPrice },
-    bump: bump ? { name: bump.name, unitPrice: bump.unitPrice, selected } : null,
+    bump: bump ? { offerId: bump.offerId, name: bump.name, headline: bump.headline, description: bump.description, imageUrl: bump.imageUrl, unitPrice: bump.unitPrice, selected } : null,
     total: order.total,
     currency: order.currency,
     buyer: { name: contactName || order.customerName || null, email: maskEmail(order.contact?.email ?? order.customerEmail) },
     state,
+    isUpsell: isUpsellOrder(order),
+    upsell: state === 'PAID' ? await upsellFor(order, now) : null,
     delivery: state === 'PAID' ? await buyerDelivery(order.id) : null,
   };
 }
@@ -219,14 +242,22 @@ export async function startPublicCheckoutPayment(
       const main = mainLine(order);
       const bump = await resolveBump(order, tx);
       if (!main || (includeBump && !bump)) return { ok: false, reason: 'UNAVAILABLE' } as const;
-      const existingBump = bump ? order.lines.find((line) => line.variantId === bump.variantId) : null;
-      if (order.lines.some((line) => line.id !== main.id && line.id !== existingBump?.id)) {
+      const previousMetadata = metadataOf(order);
+      const extraLines = order.lines.filter((line) => line.id !== main.id);
+      const existingBump = bump ? extraLines.find((line) => line.variantId === bump.variantId) ?? null : null;
+      // Un bump de un intento anterior que ya no es el vigente (se pauso o cambio
+      // la prioridad) se quita. Cualquier otra linea extra es un pedido ajeno a
+      // este checkout y no se toca.
+      const previousBumpVariantId = stringOrNull(previousMetadata.bumpVariantId);
+      const staleBumps = extraLines.filter((line) => line.id !== existingBump?.id && line.variantId !== null && line.variantId === previousBumpVariantId);
+      if (extraLines.some((line) => line.id !== existingBump?.id && !staleBumps.includes(line))) {
         return { ok: false, reason: 'UNAVAILABLE' } as const;
       }
+      for (const line of staleBumps) await tx.orderLine.delete({ where: { id: line.id } });
 
       if (bump && includeBump && !existingBump) {
         await tx.orderLine.create({
-          data: { orderId: order.id, variantId: bump.variantId, name: bump.name, unitPrice: bump.unitPrice, quantity: 1, total: bump.unitPrice },
+          data: { orderId: order.id, variantId: bump.variantId, name: bump.name, sku: bump.sku, unitPrice: bump.unitPrice, quantity: 1, total: bump.unitPrice },
         });
       } else if (bump && includeBump && existingBump && (existingBump.unitPrice !== bump.unitPrice || existingBump.name !== bump.name)) {
         await tx.orderLine.update({
@@ -238,12 +269,12 @@ export async function startPublicCheckoutPayment(
       }
 
       const total = main.total + (includeBump && bump ? bump.unitPrice : 0);
-      const previousMetadata = metadataOf(order);
-      const selectionChanged = total !== order.total || Boolean(existingBump) !== includeBump;
+      const selectionChanged = total !== order.total || Boolean(existingBump) !== includeBump || staleBumps.length > 0;
       const nextMetadata: CheckoutMetadata = {
         ...previousMetadata,
         mainVariantId: main.variantId,
         bumpVariantId: bump?.variantId ?? null,
+        bumpOfferId: bump?.offerId ?? null,
         bumpSelected: includeBump && Boolean(bump),
       };
       if (selectionChanged) {
@@ -256,6 +287,9 @@ export async function startPublicCheckoutPayment(
         where: { id: order.id },
         data: { subtotal: total, total, metadata: nextMetadata as Prisma.InputJsonValue },
       });
+      // Medicion: la decision queda en la oferta del pedido (y solo una cuenta como aceptada).
+      if (bump) await recordOfferDecision(tx, { workspaceId: order.workspaceId, orderId: order.id, offer: bump, status: includeBump ? 'ACCEPTED' : 'DECLINED' });
+      await clearOtherBumpDecisions(tx, { workspaceId: order.workspaceId, orderId: order.id, keepOfferId: bump?.offerId ?? null });
       order = (await loadOrder(orderId, tx))!;
 
       const metadata = metadataOf(order);
@@ -285,4 +319,128 @@ export async function startPublicCheckoutPayment(
     },
     { maxWait: 10_000, timeout: 30_000 },
   );
+}
+
+// --- Upsell postcompra ---------------------------------------------------------------------
+
+async function latestUpsellRecord(db: DbClient, order: { id: string; workspaceId: string }) {
+  return db.orderOffer.findFirst({
+    where: { workspaceId: order.workspaceId, orderId: order.id, kind: OfferKind.UPSELL },
+    orderBy: [{ updatedAt: 'desc' }],
+    include: { resultOrder: { select: { id: true, status: true, lines: { select: { name: true }, take: 1 } } } },
+  });
+}
+
+async function resolveUpsell(db: DbClient, order: LoadedOrder, preferOfferId: string | null) {
+  const main = mainLine(order);
+  if (!main?.variant) return null;
+  return resolveOffer(db, { workspaceId: order.workspaceId, productId: main.variant.productId, currency: order.currency, kind: OfferKind.UPSELL, preferOfferId });
+}
+
+/** Lo que la pagina de un pedido PAGADO muestra del upsell. Registra la impresion. */
+async function upsellFor(order: LoadedOrder, now: Date): Promise<PublicUpsell | null> {
+  if (isUpsellOrder(order)) return null;
+  const record = await latestUpsellRecord(prisma, order);
+  if (record?.status === OrderOfferStatus.ACCEPTED && record.resultOrder) {
+    const child = record.resultOrder;
+    return {
+      status: PAID_STATUSES.includes(child.status) ? 'PAID' : 'ACCEPTED',
+      name: child.lines[0]?.name ?? 'Oferta adicional',
+      unitPrice: record.priceMinor,
+      checkoutPath: publicCheckoutUrl(child.id, { absolute: false, now }),
+    };
+  }
+  if (record?.status === OrderOfferStatus.DECLINED) return { status: 'DECLINED' };
+  const offer = await resolveUpsell(prisma, order, record?.offerId ?? null);
+  if (!offer) return null;
+  await recordOfferShown(prisma, { workspaceId: order.workspaceId, orderId: order.id, offer });
+  return { status: 'OPEN', headline: offer.headline, description: offer.description, imageUrl: offer.imageUrl, name: offer.name, unitPrice: offer.unitPrice };
+}
+
+export type UpsellDecisionResult = { ok: true; redirectUrl: string } | { ok: false; reason: PublicCheckoutUnavailable };
+
+/**
+ * Aceptar o rechazar el upsell de un pedido pagado.
+ *
+ * El navegador solo envia el token y la decision: que oferta, a que precio y
+ * en que moneda se resuelve aqui, desde la base. Bajo un lock por pedido y con
+ * una sola fila `OrderOffer` por pedido y oferta, aceptar dos veces (doble
+ * clic, volver atras) reutiliza el MISMO pedido adicional; nunca crea dos.
+ *
+ * Aceptar crea un pedido adicional y lo lleva directo al pago de Mercado Pago
+ * de ese pedido (su propia preferencia, su propio webhook y su propia entrega).
+ */
+export async function decideUpsell(orderId: string, token: string | null | undefined, decision: UpsellDecision, now = new Date()): Promise<UpsellDecisionResult> {
+  const check = verifyCheckoutToken(orderId, token, now);
+  if (!check.ok) return { ok: false, reason: check.reason === 'EXPIRED' ? 'EXPIRED' : 'NOT_FOUND' };
+  const back = publicCheckoutUrl(orderId, { absolute: false, now });
+
+  let outcome: { kind: 'declined' } | { kind: 'child'; childId: string } | { kind: 'unavailable' } | { kind: 'not_found' };
+  try {
+    outcome = await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`public_checkout_upsell:${orderId}`}, 0))`;
+        const order = await loadOrder(orderId, tx);
+        if (!order) return { kind: 'not_found' } as const;
+        if (stateOf(order) !== 'PAID' || isUpsellOrder(order)) return { kind: 'unavailable' } as const;
+
+        const record = await latestUpsellRecord(tx, order);
+        // Ya aceptado: aceptar de nuevo lleva al MISMO pedido adicional; rechazar
+        // tarde no lo deshace (vuelve a la pagina, que muestra su estado).
+        if (record?.status === OrderOfferStatus.ACCEPTED && record.resultOrderId) {
+          return decision === 'accept' ? ({ kind: 'child', childId: record.resultOrderId } as const) : ({ kind: 'declined' } as const);
+        }
+
+        const offer: ResolvedOffer | null = await resolveUpsell(tx, order, record?.offerId ?? null);
+        if (decision === 'decline') {
+          if (offer) await recordOfferDecision(tx, { workspaceId: order.workspaceId, orderId: order.id, offer, status: 'DECLINED' });
+          else if (record) await tx.orderOffer.update({ where: { id: record.id }, data: { status: OrderOfferStatus.DECLINED, decidedAt: now } });
+          await recordAudit({ workspaceId: order.workspaceId, action: 'order.upsell_declined', entity: 'CustomerOrder', entityId: order.id, metadata: { offerId: offer?.offerId ?? record?.offerId ?? null } }, tx);
+          return { kind: 'declined' } as const;
+        }
+
+        if (!offer) return { kind: 'unavailable' } as const;
+        await assertFeature(order.workspaceId, 'commerce.orders');
+        const child = await tx.customerOrder.create({
+          data: {
+            workspaceId: order.workspaceId,
+            contactId: order.contactId,
+            conversationId: order.conversationId,
+            customerEmail: order.customerEmail,
+            customerName: order.customerName,
+            status: OrderStatus.DRAFT,
+            currency: order.currency,
+            subtotal: offer.unitPrice,
+            total: offer.unitPrice,
+            metadata: { source: 'upsell', parentOrderId: order.id, offerId: offer.offerId, productId: offer.productId, mainVariantId: offer.variantId } as Prisma.InputJsonValue,
+            lines: { create: [{ variantId: offer.variantId, name: offer.name, sku: offer.sku, unitPrice: offer.unitPrice, quantity: 1, total: offer.unitPrice }] },
+          },
+          select: { id: true },
+        });
+        await recordOfferDecision(tx, { workspaceId: order.workspaceId, orderId: order.id, offer, status: 'ACCEPTED', resultOrderId: child.id });
+        await recordAudit(
+          { workspaceId: order.workspaceId, action: 'order.upsell_accepted', entity: 'CustomerOrder', entityId: child.id, metadata: { parentOrderId: order.id, offerId: offer.offerId, total: offer.unitPrice } },
+          tx,
+        );
+        return { kind: 'child', childId: child.id } as const;
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
+  } catch (error) {
+    // Plan sin pedidos: al comprador solo se le dice que la oferta no esta disponible.
+    if (!isEntitlementError(error)) throw error;
+    console.error('public_upsell_unavailable', { orderId, error: error.message });
+    outcome = { kind: 'unavailable' };
+  }
+
+  if (outcome.kind === 'not_found') return { ok: false, reason: 'NOT_FOUND' };
+  if (outcome.kind === 'unavailable') return { ok: false, reason: 'UNAVAILABLE' };
+  if (outcome.kind === 'declined') return { ok: true, redirectUrl: back };
+
+  const childPath = publicCheckoutUrl(outcome.childId, { absolute: false, now });
+  const payment = await startPublicCheckoutPayment(outcome.childId, signCheckoutToken(outcome.childId, now), false, now);
+  if (payment.ok) return { ok: true, redirectUrl: payment.redirectUrl };
+  // Ya pagado o en proceso: la pagina del pedido adicional muestra su estado real.
+  if (payment.reason === 'ALREADY_PAID' || payment.reason === 'PENDING') return { ok: true, redirectUrl: childPath };
+  return { ok: true, redirectUrl: `${childPath}&e=${encodeURIComponent(payment.reason)}` };
 }

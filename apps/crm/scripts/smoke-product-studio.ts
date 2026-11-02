@@ -10,8 +10,9 @@
  *     se ignoran; el servidor resuelve el catalogo.
  *  D. Variantes: sin variantes, valida, invalida, de otro producto, de otro
  *     workspace, inactiva; quitar con ventas = desactivar.
- *  E. Order bump: sin bump, desactivado, main + bump, bump falso, self-bump,
- *     cross-tenant, adicional despublicado/archivado.
+ *  E. Order bump (ofertas del Punto 6, por /offers): sin bump, pausado,
+ *     main + bump, bump falso, self-bump, cross-tenant, adicional
+ *     despublicado/archivado.
  *  F. Duplicar: ids nuevos, DRAFT, sin SKU, sin pedidos ni metricas.
  *  G. Checkout: borrador/archivado rechazan; publicado entra al publicUrl
  *     canonico; totales correctos.
@@ -34,6 +35,7 @@ import { verifyCheckoutToken } from '../src/lib/commerce/public-checkout-link';
 import { signProductKey } from '../src/lib/commerce/product-link';
 import { loadPublicProduct } from '../src/lib/commerce/product-checkout';
 import { getStudioProduct, productMetrics } from '../src/lib/commerce/product-studio/service';
+import { listProductOffers } from '../src/lib/commerce/offers/service';
 import { formatMinor } from '../src/lib/commerce/money';
 import { createOrder } from '../src/lib/commerce/orders';
 import { providerAmountToMinor, toMajorUnits } from '../src/lib/billing/money';
@@ -44,6 +46,8 @@ import { POST as createRoute } from '../src/app/api/products/studio/route';
 import { GET as getRoute, PATCH as saveRoute } from '../src/app/api/products/[id]/route';
 import { POST as statusRoute } from '../src/app/api/products/[id]/status/route';
 import { POST as duplicateRoute } from '../src/app/api/products/[id]/duplicate/route';
+import { POST as offersPostRoute } from '../src/app/api/products/[id]/offers/route';
+import { PATCH as offerPatchRoute } from '../src/app/api/products/[id]/offers/[offerId]/route';
 import { DELETE as coverDeleteRoute, GET as coverGetRoute, POST as coverPostRoute } from '../src/app/api/products/[id]/cover/route';
 import { POST as buyRoute } from '../src/app/api/comprar/[id]/route';
 import { POST as payRoute } from '../src/app/api/checkout/[id]/pay/route';
@@ -100,6 +104,17 @@ const save = (s: Session, id: string, input: unknown) => asUser(s, () => saveRou
 const status = (s: Session, id: string, action: string) => asUser(s, () => statusRoute(jsonReq(`/api/products/${id}/status`, { action }), params(id)));
 const duplicate = (s: Session, id: string) => asUser(s, () => duplicateRoute(jsonReq(`/api/products/${id}/duplicate`), params(id)));
 const read = (s: Session, id: string) => asUser(s, () => getRoute(jsonReq(`/api/products/${id}`, undefined, 'GET'), params(id)));
+const addOffer = (s: Session, id: string, input: unknown) => asUser(s, () => offersPostRoute(jsonReq(`/api/products/${id}/offers`, input), params(id)));
+const patchOffer = (s: Session, id: string, offerId: string, input: unknown) =>
+  asUser(s, () => offerPatchRoute(jsonReq(`/api/products/${id}/offers/${offerId}`, input, 'PATCH'), { params: Promise.resolve({ id, offerId }) }));
+const bumpFields = (variantId: string) => ({ variantId, headline: 'Agregar también el pack' });
+const bumpInput = (variantId: string) => ({ kind: 'ORDER_BUMP', ...bumpFields(variantId) });
+/** El order bump de prioridad mas alta del producto, con su salud y si es el que se muestra. */
+async function bumpOf(productId: string) {
+  const view = await listProductOffers(A.workspaceId, productId);
+  const offer = view.offers.find((item) => item.kind === 'ORDER_BUMP');
+  return offer ? { id: offer.id, issue: offer.issue, isActive: offer.isActive, shown: view.winner.ORDER_BUMP === offer.id } : null;
+}
 async function createdId(response: Response) {
   return String((await body(response)).data?.id ?? '');
 }
@@ -222,12 +237,13 @@ const bProductId = (await prisma.product.findFirstOrThrow({ where: { workspaceId
 {
   const aVariant = (await variantsOf(shirtId)).find((v) => !v.isDefault)!;
   const smuggledVariant = await save(B.session, bProductId, { name: 'Camiseta de B', type: 'PHYSICAL', currency: 'CLP', basePrice: 100, variants: [{ id: aVariant.id, name: 'Robada', price: 1, isActive: true }] });
-  const crossBump = await save(B.session, bProductId, { name: 'Camiseta de B', type: 'PHYSICAL', currency: 'CLP', basePrice: 100, orderBump: { enabled: true, variantId: aVariant.id } });
+  const crossBump = await addOffer(B.session, bProductId, bumpInput(aVariant.id));
   const aVariantAfter = await prisma.productVariant.findFirstOrThrow({ where: { id: aVariant.id, productId: shirtId } });
   const bProduct = await prisma.product.findFirstOrThrow({ where: { id: bProductId, workspaceId: B.workspaceId } });
   check(
     'B3. B no puede adueñarse de una variante de A ni elegirla como producto adicional (400) y nada cambia',
-    smuggledVariant.status === 400 && crossBump.status === 400 && aVariantAfter.name === aVariant.name && aVariantAfter.priceMinor === aVariant.priceMinor && !(bProduct.metadata as { orderBump?: unknown } | null)?.orderBump,
+    smuggledVariant.status === 400 && crossBump.status === 400 && aVariantAfter.name === aVariant.name && aVariantAfter.priceMinor === aVariant.priceMinor &&
+      (await prisma.productOffer.count({ where: { productId: bProduct.id } })) === 0,
     `${smuggledVariant.status}/${crossBump.status} ${(await body(crossBump)).message}`,
   );
 }
@@ -256,20 +272,21 @@ const bumpVariantId = (await variantsOf(bumpId))[0].id;
 const usdCreate = await create(A.session, { name: 'Ebook USD', type: 'DIGITAL', currency: 'USD', basePrice: 1999 });
 const usdId = await createdId(usdCreate);
 const shirtOptions = async () => (await body(await read(A.session, shirtId))).data!.options as { id: string; name: string; sku: string | null; price: number; isActive: boolean }[];
-const shirtPayload = async (orderBump: unknown) => ({ ...shirtInput, name: 'Camiseta Studio 2026', variants: await shirtOptions(), orderBump });
+let shirtBumpId = '';
 {
-  const self = await save(A.session, shirtId, await shirtPayload({ enabled: true, variantId: (await shirtOptions())[0].id }));
-  const otherCurrency = await save(A.session, shirtId, await shirtPayload({ enabled: true, variantId: (await variantsOf(usdId))[0].id }));
-  const fake = await save(A.session, shirtId, await shirtPayload({ enabled: true, variantId: 'variante-inexistente' }));
-  const ok = await save(A.session, shirtId, await shirtPayload({ enabled: true, variantId: bumpVariantId }));
-  const stored = await prisma.product.findFirstOrThrow({ where: { id: shirtId, workspaceId: A.workspaceId } });
-  const studio = await getStudioProduct(A.workspaceId, shirtId);
+  const self = await addOffer(A.session, shirtId, bumpInput((await shirtOptions())[0].id));
+  const otherCurrency = await addOffer(A.session, shirtId, bumpInput((await variantsOf(usdId))[0].id));
+  const fake = await addOffer(A.session, shirtId, bumpInput('variante-inexistente'));
+  const ok = await addOffer(A.session, shirtId, bumpInput(bumpVariantId));
+  shirtBumpId = await createdId(ok);
+  const stored = await prisma.productOffer.findFirst({ where: { id: shirtBumpId, workspaceId: A.workspaceId, productId: shirtId } });
+  const bump = await bumpOf(shirtId);
   check(
-    'E1. Self-bump, otra moneda y bump inexistente → 400; un producto válido se guarda donde lo lee el motor del Punto 1',
-    self.status === 400 && otherCurrency.status === 400 && fake.status === 400 && ok.status === 200 && (stored.metadata as { orderBump?: { variantId?: string } }).orderBump?.variantId === bumpVariantId,
+    'E1. Self-bump, otra moneda y bump inexistente → 400; un producto válido se guarda como oferta ORDER_BUMP del producto',
+    self.status === 400 && otherCurrency.status === 400 && fake.status === 400 && ok.status === 201 && stored?.offerVariantId === bumpVariantId && stored.kind === 'ORDER_BUMP',
     `${self.status}/${otherCurrency.status}/${fake.status}/${ok.status}`,
   );
-  check('E2. El adicional en borrador se guarda con aviso (no se mostrará hasta publicarlo)', studio.bump?.issue === 'NOT_PUBLISHED', String(studio.bump?.issue));
+  check('E2. El adicional en borrador se guarda con aviso (no se mostrará hasta publicarlo)', bump?.issue === 'NOT_PUBLISHED' && !bump.shown, String(bump?.issue));
 }
 
 // =============================================================================
@@ -288,7 +305,7 @@ await status(A.session, usdId, 'publish');
   const url = new URL(studio.checkoutUrl ?? 'http://x');
   check(
     'G4. Publicado: el Studio entrega el enlace /comprar firmado y la página pública muestra solo variantes activas',
-    pubMain.status === 200 && pubBump.status === 200 && url.pathname === `/comprar/${shirtId}` && url.searchParams.get('k') === signProductKey(shirtId) && studio.bump?.issue === null,
+    pubMain.status === 200 && pubBump.status === 200 && url.pathname === `/comprar/${shirtId}` && url.searchParams.get('k') === signProductKey(shirtId) && (await bumpOf(shirtId))?.shown === true,
     studio.checkoutUrl ?? '',
   );
   const view = await loadPublicProduct(shirtId, signProductKey(shirtId));
@@ -379,18 +396,19 @@ try {
     `${plain.error} ${fakeBump.headers.get('location')}`,
   );
 
-  // Bump desactivado en el Studio: el checkout deja de ofrecerlo.
-  const off = await save(A.session, shirtId, await shirtPayload({ enabled: false }));
+  // Bump pausado en Ofertas: el checkout deja de ofrecerlo.
+  const off = await patchOffer(A.session, shirtId, shirtBumpId, { ...bumpFields(bumpVariantId), isActive: false });
   const order2 = await buy(shirtId, { variantId: optS.id });
   const view2 = await loadPublicCheckout(order2.orderId!, order2.token);
-  check('E6. Bump desactivado desde el Studio → el checkout no lo ofrece; total = solo la variante S', off.status === 200 && view2.ok && view2.bump === null && view2.total === optS.price, JSON.stringify(view2.ok && { bump: view2.bump, total: view2.total }));
+  check('E6. Bump pausado desde Ofertas → el checkout no lo ofrece; total = solo la variante S', off.status === 200 && view2.ok && view2.bump === null && view2.total === optS.price, JSON.stringify(view2.ok && { bump: view2.bump, total: view2.total }));
 
-  // Self-bump inyectado directo en la base (atacante con acceso a metadata): el motor lo ignora.
-  await prisma.product.update({ where: { id: shirtId }, data: { metadata: { orderBump: { variantId: optM.id } } } });
+  // Self-bump inyectado directo en la base (por fuera del Studio): el motor lo ignora.
+  const injected = await prisma.productOffer.create({ data: { workspaceId: A.workspaceId, productId: shirtId, kind: 'ORDER_BUMP', offerVariantId: optM.id, headline: 'Self', priority: -1 } });
   const order3 = await buy(shirtId, { variantId: optS.id });
   const view3 = await loadPublicCheckout(order3.orderId!, order3.token);
   check('E7. Self-bump (otra variante del mismo producto) escrito por fuera del Studio → el motor no lo ofrece', view3.ok && view3.bump === null, JSON.stringify(view3.ok && view3.bump));
-  await save(A.session, shirtId, await shirtPayload({ enabled: true, variantId: bumpVariantId }));
+  await prisma.productOffer.delete({ where: { id: injected.id } });
+  await patchOffer(A.session, shirtId, shirtBumpId, bumpFields(bumpVariantId));
 
   // USD: unidades menores de punta a punta.
   const usdOrder = await buy(usdId, {});
@@ -425,7 +443,7 @@ console.log('\n== D2. Quitar variantes con y sin ventas ==');
 {
   const options = await shirtOptions();
   const kept = options.filter((o) => o.id !== optM.id && o.id !== optL.id);
-  const response = await save(A.session, shirtId, { ...shirtInput, name: 'Camiseta Studio 2026', variants: kept, orderBump: { enabled: true, variantId: bumpVariantId } });
+  const response = await save(A.session, shirtId, { ...shirtInput, name: 'Camiseta Studio 2026', variants: kept });
   const variants = await variantsOf(shirtId);
   const m = variants.find((v) => v.id === optM.id);
   check(
@@ -461,14 +479,15 @@ console.log('\n== F. Duplicar ==');
   const copyId = await createdId(response);
   const source = await prisma.product.findFirstOrThrow({ where: { id: shirtId, workspaceId: A.workspaceId }, include: { variants: true } });
   const copy = await prisma.product.findFirstOrThrow({ where: { id: copyId, workspaceId: A.workspaceId }, include: { variants: true } });
-  const copyMeta = copy.metadata as { orderBump?: { variantId?: string }; cover?: { key: string } };
+  const copyMeta = copy.metadata as { cover?: { key: string } };
+  const copyBump = await prisma.productOffer.findFirst({ where: { workspaceId: A.workspaceId, productId: copyId, kind: 'ORDER_BUMP', offerVariantId: bumpVariantId } });
   const sourceMeta = source.metadata as { cover?: { key: string } };
   const sourceIds = new Set(source.variants.map((v) => v.id));
   const metrics = await productMetrics(A.workspaceId, copyId);
   check(
     'F1. Duplicar: id nuevo, BORRADOR, mismo workspace, variantes con ids nuevos y sin SKU, adicional y portada (archivo propio) copiados',
     response.status === 201 && copyId !== shirtId && copy.status === 'DRAFT' && copy.workspaceId === A.workspaceId && copy.name === 'Camiseta Studio 2026 (copia)' &&
-      copy.variants.length === source.variants.length && copy.variants.every((v) => !sourceIds.has(v.id) && v.sku === null) && copyMeta.orderBump?.variantId === bumpVariantId &&
+      copy.variants.length === source.variants.length && copy.variants.every((v) => !sourceIds.has(v.id) && v.sku === null) && copyBump?.headline === 'Agregar también el pack' &&
       Boolean(copyMeta.cover?.key) && copyMeta.cover?.key !== sourceMeta.cover?.key && copyMeta.cover!.key.startsWith(`products/${A.workspaceId}/${copyId}/`),
     `${response.status} ${copy.status}`,
   );
@@ -483,18 +502,18 @@ console.log('\n== F. Duplicar ==');
 console.log('\n== Despublicar y archivar ==');
 {
   const unpublish = await status(A.session, bumpId, 'unpublish');
-  const studio = await getStudioProduct(A.workspaceId, shirtId);
+  const bump = await bumpOf(shirtId);
   const order = await buy(shirtId, { variantId: optS.id });
   const view = await loadPublicCheckout(order.orderId!, order.token);
-  check('E8. Adicional despublicado: la relación queda con aviso y el checkout deja de ofrecerlo', unpublish.status === 200 && studio.bump?.issue === 'NOT_PUBLISHED' && view.ok && view.bump === null);
+  check('E8. Adicional despublicado: la oferta queda con aviso y el checkout deja de ofrecerla', unpublish.status === 200 && bump?.issue === 'NOT_PUBLISHED' && view.ok && view.bump === null);
 
   const archive = await status(A.session, bumpId, 'archive');
   const detached = (await body(archive)).data?.detachedFrom as string[] | undefined;
-  const main = await prisma.product.findFirstOrThrow({ where: { id: shirtId, workspaceId: A.workspaceId } });
-  const copy = await prisma.product.findFirstOrThrow({ where: { workspaceId: A.workspaceId, name: 'Camiseta Studio 2026 (copia)' } });
+  const stillActive = await prisma.productOffer.count({ where: { workspaceId: A.workspaceId, isActive: true, offerVariant: { productId: bumpId } } });
+  const kept = await prisma.productOffer.count({ where: { workspaceId: A.workspaceId, offerVariant: { productId: bumpId } } });
   check(
-    'E9. Archivar el adicional quita la relación de los productos que lo ofrecían (sin relaciones rotas) y conserva sus ventas',
-    archive.status === 200 && (detached ?? []).length === 2 && !(main.metadata as { orderBump?: unknown }).orderBump && !(copy.metadata as { orderBump?: unknown }).orderBump &&
+    'E9. Archivar el adicional pausa las ofertas que lo ofrecían (sin relaciones rotas, copy conservado) y conserva sus ventas',
+    archive.status === 200 && (detached ?? []).length === 2 && stillActive === 0 && kept === 2 &&
       (await productMetrics(A.workspaceId, bumpId)).salesConfirmed === 1,
     JSON.stringify(detached),
   );
@@ -571,7 +590,8 @@ console.log('\n== M. Multi-moneda: CLP y USD de punta a punta, sin mezclar ==');
       const bumpP = await createdId(await create(A.session, { name: `Bump ${c.currency}`, type: 'DIGITAL', currency: c.currency, basePrice: c.bump }));
       await status(A.session, bumpP, 'publish');
       const bumpVariant = (await variantsOf(bumpP))[0].id;
-      const mainP = await createdId(await create(A.session, { name: `Main ${c.currency}`, type: 'DIGITAL', currency: c.currency, basePrice: c.main, orderBump: { enabled: true, variantId: bumpVariant } }));
+      const mainP = await createdId(await create(A.session, { name: `Main ${c.currency}`, type: 'DIGITAL', currency: c.currency, basePrice: c.main }));
+      await addOffer(A.session, mainP, bumpInput(bumpVariant));
       await status(A.session, mainP, 'publish');
       ids[c.currency] = { main: mainP, bump: bumpP, bumpVariant };
       const purchase = await buy(mainP, {});
@@ -601,18 +621,21 @@ console.log('\n== M. Multi-moneda: CLP y USD de punta a punta, sin mezclar ==');
     // Prohibido mezclar monedas entre producto y adicional (Studio, motor y pedido).
     const clpMain = await createdId(await create(A.session, { name: 'Mix CLP', type: 'DIGITAL', currency: 'CLP', basePrice: 5000 }));
     const usdMain = await createdId(await create(A.session, { name: 'Mix USD', type: 'DIGITAL', currency: 'USD', basePrice: 500 }));
-    const clpWithUsdBump = await save(A.session, clpMain, { name: 'Mix CLP', type: 'DIGITAL', currency: 'CLP', basePrice: 5000, orderBump: { enabled: true, variantId: ids.USD.bumpVariant } });
-    const usdWithClpBump = await save(A.session, usdMain, { name: 'Mix USD', type: 'DIGITAL', currency: 'USD', basePrice: 500, orderBump: { enabled: true, variantId: ids.CLP.bumpVariant } });
-    const createMixed = await create(A.session, { name: 'Mix nuevo', type: 'DIGITAL', currency: 'USD', basePrice: 500, orderBump: { enabled: true, variantId: ids.CLP.bumpVariant } });
+    const clpWithUsdBump = await addOffer(A.session, clpMain, bumpInput(ids.USD.bumpVariant));
+    const usdWithClpBump = await addOffer(A.session, usdMain, bumpInput(ids.CLP.bumpVariant));
+    // Con una oferta en CLP, el producto no puede pasar a USD (la oferta quedaria en otra moneda).
+    const clpBumpOk = await addOffer(A.session, clpMain, bumpInput(ids.CLP.bumpVariant));
+    const switchCurrency = await save(A.session, clpMain, { name: 'Mix CLP', type: 'DIGITAL', currency: 'USD', basePrice: 5000 });
     check(
-      'M-MIX1. Studio rechaza producto CLP + adicional USD y producto USD + adicional CLP (al guardar y al crear)',
-      clpWithUsdBump.status === 400 && usdWithClpBump.status === 400 && createMixed.status === 400 &&
-        /moneda/.test((await body(clpWithUsdBump)).message ?? '') && /moneda/.test((await body(usdWithClpBump)).message ?? ''),
-      `${clpWithUsdBump.status}/${usdWithClpBump.status}/${createMixed.status}`,
+      'M-MIX1. Ofertas rechazan producto CLP + adicional USD y USD + CLP; con una oferta CLP no se puede cambiar el producto a USD',
+      clpWithUsdBump.status === 400 && usdWithClpBump.status === 400 && clpBumpOk.status === 201 && switchCurrency.status === 400 &&
+        /moneda/.test((await body(clpWithUsdBump)).message ?? '') && /moneda/.test((await body(usdWithClpBump)).message ?? '') && /moneda/.test((await body(switchCurrency)).message ?? ''),
+      `${clpWithUsdBump.status}/${usdWithClpBump.status}/${clpBumpOk.status}/${switchCurrency.status}`,
     );
+    await prisma.productOffer.delete({ where: { id: await createdId(clpBumpOk) } });
     // Relacion mixta escrita por fuera del Studio: el motor del checkout tampoco la acepta.
-    await prisma.product.update({ where: { id: clpMain }, data: { metadata: { orderBump: { variantId: ids.USD.bumpVariant } } } });
-    await prisma.product.update({ where: { id: usdMain }, data: { metadata: { orderBump: { variantId: ids.CLP.bumpVariant } } } });
+    await prisma.productOffer.create({ data: { workspaceId: A.workspaceId, productId: clpMain, kind: 'ORDER_BUMP', offerVariantId: ids.USD.bumpVariant, headline: 'Mixta' } });
+    await prisma.productOffer.create({ data: { workspaceId: A.workspaceId, productId: usdMain, kind: 'ORDER_BUMP', offerVariantId: ids.CLP.bumpVariant, headline: 'Mixta' } });
     await status(A.session, clpMain, 'publish');
     await status(A.session, usdMain, 'publish');
     const outcomes: string[] = [];

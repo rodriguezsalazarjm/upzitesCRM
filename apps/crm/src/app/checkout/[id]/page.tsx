@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { loadPublicCheckout } from '@/lib/commerce/public-checkout';
 import { formatMinor as formatMoney } from '@/lib/commerce/product-studio/rules';
 import { OrderBumpForm } from './order-bump-form';
+import { UpsellOffer } from './upsell-offer';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ const ERROR_TEXT: Record<string, string> = {
   PAYMENTS_UNAVAILABLE: 'El pago no está disponible en este momento. Intenta de nuevo más tarde.',
   RATE_LIMITED: 'Demasiados intentos seguidos. Espera un momento y vuelve a intentarlo.',
   PENDING: 'Ya hay un pago en proceso para este pedido.',
+  UPSELL_UNAVAILABLE: 'Esta oferta ya no está disponible.',
 };
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -71,7 +73,10 @@ export default async function PublicCheckoutPage({
   return (
     <Shell>
       {waiting ? <meta httpEquiv="refresh" content="8" /> : null}
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{view.workspaceName}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+        {view.workspaceName}
+        {view.isUpsell ? ' · Oferta adicional' : ''}
+      </p>
       <h1 className="mt-1 text-lg font-bold text-slate-900">{view.item.name}</h1>
       {view.item.quantity > 1 ? (
         <p className="mt-1 text-sm text-slate-500">
@@ -114,6 +119,27 @@ export default async function PublicCheckoutPage({
             ) : view.delivery?.kind === 'PENDING' ? (
               <p className="text-sm text-slate-500">Si compraste contenido digital, {view.workspaceName} te enviará el acceso.</p>
             ) : null}
+            {error && ERROR_TEXT[error] ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{ERROR_TEXT[error]}</p> : null}
+            {view.upsell?.status === 'OPEN' ? (
+              <div className="pt-2">
+                <UpsellOffer orderId={view.orderId} token={token ?? ''} offer={view.upsell} currency={view.currency} />
+              </div>
+            ) : view.upsell?.status === 'ACCEPTED' ? (
+              <div className="rounded-lg border border-slate-200 p-4 text-sm">
+                <p className="font-semibold text-slate-900">Agregaste {view.upsell.name}</p>
+                <p className="mt-1 text-slate-500">Falta completar su pago ({formatMoney(view.upsell.unitPrice, view.currency)}).</p>
+                <a href={view.upsell.checkoutPath} className="mt-3 flex min-h-11 w-full items-center justify-center rounded-lg border border-blue-600 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                  Completar el pago de la oferta
+                </a>
+              </div>
+            ) : view.upsell?.status === 'PAID' ? (
+              <div className="rounded-lg border border-slate-200 p-4 text-sm">
+                <p className="font-semibold text-slate-900">También compraste {view.upsell.name}</p>
+                <a href={view.upsell.checkoutPath} className="mt-2 inline-block font-semibold text-blue-700 underline underline-offset-4">
+                  Ver esa compra
+                </a>
+              </div>
+            ) : null}
           </div>
         ) : waiting ? (
           <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
@@ -130,7 +156,7 @@ export default async function PublicCheckoutPage({
               token={token ?? ''}
               baseTotal={view.total - (view.bump?.selected ? view.bump.unitPrice : 0)}
               currency={view.currency}
-              bump={view.bump}
+              bump={view.bump ? { headline: view.bump.headline, description: view.bump.description, imageUrl: view.bump.imageUrl, unitPrice: view.bump.unitPrice, selected: view.bump.selected } : null}
               errorText={error ? ERROR_TEXT[error] : null}
             />
           </>

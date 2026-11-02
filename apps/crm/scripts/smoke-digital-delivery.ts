@@ -103,7 +103,7 @@ const HTML_AS_PDF = bytes('<html><body><script>alert(1)</script></body></html>')
 const SVG = bytes('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 
 async function createProduct(s: Session, name: string, type: 'DIGITAL' | 'SERVICE' | 'PHYSICAL', price: number) {
-  const response = await asUser(s, () => createProductRoute(req('/api/products/studio', { name, type, currency: 'CLP', basePrice: price, description: '', sku: '', variants: [], orderBump: { enabled: false, variantId: null } })));
+  const response = await asUser(s, () => createProductRoute(req('/api/products/studio', { name, type, currency: 'CLP', basePrice: price, description: '', sku: '', variants: [] })));
   const id = String((await json(response)).data?.id ?? '');
   await prisma.product.update({ where: { id }, data: { status: 'ACTIVE' } });
   const variant = await prisma.productVariant.findFirstOrThrow({ where: { productId: id, isDefault: true } });

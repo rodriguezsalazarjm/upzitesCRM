@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -12,7 +11,6 @@ import { SaveBar, type SaveState } from '@/components/ui/save-bar';
 import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { ToggleRow } from '@/components/ui/toggle-row';
 import {
   CURRENCY_LABEL,
   DESCRIPTION_MAX,
@@ -22,7 +20,6 @@ import {
   STUDIO_CURRENCIES,
   TYPE_LABEL,
   VARIANT_NAME_MAX,
-  formatMinor,
   minorToInput,
   parseMoneyInput,
   type StudioCurrency,
@@ -30,7 +27,6 @@ import {
 } from '@/lib/commerce/product-studio/rules';
 
 export type EditorOption = { id: string; name: string; sku: string | null; price: number; isActive: boolean };
-export type EditorBumpOption = { variantId: string; productId: string; label: string; price: number; currency: string; published: boolean };
 
 export type EditorProduct = {
   id: string | null;
@@ -41,7 +37,6 @@ export type EditorProduct = {
   basePrice: number;
   sku: string | null;
   options: EditorOption[];
-  bumpVariantId: string | null;
 };
 
 type Row = { key: string; id?: string; name: string; sku: string; price: string; isActive: boolean };
@@ -54,8 +49,6 @@ type FormState = {
   basePrice: string;
   sku: string;
   rows: Row[];
-  bumpEnabled: boolean;
-  bumpVariantId: string;
 };
 
 function toState(product: EditorProduct): FormState {
@@ -67,8 +60,6 @@ function toState(product: EditorProduct): FormState {
     basePrice: product.id ? minorToInput(product.basePrice, product.currency) : '',
     sku: product.sku ?? '',
     rows: product.options.map((option) => ({ key: option.id, id: option.id, name: option.name, sku: option.sku ?? '', price: minorToInput(option.price, product.currency), isActive: option.isActive })),
-    bumpEnabled: Boolean(product.bumpVariantId),
-    bumpVariantId: product.bumpVariantId ?? '',
   };
 }
 
@@ -76,18 +67,13 @@ let rowSeq = 0;
 
 export function ProductEditor({
   product,
-  bumpOptions,
   canEdit,
   readOnlyReason,
-  bumpWarning,
 }: {
   product: EditorProduct;
-  bumpOptions: EditorBumpOption[];
   canEdit: boolean;
   /** Motivo por el que no se puede editar (archivado, Shopify). */
   readOnlyReason?: string | null;
-  /** Problema de la relacion guardada (p. ej. adicional sin publicar). */
-  bumpWarning?: string | null;
 }) {
   const router = useRouter();
   const creating = product.id === null;
@@ -127,9 +113,6 @@ export function ProductEditor({
     update({ rows: [...form.rows, { key: `new-${rowSeq}`, name: '', sku: '', price: form.basePrice, isActive: true }] });
   }
 
-  const sameCurrencyBumps = bumpOptions.filter((option) => option.currency === form.currency);
-  const otherCurrencyBumps = bumpOptions.length - sameCurrencyBumps.length;
-
   function validate() {
     const found: Record<string, string> = {};
     if (!form.name.trim()) found.name = 'Escribe el nombre del producto.';
@@ -142,7 +125,6 @@ export function ProductEditor({
       if (price === null) found[`variants.${index}.price`] = 'Ingresa un precio válido.';
       return { ...(row.id ? { id: row.id } : {}), name: row.name.trim(), sku: row.sku.trim() || null, price: price ?? 0, isActive: row.isActive };
     });
-    if (form.bumpEnabled && !form.bumpVariantId) found['orderBump.variantId'] = 'Elige el producto adicional.';
     return {
       found,
       payload: {
@@ -153,7 +135,6 @@ export function ProductEditor({
         basePrice: basePrice ?? 0,
         sku: form.sku.trim() || null,
         variants: rows,
-        orderBump: { enabled: form.bumpEnabled, variantId: form.bumpEnabled ? form.bumpVariantId : null },
       },
     };
   }
@@ -317,50 +298,6 @@ export function ProductEditor({
           </Button>
         </SettingsCard>
 
-        <SettingsCard title="Producto adicional en el checkout" description="Una oferta opcional que el comprador puede sumar con un clic antes de pagar (order bump).">
-          <ToggleRow
-            id="bump-enabled"
-            label="Ofrecer un producto adicional"
-            description="Se muestra en el checkout de este producto. El total se recalcula en el servidor."
-            checked={form.bumpEnabled}
-            onCheckedChange={(checked) => update({ bumpEnabled: checked })}
-            disabled={!editable}
-          />
-          {form.bumpEnabled && (
-            <div className="mt-4 space-y-2">
-              {sameCurrencyBumps.length > 0 ? (
-                <FormField
-                  label="Producto adicional"
-                  htmlFor="bump-variant"
-                  description={otherCurrencyBumps > 0 ? `Solo se listan productos en ${form.currency}: el adicional se cobra en la misma moneda.` : undefined}
-                  error={err('orderBump.variantId')}
-                >
-                  <Select value={form.bumpVariantId} onChange={(event) => update({ bumpVariantId: event.target.value })}>
-                    <option value="">Elige un producto…</option>
-                    {sameCurrencyBumps.map((option) => (
-                      <option key={option.variantId} value={option.variantId}>
-                        {option.label} · {formatMinor(option.price, option.currency)}
-                        {option.published ? '' : ' (borrador)'}
-                      </option>
-                    ))}
-                  </Select>
-                </FormField>
-              ) : (
-                <p className="text-sm text-soft">
-                  No tienes otros productos con precio en {form.currency}.{' '}
-                  <Link href="/productos/nuevo" className="font-semibold text-electric underline underline-offset-4">
-                    Crea uno
-                  </Link>{' '}
-                  para ofrecerlo como adicional.
-                </p>
-              )}
-              {form.bumpVariantId && sameCurrencyBumps.some((option) => option.variantId === form.bumpVariantId && !option.published) && (
-                <p className="text-xs leading-5 text-warning-ink">Ese producto aún es borrador: no aparecerá en el checkout hasta que lo publiques.</p>
-              )}
-              {bumpWarning && form.bumpVariantId === initial.bumpVariantId && <p className="text-xs leading-5 text-warning-ink">{bumpWarning}</p>}
-            </div>
-          )}
-        </SettingsCard>
       </fieldset>
 
       {notice && (
