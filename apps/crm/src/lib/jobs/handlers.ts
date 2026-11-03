@@ -20,6 +20,7 @@ import type { DomainEvent } from '../automation/types';
 import { sendEmail } from '../email/send';
 import { sendCampaignBatch } from '../marketing/campaigns';
 import { advanceEnrollment, processDueEnrollments, scanJourneyEntries } from '../marketing/journeys';
+import { scanFollowUpEntries } from '../followups/triggers';
 import { refreshSegmentCount } from '../marketing/segments';
 import { scanWorkspaceHealth } from '../billing/alerts';
 import { reconcileSafely } from '../entitlements/reconcile';
@@ -288,7 +289,8 @@ const handlers: Record<JobType, JobHandler> = {
   },
 
   /** Inscribe a quien califique en cada journey publicado. */
-  [JobType.SCAN_JOURNEY_ENTRIES]: async () => scanJourneyEntries(200),
+  // Punto 7: el mismo job barre los disparadores comerciales; no hay otro motor.
+  [JobType.SCAN_JOURNEY_ENTRIES]: async () => ({ segments: await scanJourneyEntries(200), followUps: await scanFollowUpEntries(200) }),
 
   /**
    * Revisa la salud de los workspaces: integraciones caidas y cupos al limite.

@@ -14,7 +14,7 @@ export class ChannelOutboundError extends Error {}
  * reintento/backoff que WhatsApp, una mejora deliberadamente pospuesta
  * (ver informe de la Fase C).
  */
-export async function sendChannelMessage(input: { workspaceId: string; conversationId: string; text: string; senderType?: 'AI' | 'USER'; senderUserId?: string; origin?: 'AI' | 'HUMAN' | 'AUTOMATION'; agentRunId?: string; expectedLockVersion?: number; delivery?: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY'; commentId?: string }) {
+export async function sendChannelMessage(input: { workspaceId: string; conversationId: string; text: string; senderType?: 'AI' | 'USER' | 'SYSTEM'; senderUserId?: string; origin?: 'AI' | 'HUMAN' | 'AUTOMATION' | 'JOURNEY'; agentRunId?: string; idempotencyKey?: string; expectedLockVersion?: number; delivery?: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY'; commentId?: string }) {
   // Enviar por un canal cuesta (WhatsApp cobra por conversacion). Un workspace
   // vencido no envia, venga el mensaje de una persona, del agente o de una
   // automatizacion encolada antes de vencer.
@@ -45,6 +45,7 @@ export async function sendChannelMessage(input: { workspaceId: string; conversat
       origin: input.origin ?? 'AUTOMATION',
       senderUserId: input.senderUserId,
       agentRunId: input.agentRunId,
+      idempotencyKey: input.idempotencyKey,
     });
   }
 

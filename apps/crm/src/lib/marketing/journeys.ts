@@ -22,6 +22,8 @@ import { recordAudit } from '../domain/audit';
 import { sendEmail } from '../email/send';
 import { crossTenantPrisma, prisma } from '../prisma';
 import { queueOutboundMessage } from '../whatsapp/outbound';
+import { COMMERCIAL_TRIGGERS, EXIT_REASON, isOptOutText } from '../followups/rules';
+import { recordActionRun, runMessageStep } from '../followups/send';
 import { exitEnrollments } from './enrollments';
 import { evaluateSend, getPolicy, nextAllowedInstant, recordSend } from './policy';
 import { buildWhere, parseDefinition, type SegmentDefinition } from './segments';
@@ -55,7 +57,21 @@ export type EnrollInput = {
   contactId: string;
   reason?: string;
   now?: Date;
+  /** Punto 7: el hecho comercial desde el que se cuenta el primer paso. */
+  triggeredAt?: Date | null;
+  conversationId?: string | null;
+  opportunityId?: string | null;
+  orderId?: string | null;
 };
+
+/** Lease del claim: si el worker muere a mitad, la inscripcion se retoma pasado este tiempo. */
+export const CLAIM_LEASE_MS = 10 * 60_000;
+
+const COMMERCIAL = COMMERCIAL_TRIGGERS as readonly string[];
+
+export function isCommercialTrigger(trigger: JourneyTrigger) {
+  return COMMERCIAL.includes(trigger);
+}
 
 export type EnrollResult =
   | { enrolled: true; enrollmentId: string; nextRunAt: Date }
@@ -107,19 +123,52 @@ export async function enroll(input: EnrollInput): Promise<EnrollResult> {
 
   const policy = await getPolicy(input.workspaceId);
   const first = journey.steps[0];
-  const rawRunAt = new Date(now.getTime() + first.delayHours * 3_600_000);
+  // El primer paso se cuenta desde el hecho comercial (Punto 7); sin hecho,
+  // desde la inscripcion como siempre. Nunca antes de ahora.
+  const anchor = input.triggeredAt && input.triggeredAt < now ? input.triggeredAt : now;
+  const rawRunAt = new Date(Math.max(anchor.getTime() + first.delayHours * 3_600_000, now.getTime()));
   const nextRunAt = nextAllowedInstant(rawRunAt, policy);
+  const commercial = isCommercialTrigger(journey.trigger);
 
   try {
-    const enrollment = await prisma.journeyEnrollment.create({
-      data: {
-        workspaceId: input.workspaceId,
-        journeyId: journey.id,
-        contactId: contact.id,
-        cancelKey: `journey:${journey.id}:${contact.id}`,
-        currentPosition: first.position,
-        nextRunAt,
-      },
+    const enrollment = await prisma.$transaction(async (tx) => {
+      if (commercial) {
+        // Una sola secuencia comercial a la vez por contacto, y nunca a quien
+        // pidio no recibir mensajes. El lock por contacto serializa dos
+        // barridos o dos estrategias que lleguen al mismo tiempo.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`followup:${contact.id}`}))`;
+        const blocking = await tx.journeyEnrollment.findFirst({
+          where: {
+            workspaceId: input.workspaceId,
+            contactId: contact.id,
+            OR: [
+              { status: JourneyEnrollmentStatus.ACTIVE, journey: { trigger: { in: COMMERCIAL as JourneyTrigger[] } } },
+              { exitReason: EXIT_REASON.OPTED_OUT },
+            ],
+          },
+          select: { status: true, exitReason: true },
+        });
+        if (blocking) {
+          throw new EnrollBlocked(
+            blocking.exitReason === EXIT_REASON.OPTED_OUT ? 'OPTED_OUT' : 'ACTIVE_SEQUENCE',
+          );
+        }
+      }
+      return tx.journeyEnrollment.create({
+        data: {
+          workspaceId: input.workspaceId,
+          journeyId: journey.id,
+          contactId: contact.id,
+          cancelKey: `journey:${journey.id}:${contact.id}`,
+          currentPosition: first.position,
+          nextRunAt,
+          triggeredAt: input.triggeredAt ?? null,
+          conversationId: input.conversationId ?? null,
+          opportunityId: input.opportunityId ?? null,
+          orderId: input.orderId ?? null,
+          simulated: journey.simulate,
+        },
+      });
     });
 
     await recordAudit({
@@ -131,13 +180,22 @@ export async function enroll(input: EnrollInput): Promise<EnrollResult> {
     });
 
     return { enrolled: true, enrollmentId: enrollment.id, nextRunAt };
-  } catch {
+  } catch (error) {
+    if (error instanceof EnrollBlocked) return { enrolled: false, reason: error.reason };
     // Choque con la unicidad: ya estaba inscrito. No es un error.
     return { enrolled: false, reason: 'ALREADY_ENROLLED' };
   }
 }
 
+class EnrollBlocked extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
 // --- Salidas -----------------------------------------------------------------
+
+type HardExit = { reason: string; status?: JourneyEnrollmentStatus; purchaseOrderId?: string };
 
 /**
  * Motivos de salida que valen para todo journey, sin importar como este
@@ -148,33 +206,66 @@ export async function enroll(input: EnrollInput): Promise<EnrollResult> {
  */
 async function hardExitReason(
   enrollment: JourneyEnrollment,
+  journey: Journey,
   now: Date,
-): Promise<string | null> {
-  const since = enrollment.enteredAt;
+): Promise<HardExit | null> {
+  // Punto 7: se mide desde el hecho comercial, no desde la inscripcion. Si el
+  // contacto respondio entre el hecho y el barrido, la secuencia no aplica.
+  const since = enrollment.triggeredAt ?? enrollment.enteredAt;
 
-  const replied = await prisma.message.findFirst({
+  const replies = await prisma.message.findMany({
     where: {
       workspaceId: enrollment.workspaceId,
       direction: MessageDirection.INBOUND,
       createdAt: { gt: since },
       conversation: { contactId: enrollment.contactId },
     },
-    select: { id: true },
+    select: { text: true },
+    take: 20,
   });
 
-  if (replied) return 'el contacto respondio';
+  if (replies.some((reply) => isOptOutText(reply.text))) {
+    return { reason: EXIT_REASON.OPTED_OUT, status: JourneyEnrollmentStatus.CANCELED };
+  }
+  if (replies.length > 0) return { reason: EXIT_REASON.REPLIED };
 
-  const purchased = await prisma.customerOrder.findFirst({
-    where: {
-      workspaceId: enrollment.workspaceId,
-      contactId: enrollment.contactId,
-      status: { in: [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED] },
-      updatedAt: { gt: since },
-    },
-    select: { id: true },
-  });
+  // La postventa existe justamente porque compro: la compra no la detiene.
+  if (journey.trigger !== JourneyTrigger.ORDER_PAID) {
+    // Solo una compra confirmada detiene: un pago pendiente no es una venta.
+    const purchased = await prisma.customerOrder.findFirst({
+      where: {
+        workspaceId: enrollment.workspaceId,
+        contactId: enrollment.contactId,
+        status: { in: [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED] },
+        updatedAt: { gt: since },
+        ...(journey.productId ? { lines: { some: { variant: { productId: journey.productId } } } } : {}),
+      },
+      select: { id: true },
+    });
 
-  if (purchased) return 'el contacto compro';
+    if (purchased) return { reason: EXIT_REASON.PURCHASED, purchaseOrderId: purchased.id };
+  }
+
+  if (enrollment.opportunityId) {
+    const opportunity = await prisma.opportunity.findFirst({
+      where: { id: enrollment.opportunityId, workspaceId: enrollment.workspaceId },
+      select: { status: true, updatedAt: true },
+    });
+    const movedAt = enrollment.triggeredAt ?? enrollment.enteredAt;
+    if (!opportunity || opportunity.status !== 'OPEN' || opportunity.updatedAt.getTime() > movedAt.getTime()) {
+      return { reason: EXIT_REASON.OPPORTUNITY_MOVED };
+    }
+  }
+
+  if (enrollment.orderId) {
+    const order = await prisma.customerOrder.findFirst({
+      where: { id: enrollment.orderId, workspaceId: enrollment.workspaceId },
+      select: { status: true },
+    });
+    if (!order || order.status === OrderStatus.CANCELLED || order.status === OrderStatus.REFUNDED) {
+      return { reason: EXIT_REASON.ORDER_CLOSED };
+    }
+  }
 
   const humanActive = await prisma.conversation.findFirst({
     where: {
@@ -186,11 +277,12 @@ async function hardExitReason(
     select: { id: true },
   });
 
-  if (humanActive) return 'un humano tomo la conversacion';
+  if (humanActive) return { reason: EXIT_REASON.HUMAN };
 
   // Condiciones declarativas opcionales, escritas con el mismo lenguaje que
   // los segmentos.
-  return declarativeExitReason(enrollment, now);
+  const declarative = await declarativeExitReason(enrollment, now);
+  return declarative ? { reason: declarative } : null;
 }
 
 async function declarativeExitReason(enrollment: JourneyEnrollment, now: Date) {
@@ -216,10 +308,11 @@ async function finishEnrollment(
   enrollment: JourneyEnrollment,
   status: JourneyEnrollmentStatus,
   reason: string,
+  purchaseOrderId?: string,
 ) {
   await prisma.journeyEnrollment.update({
     where: { id: enrollment.id },
-    data: { status, exitedAt: new Date(), exitReason: reason, nextRunAt: null },
+    data: { status, exitedAt: new Date(), exitReason: reason, nextRunAt: null, ...(purchaseOrderId ? { purchaseOrderId } : {}) },
   });
 
   await recordAudit({
@@ -274,7 +367,15 @@ async function runStep(
         : { kind: 'SKIPPED', reason: result.reason };
     }
 
+    case JourneyStepAction.SEND_INSTAGRAM:
+      return runMessageStep(enrollment, journey, step, now);
+
     case JourneyStepAction.SEND_WHATSAPP: {
+      // Punto 7: las estrategias comerciales (y todo journey con modo prueba)
+      // pasan por el ejecutor con idempotencia, ventana de 24 h y limites.
+      if (isCommercialTrigger(journey.trigger) || journey.simulate) {
+        return runMessageStep(enrollment, journey, step, now);
+      }
       const decision = await evaluateSend({
         workspaceId: enrollment.workspaceId,
         contactId: enrollment.contactId,
@@ -333,6 +434,7 @@ async function runStep(
           dueAt: now,
         },
       });
+      await recordActionRun(enrollment, step, now, 'DONE');
       return { kind: 'DONE' };
     }
 
@@ -371,14 +473,36 @@ export type AdvanceResult = {
  * `nextRunAt` a null, asi dos corridas simultaneas del worker no ejecutan el
  * mismo paso dos veces.
  */
-export async function advanceEnrollment(enrollmentId: string, now = new Date()): Promise<AdvanceResult> {
+export async function advanceEnrollment(
+  enrollmentId: string,
+  now = new Date(),
+  options: { force?: boolean } = {},
+): Promise<AdvanceResult> {
+  // Punto 7: el claim deja un lease en vez de null. Si el proceso muere a
+  // mitad del paso, la inscripcion vuelve a vencer sola y se retoma (el
+  // registro del paso evita repetir el envio). `force` adelanta el paso de una
+  // inscripcion de PRUEBA; con una real no hace nada.
+  let dueWhere: { lte: Date } | { equals: Date };
+  if (options.force) {
+    const current = await prisma.journeyEnrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { simulated: true, nextRunAt: true, status: true },
+    });
+    if (!current?.simulated || !current.nextRunAt || current.status !== JourneyEnrollmentStatus.ACTIVE) {
+      return { enrollmentId, outcome: 'NOT_DUE' };
+    }
+    dueWhere = { equals: current.nextRunAt };
+  } else {
+    dueWhere = { lte: now };
+  }
+
   const claimed = await prisma.journeyEnrollment.updateMany({
     where: {
       id: enrollmentId,
       status: JourneyEnrollmentStatus.ACTIVE,
-      nextRunAt: { lte: now },
+      nextRunAt: dueWhere,
     },
-    data: { nextRunAt: null },
+    data: { nextRunAt: new Date(now.getTime() + CLAIM_LEASE_MS) },
   });
 
   if (claimed.count === 0) return { enrollmentId, outcome: 'NOT_DUE' };
@@ -422,10 +546,10 @@ export async function advanceEnrollment(enrollmentId: string, now = new Date()):
     return { enrollmentId, outcome: 'NOT_ACTIVE', detail: journey.planLimitedAt ? 'PLAN_LIMITED' : journey.status };
   }
 
-  const exitReason = await hardExitReason(enrollment, now);
-  if (exitReason) {
-    await finishEnrollment(enrollment, JourneyEnrollmentStatus.EXITED, exitReason);
-    return { enrollmentId, outcome: 'EXIT', detail: exitReason };
+  const exit = await hardExitReason(enrollment, journey, now);
+  if (exit) {
+    await finishEnrollment(enrollment, exit.status ?? JourneyEnrollmentStatus.EXITED, exit.reason, exit.purchaseOrderId);
+    return { enrollmentId, outcome: 'EXIT', detail: exit.reason };
   }
 
   const step = await prisma.journeyStep.findFirst({
@@ -553,6 +677,10 @@ const TRIGGER_AUDIENCE: Record<JourneyTrigger, SegmentDefinition | null> = {
     filters: [{ field: 'hasPaidOrder', operator: 'eq', value: true }],
   },
   [JourneyTrigger.MANUAL]: null,
+  // Punto 7: estos los resuelve `followups/triggers.ts` con el hecho exacto.
+  [JourneyTrigger.NO_REPLY]: null,
+  [JourneyTrigger.INQUIRY_NO_PURCHASE]: null,
+  [JourneyTrigger.OPPORTUNITY_STALLED]: null,
 };
 
 /**
@@ -564,7 +692,7 @@ const TRIGGER_AUDIENCE: Record<JourneyTrigger, SegmentDefinition | null> = {
 export async function scanJourneyEntries(limit = 200, now = new Date()) {
   const journeys = await crossTenantPrisma.journey.findMany({
     where: { status: JourneyStatus.PUBLISHED, planLimitedAt: null, trigger: { not: JourneyTrigger.MANUAL } },
-    select: { id: true, workspaceId: true, trigger: true, segmentId: true },
+    select: { id: true, workspaceId: true, trigger: true, segmentId: true, productId: true },
   });
 
   let enrolled = 0;
@@ -572,6 +700,9 @@ export async function scanJourneyEntries(limit = 200, now = new Date()) {
   for (const journey of journeys) {
     const audience = TRIGGER_AUDIENCE[journey.trigger];
     if (!audience) continue;
+    // Un checkout abandonado acotado a producto necesita el pedido exacto:
+    // lo inscribe el barrido de seguimientos, no el segmento general.
+    if (journey.trigger === JourneyTrigger.CHECKOUT_ABANDONED && journey.productId) continue;
 
     const candidates = await prisma.contact.findMany({
       where: {

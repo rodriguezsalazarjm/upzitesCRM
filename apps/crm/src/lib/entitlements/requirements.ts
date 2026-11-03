@@ -46,14 +46,15 @@ export function ruleRequirements(actions: RuleActionLike[]): Requirement[] {
   return out;
 }
 
-export function journeyRequirements(journey: { trigger: string; steps: { action: string; label?: string | null }[] }): Requirement[] {
+export function journeyRequirements(journey: { trigger: string; steps: { action: string; label?: string | null; messageMode?: string | null }[] }): Requirement[] {
   const out: Requirement[] = [{ feature: 'campaigns.journeys', where: 'journey' }];
   if (journey.trigger === 'CHECKOUT_ABANDONED') out.push({ feature: 'recovery', where: 'trigger' });
   if (journey.trigger === 'QUOTE_PENDING') out.push({ feature: 'quotes', where: 'trigger' });
   if (journey.trigger === 'ORDER_PAID') out.push({ feature: 'commerce.orders', where: 'trigger' });
   for (const step of journey.steps) {
     const where = step.label ?? step.action;
-    if (step.action === 'SEND_WHATSAPP') out.push({ feature: 'channels.messaging', where });
+    if (step.action === 'SEND_WHATSAPP' || step.action === 'SEND_INSTAGRAM') out.push({ feature: 'channels.messaging', where });
+    if (step.messageMode === 'AI') out.push({ feature: 'ai', where });
     if (step.action === 'SEND_EMAIL') out.push({ feature: 'email.promotional', where });
   }
   return out;

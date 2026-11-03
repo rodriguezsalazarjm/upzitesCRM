@@ -17,6 +17,7 @@ import { recordUsage } from '../billing/usage';
 import { prisma } from '../prisma';
 import { noteInboundContact } from '../entitlements/inbound';
 import { cancelForContact } from '../domain';
+import { safely, stopFollowUpsOnReply } from '../followups/stop';
 import { emitDomainEvent } from '../automation/emit';
 import { scheduleAgentRun } from '../agents/dispatch';
 import { recordAudit } from '../domain/audit';
@@ -332,6 +333,8 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     reason: 'el contacto respondio',
     types: ['FOLLOW_UP', 'CHECKOUT_RECOVERY'],
   });
+  // Punto 7: tambien las secuencias de seguimiento, sin esperar al worker.
+  await safely(() => stopFollowUpsOnReply({ workspaceId: channel.workspaceId, contactId, text: event.text }));
 
   const conversation = await prisma.conversation.findUnique({
     where: { channelId_contactId: { channelId: channel.id, contactId } },

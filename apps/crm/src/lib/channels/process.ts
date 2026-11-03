@@ -9,6 +9,7 @@ import {
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { emitDomainEvent } from '../automation/emit';
+import { safely, stopFollowUpsOnReply } from '../followups/stop';
 import { matchAndStartFlowsForChannelEvent } from '../automations/triggers';
 import { resolveContactForChannelIdentity } from './identity';
 
@@ -78,6 +79,8 @@ export async function processChannelEvent(eventId: string) {
         where: { id: conversation.id },
         data: { lastInboundAt: new Date(), lastMessageAt: new Date(), unreadCount: { increment: 1 } },
       });
+      // Punto 7: respondio por Instagram/Messenger: sus seguimientos se detienen.
+      await safely(() => stopFollowUpsOnReply({ workspaceId: event.workspaceId, contactId: contact.id, text }));
 
       // Compatibilidad: el motor de reglas existente (AutomationRule) sigue
       // reaccionando a MESSAGE_RECEIVED sin importar el canal de origen.

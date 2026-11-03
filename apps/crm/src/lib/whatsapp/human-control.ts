@@ -5,6 +5,7 @@ import {
   OutboxStatus,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
+import { safely, stopFollowUpsForTakeover } from '../followups/stop';
 import { lockConversation, TAKEOVER_CANCEL_REASON } from './outbound';
 import {
   inferOutboundOrigin,
@@ -24,7 +25,7 @@ export type ActivateHumanControlInput = {
  * transición con queueOutboundMessage y con la reserva final del worker.
  */
 export async function activateHumanControl(input: ActivateHumanControlInput) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     if (!(await lockConversation(tx, input.conversationId, input.workspaceId))) return null;
 
     const candidates = await tx.outboxEvent.findMany({
@@ -93,6 +94,13 @@ export async function activateHumanControl(input: ActivateHumanControlInput) {
       cancelledAutomaticMessages: cancelledMessageIds.length,
       automaticMessagesAlreadySending: inFlight.length,
       lockVersion: updatedConversation.lockVersion,
+      contactId: updatedConversation.contactId,
     };
   });
+  // Punto 7: una persona tomo la conversacion; los seguimientos comerciales
+  // del contacto se detienen (fuera de la transaccion: es un efecto aparte).
+  if (result) {
+    await safely(() => stopFollowUpsForTakeover({ workspaceId: input.workspaceId, contactId: result.contactId, conversationId: input.conversationId }));
+  }
+  return result;
 }

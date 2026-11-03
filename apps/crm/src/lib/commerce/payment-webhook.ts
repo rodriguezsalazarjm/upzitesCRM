@@ -8,6 +8,7 @@ import { prisma } from '../prisma';
 import { formatMinor } from './money';
 import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
+import { safely, stopFollowUpsForPurchase } from '../followups/stop';
 import { cancelCheckoutRecovery, upsertPayment } from './checkout';
 import { grantDigitalDelivery, sendDelivery } from './delivery';
 
@@ -253,6 +254,9 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
       paymentId: input.externalPaymentId,
       amount: input.amount,
     });
+    // Punto 7: la compra confirmada detiene los seguimientos en el acto.
+    const contactId = order.contactId;
+    await safely(() => stopFollowUpsForPurchase({ workspaceId, contactId, orderId: order.id }));
 
     await prisma.activity.create({
       data: {

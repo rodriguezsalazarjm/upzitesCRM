@@ -13,6 +13,7 @@ import {
 import { crossTenantPrisma, prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { applyApprovedPayment } from '../domain';
+import { safely, stopFollowUpsForPurchase } from '../followups/stop';
 import { upsertShopifyOrder } from './orders';
 
 export const SHOPIFY_PROVIDER = 'shopify';
@@ -198,6 +199,8 @@ async function applyTopic(
             paymentId: `shopify:${externalId}`,
             amount: total,
           });
+          const contactId = order.contactId;
+          await safely(() => stopFollowUpsForPurchase({ workspaceId, contactId, orderId: order.id }));
 
           await prisma.activity.create({
             data: {

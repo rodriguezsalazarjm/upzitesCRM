@@ -86,6 +86,7 @@ model Workspace {
   segments           Segment[]
   journeys           Journey[]
   journeyEnrollments JourneyEnrollment[]
+  journeyStepRuns    JourneyStepRun[]
   emailDomains       EmailDomain[]
   emailTemplates     EmailTemplate[]
   campaigns          Campaign[]
@@ -419,13 +420,14 @@ model Opportunity {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
-  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  company    Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
-  owner      User?         @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact    Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company    Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  stage      PipelineStage       @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner      User?               @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   activities Activity[]
   aiInsights AiInsight[]
+  followUps  JourneyEnrollment[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, stageId])
@@ -1142,6 +1144,7 @@ model Conversation {
   agentState     ConversationAgentState?
   mediaAssets    MediaAsset[]
   flowRuns       AutomationFlowRun[]
+  followUps      JourneyEnrollment[]
 
   @@unique([channelId, contactId])
   @@unique([channelAccountId, contactId])
@@ -1728,6 +1731,7 @@ model Product {
   salesBrain    ProductSalesBrain?
   offers        ProductOffer[]
   conversations Conversation[]
+  journeys      Journey[]
 
   @@unique([connectionId, externalId])
   @@unique([id, workspaceId])
@@ -1867,14 +1871,16 @@ model CustomerOrder {
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact      Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lines        OrderLine[]
   payments     Payment[]
   fulfillments FulfillmentOrder[]
   deliveries   DigitalDelivery[]
-  offers       OrderOffer[]       @relation("OrderOffers")
-  upsellSource OrderOffer?        @relation("UpsellResultOrder")
+  offers       OrderOffer[]        @relation("OrderOffers")
+  upsellSource OrderOffer?         @relation("UpsellResultOrder")
+  followUps    JourneyEnrollment[] @relation("FollowUpSourceOrder")
+  followUpWins JourneyEnrollment[] @relation("FollowUpPurchaseOrder")
 
   @@unique([id, workspaceId])
   @@unique([workspaceId, provider, externalId])
@@ -2251,6 +2257,13 @@ model MessagingPolicy {
   /// salvo que el workspace lo habilite a proposito.
   allowSameDayMultichannel Boolean @default(false) @map("allow_same_day_multichannel")
 
+  /// Punto 7: dias en que se puede escribir (0 = domingo ... 6 = sabado, en la
+  /// zona del workspace). Por defecto todos, para no cambiar a nadie existente.
+  sendDays           Int[]              @default([0, 1, 2, 3, 4, 5, 6]) @map("send_days")
+  /// Que hace un seguimiento que vence fuera del horario: esperar la proxima
+  /// ventana (POSTPONE) u omitir ese paso (SKIP).
+  outOfHoursBehavior OutOfHoursBehavior @default(POSTPONE) @map("out_of_hours_behavior")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -2319,18 +2332,32 @@ model Journey {
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
   planLimitedReason String?   @map("plan_limited_reason")
 
+  /// Punto 7: producto al que pertenece la estrategia. Acota el disparador
+  /// (conversaciones y pedidos de ESE producto) y la condicion de compra.
+  productId   String? @map("product_id")
+  /// Tope de mensajes por inscripcion. Lo aplica el motor, no la interfaz.
+  maxMessages Int     @default(3) @map("max_messages")
+  /// Tiempo minimo entre dos mensajes de la misma inscripcion.
+  minGapHours Float   @default(12) @map("min_gap_hours")
+  /// Modo prueba: todo corre (disparadores, tiempos, condiciones) pero ningun
+  /// mensaje sale; cada envio queda registrado como SIMULATED.
+  simulate    Boolean @default(false)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   segment       Segment?            @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  product       Product?            @relation(fields: [productId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   steps         JourneyStep[]
   enrollments   JourneyEnrollment[]
+  stepRuns      JourneyStepRun[]
   emailMessages EmailMessage[]
   sendLogs      ContactSendLog[]
 
   @@unique([workspaceId, key])
   @@index([workspaceId, status])
+  @@index([productId, workspaceId])
   @@map("journeys")
 }
 
@@ -2347,9 +2374,16 @@ model JourneyStep {
   channel    ConsentChannel?
   templateId String?         @map("template_id")
 
-  /// Cuerpo para WhatsApp, o para email sin template.
+  /// Cuerpo para WhatsApp, o para email sin template. En modo IA es el texto
+  /// de respaldo si la IA no puede generar un mensaje seguro.
   body       String?
   conditions Json?
+
+  /// Punto 7: texto fijo (con variables) o generado por IA con el contexto
+  /// autorizado del workspace y del producto.
+  messageMode FollowUpMessageMode @default(FIXED) @map("message_mode")
+  /// Objetivo del mensaje para la IA ("recordar el beneficio principal").
+  aiGoal      String?             @map("ai_goal")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2386,17 +2420,70 @@ model JourneyEnrollment {
   exitReason     String?   @map("exit_reason")
   lastError      String?   @map("last_error")
 
+  /// Punto 7: el hecho comercial que la origino. El primer paso se calcula
+  /// desde aqui, no desde la inscripcion (el barrido llega despues).
+  triggeredAt     DateTime? @map("triggered_at")
+  conversationId  String?   @map("conversation_id")
+  opportunityId   String?   @map("opportunity_id")
+  orderId         String?   @map("order_id")
+  messagesSent    Int       @default(0) @map("messages_sent")
+  lastMessageAt   DateTime? @map("last_message_at")
+  /// Heredado del modo prueba del journey al inscribir.
+  simulated       Boolean   @default(false)
+  /// Compra confirmada que detuvo la secuencia (atribucion demostrable).
+  purchaseOrderId String?   @map("purchase_order_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  journey   Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey       Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contact       Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversation  Conversation?    @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  opportunity   Opportunity?     @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  order         CustomerOrder?   @relation("FollowUpSourceOrder", fields: [orderId], references: [id], onDelete: SetNull)
+  purchaseOrder CustomerOrder?   @relation("FollowUpPurchaseOrder", fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  runs          JourneyStepRun[]
 
   @@unique([journeyId, contactId])
   @@index([workspaceId, status])
   @@index([status, nextRunAt])
   @@map("journey_enrollments")
+}
+
+/// Punto 7: resultado de cada paso ejecutado de una inscripcion.
+///
+/// `@@unique([enrollmentId, position])` es la idempotencia del envio: un paso
+/// se ejecuta una sola vez por inscripcion. Si el proceso muere despues de
+/// crear la fila (SENDING), la siguiente corrida retoma con el mismo texto y la
+/// misma clave de outbox en vez de generar otro mensaje.
+model JourneyStepRun {
+  id           String               @id @default(cuid())
+  workspaceId  String               @map("workspace_id")
+  journeyId    String               @map("journey_id")
+  enrollmentId String               @map("enrollment_id")
+  stepId       String?              @map("step_id")
+  position     Int
+  label        String
+  status       JourneyStepRunStatus
+  channel      String?
+  /// Mensaje real creado en la conversacion (null en modo prueba).
+  messageId    String?              @map("message_id")
+  /// Texto enviado o simulado, tal como se compuso.
+  text         String?
+  aiGenerated  Boolean              @default(false) @map("ai_generated")
+  reason       String?
+  scheduledFor DateTime?            @map("scheduled_for")
+  executedAt   DateTime             @default(now()) @map("executed_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey    Journey           @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  enrollment JourneyEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, position])
+  @@index([workspaceId, journeyId, status])
+  @@map("journey_step_runs")
 }
 
 /// Dominio de envio del cliente. Sin un dominio verificado no sale email
@@ -3455,6 +3542,31 @@ enum SegmentSource {
   CUSTOM
 }
 
+enum FollowUpMessageMode {
+  FIXED
+  AI
+}
+
+enum OutOfHoursBehavior {
+  POSTPONE
+  SKIP
+}
+
+enum JourneyStepRunStatus {
+  /// Tomado para enviar; si queda asi tras un reinicio se retoma sin duplicar.
+  SENDING
+  /// Aceptado para envio real (encolado en el canal).
+  SENT
+  /// Modo prueba: compuesto y registrado, nunca enviado.
+  SIMULATED
+  /// Accion sin mensaje (tarea, temperatura) ejecutada.
+  DONE
+  SKIPPED
+  /// No se envio por una restriccion del canal (plantilla, ventana, consentimiento).
+  BLOCKED
+  FAILED
+}
+
 enum JourneyStatus {
   DRAFT
   PUBLISHED
@@ -3470,6 +3582,10 @@ enum JourneyTrigger {
   QUOTE_PENDING
   ORDER_PAID
   MANUAL
+  // Punto 7
+  NO_REPLY
+  INQUIRY_NO_PURCHASE
+  OPPORTUNITY_STALLED
 }
 
 enum JourneyStepAction {
@@ -3478,6 +3594,8 @@ enum JourneyStepAction {
   CREATE_TASK
   SET_TEMPERATURE
   EXIT
+  // Punto 7
+  SEND_INSTAGRAM
 }
 
 enum JourneyEnrollmentStatus {

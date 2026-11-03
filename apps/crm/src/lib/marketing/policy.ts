@@ -2,11 +2,11 @@ import {
   ConsentChannel,
   MessageDirection,
   SendCategory,
-  type MessagingPolicy,
 } from '../../../generated/prisma/client';
 import { canContact } from '../domain/consent';
 import { prisma } from '../prisma';
 import type { Db } from '../domain/audit';
+import { isQuietHour, nextAllowedInstant, policyFrom, type ContactPolicy } from './quiet-hours';
 
 /**
  * Limites de contacto: ventana de silencio, topes de frecuencia y la regla de
@@ -25,134 +25,21 @@ import type { Db } from '../domain/audit';
  *    la supresion, porque un rebote duro significa que el correo no existe.
  */
 
-export const DEFAULT_POLICY = {
-  timezone: 'America/Santiago',
-  quietStartMinute: 20 * 60 + 30,
-  quietEndMinute: 9 * 60,
-  maxWhatsappPerDay: 1,
-  maxEmailPerWeek: 3,
-  maxConsecutiveNoReply: 3,
-  allowSameDayMultichannel: false,
-} as const;
-
-export type ContactPolicy = {
-  timezone: string;
-  quietStartMinute: number;
-  quietEndMinute: number;
-  maxWhatsappPerDay: number;
-  maxEmailPerWeek: number;
-  maxConsecutiveNoReply: number;
-  allowSameDayMultichannel: boolean;
-};
-
-export function policyFrom(row: MessagingPolicy | null): ContactPolicy {
-  return row ? { ...row } : { ...DEFAULT_POLICY };
-}
+export {
+  DEFAULT_POLICY,
+  instantForWallTime,
+  isQuietHour,
+  minutesOfDayIn,
+  nextAllowedInstant,
+  policyFrom,
+  wallTimeIn,
+  type ContactPolicy,
+} from './quiet-hours';
 
 /** Lee la politica del workspace, o la de fabrica si aun no tiene una. */
 export async function getPolicy(workspaceId: string, db: Db = prisma): Promise<ContactPolicy> {
   const row = await db.messagingPolicy.findUnique({ where: { workspaceId } });
   return policyFrom(row);
-}
-
-// --- Zona horaria ------------------------------------------------------------
-
-type WallTime = { year: number; month: number; day: number; hour: number; minute: number };
-
-const formatters = new Map<string, Intl.DateTimeFormat>();
-
-function formatterFor(timeZone: string) {
-  let formatter = formatters.get(timeZone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    formatters.set(timeZone, formatter);
-  }
-  return formatter;
-}
-
-/** Hora de pared de un instante en una zona. Lanza si la zona no existe. */
-export function wallTimeIn(date: Date, timeZone: string): WallTime {
-  const parts = formatterFor(timeZone).formatToParts(date);
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? '0');
-  return {
-    year: get('year'),
-    month: get('month'),
-    day: get('day'),
-    hour: get('hour'),
-    minute: get('minute'),
-  };
-}
-
-function asUtcMs(wall: WallTime) {
-  return Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute);
-}
-
-/**
- * Convierte una hora de pared de una zona al instante UTC que le corresponde.
- *
- * Se resuelve iterando: se estima con el desfase actual y se corrige con el
- * desfase que realmente rige en la fecha estimada. Dos pasadas bastan y dejan
- * bien los cambios de horario de verano, que es cuando el desfase se mueve.
- */
-export function instantForWallTime(wall: WallTime, timeZone: string): Date {
-  const target = asUtcMs(wall);
-  let guess = new Date(target);
-
-  for (let i = 0; i < 2; i += 1) {
-    const offset = asUtcMs(wallTimeIn(guess, timeZone)) - guess.getTime();
-    guess = new Date(target - offset);
-  }
-
-  return guess;
-}
-
-export function minutesOfDayIn(date: Date, timeZone: string) {
-  const wall = wallTimeIn(date, timeZone);
-  return wall.hour * 60 + wall.minute;
-}
-
-export function isQuietHour(date: Date, policy: ContactPolicy) {
-  const minute = minutesOfDayIn(date, policy.timezone);
-  // Cuando el inicio es posterior al fin, la ventana cruza la medianoche.
-  return policy.quietStartMinute > policy.quietEndMinute
-    ? minute >= policy.quietStartMinute || minute < policy.quietEndMinute
-    : minute >= policy.quietStartMinute && minute < policy.quietEndMinute;
-}
-
-/**
- * Proximo instante habil. Si la fecha ya esta fuera de la ventana de silencio
- * se devuelve tal cual: reprogramar algo que podia salir seria un retraso
- * gratuito.
- */
-export function nextAllowedInstant(date: Date, policy: ContactPolicy): Date {
-  if (!isQuietHour(date, policy)) return date;
-
-  const wall = wallTimeIn(date, policy.timezone);
-  const minute = wall.hour * 60 + wall.minute;
-
-  // Si ya empezo el silencio de la noche, el proximo horario valido es manana.
-  const crossesMidnight = policy.quietStartMinute > policy.quietEndMinute;
-  const nextDay = crossesMidnight && minute >= policy.quietStartMinute;
-
-  const base: WallTime = {
-    year: wall.year,
-    month: wall.month,
-    day: wall.day + (nextDay ? 1 : 0),
-    hour: Math.floor(policy.quietEndMinute / 60),
-    minute: policy.quietEndMinute % 60,
-  };
-
-  // Date.UTC normaliza dia 32 -> dia 1 del mes siguiente, asi que no hace falta
-  // tratar el fin de mes aparte.
-  return instantForWallTime(base, policy.timezone);
 }
 
 // --- Decision de envio -------------------------------------------------------
