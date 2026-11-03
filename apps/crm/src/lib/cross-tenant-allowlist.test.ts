@@ -26,6 +26,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
     why: 'Barridos del worker: acciones programadas vencidas, silencio comercial, conteo de segmentos, sync Shopify, limpieza de jobs.',
   },
   'src/lib/marketing/journeys.ts': { uses: 2, why: 'Barrido del cron: inscripciones vencidas y entradas a journeys publicados de todos los tenants.' },
+  'src/lib/followups/triggers.ts': { uses: 1, why: 'Barrido del cron: estrategias de seguimiento publicadas de todos los tenants (Punto 7); cada candidato se busca acotado a su workspace.' },
   'src/lib/media/maintenance.ts': { uses: 3, why: 'Barrido: media vencida, huerfana y bloqueada en todo el storage.' },
   'src/lib/ops/maintenance.ts': { uses: 2, why: 'Barrido: vencer cotizaciones y envejecer scores sin actividad.' },
   'src/lib/whatsapp/outbound.ts': { uses: 1, why: 'processOutbox: el worker toma el outbox pendiente de todos los tenants.' },
@@ -49,6 +50,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/qa-storage-cover.ts': { uses: 2, why: 'QA de portadas contra storage real: limpieza de los workspaces y cuentas de prueba que crea.' },
   'scripts/smoke-product-studio.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke del Product Sales Studio.' },
   'scripts/smoke-offers.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de order bump y upsell (Punto 6).' },
+  'scripts/smoke-followups.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de seguimientos comerciales (Punto 7).' },
   'scripts/smoke-digital-delivery.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de la entrega digital (Punto 3).' },
   'scripts/qa-storage-deliverables.ts': { uses: 2, why: 'QA de entregables contra storage real: limpieza de los workspaces y cuentas de prueba que crea.' },
 };

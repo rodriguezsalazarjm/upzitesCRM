@@ -26,6 +26,8 @@
     "test:workspace-knowledge": "tsx --test src/lib/workspace-knowledge/*.test.ts",
     "test:smoke:workspace-knowledge": "node scripts/visual/run.mjs p5",
     "test:smoke:offers": "tsx scripts/smoke-offers.ts",
+    "test:followups": "tsx --test src/lib/followups/*.test.ts",
+    "test:smoke:followups": "tsx scripts/smoke-followups.ts",
     "test:mercado-pago": "tsx --test src/lib/mercado-pago.test.ts src/lib/commerce/mercado-pago-oauth-state.test.ts",
     "test:test-safety": "tsx --test src/lib/testing/*.test.ts",
     "test:smoke": "tsx scripts/smoke-critico.ts",

@@ -27,6 +27,7 @@ const suites = [
   'smoke-commerce-ledger.ts',
   'smoke-product-studio.ts',
   'smoke-offers.ts',
+  'smoke-followups.ts',
   'smoke-digital-delivery.ts',
 ];
 
