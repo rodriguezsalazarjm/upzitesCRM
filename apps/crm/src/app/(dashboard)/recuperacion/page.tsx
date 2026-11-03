@@ -1,23 +1,23 @@
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { requireCurrentUser } from '@/lib/auth';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
-import { campaignMetrics, journeyMetrics } from '@/lib/marketing/campaigns';
-import { getPolicy } from '@/lib/marketing/policy';
+import { STRATEGY_STATUS, formatWhen } from '@/components/followups/labels';
+import { SendHoursCard } from '@/components/followups/send-hours-card';
+import { StrategyActions } from '@/components/followups/strategy-actions';
+import { listStrategies } from '@/lib/followups/service';
+import { FOLLOW_UP_TRIGGERS, TRIGGER_LABEL } from '@/lib/followups/rules';
+import { campaignMetrics } from '@/lib/marketing/campaigns';
+import { DEFAULT_POLICY, getPolicy } from '@/lib/marketing/policy';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { prisma } from '@/lib/prisma';
-import { JourneysClient, type JourneyView } from './journeys-client';
 
 export const dynamic = 'force-dynamic';
-
-const JOURNEY_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'outline' }> = {
-  DRAFT: { label: 'Borrador', variant: 'outline' },
-  PUBLISHED: { label: 'Activo', variant: 'success' },
-  PAUSED: { label: 'Pausado', variant: 'warning' },
-  ARCHIVED: { label: 'Archivado', variant: 'outline' },
-};
 
 const CAMPAIGN_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'outline' }> = {
   DRAFT: { label: 'Borrador', variant: 'outline' },
@@ -28,20 +28,13 @@ const CAMPAIGN_STATUS: Record<string, { label: string; variant: 'success' | 'war
   CANCELED: { label: 'Cancelada', variant: 'outline' },
 };
 
-function formatMinute(minute: number) {
-  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-}
-
 export default async function RecuperacionPage() {
   const user = await requireCurrentUser();
   const workspaceId = user.workspace.id;
 
-  const [journeys, segments, campaigns, policy, domains, suppressed] = await Promise.all([
-    prisma.journey.findMany({
-      where: { workspaceId },
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { steps: true } } },
-    }),
+  const canManage = canManageMarketing(user.role);
+  const [strategies, segments, campaigns, policy, domains, suppressed] = await Promise.all([
+    listStrategies(workspaceId),
     prisma.segment.findMany({
       where: { workspaceId },
       orderBy: [{ source: 'asc' }, { name: 'asc' }],
@@ -52,41 +45,19 @@ export default async function RecuperacionPage() {
     prisma.suppressionEntry.count({ where: { workspaceId } }),
   ]);
 
-  const [journeyStats, campaignStats] = await Promise.all([
-    Promise.all(journeys.map((journey) => journeyMetrics(workspaceId, journey.id))),
-    Promise.all(campaigns.map((campaign) => campaignMetrics(workspaceId, campaign.id))),
-  ]);
-
-  const statsById = new Map(journeyStats.filter(Boolean).map((stat) => [stat!.id, stat!]));
-
-  const journeyViews: JourneyView[] = journeys.map((journey) => {
-    const stats = statsById.get(journey.id);
-    return {
-      id: journey.id,
-      name: journey.name,
-      description: journey.description,
-      trigger: journey.trigger,
-      status: journey.status,
-      statusLabel: JOURNEY_STATUS[journey.status]?.label ?? journey.status,
-      statusVariant: JOURNEY_STATUS[journey.status]?.variant ?? 'outline',
-      steps: journey._count.steps,
-      active: stats?.active ?? 0,
-      completed: stats?.completed ?? 0,
-      exited: stats?.exited ?? 0,
-      recoveryRate: stats?.recoveryRate ?? 0,
-    };
-  });
+  const campaignStats = await Promise.all(campaigns.map((campaign) => campaignMetrics(workspaceId, campaign.id)));
+  const editableTriggers = FOLLOW_UP_TRIGGERS as readonly string[];
 
   const verifiedDomain = domains.find((domain) => domain.status === 'VERIFIED');
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
-        title="Recuperacion"
-        subtitle="Journeys, segmentos y campanas: seguimiento con consentimiento y limites"
+        title="Recuperación"
+        subtitle="Seguimientos comerciales, segmentos y campañas, con consentimiento y límites"
       />
 
-      <div className="flex-1 space-y-6 overflow-y-auto p-6">
+      <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <PlanLockedNotice workspaceId={user.workspace.id} feature="campaigns.journeys" />
         <PlanLockedNotice workspaceId={user.workspace.id} feature="recovery" />
         {!verifiedDomain && (
@@ -97,44 +68,72 @@ export default async function RecuperacionPage() {
           </p>
         )}
 
-        {/* Los limites primero: son la razon por la que se puede confiar en lo
+        {/* El horario primero: es la razon por la que se puede confiar en lo
             que viene abajo. */}
         <section>
-          <Eyebrow className="mb-2">Limites de contacto</Eyebrow>
-          <Card className="grid grid-cols-2 gap-4 p-5 md:grid-cols-5">
-            <div>
-              <Eyebrow>Sin envios</Eyebrow>
-              <p className="text-sm font-bold text-carbon">
-                {formatMinute(policy.quietStartMinute)} a {formatMinute(policy.quietEndMinute)}
-              </p>
-              <p className="text-[11px] text-soft">{policy.timezone}</p>
-            </div>
-            <div>
-              <Eyebrow>WhatsApp</Eyebrow>
-              <p className="text-sm font-bold text-carbon">{policy.maxWhatsappPerDay} / dia</p>
-            </div>
-            <div>
-              <Eyebrow>Email</Eyebrow>
-              <p className="text-sm font-bold text-carbon">{policy.maxEmailPerWeek} / semana</p>
-            </div>
-            <div>
-              <Eyebrow>Multicanal</Eyebrow>
-              <p className="text-sm font-bold text-carbon">
-                {policy.allowSameDayMultichannel ? 'Permitido' : 'Bloqueado'}
-              </p>
-              <p className="text-[11px] text-soft">el mismo dia</p>
-            </div>
-            <div>
-              <Eyebrow>Suprimidos</Eyebrow>
-              <p className="text-sm font-bold text-carbon">{suppressed}</p>
-              <p className="text-[11px] text-soft">nunca reciben nada</p>
-            </div>
-          </Card>
+          <SendHoursCard
+            canManage={canManage}
+            policy={{
+              timezone: policy.timezone,
+              quietStartMinute: policy.quietStartMinute,
+              quietEndMinute: policy.quietEndMinute,
+              sendDays: policy.sendDays ?? DEFAULT_POLICY.sendDays,
+              outOfHoursBehavior: policy.outOfHoursBehavior ?? 'POSTPONE',
+              maxWhatsappPerDay: policy.maxWhatsappPerDay,
+              maxConsecutiveNoReply: policy.maxConsecutiveNoReply,
+            }}
+          />
+          <p className="mt-2 text-[11px] text-soft">
+            Email: {policy.maxEmailPerWeek} por semana · multicanal el mismo día {policy.allowSameDayMultichannel ? 'permitido' : 'bloqueado'} · {suppressed} suprimidos que nunca reciben nada
+          </p>
         </section>
 
         <section>
-          <Eyebrow className="mb-2">Journeys ({journeys.length})</Eyebrow>
-          <JourneysClient journeys={journeyViews} canManage={canManageMarketing(user.role)} />
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <Eyebrow>Estrategias de seguimiento ({strategies.length})</Eyebrow>
+            {canManage && (
+              <Button size="sm" asChild>
+                <Link href="/recuperacion/nueva">
+                  <Plus /> Nueva estrategia
+                </Link>
+              </Button>
+            )}
+          </div>
+          {strategies.length === 0 ? (
+            <Card className="p-8 text-center">
+              <p className="text-sm font-medium text-graphite">Todavía no hay estrategias</p>
+              <p className="mt-1 text-xs text-soft">Crea una para escribirle solo a quien consultó y no compró, no respondió o dejó un pago pendiente.</p>
+            </Card>
+          ) : (
+            <Card className="divide-y divide-line">
+              {strategies.map((strategy) => {
+                const status = STRATEGY_STATUS[strategy.status] ?? { label: strategy.status, tone: 'outline' as const };
+                return (
+                  <div key={strategy.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={`/recuperacion/${strategy.id}`} className="text-sm font-semibold text-carbon hover:underline">
+                          {strategy.name}
+                        </Link>
+                        <Badge variant={status.tone}>{status.label}</Badge>
+                        {strategy.simulate && <Badge variant="ai">Prueba</Badge>}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-soft">
+                        {TRIGGER_LABEL[strategy.trigger] ?? strategy.trigger}
+                        {strategy.product && ` · ${strategy.product.name}`} · {strategy.steps.length} pasos · máx. {strategy.maxMessages} mensajes
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-graphite">
+                        {strategy.stats.active} en curso · {strategy.stats.sent} enviados · {strategy.stats.replied} respondieron · {strategy.stats.purchases} compras
+                        {strategy.stats.simulatedMessages > 0 && ` · ${strategy.stats.simulatedMessages} simulados`}
+                        {' · '}próximo {formatWhen(strategy.nextRunAt)} · último {formatWhen(strategy.lastRunAt)}
+                      </p>
+                    </div>
+                    {canManage && <StrategyActions compact id={strategy.id} status={strategy.status} simulate={strategy.simulate} editable={editableTriggers.includes(strategy.trigger)} />}
+                  </div>
+                );
+              })}
+            </Card>
+          )}
         </section>
 
         <section>

@@ -19,7 +19,10 @@ const updateSchema = z.object({
   maxEmailPerWeek: z.number().int().min(0).max(50).optional(),
   maxConsecutiveNoReply: z.number().int().min(1).max(10).optional(),
   allowSameDayMultichannel: z.boolean().optional(),
-});
+  // Punto 7: dias permitidos (0 = domingo) y que hacer con un paso que vence fuera de horario.
+  sendDays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  outOfHoursBehavior: z.enum(['POSTPONE', 'SKIP']).optional(),
+}).strict();
 
 export async function GET() {
   const user = await requireCurrentUser();
@@ -39,6 +42,10 @@ export async function PATCH(request: Request) {
 
   const parsed = await parseBody(request, updateSchema);
   if (!parsed.ok) return parsed.response;
+  if (parsed.data.sendDays) parsed.data.sendDays = [...new Set(parsed.data.sendDays)].sort();
+  if (parsed.data.quietStartMinute !== undefined && parsed.data.quietStartMinute === parsed.data.quietEndMinute) {
+    return NextResponse.json({ message: 'El horario de inicio y de fin no pueden ser iguales.', code: 'INVALID_HOURS' }, { status: 400 });
+  }
 
   // Se valida la zona antes de guardarla: una zona invalida haria fallar el
   // calculo de quiet hours en cada envio, y el sintoma aparece lejos de aqui.

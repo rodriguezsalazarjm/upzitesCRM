@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { EnrollmentHistory } from '@/components/followups/enrollment-history';
+import { requireCurrentUser } from '@/lib/auth';
+import { contactFollowUps } from '@/lib/followups/service';
+import { canManageMarketing } from '@/lib/marketing/roles';
 import { getContactDetail } from '@/lib/crm-data';
 import { formatCurrency, getInitials, stageLabels } from '@/lib/mock-data';
 import { contactStatusLabel, contactStatusTone, stageTone } from '@/lib/status-tone';
@@ -27,6 +31,10 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const contact = await getContactDetail(id);
 
   if (!contact) notFound();
+
+  // Punto 7: los seguimientos comerciales tambien son historia del contacto.
+  const user = await requireCurrentUser();
+  const followUps = await contactFollowUps(user.workspace.id, id);
 
   const info = [
     { icon: Mail, label: 'Email', value: contact.email },
@@ -133,6 +141,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                   <p className="py-3 text-sm text-soft">Sin oportunidades asociadas.</p>
                 )}
               </div>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <div className="px-6 pt-6">
+                <Eyebrow>Recuperación</Eyebrow>
+                <h2 className="mt-1 text-lg font-bold tracking-tight">Seguimientos</h2>
+              </div>
+              <EnrollmentHistory rows={followUps} canManage={canManageMarketing(user.role)} emptyText="Sin seguimientos automáticos." />
             </Card>
 
             <Card className="p-6">
