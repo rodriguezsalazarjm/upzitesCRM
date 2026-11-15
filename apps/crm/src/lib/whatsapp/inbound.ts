@@ -24,7 +24,8 @@ import { recordAudit } from '../domain/audit';
 import { startFlowRun } from '../automations/engine';
 import { triggerMatchesEvent } from '../automations/triggers';
 import { flowGraphSchema } from '../automations/schema';
-import { loadChannelContext, recordChannelError } from './channel-runtime';
+import { parseReferral } from './campaign-routing';
+import { findCampaignRoute, loadChannelContext, recordChannelError } from './channel-runtime';
 import { queuePushSafely } from '../push/events';
 import {
   dedupeKeyFor,
@@ -353,12 +354,45 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
 
   const conversation = await prisma.conversation.findUnique({
     where: { channelId_contactId: { channelId: channel.id, contactId } },
-    select: { id: true, assignedUserId: true, productId: true, mode: true },
+    select: { id: true, assignedUserId: true, productId: true, mode: true, campaignRouteId: true },
   });
+
+  // Punto 9: el referral del anuncio (si Meta lo mandó) se guarda tal cual y,
+  // si una regla del workspace coincide, fija producto/agente/automatizacion.
+  // Un clic nuevo en otro anuncio es una intencion nueva: la regla nueva manda.
+  const attribution = parseReferral(event.payload);
+  if (conversation && attribution) {
+    const route = await findCampaignRoute(channel.workspaceId, attribution);
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, workspaceId: channel.workspaceId },
+      data: {
+        attribution: { ...attribution, receivedAt: event.timestamp.toISOString() },
+        ...(route ? { campaignRouteId: route.id, ...(route.productId ? { productId: route.productId } : {}) } : {}),
+      },
+    });
+    if (route) {
+      conversation.campaignRouteId = route.id;
+      if (route.productId) conversation.productId = route.productId;
+    }
+    await recordAudit({
+      workspaceId: channel.workspaceId,
+      action: route ? 'whatsapp.campaign_routed' : 'whatsapp.campaign_unmatched',
+      entity: 'Conversation',
+      entityId: conversation.id,
+      metadata: {
+        adId: attribution.adId,
+        sourceType: attribution.sourceType,
+        routeId: route?.id ?? null,
+        routeName: route?.name ?? null,
+        level: route?.level ?? null,
+        warnings: route?.productUnavailable ? ['el producto de la campaña no está activo'] : [],
+      },
+    });
+  }
 
   // Punto 8: contexto del numero (producto, agente, automatizacion, fallback).
   const context = conversation
-    ? await loadChannelContext(channel.id, channel.workspaceId, conversation.productId, event.timestamp)
+    ? await loadChannelContext(channel.id, channel.workspaceId, conversation.productId, event.timestamp, conversation.campaignRouteId)
     : null;
   if (conversation && context?.productSource === 'CHANNEL_DEFAULT' && context.productId) {
     // Solo si sigue sin producto: una atribucion que llego entre medio manda.

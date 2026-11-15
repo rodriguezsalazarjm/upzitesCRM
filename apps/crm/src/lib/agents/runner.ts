@@ -179,7 +179,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // de horario, agente despublicado). El simulador no depende del numero.
   let channelAgentId: string | undefined;
   if (conversation.channelId && !input.dryRun && !input.agentVersionId) {
-    const context = await loadChannelContext(conversation.channelId, input.workspaceId, conversation.product?.id ?? null);
+    const context = await loadChannelContext(conversation.channelId, input.workspaceId, conversation.product?.id ?? null, new Date(), conversation.campaignRouteId);
     if (!context.aiAllowed) {
       return { status: AgentRunStatus.ABORTED, skippedReason: context.humanReason ?? 'el número no permite atención automática' };
     }

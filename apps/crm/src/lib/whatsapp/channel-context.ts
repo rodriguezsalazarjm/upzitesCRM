@@ -30,6 +30,9 @@ export type ChannelContextInput = {
   defaultProduct: { id: string; usable: boolean } | null;
   defaultFlow: { id: string; usable: boolean } | null;
   conversationProductId: string | null;
+  /** Punto 9: agente/automatizacion de la regla de campaña de la conversacion. */
+  routeAgent?: { id: string; usable: boolean } | null;
+  routeFlow?: { id: string; usable: boolean } | null;
 };
 
 export type ChannelContext = {
@@ -85,7 +88,9 @@ export function resolveChannelContext(input: ChannelContextInput, now: Date): Ch
   }
 
   let flowId: string | null = null;
-  if (input.defaultFlow?.usable) flowId = input.defaultFlow.id;
+  if (input.routeFlow && !input.routeFlow.usable) warnings.push('la automatización de la campaña no está publicada para WhatsApp; se usa la del número');
+  if (input.routeFlow?.usable) flowId = input.routeFlow.id;
+  else if (input.defaultFlow?.usable) flowId = input.defaultFlow.id;
   else if (input.defaultFlow) warnings.push('la automatización predeterminada no está publicada para WhatsApp');
 
   let humanReason: string | null = null;
@@ -95,7 +100,10 @@ export function resolveChannelContext(input: ChannelContextInput, now: Date): Ch
     const within = isWithinAttentionHours(now, input.hours);
     if ((input.aiSchedule === 'IN_HOURS') !== within) humanReason = HUMAN_REASON.OUT_OF_SCHEDULE;
   }
-  if (!humanReason && input.defaultAgent && !input.defaultAgent.usable) {
+  // Punto 9: un agente de campaña invalido cae al del numero (fallback del plan), con aviso.
+  const routeAgentId = input.routeAgent?.usable ? input.routeAgent.id : null;
+  if (input.routeAgent && !routeAgentId) warnings.push('el agente de la campaña no está disponible; se usa el del número');
+  if (!humanReason && !routeAgentId && input.defaultAgent && !input.defaultAgent.usable) {
     humanReason = HUMAN_REASON.AGENT_UNAVAILABLE;
     warnings.push('el agente predeterminado está inactivo, sin versión publicada o limitado por el plan');
   }
@@ -106,7 +114,7 @@ export function resolveChannelContext(input: ChannelContextInput, now: Date): Ch
   return {
     productId,
     productSource,
-    agentId: input.defaultAgent?.usable ? input.defaultAgent.id : null,
+    agentId: routeAgentId ?? (input.defaultAgent?.usable ? input.defaultAgent.id : null),
     aiAllowed: humanReason === null,
     flowId,
     humanReason,

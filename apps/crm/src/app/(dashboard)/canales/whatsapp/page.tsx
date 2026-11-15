@@ -47,6 +47,10 @@ export default async function WhatsAppChannelsPage() {
             </div>
           )}
 
+          <Link href="/canales/whatsapp/campanas" className="block rounded-xl border border-mist bg-paper p-3 text-xs text-graphite hover:border-carbon">
+            <span className="font-semibold text-carbon">Reglas de campaña →</span> qué producto, agente y automatización usa cada anuncio que llega a tus números.
+          </Link>
+
           <section className="space-y-2">
             <Eyebrow>Números ({channels.length})</Eyebrow>
             {channels.length === 0 ? (

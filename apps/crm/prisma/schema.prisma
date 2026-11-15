@@ -51,6 +51,7 @@ model Workspace {
   usageRecords       UsageRecord[]
 
   whatsappChannels WhatsAppChannel[]
+  campaignRoutes   CampaignRoute[]
   conversations    Conversation[]
   messages         Message[]
   outboxEvents     OutboxEvent[]
@@ -1161,6 +1162,10 @@ model Conversation {
   customerServiceWindowEndsAt DateTime?          @map("customer_service_window_ends_at")
   unreadCount                 Int                @default(0) @map("unread_count")
   summary                     String?
+  /// Punto 9: regla de campaña que fijó el contexto y el último referral de Meta
+  /// tal como llegó (solo lo que Meta entregó; nunca se completa a mano).
+  campaignRouteId             String?            @map("campaign_route_id")
+  attribution                 Json?
   lockVersion                 Int                @default(0) @map("lock_version")
   closedAt                    DateTime?          @map("closed_at")
   createdAt                   DateTime           @default(now()) @map("created_at")
@@ -1178,6 +1183,7 @@ model Conversation {
   mediaAssets    MediaAsset[]
   flowRuns       AutomationFlowRun[]
   followUps      JourneyEnrollment[]
+  campaignRoute  CampaignRoute?          @relation(fields: [campaignRouteId], references: [id], onDelete: SetNull)
 
   @@unique([channelId, contactId])
   @@unique([channelAccountId, contactId])
@@ -1440,6 +1446,7 @@ model AutomationFlow {
   runs      AutomationFlowRun[]
 
   whatsappChannels WhatsAppChannel[]
+  campaignRoutes   CampaignRoute[]
 
   @@index([workspaceId, status])
   @@map("automation_flows")
@@ -1571,6 +1578,7 @@ model AgentDefinition {
   runs      AgentRun[]
 
   whatsappChannels WhatsAppChannel[]
+  campaignRoutes   CampaignRoute[]
 
   @@unique([workspaceId, key])
   @@map("agent_definitions")
@@ -1771,6 +1779,7 @@ model Product {
   journeys      Journey[]
 
   whatsappChannels WhatsAppChannel[] @relation("WhatsAppChannelDefaultProduct")
+  campaignRoutes   CampaignRoute[]
 
   @@unique([connectionId, externalId])
   @@unique([id, workspaceId])
@@ -3859,4 +3868,38 @@ model KnowledgeChunk {
   @@unique([sourceId, position])
   @@index([workspaceId, sourceId])
   @@map("knowledge_chunks")
+}
+
+/// Punto 9 — Campaign Routing. Asocia un anuncio, conjunto o campaña de Meta
+/// con producto, agente y automatización. El id externo es el que el cliente
+/// copia de Ads Manager; el webhook de WhatsApp solo trae el id del anuncio
+/// (`referral.source_id`), así que conjunto y campaña coinciden solo cuando esa
+/// atribución esté disponible.
+model CampaignRoute {
+  id          String             @id @default(cuid())
+  workspaceId String             @map("workspace_id")
+  name        String
+  level       CampaignRouteLevel
+  externalId  String             @map("external_id")
+  productId   String?            @map("product_id")
+  agentId     String?            @map("agent_id")
+  flowId      String?            @map("flow_id")
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product       Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  agent         AgentDefinition? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  flow          AutomationFlow?  @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+
+  @@unique([workspaceId, level, externalId])
+  @@map("campaign_routes")
+}
+
+enum CampaignRouteLevel {
+  AD
+  ADSET
+  CAMPAIGN
 }
