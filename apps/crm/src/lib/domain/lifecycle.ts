@@ -5,6 +5,7 @@ import {
   OpportunityStatus,
   ScheduledActionStatus,
 } from '../../../generated/prisma/client';
+import { matchAndStartFlowsForPayment } from '../automations/triggers';
 import { emitDomainEvent } from '../automation/emit';
 import { prisma } from '../prisma';
 import { recordAudit, type Db } from './audit';
@@ -243,6 +244,9 @@ export async function applyApprovedPayment(input: ApprovedPaymentInput) {
     contactId: input.contactId,
     context: { payment: { id: input.paymentId, amount: input.amount ?? null } },
   });
+  // P11: flujos del Builder con trigger "Compra aprobada". Un fallo aqui no
+  // puede deshacer ni reintentar el pago: se registra y sigue.
+  await matchAndStartFlowsForPayment(input).catch((error) => console.error('[flows] PAYMENT_APPROVED no arrancó', error instanceof Error ? error.message : error));
 
   return result;
 }

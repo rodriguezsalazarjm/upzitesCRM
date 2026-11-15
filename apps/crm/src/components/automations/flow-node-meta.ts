@@ -37,6 +37,8 @@ export const ACTION_LABEL: Record<string, string> = {
   ASSIGN_OPERATOR: 'Asignar operador',
   UPDATE_OPPORTUNITY_STAGE: 'Etapa de oportunidad',
   CREATE_CHECKOUT: 'Crear checkout',
+  REQUEST_HUMAN_HANDOFF: 'Derivar a persona',
+  NOTIFY_STAFF: 'Notificar al equipo',
 };
 
 // El color es una señal puntual (icono/borde), nunca el fondo del nodo entero.
@@ -70,8 +72,8 @@ export const NODE_PALETTE: [string, FlowNode][] = [
   ['Tiempo', { id: '', type: 'DELAY', minutes: 60, respectQuietHours: true }],
   ['Lógica', { id: '', type: 'RANDOM_SPLIT', branches: [{ id: 'a', weight: 50 }, { id: 'b', weight: 50 }] }],
   ['IA', { id: '', type: 'AI', goal: 'Ayudar al cliente', allowedTools: [], exitConditions: [], maxTurns: 6 }],
-  ...(['ADD_TAG', 'REMOVE_TAG', 'SET_CUSTOM_FIELD', 'ASSIGN_OPERATOR', 'UPDATE_OPPORTUNITY_STAGE', 'CREATE_CHECKOUT'] as const).map(
-    (action) => [action === 'CREATE_CHECKOUT' ? 'Ventas' : 'CRM', { id: '', type: 'ACTION', action, params: {} }] as [string, FlowNode],
+  ...(['ADD_TAG', 'REMOVE_TAG', 'SET_CUSTOM_FIELD', 'ASSIGN_OPERATOR', 'UPDATE_OPPORTUNITY_STAGE', 'CREATE_CHECKOUT', 'NOTIFY_STAFF'] as const).map(
+    (action) => [action === 'CREATE_CHECKOUT' ? 'Ventas' : action === 'NOTIFY_STAFF' ? 'Sistema' : 'CRM', { id: '', type: 'ACTION', action, params: {} }] as [string, FlowNode],
   ),
   ['Sistema', { id: '', type: 'START_AUTOMATION', flowKey: '' }],
   ['Sistema', { id: '', type: 'HUMAN_HANDOFF' }],

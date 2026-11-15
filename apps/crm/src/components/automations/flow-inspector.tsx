@@ -171,6 +171,8 @@ export function FlowInspector({
                 ))}
               </Select>
             </FormField>
+          ) : current.action === 'NOTIFY_STAFF' ? (
+            <p className="text-xs text-graphite">Envía un aviso a los admins del workspace con un enlace a esta conversación.</p>
           ) : (
             (current.action === 'SET_CUSTOM_FIELD'
               ? ['field', 'value']

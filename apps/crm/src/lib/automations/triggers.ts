@@ -47,6 +47,8 @@ export function triggerMatchesEvent(trigger: FlowTrigger, event: ChannelTriggerE
       return event.type === 'REF_LINK';
     case 'QR_SCAN':
       return event.type === 'QR_SCAN';
+    case 'PAYMENT_APPROVED':
+      return event.type === 'PAYMENT_APPROVED';
     default:
       return false;
   }
@@ -92,4 +94,27 @@ export async function matchAndStartFlowsForChannelEvent(event: ChannelTriggerEve
     if (result.started) started.push(result.runId);
   }
   return { matched: versions.length, started: started.length, runIds: started };
+}
+
+/**
+ * P11: compra aprobada → flujos con trigger PAYMENT_APPROVED, en la ultima
+ * conversacion del contacto (ahi se le puede escribir). Sin conversacion no
+ * arranca nada. La clave es el pago: un webhook repetido no duplica el run.
+ */
+export async function matchAndStartFlowsForPayment(input: { workspaceId: string; contactId: string; paymentId: string }) {
+  const conversation = await prisma.conversation.findFirst({
+    where: { workspaceId: input.workspaceId, contactId: input.contactId },
+    orderBy: { lastMessageAt: 'desc' },
+    select: { id: true, channelType: true, channelAccountId: true },
+  });
+  if (!conversation) return { matched: 0, started: 0, runIds: [] as string[] };
+  return matchAndStartFlowsForChannelEvent({
+    eventId: `payment:${input.paymentId}`,
+    accountId: conversation.channelAccountId ?? undefined,
+    workspaceId: input.workspaceId,
+    channel: conversation.channelType,
+    type: 'PAYMENT_APPROVED',
+    contactId: input.contactId,
+    conversationId: conversation.id,
+  });
 }

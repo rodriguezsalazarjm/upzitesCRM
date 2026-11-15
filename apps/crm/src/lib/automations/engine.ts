@@ -14,6 +14,7 @@ import type { ModelProvider } from '../agents/provider';
 import { getPolicy, nextAllowedInstant } from '../marketing/policy';
 import { activateHumanControl } from '../whatsapp/human-control';
 import { sendChannelMessage } from '../channels/outbound';
+import { queuePushEvent } from '../push/events';
 import { getWorkspaceEntitlements } from '../entitlements';
 import { buyerFacingCheckoutUrl } from '../commerce/public-checkout-link';
 import { flowRequirements, missingFeatures } from '../entitlements/requirements';
@@ -518,6 +519,14 @@ async function executeAction(
       const checkout = result.data as Record<string, unknown>;
       if (ctx.conversationId && typeof checkout.publicUrl === 'string') await sendChannelMessage({ workspaceId: ctx.workspaceId, conversationId: ctx.conversationId, text: buyerFacingCheckoutUrl(checkout as { publicUrl: string }) });
       return { kind: 'CONTINUE', state: { ...ctx.state, checkout } };
+    }
+
+    case 'NOTIFY_STAFF': {
+      // P11: aviso al equipo (a la persona indicada si sigue activa; si no, a los admins).
+      // La clave incluye el run y el nodo: un reintento del paso no notifica dos veces.
+      const userId = typeof params.userId === 'string' && (await isActiveMember(ctx.workspaceId, params.userId)) ? params.userId : null;
+      await queuePushEvent({ workspaceId: ctx.workspaceId, kind: 'HUMAN_ATTENTION', dedupeKey: `flow-notify:${ctx.runId}:${node.id}`, userId, conversationId: ctx.conversationId ?? undefined });
+      return { kind: 'CONTINUE' };
     }
 
     case 'REQUEST_HUMAN_HANDOFF': {

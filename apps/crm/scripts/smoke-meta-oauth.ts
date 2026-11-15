@@ -38,6 +38,7 @@ import { ingestMessengerWebhook } from '../src/lib/messenger/inbound';
 import { processChannelEvent } from '../src/lib/channels/process';
 import { generateQuickFlow } from '../src/lib/automations/catalog';
 import { createFlow, saveFlow } from '../src/lib/automations/service';
+import { applyApprovedPayment } from '../src/lib/domain/lifecycle';
 import { sendChannelMessage } from '../src/lib/channels/outbound';
 
 let checks = 0;
@@ -165,6 +166,26 @@ try {
   } finally {
     globalThis.fetch = realFetch;
   }
+
+  // P11: trigger "Compra aprobada" + accion "Notificar al equipo". Un webhook
+  // de pago repetido no arranca un segundo run; otro pago si.
+  const buyer = await prisma.conversation.findFirstOrThrow({ where: { workspaceId: igWorkspace.id, channelAccountId: igAccount.id }, select: { contactId: true } });
+  const payGraph = {
+    trigger: { type: 'PAYMENT_APPROVED' as const, accountId: igAccount.id },
+    nodes: [
+      { id: 'notify', type: 'ACTION' as const, action: 'NOTIFY_STAFF' as const, params: {} },
+      { id: 'end', type: 'END' as const },
+    ],
+    edges: [{ id: 'edge-0', from: 'notify', to: 'end' }],
+  };
+  const payFlow = await createFlow(igWorkspace.id, igUser.id, 'Compra -> aviso', 'INSTAGRAM', payGraph);
+  await saveFlow(igWorkspace.id, payFlow.id, igUser.id, { action: 'publish', versionId: payFlow.versions[0].id });
+  const paymentId = `pay_${randomUUID()}`;
+  await applyApprovedPayment({ workspaceId: igWorkspace.id, contactId: buyer.contactId, paymentId });
+  await applyApprovedPayment({ workspaceId: igWorkspace.id, contactId: buyer.contactId, paymentId });
+  check('P11: compra aprobada arranco 1 run aunque el webhook llego 2 veces', (await prisma.automationFlowRun.count({ where: { workspaceId: igWorkspace.id, flowId: payFlow.id } })) === 1);
+  await applyApprovedPayment({ workspaceId: igWorkspace.id, contactId: buyer.contactId, paymentId: `pay_${randomUUID()}` });
+  check('P11: un segundo pago arranco otro run', (await prisma.automationFlowRun.count({ where: { workspaceId: igWorkspace.id, flowId: payFlow.id } })) === 2);
 
   // ------------------------------------------------------------------
   // MESSENGER: OAuth -> DOS Pages devueltas -> se elige la Page 2 (nunca la

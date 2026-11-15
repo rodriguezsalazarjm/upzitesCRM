@@ -134,6 +134,8 @@ const automationAction = z.enum([
 
   'REQUEST_HUMAN_HANDOFF',
 
+  'NOTIFY_STAFF',
+
 ]);
 
 

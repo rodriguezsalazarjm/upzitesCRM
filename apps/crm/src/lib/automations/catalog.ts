@@ -12,6 +12,8 @@ export const TRIGGERS: { type: FlowTrigger['type']; label: string; capability: C
   { type: 'SHARE', label: 'Compartir', capability: 'SHARE_TRIGGER' },
   { type: 'REF_LINK', label: 'Referral', capability: 'REF_URL_TRIGGER' },
   { type: 'AD_CONVERSATION_STARTED', label: 'Conversación desde anuncio', capability: 'AD_TRIGGER' },
+  // P11: evento commerce. Usa SEND_DM porque el flujo escribe en la conversación del comprador.
+  { type: 'PAYMENT_APPROVED', label: 'Compra aprobada', capability: 'SEND_DM' },
 ];
 export type AccountView = { id: string; channel: Channel; displayName: string | null; status: string; capabilities: string[] };
 export function missingCapabilities(account: AccountView | undefined, requirements: Capability[]): Capability[] {
