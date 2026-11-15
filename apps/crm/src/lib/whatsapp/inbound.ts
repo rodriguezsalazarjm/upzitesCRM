@@ -10,6 +10,7 @@ import {
   WebhookEventStatus,
   AutomationTrigger,
   JobType,
+  Prisma,
 } from '../../../generated/prisma/client';
 import { isMediaKind } from '../media/policy';
 import { enqueue } from '../jobs/queue';
@@ -369,6 +370,11 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
         attribution: { ...attribution, receivedAt: event.timestamp.toISOString() },
         ...(route ? { campaignRouteId: route.id, ...(route.productId ? { productId: route.productId } : {}) } : {}),
       },
+    });
+    // Punto 10: first touch del contacto, solo la primera vez.
+    await prisma.contact.updateMany({
+      where: { id: contactId, workspaceId: channel.workspaceId, firstTouch: { equals: Prisma.DbNull } },
+      data: { firstTouch: { ...attribution, channel: 'whatsapp', receivedAt: event.timestamp.toISOString() } },
     });
     if (route) {
       conversation.campaignRouteId = route.id;

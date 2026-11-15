@@ -1,6 +1,7 @@
 import { Prisma } from '../../../generated/prisma/client';
 import { canManageChannels } from '../conversations';
 import { recordAudit } from '../domain/audit';
+import { SOLD_ORDER_STATUSES } from '../dashboard/widgets/loaders/commerce';
 import { assertFeature } from '../entitlements';
 import { prisma } from '../prisma';
 import type { CampaignRouteInput } from './campaign-routing';
@@ -16,6 +17,33 @@ const SELECT = { id: true, name: true, level: true, externalId: true, productId:
 
 export function listCampaignRoutes(workspaceId: string) {
   return prisma.campaignRoute.findMany({ where: { workspaceId }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }], select: SELECT });
+}
+
+export type RouteMetrics = { conversations: number; sales: number; revenue: { currency: string; total: number }[] };
+
+/**
+ * Punto 10: metricas por regla. Ventas = pedidos pagados con la atribucion
+ * congelada al crearse (no se recalcula con el ultimo clic del contacto).
+ */
+export async function campaignRouteMetrics(workspaceId: string): Promise<Record<string, RouteMetrics>> {
+  const [conversations, orders] = await Promise.all([
+    prisma.conversation.groupBy({ by: ['campaignRouteId'], where: { workspaceId, campaignRouteId: { not: null } }, _count: { _all: true } }),
+    prisma.customerOrder.groupBy({
+      by: ['campaignRouteId', 'currency'],
+      where: { workspaceId, campaignRouteId: { not: null }, status: { in: SOLD_ORDER_STATUSES } },
+      _count: { _all: true },
+      _sum: { total: true },
+    }),
+  ]);
+  const metrics: Record<string, RouteMetrics> = {};
+  const of = (id: string) => (metrics[id] ??= { conversations: 0, sales: 0, revenue: [] });
+  for (const row of conversations) of(row.campaignRouteId!).conversations = row._count._all;
+  for (const row of orders) {
+    const entry = of(row.campaignRouteId!);
+    entry.sales += row._count._all;
+    entry.revenue.push({ currency: row.currency, total: row._sum.total ?? 0 });
+  }
+  return metrics;
 }
 
 async function assertRefs(workspaceId: string, input: CampaignRouteInput) {

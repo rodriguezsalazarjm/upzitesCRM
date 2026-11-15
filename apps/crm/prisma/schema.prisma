@@ -339,6 +339,8 @@ model Contact {
   utmSource      String?       @map("utm_source")
   utmMedium      String?       @map("utm_medium")
   utmCampaign    String?       @map("utm_campaign")
+  /// Punto 10: primer referral de Meta que trajo al contacto (no se sobreescribe).
+  firstTouch     Json?         @map("first_touch")
   value          Int           @default(0)
   tags           String[]      @default([])
   /// Campos dinamicos por workspace (Flow Builder: nodo CONDITION/ACTION).
@@ -1899,41 +1901,46 @@ model DigitalAsset {
 /// Pedido de un cliente. Guarda snapshot de cada linea: el precio de hoy no
 /// puede depender de que el producto siga existiendo manana con ese valor.
 model CustomerOrder {
-  id             String           @id @default(cuid())
-  workspaceId    String           @map("workspace_id")
-  provider       CommerceProvider @default(INTERNAL)
-  externalId     String?          @map("external_id")
-  contactId      String?          @map("contact_id")
-  conversationId String?          @map("conversation_id")
-  status         OrderStatus      @default(DRAFT)
-  currency       String           @default("CLP")
-  subtotal       Int              @default(0)
-  discount       Int              @default(0)
-  total          Int              @default(0)
-  customerEmail  String?          @map("customer_email")
-  customerName   String?          @map("customer_name")
-  notes          String?
-  metadata       Json?
-  confirmedAt    DateTime?        @map("confirmed_at")
-  cancelledAt    DateTime?        @map("cancelled_at")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(cuid())
+  workspaceId     String           @map("workspace_id")
+  provider        CommerceProvider @default(INTERNAL)
+  externalId      String?          @map("external_id")
+  contactId       String?          @map("contact_id")
+  conversationId  String?          @map("conversation_id")
+  status          OrderStatus      @default(DRAFT)
+  currency        String           @default("CLP")
+  subtotal        Int              @default(0)
+  discount        Int              @default(0)
+  total           Int              @default(0)
+  customerEmail   String?          @map("customer_email")
+  customerName    String?          @map("customer_name")
+  notes           String?
+  metadata        Json?
+  /// Punto 10: regla y referral de la conversacion al crear el pedido (snapshot).
+  campaignRouteId String?          @map("campaign_route_id")
+  attribution     Json?
+  confirmedAt     DateTime?        @map("confirmed_at")
+  cancelledAt     DateTime?        @map("cancelled_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
-  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  lines        OrderLine[]
-  payments     Payment[]
-  fulfillments FulfillmentOrder[]
-  deliveries   DigitalDelivery[]
-  offers       OrderOffer[]        @relation("OrderOffers")
-  upsellSource OrderOffer?         @relation("UpsellResultOrder")
-  followUps    JourneyEnrollment[] @relation("FollowUpSourceOrder")
-  followUpWins JourneyEnrollment[] @relation("FollowUpPurchaseOrder")
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact       Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lines         OrderLine[]
+  payments      Payment[]
+  fulfillments  FulfillmentOrder[]
+  deliveries    DigitalDelivery[]
+  offers        OrderOffer[]        @relation("OrderOffers")
+  upsellSource  OrderOffer?         @relation("UpsellResultOrder")
+  followUps     JourneyEnrollment[] @relation("FollowUpSourceOrder")
+  followUpWins  JourneyEnrollment[] @relation("FollowUpPurchaseOrder")
+  campaignRoute CampaignRoute?      @relation(fields: [campaignRouteId], references: [id], onDelete: SetNull)
 
   @@unique([id, workspaceId])
   @@unique([workspaceId, provider, externalId])
   @@index([workspaceId, status, createdAt])
   @@index([workspaceId, contactId])
+  @@index([campaignRouteId])
   @@map("customer_orders")
 }
 
@@ -3893,6 +3900,7 @@ model CampaignRoute {
   agent         AgentDefinition? @relation(fields: [agentId], references: [id], onDelete: SetNull)
   flow          AutomationFlow?  @relation(fields: [flowId], references: [id], onDelete: SetNull)
   conversations Conversation[]
+  orders        CustomerOrder[]
 
   @@unique([workspaceId, level, externalId])
   @@map("campaign_routes")

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CampaignRoutesManager } from '@/components/whatsapp-channels/campaign-routes-manager';
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageChannels } from '@/lib/conversations';
-import { listCampaignRoutes } from '@/lib/whatsapp/campaign-routes';
+import { campaignRouteMetrics, listCampaignRoutes } from '@/lib/whatsapp/campaign-routes';
 import { channelOptions } from '@/lib/whatsapp/channel-manager';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function CampaignRoutesPage() {
   const user = await requireCurrentUser();
   const workspaceId = user.workspace.id;
-  const [routes, options] = await Promise.all([listCampaignRoutes(workspaceId), channelOptions(workspaceId)]);
+  const [routes, options, metrics] = await Promise.all([listCampaignRoutes(workspaceId), channelOptions(workspaceId), campaignRouteMetrics(workspaceId)]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -33,6 +33,7 @@ export default async function CampaignRoutesPage() {
           </p>
           <CampaignRoutesManager
             routes={routes}
+            metrics={metrics}
             options={{ agents: options.agents, products: options.products, flows: options.flows }}
             canManage={canManageChannels(user.role)}
           />

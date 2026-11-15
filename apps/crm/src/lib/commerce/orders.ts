@@ -2,7 +2,7 @@ import {
   CommerceProvider,
   OrderStatus,
   ProductStatus,
-  type Prisma,
+  Prisma,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { assertFeature } from '../entitlements';
@@ -95,12 +95,20 @@ export async function createOrder(input: CreateOrderInput) {
     });
   }
 
+  // Punto 10: el pedido congela la atribucion de su conversacion (acotada al
+  // workspace); un clic posterior en otro anuncio no reescribe esta venta.
+  const source = input.conversationId
+    ? await prisma.conversation.findFirst({ where: { id: input.conversationId, workspaceId: input.workspaceId }, select: { campaignRouteId: true, attribution: true } })
+    : null;
+
   const order = await prisma.customerOrder.create({
     data: {
       workspaceId: input.workspaceId,
       provider: CommerceProvider.INTERNAL,
       contactId: input.contactId ?? null,
       conversationId: input.conversationId ?? null,
+      campaignRouteId: source?.campaignRouteId ?? null,
+      attribution: source?.attribution ?? Prisma.DbNull,
       customerEmail: input.customerEmail ?? null,
       customerName: input.customerName ?? null,
       notes: input.notes,

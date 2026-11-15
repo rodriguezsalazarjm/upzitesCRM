@@ -1,4 +1,4 @@
-import { OfferKind, OrderOfferStatus, OrderStatus, PaymentStatus, ProductStatus, type Prisma } from '../../../generated/prisma/client';
+import { OfferKind, OrderOfferStatus, OrderStatus, PaymentStatus, ProductStatus, Prisma } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
 import { recordAudit } from '../domain/audit';
 import { assertFeature, isEntitlementError } from '../entitlements';
@@ -406,6 +406,8 @@ export async function decideUpsell(orderId: string, token: string | null | undef
             workspaceId: order.workspaceId,
             contactId: order.contactId,
             conversationId: order.conversationId,
+            campaignRouteId: order.campaignRouteId,
+            attribution: order.attribution ?? Prisma.DbNull,
             customerEmail: order.customerEmail,
             customerName: order.customerName,
             status: OrderStatus.DRAFT,

@@ -147,6 +147,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 {payment ? <StatusBadge tone={paymentStatusTone[payment.status] ?? 'neutral'}>{paymentStatusLabel[payment.status] ?? payment.status}</StatusBadge> : '—'}
               </Row>
               <Row label="Fecha">{when(order.createdAt)}</Row>
+              <Row label="Origen">{order.campaignRoute ? `Campaña: ${order.campaignRoute.name}` : (order.attribution as { adId?: string } | null)?.adId ? `Anuncio ${(order.attribution as { adId: string }).adId} (sin regla)` : order.conversationId ? 'Conversación sin atribución' : 'Directo'}{order.conversationId && <> · <Link href={`/inbox/${order.conversationId}`} className="text-electric underline">ver conversación</Link></>}</Row>
               {order.contact?.email || order.customerEmail ? <Row label="Email">{order.contact?.email ?? order.customerEmail}</Row> : null}
             </dl>
             <ul className="mt-4 space-y-1 border-t border-line pt-3">

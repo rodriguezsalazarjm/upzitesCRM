@@ -9,6 +9,8 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { formatMinor } from '@/lib/commerce/money';
+import type { RouteMetrics } from '@/lib/whatsapp/campaign-routes';
 import { ROUTE_LEVEL_LABEL, campaignRouteSchema, type CampaignRouteInput, type RouteLevel } from '@/lib/whatsapp/campaign-routing';
 
 type Option = { id: string; name: string };
@@ -19,10 +21,12 @@ const EMPTY: CampaignRouteInput = { name: '', level: 'AD', externalId: '', produ
 /** Punto 9: reglas anuncio/conjunto/campaña → producto, agente, automatización. */
 export function CampaignRoutesManager({
   routes,
+  metrics,
   options,
   canManage,
 }: {
   routes: Route[];
+  metrics: Record<string, RouteMetrics>;
   options: { agents: Option[]; products: Option[]; flows: Option[] };
   canManage: boolean;
 }) {
@@ -145,6 +149,10 @@ export function CampaignRoutesManager({
                 <p className="text-soft">{ROUTE_LEVEL_LABEL[route.level]} · {route.externalId}</p>
                 <p className="text-graphite">
                   Producto: {nameOf(options.products, route.productId)} · Agente: {nameOf(options.agents, route.agentId)} · Automatización: {nameOf(options.flows, route.flowId)}
+                </p>
+                <p className="text-carbon">
+                  Conversaciones: {metrics[route.id]?.conversations ?? 0} · Ventas: {metrics[route.id]?.sales ?? 0}
+                  {(metrics[route.id]?.revenue ?? []).map((item) => ` · ${formatMinor(item.total, item.currency)}`).join('')}
                 </p>
               </div>
               {canManage && (

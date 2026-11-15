@@ -10,12 +10,18 @@ import { loadChannelContext } from '../../src/lib/whatsapp/channel-runtime';
 import { prisma } from '../../src/lib/prisma';
 import { inboundTextPayload } from '../fixtures/whatsapp';
 
-const channel = await prisma.whatsAppChannel.findFirst({ where: { status: 'CONNECTED' }, select: { id: true, workspaceId: true, phoneNumberId: true, defaultProductId: true } });
-if (!channel) throw new Error('No hay un numero CONNECTED en crm_pruebas.');
+// Primer numero CONNECTED cuyo workspace tenga 2 productos activos (orden estable).
+const channels = await prisma.whatsAppChannel.findMany({ where: { status: 'CONNECTED' }, orderBy: { createdAt: 'asc' }, select: { id: true, workspaceId: true, phoneNumberId: true, defaultProductId: true } });
+let channel: (typeof channels)[number] | undefined;
+let products: { id: string; name: string }[] = [];
+for (const candidate of channels) {
+  products = await prisma.product.findMany({ where: { workspaceId: candidate.workspaceId, status: 'ACTIVE', variants: { some: { isActive: true } } }, orderBy: { createdAt: 'asc' }, take: 2, select: { id: true, name: true } });
+  if (products.length === 2) { channel = candidate; break; }
+}
+if (!channel) throw new Error('No hay un numero CONNECTED cuyo workspace tenga 2 productos activos.');
 const ws = channel.workspaceId;
-const products = await prisma.product.findMany({ where: { workspaceId: ws, status: 'ACTIVE' }, take: 2, select: { id: true, name: true } });
 const agents = await prisma.agentDefinition.findMany({ where: { workspaceId: ws, isActive: true, planLimitedAt: null, versions: { some: { status: 'PUBLISHED' } } }, take: 2, select: { id: true, name: true } });
-if (products.length < 2) throw new Error('Se necesitan 2 productos activos en el workspace del numero.');
+
 
 const ads = ['120200000000000001', '120200000000000002'];
 for (const [i, adId] of ads.entries()) {

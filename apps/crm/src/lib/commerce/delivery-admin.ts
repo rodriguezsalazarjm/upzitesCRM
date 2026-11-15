@@ -36,6 +36,7 @@ export async function orderDeliveryView(workspaceId: string, orderId: string) {
       lines: { orderBy: { id: 'asc' }, include: { variant: { select: { productId: true, product: { select: { type: true } } } } } },
       payments: { orderBy: { createdAt: 'desc' } },
       contact: { select: { firstName: true, lastName: true, email: true } },
+      campaignRoute: { select: { name: true } },
       deliveries: { orderBy: { createdAt: 'asc' }, include: { items: { orderBy: { position: 'asc' } } } },
     },
   });

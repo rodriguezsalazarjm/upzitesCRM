@@ -14,8 +14,8 @@ CONCLUIDO = el hito está demostrado y las pruebas relevantes pasan. Ninguna ram
 | 6 | Bump / upsell | feat/offers-bump-upsell 01677e7 | BLOQUEADO_EXTERNO | MP en demo | MP TEST (P27) | — |
 | 7 | Seguimiento | feat/commercial-followups 2054e9d | IMPLEMENTADO_SIN_VALIDAR | smoke reloj controlado | canales reales | — |
 | 8 | WhatsApp Manager | feat/whatsapp-channel-manager 65eaad0 | BLOQUEADO_EXTERNO | tsc + test 30/30 (15-11); smoke 39/39 con mocks (02-11) | Tech Provider, META_APP_ID/SECRET, config Embedded Signup, número, webhook público | conectar número real |
-| 9 | Campaign Routing | feat/campaign-routing 7e2b8f6+ | IMPLEMENTADO_SIN_VALIDAR | tsc limpio; 14 tests; `scripts/visual/p9-campaign-hito.ts` en crm_pruebas: 2 anuncios → 2 productos, sin referral → número | Meta solo envía ad id (no conjunto/campaña); CTWA real; <2 agentes publicados en QA | anuncios CTWA reales |
-| 10 | CTWA / atribución | feat/campaign-routing | EN_CURSO | — | — | first touch + pedido + métricas |
+| 9 | Campaign Routing | feat/campaign-routing 7fc47bc | IMPLEMENTADO_SIN_VALIDAR | tsc limpio; 14 tests; `scripts/visual/p9-campaign-hito.ts` en crm_pruebas: 2 anuncios → 2 productos, sin referral → número | Meta solo envía ad id (no conjunto/campaña); CTWA real; <2 agentes publicados en QA | anuncios CTWA reales |
+| 10 | CTWA / atribución | feat/ctwa-attribution | IMPLEMENTADO_SIN_VALIDAR | tsc limpio; `scripts/visual/p10-attribution-hito.ts`: conversación atribuida → createOrder real → pedido con regla/referral congelados → ventas y revenue por regla; first touch en el contacto. Pago marcado directo en la base de pruebas | CTWA real + MP TEST (P27) | venta real desde anuncio |
 | 11–13 | Instagram, Flow Builder, plantillas | — | PENDIENTE | — | Instagram: Meta App Review (trabajo D1 en C:\dev\upzites, sin integrar) | — |
 | 14–18 | Experiencia | — | PENDIENTE (base existente) | — | — | — |
 | 19–24 | Social | — | PENDIENTE | — | APIs Meta/TikTok | — |
