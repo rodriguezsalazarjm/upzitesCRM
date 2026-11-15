@@ -8,6 +8,8 @@ export type ChannelSendInput = {
   text: string;
   delivery?: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY';
   commentId?: string;
+  /** Fin de la ventana de mensajeria de 24h (Conversation.customerServiceWindowEndsAt). */
+  windowOpenUntil?: Date | null;
 };
 
 /** Contrato comun que cada proveedor de canal implementa. */

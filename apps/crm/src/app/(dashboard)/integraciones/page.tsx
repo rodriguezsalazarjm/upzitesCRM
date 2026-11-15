@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { getIntegrations, IntegrationStatus } from '@/lib/ops-data';
 import { WhatsAppChannelsSummary } from './whatsapp-channels-summary';
 import { MercadoPagoIntegrationCard } from './mercado-pago-integration-card';
+import { MetaChannelCard } from '@/components/channels/meta-channel-card';
+import { MessengerPageSelector } from '@/components/channels/messenger-page-selector';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,16 +25,29 @@ const statusLabel = {
   [IntegrationStatus.DISCONNECTED]: 'No conectado',
 } as const;
 
-export default async function IntegracionesPage() {
+export default async function IntegracionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ messenger?: string }>;
+}) {
   const user = await requireCurrentUser();
   const accounts = await prisma.channelAccount.findMany({ where: { workspaceId: user.workspace.id }, select: { id: true, channel: true, externalAccountId: true, displayName: true, status: true, metadata: true } });
   const integrations = await getIntegrations();
+  const demo = isLocalDemo();
+  const { messenger } = await searchParams;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Integraciones" subtitle="Canales y servicios conectados al CRM" />
       <div className="grid flex-1 content-start gap-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:grid-cols-2">
-        <IntegrationCards accounts={accounts} demo={isLocalDemo()} canManage={canManageChannels(user.role)} />
+        <IntegrationCards accounts={accounts} demo={demo} canManage={canManageChannels(user.role)} />
+        {!demo && messenger === 'elegir_pagina' && <MessengerPageSelector />}
+        {!demo && (
+          <>
+            <MetaChannelCard channel="INSTAGRAM" label="Instagram" accountNoun="Cuenta" />
+            <MetaChannelCard channel="MESSENGER" label="Messenger" accountNoun="Página" />
+          </>
+        )}
         <WhatsAppChannelsSummary workspaceId={user.workspace.id} />
         <MercadoPagoIntegrationCard />
         {integrations

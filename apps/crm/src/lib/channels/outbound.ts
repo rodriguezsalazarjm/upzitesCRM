@@ -73,6 +73,7 @@ export async function sendChannelMessage(input: { workspaceId: string; conversat
     text: input.text,
     delivery: input.delivery,
     commentId: input.commentId,
+    windowOpenUntil: conversation.customerServiceWindowEndsAt,
   });
 
   await prisma.message.update({

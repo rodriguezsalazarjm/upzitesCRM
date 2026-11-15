@@ -31,6 +31,16 @@ const OPTIONAL_INTEGRATIONS = [
     effect: 'no se podran guardar tokens de WhatsApp ni Shopify',
   },
   {
+    name: 'Instagram OAuth (Business Login for Instagram)',
+    vars: ['META_INSTAGRAM_APP_ID', 'META_INSTAGRAM_APP_SECRET', 'INSTAGRAM_VERIFY_TOKEN'],
+    effect: 'el boton de conectar Instagram quedara deshabilitado',
+  },
+  {
+    name: 'Messenger OAuth (Facebook Login)',
+    vars: ['META_APP_ID', 'META_APP_SECRET', 'MESSENGER_VERIFY_TOKEN'],
+    effect: 'el boton de conectar Messenger quedara deshabilitado',
+  },
+  {
     name: 'Worker interno',
     vars: ['INTERNAL_WORKER_SECRET'],
     effect: '/api/internal/* respondera 401 y el outbox no se procesara en background',

@@ -13,6 +13,8 @@ import { safely, stopFollowUpsOnReply } from '../followups/stop';
 import { matchAndStartFlowsForChannelEvent } from '../automations/triggers';
 import { resolveContactForChannelIdentity } from './identity';
 
+const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Paso 2, comun a Instagram/Messenger/TikTok: toma el ChannelEvent ya
  * normalizado y le da efecto en el CRM — resuelve/crea Contact y
@@ -77,7 +79,16 @@ export async function processChannelEvent(eventId: string) {
       });
       await prisma.conversation.update({
         where: { id: conversation.id },
-        data: { lastInboundAt: new Date(), lastMessageAt: new Date(), unreadCount: { increment: 1 } },
+        // Misma ventana de 24h que WhatsApp (customerServiceWindowEndsAt): un
+        // mensaje entrante la abre/renueva. Sin esto no hay forma de que el
+        // envio saliente sepa si puede mandar un DM ordinario o no (ver
+        // channels/providers.ts, "no enviar DM a nadie fuera de contexto").
+        data: {
+          lastInboundAt: new Date(),
+          lastMessageAt: new Date(),
+          unreadCount: { increment: 1 },
+          customerServiceWindowEndsAt: new Date(Date.now() + MESSAGING_WINDOW_MS),
+        },
       });
       // Punto 7: respondio por Instagram/Messenger: sus seguimientos se detienen.
       await safely(() => stopFollowUpsOnReply({ workspaceId: event.workspaceId, contactId: contact.id, text }));

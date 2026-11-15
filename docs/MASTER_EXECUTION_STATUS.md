@@ -16,7 +16,8 @@ CONCLUIDO = el hito está demostrado y las pruebas relevantes pasan. Ninguna ram
 | 8 | WhatsApp Manager | feat/whatsapp-channel-manager 65eaad0 | BLOQUEADO_EXTERNO | tsc + test 30/30 (15-11); smoke 39/39 con mocks (02-11) | Tech Provider, META_APP_ID/SECRET, config Embedded Signup, número, webhook público | conectar número real |
 | 9 | Campaign Routing | feat/campaign-routing 7fc47bc | IMPLEMENTADO_SIN_VALIDAR | tsc limpio; 14 tests; `scripts/visual/p9-campaign-hito.ts` en crm_pruebas: 2 anuncios → 2 productos, sin referral → número | Meta solo envía ad id (no conjunto/campaña); CTWA real; <2 agentes publicados en QA | anuncios CTWA reales |
 | 10 | CTWA / atribución | feat/ctwa-attribution | IMPLEMENTADO_SIN_VALIDAR | tsc limpio; `scripts/visual/p10-attribution-hito.ts`: conversación atribuida → createOrder real → pedido con regla/referral congelados → ventas y revenue por regla; first touch en el contacto. Pago marcado directo en la base de pruebas | CTWA real + MP TEST (P27) | venta real desde anuncio |
-| 11–13 | Instagram, Flow Builder, plantillas | — | PENDIENTE | — | Instagram: Meta App Review (trabajo D1 en C:\dev\upzites, sin integrar) | — |
+| D1 | OAuth Instagram/Messenger (base de P11/P28) | feat/meta-oauth-d1 | IMPLEMENTADO_SIN_VALIDAR | integrado desde el working tree de C:\dev\upzites sin modificarlo; tsc limpio; meta-oauth-state 7/7; smoke-meta-oauth 16/16 con transporte Meta falso | app Meta real + App Review de scopes | conexión real |
+| 11–13 | Instagram, Flow Builder, plantillas | — | PENDIENTE | — | Meta App Review | P11 sobre feat/meta-oauth-d1 |
 | 14–18 | Experiencia | — | PENDIENTE (base existente) | — | — | — |
 | 19–24 | Social | — | PENDIENTE | — | APIs Meta/TikTok | — |
 | 37–38 | Quote Studio, Email Lite | — | PENDIENTE (hay cotizador previo) | — | OAuth Gmail/M365 para 38 | — |
