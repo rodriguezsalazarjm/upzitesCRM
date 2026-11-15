@@ -21,6 +21,10 @@ import { safely, stopFollowUpsOnReply } from '../followups/stop';
 import { emitDomainEvent } from '../automation/emit';
 import { scheduleAgentRun } from '../agents/dispatch';
 import { recordAudit } from '../domain/audit';
+import { startFlowRun } from '../automations/engine';
+import { triggerMatchesEvent } from '../automations/triggers';
+import { flowGraphSchema } from '../automations/schema';
+import { loadChannelContext, recordChannelError } from './channel-runtime';
 import { queuePushSafely } from '../push/events';
 import {
   dedupeKeyFor,
@@ -134,6 +138,12 @@ export async function processWebhookEvent(eventId: string) {
 }
 
 async function applyEvent(event: NormalizedEvent) {
+  // Punto 8: lo que realmente llego de Meta para este numero. Es la unica
+  // prueba de que el webhook funciona; tener la app suscrita no lo es.
+  await prisma.whatsAppChannel.updateMany({
+    where: { phoneNumberId: event.phoneNumberId },
+    data: { lastWebhookAt: new Date() },
+  });
   return event.kind === 'message' ? applyInboundMessage(event) : applyStatusUpdate(event);
 }
 
@@ -147,7 +157,7 @@ async function applyEvent(event: NormalizedEvent) {
 async function resolveChannel(phoneNumberId: string) {
   return prisma.whatsAppChannel.findUnique({
     where: { phoneNumberId },
-    select: { id: true, workspaceId: true, status: true },
+    select: { id: true, workspaceId: true, status: true, planLimitedAt: true },
   });
 }
 
@@ -172,6 +182,7 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
   let conversationId = '';
   let mediaAssetPending = false;
   let mediaMessageId = '';
+  let startedConversation = false;
 
   const contactId = await prisma.$transaction(async (tx) => {
     const before = await tx.contact.count({ where: { workspaceId: channel.workspaceId, phone } });
@@ -212,8 +223,11 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     // como cobra Meta y es lo que el cliente entiende por "una conversacion".
     const previous = await tx.conversation.findUnique({
       where: { channelId_contactId: { channelId: channel.id, contactId: contact.id } },
-      select: { lastInboundAt: true },
+      select: { lastInboundAt: true, status: true },
     });
+    // Conversacion nueva o reabierta: es cuando se registra el contexto del
+    // numero (no en cada mensaje).
+    startedConversation = !previous || previous.status === ConversationStatus.CLOSED;
 
     const period = now.toISOString().slice(0, 7);
     countsAsNewConversation =
@@ -283,6 +297,7 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
       where: { id: contact.id },
       data: { lastActivityAt: now },
     });
+    await tx.whatsAppChannel.update({ where: { id: channel.id }, data: { lastInboundAt: now } });
 
     conversationWorkspaceId = channel.workspaceId;
     conversationId = conversation.id;
@@ -338,8 +353,44 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
 
   const conversation = await prisma.conversation.findUnique({
     where: { channelId_contactId: { channelId: channel.id, contactId } },
-    select: { id: true, assignedUserId: true },
+    select: { id: true, assignedUserId: true, productId: true, mode: true },
   });
+
+  // Punto 8: contexto del numero (producto, agente, automatizacion, fallback).
+  const context = conversation
+    ? await loadChannelContext(channel.id, channel.workspaceId, conversation.productId, event.timestamp)
+    : null;
+  if (conversation && context?.productSource === 'CHANNEL_DEFAULT' && context.productId) {
+    // Solo si sigue sin producto: una atribucion que llego entre medio manda.
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, workspaceId: channel.workspaceId, productId: null },
+      data: { productId: context.productId },
+    });
+  }
+  if (conversation && context && !context.aiAllowed && context.fallbackUserId && !conversation.assignedUserId) {
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, workspaceId: channel.workspaceId, assignedUserId: null },
+      data: { assignedUserId: context.fallbackUserId },
+    });
+    conversation.assignedUserId = context.fallbackUserId;
+  }
+  if (conversation && context && (startedConversation || context.warnings.length > 0)) {
+    await recordAudit({
+      workspaceId: channel.workspaceId,
+      action: context.aiAllowed ? 'whatsapp.context_resolved' : 'whatsapp.human_fallback',
+      entity: 'WhatsAppChannel',
+      entityId: channel.id,
+      metadata: {
+        conversationId: conversation.id,
+        productId: context.productId,
+        productSource: context.productSource,
+        agentId: context.agentId,
+        flowId: context.flowId,
+        reason: context.humanReason,
+        warnings: context.warnings,
+      },
+    });
+  }
 
   if (conversation?.assignedUserId) {
     await queuePushSafely({
@@ -372,17 +423,85 @@ async function applyInboundMessage(event: NormalizedInboundMessage) {
     context: { message: { text: event.text ?? '', type: event.type } },
   });
 
+  // Punto 8: automatizacion predeterminada del numero. La clave del run es el
+  // id del mensaje de Meta: una reentrega del webhook no la arranca dos veces.
+  // Si arranca, ella conduce la respuesta y el agente no contesta encima.
+  let flowStarted = false;
+  if (conversation && context?.flowId && !channel.planLimitedAt) {
+    flowStarted = await startDefaultFlow({
+      workspaceId: channel.workspaceId,
+      flowId: context.flowId,
+      contactId,
+      conversationId: conversation.id,
+      externalMessageId: event.externalMessageId,
+      text: event.text ?? null,
+    });
+  }
+
   // El agente responde con retraso deliberado: si el cliente escribe tres
   // mensajes seguidos, la ventana se corre y contesta una vez viendo los tres.
-  if (conversation) {
+  if (conversation && context?.aiAllowed && !flowStarted) {
     await scheduleAgentRun({
       workspaceId: channel.workspaceId,
       conversationId: conversation.id,
       trigger: 'inbound_message',
     });
+  } else if (conversation && context && !context.aiAllowed && conversation.mode !== ConversationMode.HUMAN_ACTIVE) {
+    // La IA no atiende este numero ahora: la conversacion queda para una
+    // persona, con aviso (al responsable si hay, si no al equipo).
+    await queuePushSafely({
+      workspaceId: channel.workspaceId,
+      kind: 'HUMAN_ATTENTION',
+      dedupeKey: `channel-fallback:${event.externalMessageId}`,
+      userId: conversation.assignedUserId ?? undefined,
+      conversationId: conversation.id,
+    });
   }
 
   return true;
+}
+
+/**
+ * Arranca la automatizacion predeterminada del numero si su disparador (mensaje
+ * recibido, con o sin palabras clave) coincide con este mensaje.
+ */
+async function startDefaultFlow(input: {
+  workspaceId: string;
+  flowId: string;
+  contactId: string;
+  conversationId: string;
+  externalMessageId: string;
+  text: string | null;
+}) {
+  const version = await prisma.automationFlowVersion.findFirst({
+    where: { flowId: input.flowId, status: 'PUBLISHED', flow: { workspaceId: input.workspaceId } },
+    orderBy: { version: 'desc' },
+  });
+  if (!version) return false;
+  const graph = flowGraphSchema.safeParse({ trigger: version.trigger, nodes: version.nodes, edges: version.edges });
+  if (!graph.success) return false;
+  const eventId = `whatsapp:${input.externalMessageId}`;
+  const matches = triggerMatchesEvent(graph.data.trigger, {
+    eventId,
+    workspaceId: input.workspaceId,
+    channel: 'WHATSAPP',
+    type: 'DM_RECEIVED',
+    text: input.text,
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+  });
+  if (!matches) return false;
+  const result = await startFlowRun({
+    workspaceId: input.workspaceId,
+    flowId: input.flowId,
+    flowVersionId: version.id,
+    channel: 'WHATSAPP',
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+    triggerDedupeKey: eventId,
+    state: { eventId },
+  });
+  return result.started || result.reason === 'ALREADY_STARTED';
 }
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -477,6 +596,11 @@ async function applyStatusUpdate(event: NormalizedStatusUpdate) {
   });
 
   if (event.status === MessageStatus.FAILED) {
+    // Punto 8: el ultimo fallo de envio queda visible en el numero.
+    await recordChannelError(channel, {
+      code: event.errorCode ?? 'SEND_FAILED',
+      message: event.errorMessage ?? 'WhatsApp no pudo entregar un mensaje.',
+    });
     await recordAudit({
       workspaceId: channel.workspaceId,
       action: 'whatsapp.message_failed',

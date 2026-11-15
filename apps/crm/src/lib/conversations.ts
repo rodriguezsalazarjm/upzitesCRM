@@ -17,6 +17,8 @@ export type ConversationListItem = {
   contactName: string;
   contactPhone: string | null;
   channel: Channel;
+  /** Punto 8: numero de WhatsApp por el que entro (nombre interno o numero). */
+  channelLabel: string | null;
   lastMessageAt: string;
   lastMessagePreview: string | null;
   mode: ConversationMode;
@@ -52,6 +54,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
       contact: { select: { firstName: true, lastName: true, phone: true, temperature: true } },
       assignee: { select: { name: true } },
       messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { text: true, type: true } },
+      channel: { select: { label: true, displayPhoneNumber: true } },
     },
   });
 
@@ -62,6 +65,7 @@ export async function listConversations(filters: ConversationFilters = {}) {
     contactName: `${conversation.contact.firstName} ${conversation.contact.lastName}`.trim(),
     contactPhone: conversation.contact.phone,
     channel: conversation.channelType,
+    channelLabel: conversation.channel ? conversation.channel.label || conversation.channel.displayPhoneNumber : null,
     lastMessageAt: conversation.lastMessageAt.toISOString(),
     // Una foto sin epigrafe dejaba la lista en blanco, como si la conversacion
     // no tuviera nada nuevo. Se nombra el tipo de adjunto.

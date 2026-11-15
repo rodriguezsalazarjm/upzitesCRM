@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getIntegrations, IntegrationStatus } from '@/lib/ops-data';
-import { WhatsAppIntegrationCard } from './whatsapp-integration-card';
+import { WhatsAppChannelsSummary } from './whatsapp-channels-summary';
 import { MercadoPagoIntegrationCard } from './mercado-pago-integration-card';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,7 @@ export default async function IntegracionesPage() {
       <Header title="Integraciones" subtitle="Canales y servicios conectados al CRM" />
       <div className="grid flex-1 content-start gap-4 overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:grid-cols-2">
         <IntegrationCards accounts={accounts} demo={isLocalDemo()} canManage={canManageChannels(user.role)} />
-        <WhatsAppIntegrationCard />
+        <WhatsAppChannelsSummary workspaceId={user.workspace.id} />
         <MercadoPagoIntegrationCard />
         {integrations
           .filter((integration) => integration.provider !== 'WHATSAPP' && integration.provider !== 'MERCADO_PAGO')

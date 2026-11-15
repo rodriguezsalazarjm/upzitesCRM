@@ -21,6 +21,7 @@ export class MetaWhatsAppError extends Error {
     message: string,
     readonly code:
       | 'INVALID_CREDENTIALS'
+      | 'PERMISSION_DENIED'
       | 'PHONE_NOT_IN_WABA'
       | 'SUBSCRIPTION_FAILED'
       | 'META_UNAVAILABLE',
@@ -60,6 +61,15 @@ async function metaRequest(
   if (response.ok) return body;
 
   const providerCode = body.error?.code;
+  // Punto 8: el token sirve pero le falta un permiso (10, 200-299). Es otro
+  // arreglo para el cliente que un token vencido: se dice cual es.
+  if (providerCode === 10 || (providerCode !== undefined && providerCode >= 200 && providerCode < 300)) {
+    throw new MetaWhatsAppError(
+      'Meta acepto el token, pero no tiene los permisos necesarios (whatsapp_business_management y whatsapp_business_messaging) sobre esta cuenta.',
+      'PERMISSION_DENIED',
+      400,
+    );
+  }
   if (response.status === 401 || response.status === 403 || providerCode === 190) {
     throw new MetaWhatsAppError(
       'El token de Meta es invalido, vencio o no tiene permisos para administrar esta cuenta de WhatsApp.',
@@ -144,3 +154,19 @@ export async function verifyAndSubscribeWhatsAppChannel(input: {
     subscribedAt: new Date(),
   };
 }
+
+/**
+ * Punto 8: comprueba en Meta (no en la base) que la WABA tiene apps suscritas a
+ * sus webhooks. Meta no dice cual app es la nuestra sin el id de app, asi que
+ * cuando `META_APP_ID` existe se exige que aparezca.
+ */
+export async function checkWebhookSubscription(input: { wabaId: string; accessToken: string }) {
+  const body = await metaRequest(graphUrl(`${encodeURIComponent(input.wabaId)}/subscribed_apps`), input.accessToken);
+  const apps = Array.isArray(body.data) ? (body.data as { whatsapp_business_api_data?: { id?: string }; id?: string }[]) : [];
+  const ids = apps.map((app) => String(app.whatsapp_business_api_data?.id ?? app.id ?? '')).filter(Boolean);
+  const appId = process.env.META_APP_ID;
+  return { subscribed: appId ? ids.includes(appId) : ids.length > 0, appCount: ids.length, checkedAt: new Date() };
+}
+
+/** Uso interno de embedded-signup.ts: misma clasificacion de errores. */
+export { metaRequest as metaGraphRequest, graphUrl as whatsappGraphUrl };

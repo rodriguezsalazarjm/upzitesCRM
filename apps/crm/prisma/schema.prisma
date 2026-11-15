@@ -155,6 +155,8 @@ model User {
   invitationsSent     WorkspaceInvitation[] @relation("InvitationInviter")
   invitationsAccepted WorkspaceInvitation[] @relation("InvitationAcceptedBy")
 
+  whatsappFallbackChannels WhatsAppChannel[] @relation("WhatsAppChannelFallbackUser")
+
   @@index([workspaceId])
   @@map("users")
 }
@@ -911,34 +913,65 @@ model UsageRecord {
 /// `phoneNumberId` es unico global: es la llave con la que el webhook resuelve
 /// a que workspace pertenece un evento entrante.
 model WhatsAppChannel {
-  id                   String                @id @default(cuid())
-  workspaceId          String                @map("workspace_id")
-  integrationId        String?               @map("integration_id")
-  wabaId               String                @map("waba_id")
-  phoneNumberId        String                @unique @map("phone_number_id")
-  displayPhoneNumber   String                @map("display_phone_number")
-  businessName         String?               @map("business_name")
-  accessTokenEncrypted String?               @map("access_token_encrypted")
-  tokenExpiresAt       DateTime?             @map("token_expires_at")
-  status               WhatsAppChannelStatus @default(PENDING)
-  qualityRating        String?               @map("quality_rating")
-  messagingLimit       String?               @map("messaging_limit")
-  webhookSubscribedAt  DateTime?             @map("webhook_subscribed_at")
-  lastHealthCheckAt    DateTime?             @map("last_health_check_at")
+  id                   String                    @id @default(cuid())
+  workspaceId          String                    @map("workspace_id")
+  integrationId        String?                   @map("integration_id")
+  wabaId               String                    @map("waba_id")
+  phoneNumberId        String                    @unique @map("phone_number_id")
+  displayPhoneNumber   String                    @map("display_phone_number")
+  businessName         String?                   @map("business_name")
+  accessTokenEncrypted String?                   @map("access_token_encrypted")
+  tokenExpiresAt       DateTime?                 @map("token_expires_at")
+  status               WhatsAppChannelStatus     @default(PENDING)
+  qualityRating        String?                   @map("quality_rating")
+  messagingLimit       String?                   @map("messaging_limit")
+  webhookSubscribedAt  DateTime?                 @map("webhook_subscribed_at")
+  lastHealthCheckAt    DateTime?                 @map("last_health_check_at")
   metadata             Json?
   /// P0-C: restriccion por PLAN, ortogonal al estado de negocio. No NULL =
   /// el recurso existe y conserva su estado, pero el plan vigente no permite
   /// usarlo (downgrade, vencimiento). Solo lo escribe
   /// `reconcileWorkspaceEntitlements`; subir de plan lo limpia sin tocar el
   /// estado que decidio el usuario.
-  planLimitedAt        DateTime?             @map("plan_limited_at")
+  planLimitedAt        DateTime?                 @map("plan_limited_at")
   /// Clave del entitlement que lo limita (p. ej. `channels.max`).
-  planLimitedReason    String?               @map("plan_limited_reason")
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
+  planLimitedReason    String?                   @map("plan_limited_reason")
+  /// Punto 8: identidad y configuracion por numero. Los ids por defecto se
+  /// validan contra el workspace al guardar y otra vez al resolver el contexto
+  /// de cada mensaje: una FK simple no basta para impedir referencias cruzadas.
+  label                String?
+  usage                WhatsAppChannelUsage      @default(GENERAL)
+  /// EMBEDDED_SIGNUP o MANUAL. Informativo: el token se trata igual.
+  connectionMethod     String?                   @map("connection_method")
+  defaultAgentId       String?                   @map("default_agent_id")
+  defaultProductId     String?                   @map("default_product_id")
+  defaultFlowId        String?                   @map("default_flow_id")
+  /// Apagar la IA de un numero deja sus conversaciones para el equipo.
+  aiEnabled            Boolean                   @default(true) @map("ai_enabled")
+  aiSchedule           WhatsAppAiSchedule        @default(ALWAYS) @map("ai_schedule")
+  attentionTimezone    String                    @default("America/Santiago") @map("attention_timezone")
+  attentionStartMinute Int                       @default(540) @map("attention_start_minute")
+  attentionEndMinute   Int                       @default(1140) @map("attention_end_minute")
+  /// 0 = domingo.
+  attentionDays        Int[]                     @default([1, 2, 3, 4, 5]) @map("attention_days")
+  noProductBehavior    WhatsAppNoProductBehavior @default(AI_GENERAL) @map("no_product_behavior")
+  /// Quien recibe las conversaciones que la IA no atiende. Sin valor: el equipo.
+  fallbackUserId       String?                   @map("fallback_user_id")
+  /// Observabilidad: lo que realmente llego de Meta, no lo que se configuro.
+  lastWebhookAt        DateTime?                 @map("last_webhook_at")
+  lastInboundAt        DateTime?                 @map("last_inbound_at")
+  lastErrorCode        String?                   @map("last_error_code")
+  lastErrorMessage     String?                   @map("last_error_message")
+  lastErrorAt          DateTime?                 @map("last_error_at")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  defaultAgent   AgentDefinition? @relation(fields: [defaultAgentId], references: [id], onDelete: SetNull)
+  defaultProduct Product?         @relation("WhatsAppChannelDefaultProduct", fields: [defaultProductId], references: [id], onDelete: SetNull)
+  defaultFlow    AutomationFlow?  @relation(fields: [defaultFlowId], references: [id], onDelete: SetNull)
+  fallbackUser   User?            @relation("WhatsAppChannelFallbackUser", fields: [fallbackUserId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status])
   @@map("whatsapp_channels")
@@ -1406,6 +1439,8 @@ model AutomationFlow {
   versions  AutomationFlowVersion[]
   runs      AutomationFlowRun[]
 
+  whatsappChannels WhatsAppChannel[]
+
   @@index([workspaceId, status])
   @@map("automation_flows")
 }
@@ -1534,6 +1569,8 @@ model AgentDefinition {
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   versions  AgentVersion[]
   runs      AgentRun[]
+
+  whatsappChannels WhatsAppChannel[]
 
   @@unique([workspaceId, key])
   @@map("agent_definitions")
@@ -1732,6 +1769,8 @@ model Product {
   offers        ProductOffer[]
   conversations Conversation[]
   journeys      Journey[]
+
+  whatsappChannels WhatsAppChannel[] @relation("WhatsAppChannelDefaultProduct")
 
   @@unique([connectionId, externalId])
   @@unique([id, workspaceId])
@@ -3292,6 +3331,26 @@ enum WhatsAppChannelStatus {
   CONNECTED
   DISCONNECTED
   NEEDS_ATTENTION
+}
+
+/// Punto 8: para que se usa el numero (orienta al equipo; no cambia permisos).
+enum WhatsAppChannelUsage {
+  SALES
+  SUPPORT
+  GENERAL
+}
+
+/// Punto 8: cuando atiende la IA del numero, segun su horario de atencion.
+enum WhatsAppAiSchedule {
+  ALWAYS
+  IN_HOURS
+  OUT_OF_HOURS
+}
+
+/// Punto 8: que hace el numero cuando la conversacion no tiene producto.
+enum WhatsAppNoProductBehavior {
+  AI_GENERAL
+  HUMAN
 }
 
 enum ConversationStatus {

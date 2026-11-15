@@ -61,6 +61,8 @@ export const NAV_ITEMS = [
   { id: 'analytics', href: '/insights', label: 'Analítica', icon: 'chart' },
   { id: 'activation', href: '/onboarding', label: 'Puesta en marcha', icon: 'rocket', system: true },
   { id: 'sources', href: '/fuentes', label: 'Fuentes', icon: 'globe', system: true },
+  // Punto 8: administracion de numeros de WhatsApp (Canales → WhatsApp).
+  { id: 'channels', href: '/canales/whatsapp', label: 'Canales', icon: 'inbox', system: true },
   { id: 'integrations', href: '/integraciones', label: 'Integraciones', icon: 'plug', system: true },
   { id: 'usage', href: '/uso', label: 'Uso y costos', icon: 'gauge', system: true },
   // Solo OWNER/ADMIN puede contratar o cambiar el plan (api/billing/checkout).

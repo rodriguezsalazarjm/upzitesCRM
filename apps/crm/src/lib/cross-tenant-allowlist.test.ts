@@ -50,6 +50,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   'scripts/qa-storage-cover.ts': { uses: 2, why: 'QA de portadas contra storage real: limpieza de los workspaces y cuentas de prueba que crea.' },
   'scripts/smoke-product-studio.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke del Product Sales Studio.' },
   'scripts/smoke-offers.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de order bump y upsell (Punto 6).' },
+  'scripts/smoke-whatsapp-channels.ts': { uses: 8, why: 'Test: comprobaciones de aislamiento (contactos y jobs de otro workspace) y limpieza de lo que crea el smoke del Channel Manager (Punto 8).' },
   'scripts/smoke-followups.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de seguimientos comerciales (Punto 7).' },
   'scripts/smoke-digital-delivery.ts': { uses: 3, why: 'Test: limpieza de los workspaces, cuentas y auditoria de plataforma que crea el smoke de la entrega digital (Punto 3).' },
   'scripts/qa-storage-deliverables.ts': { uses: 2, why: 'QA de entregables contra storage real: limpieza de los workspaces y cuentas de prueba que crea.' },

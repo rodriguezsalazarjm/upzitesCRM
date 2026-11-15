@@ -12,6 +12,7 @@ import { canWorkspaceConsume } from '../billing/subscription-access';
 import { recordAudit } from '../domain/audit';
 import { crossTenantPrisma, prisma } from '../prisma';
 import { sendTextMessage } from './client';
+import { recordChannelError } from './channel-runtime';
 import { queuePushSafely } from '../push/events';
 import {
   inferOutboundOrigin,
@@ -410,18 +411,14 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
         continue;
       }
 
-      if (sent.errorCode === '190' || sent.errorCode === '401' || sent.errorCode === '403') {
-        await prisma.$transaction([
-          prisma.whatsAppChannel.update({
-            where: { id: channel.id },
-            data: { status: 'NEEDS_ATTENTION' },
-          }),
-          prisma.integration.updateMany({
-            where: { workspaceId: channel.workspaceId, provider: 'WHATSAPP' },
-            data: { status: 'NEEDS_ATTENTION' },
-          }),
-        ]);
-      }
+      // Punto 8: el fallo queda como ultimo error del numero; credenciales
+      // invalidas ademas lo marcan para reconectar.
+      const invalidCredentials = sent.errorCode === '190' || sent.errorCode === '401' || sent.errorCode === '403';
+      await recordChannelError(
+        channel,
+        { code: sent.errorCode ?? 'SEND_FAILED', message: sent.errorMessage },
+        invalidCredentials ? { status: 'NEEDS_ATTENTION' } : {},
+      );
       await markFailed(event.id, payload.messageId, sent.errorMessage, sent.errorCode);
       result.failed += 1;
     } catch (error) {

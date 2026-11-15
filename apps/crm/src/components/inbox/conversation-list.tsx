@@ -146,6 +146,7 @@ export function ConversationList({
 
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <ChannelLabel channel={conversation.channel} />
+                        {conversation.channelLabel && <span className="truncate text-[11px] text-soft">{conversation.channelLabel}</span>}
                         <StatusBadge variant="dot" tone={MODE_TONE[conversation.mode] ?? 'neutral'} className="text-xs">
                           {MODE_SHORT[conversation.mode] ?? conversation.mode}
                         </StatusBadge>

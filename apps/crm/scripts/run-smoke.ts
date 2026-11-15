@@ -28,6 +28,7 @@ const suites = [
   'smoke-product-studio.ts',
   'smoke-offers.ts',
   'smoke-followups.ts',
+  'smoke-whatsapp-channels.ts',
   'smoke-digital-delivery.ts',
 ];
 

@@ -33,6 +33,7 @@ import { isEnabled } from '../ops/flags';
 import { queuePushSafely } from '../push/events';
 import { loadProductSalesLayer } from '../product-sales-brain/context';
 import { loadWorkspaceKnowledgeLayer } from '../workspace-knowledge/context';
+import { loadChannelContext } from '../whatsapp/channel-runtime';
 
 /** Cuanto se sostiene el lock de una conversacion. */
 const LOCK_MS = 60_000;
@@ -109,7 +110,7 @@ async function releaseLock(conversationId: string, owner: string) {
 }
 
 /** Version publicada del agente, o null si el workspace no publico ninguna. */
-async function publishedVersion(workspaceId: string, kind: AgentKind, versionId?: string, draft = false) {
+async function publishedVersion(workspaceId: string, kind: AgentKind, versionId?: string, draft = false, definitionId?: string) {
   if (versionId) {
     const version = await prisma.agentVersion.findFirst({ where: { id: versionId, ...(draft ? { status: { in: [AgentVersionStatus.DRAFT, AgentVersionStatus.PUBLISHED] } } : { status: AgentVersionStatus.PUBLISHED }), definition: { workspaceId, ...(draft ? {} : { isActive: true, planLimitedAt: null }) } }, include: { definition: true } });
     return version ? { definition: version.definition, version } : null;
@@ -117,7 +118,9 @@ async function publishedVersion(workspaceId: string, kind: AgentKind, versionId?
   const definition = await prisma.agentDefinition.findFirst({
     // planLimitedAt: el agente existe y sigue activo, pero el plan vigente no
     // lo permite (downgrade). No atiende hasta que vuelva a estar permitido.
-    where: { workspaceId, key: kind, isActive: true, planLimitedAt: null },
+    // Punto 8: el agente predeterminado del numero, si lo hay; si no, el de
+    // la clase pedida. Siempre dentro del workspace.
+    where: { workspaceId, ...(definitionId ? { id: definitionId } : { key: kind }), isActive: true, planLimitedAt: null },
     include: {
       versions: {
         where: { status: AgentVersionStatus.PUBLISHED },
@@ -171,7 +174,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     return { status: AgentRunStatus.ABORTED, skippedReason: `conversacion en ${conversation.mode}` };
   }
 
-  const published = await publishedVersion(input.workspaceId, AgentKind.SALES, input.agentVersionId, input.dryRun);
+  // Punto 8: la configuracion del numero de WhatsApp se vuelve a leer aqui: el
+  // job corre segundos despues del webhook y pudo cambiar (IA apagada, fuera
+  // de horario, agente despublicado). El simulador no depende del numero.
+  let channelAgentId: string | undefined;
+  if (conversation.channelId && !input.dryRun && !input.agentVersionId) {
+    const context = await loadChannelContext(conversation.channelId, input.workspaceId, conversation.product?.id ?? null);
+    if (!context.aiAllowed) {
+      return { status: AgentRunStatus.ABORTED, skippedReason: context.humanReason ?? 'el número no permite atención automática' };
+    }
+    channelAgentId = context.agentId ?? undefined;
+  }
+
+  const published = await publishedVersion(input.workspaceId, AgentKind.SALES, input.agentVersionId, input.dryRun, channelAgentId);
   if (!published) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'el workspace no tiene un agente publicado' };
   }
@@ -231,6 +246,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const owner = randomUUID();
   if (!(await acquireLock(conversation.id, owner))) {
     return { status: AgentRunStatus.ABORTED, skippedReason: 'otra ejecucion tiene la conversacion' };
+  }
+
+  // Punto 8: una conversacion que nadie tomo todavia (WAITING) pasa a la IA
+  // recien aqui, cuando todos los frenos anteriores dejaron correr al agente
+  // (agente publicado, plan, creditos, workspace activo, horario del numero).
+  // Sin esto el agente gastaba la llamada y la respuesta se descartaba por no
+  // estar en AI_ACTIVE. Igual que startFlowRun; no toca lockVersion, y nunca
+  // una conversacion con humano, pausada o cerrada.
+  if (!input.dryRun && conversation.mode === ConversationMode.WAITING) {
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, workspaceId: input.workspaceId, mode: ConversationMode.WAITING, lockVersion: conversation.lockVersion },
+      data: { mode: ConversationMode.AI_ACTIVE },
+    });
   }
 
   const startedAt = Date.now();
