@@ -277,3 +277,17 @@ test('P17: each priority module page shows its first-visit tip, and tips stay br
     assert.ok(TUTORIALS[key as keyof typeof TUTORIALS].body.length <= 220, `${key}: consejo largo`);
   }
 });
+
+test('P18: 100% only when every possible preset step is done; a MEMBER does not see 100% while owner steps are pending', () => {
+  const all = () => ({ allowed: true, requiredPlanName: null });
+  const tasks = PRESETS.infoproduct.onboardingChecklist;
+  const allButAi = Object.fromEntries(tasks.filter((id) => id !== 'setup_ai').map((id) => [id, true]));
+  const member = resolveChecklist({ presetTasks: tasks, completed: allButAi, access: all, role: WorkspaceRole.MEMBER });
+  assert.equal(member.done, false, 'falta la IA (tarea de owner/admin)');
+  assert.equal(member.actionable - member.completed, 1);
+  const owner = resolveChecklist({ presetTasks: tasks, completed: { ...allButAi, setup_ai: true }, access: all, role: WorkspaceRole.OWNER });
+  assert.equal(owner.done, true);
+  // Lo que el plan no permite no impide el 100% (no hay tareas imposibles).
+  const locked = resolveChecklist({ presetTasks: tasks, completed: allButAi, access: (req) => ('feature' in req && req.feature === 'agents' ? { allowed: false, requiredPlanName: 'Start' } : all()), role: WorkspaceRole.OWNER });
+  assert.equal(locked.done, true);
+});

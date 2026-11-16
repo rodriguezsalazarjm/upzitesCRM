@@ -1,4 +1,4 @@
-import { AgentVersionStatus, ChannelAccountStatus, Channel, JourneyStatus, JourneyTrigger, AutomationFlowStatus, MembershipStatus, WhatsAppChannelStatus, WorkspaceRole } from '../../generated/prisma/enums';
+import { AgentVersionStatus, ChannelAccountStatus, Channel, ProductStatus, JourneyStatus, JourneyTrigger, AutomationFlowStatus, MembershipStatus, WhatsAppChannelStatus, WorkspaceRole } from '../../generated/prisma/enums';
 import { PLAN_CATALOG } from './billing/plan-catalog';
 import { SOLD_ORDER_STATUSES } from './dashboard/widgets/loaders/commerce';
 import { WIDGET_REGISTRY } from './dashboard/widgets/registry';
@@ -86,24 +86,29 @@ export async function getWorkspaceExperience(scope: ExperienceScope): Promise<Wo
 // --- Checklist ------------------------------------------------------------------
 
 /** Evidencia REAL de cada tarea (no casillas marcadas). */
+/**
+ * P18: "listo" = funcionando hoy. Un producto en borrador o algo pausado por el
+ * plan (planLimitedAt) no cuenta: el checklist solo llega a 100% con el negocio
+ * realmente operativo.
+ */
 export async function checklistEvidence(workspaceId: string): Promise<Record<ChecklistTaskId, boolean>> {
   const [profile, whatsapp, instagram, contacts, opportunities, quotes, products, recovery, rules, flows, members, invitations, agents, conversations, sales] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId }, select: { onboardingCompletedAt: true } }),
-    prisma.whatsAppChannel.count({ where: { workspaceId, status: WhatsAppChannelStatus.CONNECTED } }),
-    prisma.channelAccount.count({ where: { workspaceId, channel: Channel.INSTAGRAM, status: ChannelAccountStatus.CONNECTED } }),
+    prisma.whatsAppChannel.count({ where: { workspaceId, status: WhatsAppChannelStatus.CONNECTED, planLimitedAt: null } }),
+    prisma.channelAccount.count({ where: { workspaceId, channel: Channel.INSTAGRAM, status: ChannelAccountStatus.CONNECTED, planLimitedAt: null } }),
     prisma.contact.count({ where: { workspaceId } }),
     prisma.opportunity.count({ where: { workspaceId } }),
     prisma.quote.count({ where: { workspaceId } }),
-    prisma.product.count({ where: { workspaceId } }),
-    prisma.journey.count({ where: { workspaceId, trigger: JourneyTrigger.CHECKOUT_ABANDONED, status: JourneyStatus.PUBLISHED } }),
+    prisma.product.count({ where: { workspaceId, status: ProductStatus.ACTIVE } }),
+    prisma.journey.count({ where: { workspaceId, trigger: JourneyTrigger.CHECKOUT_ABANDONED, status: JourneyStatus.PUBLISHED, planLimitedAt: null } }),
     // Las reglas de sistema sembradas al crear el workspace no cuentan.
-    prisma.automationRule.count({ where: { workspaceId, isActive: true, presetKey: null } }),
-    prisma.automationFlow.count({ where: { workspaceId, status: AutomationFlowStatus.PUBLISHED } }),
+    prisma.automationRule.count({ where: { workspaceId, isActive: true, presetKey: null, planLimitedAt: null } }),
+    prisma.automationFlow.count({ where: { workspaceId, status: AutomationFlowStatus.PUBLISHED, planLimitedAt: null } }),
     prisma.workspaceMembership.count({ where: { workspaceId, status: MembershipStatus.ACTIVE } }),
     // Solo invitaciones que aun reservan asiento (no vencidas): abrir la
     // pantalla o dejar vencer una invitacion no completa la tarea.
     prisma.workspaceInvitation.count({ where: reservingInvitationWhere(workspaceId, new Date()) }),
-    prisma.agentVersion.count({ where: { status: AgentVersionStatus.PUBLISHED, definition: { workspaceId, isActive: true } } }),
+    prisma.agentVersion.count({ where: { status: AgentVersionStatus.PUBLISHED, definition: { workspaceId, isActive: true, planLimitedAt: null } } }),
     prisma.conversation.count({ where: { workspaceId } }),
     prisma.customerOrder.count({ where: { workspaceId, status: { in: SOLD_ORDER_STATUSES } } }),
   ]);

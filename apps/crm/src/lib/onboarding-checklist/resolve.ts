@@ -15,7 +15,8 @@ import { CHECKLIST_TASK_IDS, CHECKLIST_TASKS, type ChecklistRequirement, type Ch
  *
  * Con `roleRestricted` la tarea es de OWNER/ADMIN (p. ej. configurar el
  * negocio): quien no tiene el rol la ve como aviso, SIN enlace a una accion
- * que el servidor le negaria, y no le cuenta como pendiente propia.
+ * que el servidor le negaria. P18: igual cuenta para el progreso, porque el
+ * checklist mide si el NEGOCIO funciona; un MEMBER no ve 100% mientras falte.
  */
 export type ChecklistState = 'completed' | 'available' | 'locked' | 'notRelevant';
 
@@ -56,8 +57,8 @@ export function resolveChecklist(input: {
     return { ...base, state: 'available', lockedPlan: null };
   });
   const completed = items.filter((item) => item.state === 'completed').length;
-  // Cuenta lo que ESTA persona puede hacer (ni bloqueado por plan ni de otro rol).
-  const actionable = items.filter((item) => item.state === 'completed' || (item.state === 'available' && !item.roleRestricted)).length;
+  // Lo bloqueado por plan no cuenta (sería una tarea imposible); lo de otro rol sí.
+  const actionable = items.filter((item) => item.state !== 'locked').length;
   return {
     items,
     notRelevant: CHECKLIST_TASK_IDS.filter((id) => !relevant.includes(id)),
