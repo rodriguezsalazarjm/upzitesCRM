@@ -41,7 +41,8 @@ export async function sendChannelMessage(input: { workspaceId: string; conversat
       workspaceId: input.workspaceId,
       conversationId: input.conversationId,
       text: input.text,
-      senderType: input.senderType ?? MessageSenderType.AI,
+      // Sin remitente explícito (Flow Builder) el origen es AUTOMATION: el outbox de WhatsApp exige SYSTEM para eso.
+      senderType: input.senderType ?? (input.origin === 'AI' ? MessageSenderType.AI : MessageSenderType.SYSTEM),
       origin: input.origin ?? 'AUTOMATION',
       senderUserId: input.senderUserId,
       agentRunId: input.agentRunId,

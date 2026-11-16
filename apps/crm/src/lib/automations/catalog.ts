@@ -31,7 +31,7 @@ export function graphCapabilities(graph: FlowGraph): Capability[] {
   return [...new Set(caps)];
 }
 
-export type QuickKind = 'comment' | 'resource' | 'story' | 'faq' | 'qualify' | 'sale' | 'follow' | 'handoff' | 'cold' | 'email';
+export type QuickKind = 'comment' | 'resource' | 'story' | 'faq' | 'qualify' | 'sale' | 'follow' | 'handoff' | 'cold' | 'email' | 'postsale' | 'quote' | 'appointment';
 export type QuickConfig = { kind: QuickKind; accountId?: string; keyword?: string; match?: 'EXACT' | 'CONTAINS'; postId?: string; text?: string; publicReply?: string; resource?: string; tag?: string; followup?: string; delayMinutes?: number; agentVersionId?: string; productId?: string };
 export function generateQuickFlow(config: QuickConfig): FlowGraph {
   const nodes: FlowNode[] = [];
@@ -39,12 +39,14 @@ export function generateQuickFlow(config: QuickConfig): FlowGraph {
   const add = (node: WithoutId<FlowNode>) => nodes.push({ ...node, id: `step-${nodes.length + 1}`, position: { x: 80, y: nodes.length * 160 } } as FlowNode);
   const message = (text: string, delivery: 'DM' | 'PUBLIC_REPLY' | 'PRIVATE_REPLY' = 'DM') => add({ type: 'MESSAGE', text, delivery } as FlowNode);
   const ai = (goal: string, tools: string[]) => add({ type: 'AI', goal, agentVersionId: config.agentVersionId, productId: config.kind === 'sale' ? config.productId : undefined, allowedTools: tools, exitConditions: ['Objetivo resuelto o derivación humana'], maxTurns: 6 } as FlowNode);
-  const trigger: FlowTrigger = config.kind === 'comment' ? { type: 'COMMENT', postId: config.postId || undefined, keywords: config.keyword ? [config.keyword] : [], match: config.match ?? 'CONTAINS' } : config.kind === 'story' ? { type: 'STORY_REPLY' } : config.kind === 'follow' ? { type: 'FOLLOW' } : { type: 'MESSAGE_RECEIVED', keywords: config.keyword ? [config.keyword] : [], match: config.match ?? 'CONTAINS' };
+  const trigger: FlowTrigger = config.kind === 'comment' ? { type: 'COMMENT', postId: config.postId || undefined, keywords: config.keyword ? [config.keyword] : [], match: config.match ?? 'CONTAINS' } : config.kind === 'story' ? { type: 'STORY_REPLY' } : config.kind === 'follow' ? { type: 'FOLLOW' } : config.kind === 'postsale' ? { type: 'PAYMENT_APPROVED' } : { type: 'MESSAGE_RECEIVED', keywords: config.keyword ? [config.keyword] : [], match: config.match ?? 'CONTAINS' };
   trigger.accountId = config.accountId;
   if (config.kind === 'comment' && config.publicReply) message(config.publicReply, 'PUBLIC_REPLY');
   if (config.kind === 'faq') ai('Responde usando conocimiento del negocio. Si no hay información, deriva a una persona.', ['getBusinessInfo', 'searchKnowledge', 'getProducts', 'getServices', 'requestHumanHandoff']);
   else if (config.kind === 'qualify') ai('Pregunta una cosa por turno: necesidad y presupuesto. Registra solo las respuestas recibidas con updateLeadQualification. Crea una oportunidad cuando esté calificado; si necesita ayuda, deriva.', ['getBusinessInfo', 'updateLeadQualification', 'create_opportunity', 'requestHumanHandoff']);
   else if (config.kind === 'email') ai('Solicita el email y guárdalo únicamente después de recibirlo. No inventes respuestas.', ['update_contact', 'requestHumanHandoff']);
+  else if (config.kind === 'quote') ai('Pregunta qué servicio necesita y los datos para cotizar, una cosa por turno. Calcula solo con getServices, collect_quote_inputs y calculate_quote; nunca inventes precios. Si la cotización requiere revisión usa request_quote_review; si pide hablar con alguien, deriva.', ['getServices', 'collect_quote_inputs', 'calculate_quote', 'request_quote_review', 'get_quote_status', 'requestHumanHandoff']);
+  else if (config.kind === 'appointment') ai('Ayuda a agendar una cita: pregunta el servicio y el día y la hora que prefiere, una cosa por turno. Guarda la preferencia con update_contact y deriva a una persona para confirmar. No confirmes horarios por tu cuenta.', ['getBusinessInfo', 'getServices', 'update_contact', 'requestHumanHandoff']);
   else if (config.kind === 'sale') {
     message(config.text || 'Te ayudo a conocer el producto y confirmar tu compra.');
     ai(`Presenta el producto ${config.productId || '[selecciona producto]'}. Consulta su precio al catálogo, detecta intención de compra y solicita confirmación explícita de producto, cantidad y precio. Solo tras recibirla usa createCheckoutLink. Nunca inventes precios.`, ['getProduct', 'getProducts', 'searchKnowledge', 'createCheckoutLink', 'requestHumanHandoff']);
@@ -74,6 +76,9 @@ const definitions: [string, string, string, string, Channel[], QuickConfig, stri
   ['messenger-comment', 'Messenger comment → private message', 'Responde en privado a un comentario de Página.', 'Messenger', ['MESSENGER'], { kind: 'comment', keyword: 'INFO' }, ['accountId', 'text']],
   ['tiktok-ai', 'TikTok DM → IA', 'Atención con IA sujeta a acceso Business Messaging.', 'TikTok', ['TIKTOK'], { kind: 'faq' }, ['accountId', 'agentVersionId']],
   ['email', 'Captura de email', 'Solicita y registra el correo proporcionado.', 'Captación', all, { kind: 'email' }, ['accountId', 'agentVersionId']],
+  ['post-sale', 'Postventa', 'Agradece la compra aprobada y hace seguimiento un par de horas después.', 'Ventas', all, { kind: 'postsale', text: '¡Gracias por tu compra! Si tienes cualquier duda con el acceso, responde este mensaje.', tag: 'cliente', followup: '¿Pudiste acceder sin problemas? Cuéntame cómo te va.', delayMinutes: 120 }, ['accountId', 'text']],
+  ['quote', 'Cotización de servicios', 'La IA pregunta, cotiza con tu catálogo de servicios y pide revisión si hace falta.', 'Ventas', all, { kind: 'quote' }, ['accountId', 'agentVersionId']],
+  ['appointment', 'Agendar cita', 'Recoge servicio, día y hora preferidos y deriva a una persona para confirmar.', 'Atención', all, { kind: 'appointment' }, ['accountId', 'agentVersionId']],
   ['follow', 'Bienvenida nuevo follower', 'Requiere acceso adicional a FOLLOW_TRIGGER.', 'Instagram', ['INSTAGRAM'], { kind: 'follow' }, ['accountId', 'text']],
 ];
 export const AUTOMATION_TEMPLATES: Template[] = definitions.map(([id, name, description, category, supportedChannels, config, requiredConfiguration]) => {

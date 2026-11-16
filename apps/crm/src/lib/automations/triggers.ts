@@ -105,12 +105,13 @@ export async function matchAndStartFlowsForPayment(input: { workspaceId: string;
   const conversation = await prisma.conversation.findFirst({
     where: { workspaceId: input.workspaceId, contactId: input.contactId },
     orderBy: { lastMessageAt: 'desc' },
-    select: { id: true, channelType: true, channelAccountId: true },
+    select: { id: true, channelType: true, channelAccountId: true, channelId: true },
   });
   if (!conversation) return { matched: 0, started: 0, runIds: [] as string[] };
   return matchAndStartFlowsForChannelEvent({
     eventId: `payment:${input.paymentId}`,
-    accountId: conversation.channelAccountId ?? undefined,
+    // WhatsApp guarda el número en channelId; Instagram/Messenger en channelAccountId.
+    accountId: conversation.channelAccountId ?? conversation.channelId ?? undefined,
     workspaceId: input.workspaceId,
     channel: conversation.channelType,
     type: 'PAYMENT_APPROVED',

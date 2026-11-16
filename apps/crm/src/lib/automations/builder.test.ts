@@ -34,3 +34,15 @@ test('templates generate independent graphs and keep prepared capabilities block
 test('custom field condition compares a separate key and value', () => {
   assert.equal(evaluateCondition({ id: 'c', type: 'CONDITION', field: 'CUSTOM_FIELD', fieldKey: 'need', operator: 'EQUALS', value: 'curso' }, { tags: [], customFields: { need: 'curso' }, channel: null, pipelineStage: null, leadStatus: null, purchasedProductIds: [] }), true);
 });
+test('P13: every template yields a valid graph; postventa fires on payment, quote/appointment use AI', () => {
+  for (const t of AUTOMATION_TEMPLATES) {
+    assert.equal(validateFlowGraph(flowGraphSchema.parse(t.graph)).valid, true, t.id);
+  }
+  const post = AUTOMATION_TEMPLATES.find(t => t.id === 'post-sale')!;
+  assert.equal(post.graph.trigger.type, 'PAYMENT_APPROVED');
+  assert.deepEqual(post.graph.nodes.map(n => n.type), ['MESSAGE', 'ACTION', 'DELAY', 'MESSAGE', 'END']);
+  for (const id of ['quote', 'appointment']) {
+    const ai = AUTOMATION_TEMPLATES.find(t => t.id === id)!.graph.nodes.find(n => n.type === 'AI');
+    assert.ok(ai && ai.type === 'AI' && ai.allowedTools.includes('requestHumanHandoff'), id);
+  }
+});

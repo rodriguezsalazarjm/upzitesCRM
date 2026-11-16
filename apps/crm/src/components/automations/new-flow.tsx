@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Loader2, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,17 @@ const QUICK_KINDS: { value: QuickKind; label: string }[] = [
   { value: 'faq', label: 'FAQ con IA' },
   { value: 'qualify', label: 'Calificación de lead' },
   { value: 'sale', label: 'Vender producto' },
+  { value: 'quote', label: 'Cotización de servicios' },
+  { value: 'appointment', label: 'Agendar cita' },
+  { value: 'postsale', label: 'Postventa (compra aprobada)' },
   { value: 'follow', label: 'Nuevo follower (requiere acceso)' },
+];
+
+const AI_KINDS: QuickKind[] = ['faq', 'qualify', 'sale', 'email', 'quote', 'appointment'];
+// Estas dos viven en Recuperación (P7): cortan el seguimiento si el contacto responde o compra.
+const RECOVERY_TEMPLATES = [
+  { id: 'checkout-recovery', name: 'Recuperación de checkout', description: 'Recuerda el pago a quien abrió el checkout y no compró. Se detiene si compra.' },
+  { id: 'followup-sequence', name: 'Follow-up 1h / 24h / 72h', description: 'Tres seguimientos escalonados. Se detiene si el contacto responde o compra.' },
 ];
 
 const CHANNELS: Channel[] = ['INSTAGRAM', 'MESSENGER', 'WHATSAPP', 'TIKTOK'];
@@ -43,14 +54,16 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
   const [values, setValues] = useState<Record<string, string>>({ keyword: 'GUIA', text: '¡Gracias por escribirnos!', match: 'CONTAINS', delayMinutes: '60' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [draftId, setDraftId] = useState('');
   const template = AUTOMATION_TEMPLATES.find((t) => t.id === templateId);
   const selectedKind = mode === 'templates' ? (template?.config.kind ?? 'resource') : kind;
   const account = accounts.find((a) => a.id === accountId);
   const missing = missingCapabilities(account, template && mode === 'templates' ? template.requiredCapabilities : graphCapabilities(generateQuickFlow({ kind: selectedKind })));
 
-  async function create() {
+  async function create(publish = false) {
     setBusy(true);
     setError('');
+    setDraftId('');
     try {
       const response = await fetch('/api/automation-flows', {
         method: 'POST',
@@ -58,12 +71,17 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
         body: JSON.stringify({
           name,
           channel,
+          publish,
           ...(mode === 'templates' ? { templateId } : {}),
           ...(mode !== 'scratch' ? { quick: { ...values, kind: selectedKind, accountId, delayMinutes: Number(values.delayMinutes || 60) } } : {}),
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
+      if (result.data.publishError) {
+        setDraftId(result.data.id);
+        throw new Error(`Quedó guardada como borrador, pero aún no se puede publicar: ${result.data.publishError}`);
+      }
       router.push(`/automatizaciones/${result.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear.');
@@ -121,6 +139,14 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
                 )}
               </button>
             ))}
+            {(category === 'Todas' || category === 'Ventas') &&
+              RECOVERY_TEMPLATES.map((t) => (
+                <Link key={t.id} href="/recuperacion/nueva" className="rounded-2xl border border-line bg-paper p-5 text-left transition-colors hover:border-stone">
+                  <p className="text-sm font-bold text-carbon">{t.name}</p>
+                  <p className="mt-2 text-sm text-soft">{t.description}</p>
+                  <p className="mt-3 text-xs font-medium text-electric">Se configura en Recuperación →</p>
+                </Link>
+              ))}
           </div>
         </div>
       )}
@@ -191,12 +217,12 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
                 {field('publicReply', 'Respuesta pública opcional')}
               </>
             )}
-            {field('text', 'Mensaje inicial')}
-            {field('resource', 'Recurso / enlace opcional')}
+            {(!AI_KINDS.includes(selectedKind) || selectedKind === 'sale') && selectedKind !== 'handoff' && field('text', selectedKind === 'postsale' ? 'Mensaje de agradecimiento' : 'Mensaje inicial')}
+            {['comment', 'resource', 'story', 'cold'].includes(selectedKind) && field('resource', 'Recurso / enlace opcional')}
             {field('tag', 'Etiqueta opcional')}
             {field('followup', 'Seguimiento opcional')}
             {field('delayMinutes', 'Espera del seguimiento (minutos)')}
-            {['faq', 'qualify', 'sale', 'email'].includes(selectedKind) && (
+            {AI_KINDS.includes(selectedKind) && (
               <FormField label="Agente publicado" htmlFor="new-flow-agent">
                 <Select value={values.agentVersionId ?? ''} onChange={(e) => setValues({ ...values, agentVersionId: e.target.value })}>
                   <option value="">Seleccionar</option>
@@ -240,15 +266,36 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
         </p>
       )}
 
-      {error && <FormError role="alert">{error}</FormError>}
+      {error && (
+        <FormError role="alert">
+          {error}
+          {draftId && (
+            <>
+              {' '}
+              <Link className="underline" href={`/automatizaciones/${draftId}`}>
+                Abrir en el Builder
+              </Link>
+            </>
+          )}
+        </FormError>
+      )}
 
-      <Button
-        disabled={busy || !name || (mode !== 'scratch' && missing.length > 0) || (mode === 'templates' && !template)}
-        onClick={create}
-      >
-        {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Rocket aria-hidden />}
-        {busy ? 'Creando…' : mode === 'templates' ? 'Usar esta plantilla' : 'Crear borrador y abrir Builder'}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        {mode !== 'scratch' && (
+          <Button disabled={busy || !name || missing.length > 0 || (mode === 'templates' && !template)} onClick={() => create(true)}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Rocket aria-hidden />}
+            {busy ? 'Publicando…' : 'Crear y publicar'}
+          </Button>
+        )}
+        <Button
+          variant={mode === 'scratch' ? undefined : 'outline'}
+          disabled={busy || !name || (mode !== 'scratch' && missing.length > 0) || (mode === 'templates' && !template)}
+          onClick={() => create(false)}
+        >
+          {mode === 'scratch' && (busy ? <Loader2 className="animate-spin" aria-hidden /> : <Rocket aria-hidden />)}
+          Crear borrador y abrir Builder
+        </Button>
+      </div>
     </div>
   );
 }
