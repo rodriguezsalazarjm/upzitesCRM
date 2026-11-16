@@ -1,4 +1,5 @@
 import { Header } from '@/components/layout/header';
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { requireCurrentUser } from '@/lib/auth';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { canManageChannels } from '@/lib/conversations';
@@ -30,6 +31,7 @@ export default async function Page() {
         action={{ label: 'Administrar conocimiento', href: '/ia/conocimiento' }}
       />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
+        <TutorialHint tutorialKey="ai.first_visit" className="mb-4" />
         <div className="mb-4 space-y-3 empty:hidden">
           <PlanLockedNotice workspaceId={user.workspace.id} feature="agents" />
         </div>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Header } from '@/components/layout/header';
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -58,6 +59,7 @@ export default async function RecuperacionPage() {
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
+        <TutorialHint tutorialKey="recovery.first_visit" />
         <PlanLockedNotice workspaceId={user.workspace.id} feature="campaigns.journeys" />
         <PlanLockedNotice workspaceId={user.workspace.id} feature="recovery" />
         {!verifiedDomain && (

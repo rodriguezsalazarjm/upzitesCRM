@@ -12,7 +12,7 @@ import { SIDEBAR, clampSidebarWidth, sidebarWidthFor } from '../navigation/sideb
 import { resolveChecklist } from '../onboarding-checklist/resolve';
 import { AUTOMATION_TEMPLATES } from '../automations/catalog';
 import { CHECKLIST_TASK_IDS } from '../onboarding-checklist/tasks';
-import { shouldShowTutorial } from '../tutorials';
+import { shouldShowTutorial, TUTORIAL_KEYS, TUTORIALS } from '../tutorials';
 import { canonicalBusiness, normalizeBusinessInput, wizardSalesMode } from '../workspace-profile/business';
 import { PRESETS, PRESET_KEYS, presetId, recommendedPresetKey, resolvePreset } from './index';
 
@@ -258,4 +258,22 @@ test('P16: every business type walks the plan flow: profile → … → IA → a
   const ai = member.items.find((i) => i.id === 'setup_ai')!;
   assert.equal(ai.href, null);
   assert.equal(ai.roleRestricted, true);
+});
+
+test('P17: each priority module page shows its first-visit tip, and tips stay brief', () => {
+  const pages: Record<string, string> = {
+    'inbox.first_visit': 'src/app/(dashboard)/inbox/page.tsx',
+    'pipeline.first_visit': 'src/app/(dashboard)/oportunidades/page.tsx',
+    'products.first_visit': 'src/app/(dashboard)/productos/page.tsx',
+    'automation.first_visit': 'src/app/(dashboard)/automatizaciones/page.tsx',
+    'ai.first_visit': 'src/app/(dashboard)/ia/agente/page.tsx',
+    'recovery.first_visit': 'src/app/(dashboard)/recuperacion/page.tsx',
+    'orders.first_visit': 'src/app/(dashboard)/pedidos/page.tsx',
+    'team.first_visit': 'src/app/(dashboard)/configuracion/equipo/page.tsx',
+  };
+  assert.deepEqual(Object.keys(pages).sort(), [...TUTORIAL_KEYS].sort());
+  for (const [key, file] of Object.entries(pages)) {
+    assert.ok(readFileSync(join(process.cwd(), file), 'utf8').includes(`tutorialKey="${key}"`), `${file} no muestra ${key}`);
+    assert.ok(TUTORIALS[key as keyof typeof TUTORIALS].body.length <= 220, `${key}: consejo largo`);
+  }
 });

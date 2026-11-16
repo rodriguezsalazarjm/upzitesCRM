@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Header } from '@/components/layout/header';
+import { TutorialHint } from '@/components/tutorials/tutorial-hint';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +31,7 @@ export default async function PedidosPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="Pedidos" subtitle="Compras, pagos y entregas digitales" />
       <div className="flex-1 overflow-y-auto p-6">
+        <TutorialHint tutorialKey="orders.first_visit" className="mb-4" />
         <div className="mb-4 space-y-3 empty:hidden">
           <PlanLockedNotice workspaceId={user.workspace.id} feature="commerce.orders" />
         </div>

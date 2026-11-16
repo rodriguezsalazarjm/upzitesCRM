@@ -3,7 +3,7 @@
  * consejo la primera vez; la persona lo descarta y queda descartado SOLO para
  * ella y SOLO en ese workspace (WorkspaceUserPreference.dismissedTutorials).
  */
-export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit', 'team.first_visit'] as const;
+export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit', 'team.first_visit', 'ai.first_visit', 'recovery.first_visit', 'orders.first_visit'] as const;
 export type TutorialKey = (typeof TUTORIAL_KEYS)[number];
 
 export function isTutorialKey(value: unknown): value is TutorialKey {
@@ -26,6 +26,19 @@ export const TUTORIALS: Record<TutorialKey, { title: string; body: string }> = {
   'team.first_visit': {
     title: 'Tu equipo',
     body: 'Invita a quienes trabajan contigo. Cada invitación pendiente reserva un lugar del plan hasta que se acepta, vence o la revocas.',
+  },
+  // P17: módulos prioritarios que faltaban.
+  'ai.first_visit': {
+    title: 'Tu asistente IA',
+    body: 'Define rol, tono y herramientas, y publícalo. Responde con el conocimiento de tu negocio y deriva a una persona cuando no sabe.',
+  },
+  'recovery.first_visit': {
+    title: 'Recuperación',
+    body: 'Crea un seguimiento para quien no respondió o no pagó. Se detiene solo si la persona responde, compra o pide no recibir más mensajes.',
+  },
+  'orders.first_visit': {
+    title: 'Tus pedidos',
+    body: 'Cada compra aparece aquí con su estado de pago y de entrega. Los productos digitales se entregan solos cuando el pago se confirma.',
   },
   'inbox.first_visit': {
     title: 'Inbox',
