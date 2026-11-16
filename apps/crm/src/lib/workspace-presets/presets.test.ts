@@ -228,3 +228,16 @@ test('P14: each preset recommends real templates, has a primary action and renam
   assert.equal(contacts(general).label, 'Contactos');
   assert.equal(contacts(services).href, contacts(general).href);
 });
+
+test('P15: the menu customizer patch round-trips through resolveNavigation and reset restores the preset', () => {
+  const base = resolveNavigation({ preset: PRESETS.services, features: ALL, role: WorkspaceRole.OWNER });
+  const ids = base.primary.map((e) => e.id);
+  // Reordenar (último primero), ocultar "activities" y recuperar "products" (oculto por el preset).
+  const visible = [ids[ids.length - 1], ...ids.slice(0, -1).filter((id) => id !== 'activities'), 'products'];
+  const hidden = [...base.hidden.map((e) => e.id).filter((id) => id !== 'products'), 'activities'];
+  const custom = resolveNavigation({ preset: PRESETS.services, features: ALL, role: WorkspaceRole.OWNER, preference: { navOrder: visible, hiddenNavItems: hidden } });
+  assert.deepEqual(custom.primary.map((e) => e.id), visible);
+  assert.ok(custom.hidden.some((e) => e.id === 'activities'));
+  const reset = resolveNavigation({ preset: PRESETS.services, features: ALL, role: WorkspaceRole.OWNER, preference: { navOrder: [], hiddenNavItems: [] } });
+  assert.deepEqual(reset.primary.map((e) => e.id), ids);
+});

@@ -26,6 +26,8 @@ import { BusinessSettingsForm, HoursSettingsForm, InformationSettingsForm } from
 import { ServicesPricing, type ServiceRuleSetView } from './services-pricing';
 import { WebsiteConnection } from './website-connection';
 import { ExperiencePanel } from './experience-panel';
+import { MenuCustomizer } from './menu-customizer';
+import { getWorkspaceExperience } from '@/lib/workspace-experience';
 import { PRESETS, resolvePreset } from '@/lib/workspace-presets';
 import { wizardSalesMode } from '@/lib/workspace-profile/business';
 import { canManageProfile } from '@/lib/workspace-profile/service';
@@ -66,6 +68,14 @@ export default async function ConfiguracionPage() {
 
   const profile = { ...storedProfile, businessName: user.workspace.name };
   const presetState = resolvePreset(storedProfile);
+  const menu = await getWorkspaceExperience({ workspaceId: user.workspace.id, userId: user.id, role: user.role }).then(
+    (experience) => experience.navigation,
+    (error) => {
+      if (isDevDemoEnabled() && isDatabaseUnavailable(error)) return null;
+      throw error;
+    },
+  );
+  const menuItem = ({ id, label, locked, lockedPlan }: NonNullable<typeof menu>['primary'][number]) => ({ id, label, locked, lockedPlan });
   const salesMode = wizardSalesMode(storedProfile);
   const canEdit = canManageMarketing(user.role);
   const snippet = `<script async src="${baseUrl}/api/capture/snippet?key=${workspacePublicKey}"></script>`;
@@ -130,6 +140,15 @@ export default async function ConfiguracionPage() {
                 applied={presetState.applied}
                 canApply={canManageProfile(user.role)}
               />
+              {menu && (
+              <div className="mt-6 border-t border-line pt-6">
+                <MenuCustomizer
+                  key={[...menu.primary, ...menu.hidden].map((i) => i.id).join(',') + '|' + menu.hidden.length}
+                  visible={menu.primary.map(menuItem)}
+                  hidden={menu.hidden.map(menuItem)}
+                />
+              </div>
+              )}
             </SettingsSection>
 
             <SettingsSection
