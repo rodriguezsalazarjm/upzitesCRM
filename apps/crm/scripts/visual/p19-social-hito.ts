@@ -59,7 +59,7 @@ mode = 'meta-error';
 const failed = await saveSocialPost(workspaceId, owner.id, { ...base, caption: 'QA P19 · falla y se reintenta', action: 'publish_now' });
 assert.equal(failed.status, 'FAILED');
 mode = 'ok';
-const retried = await socialPostAction(workspaceId, failed.id, 'retry');
+const retried = await socialPostAction(workspaceId, failed.id, { action: 'retry' });
 assert.equal(retried.status, 'PUBLISHED');
 results.failedThenRetried = { firstError: failed.lastError, afterRetry: retried.status, history: (retried.history as { event: string }[]).map((h) => h.event) };
 

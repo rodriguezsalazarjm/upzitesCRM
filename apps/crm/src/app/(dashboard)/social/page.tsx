@@ -21,7 +21,8 @@ export default async function SocialPage() {
     prisma.socialPost.findMany({
       where: { workspaceId },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      // shortcut: los 300 más recientes alcanzan para meses de calendario; paginar por rango si un negocio publica mucho más.
+      take: 300,
       include: { channelAccount: { select: { displayName: true } } },
     }),
   ]);

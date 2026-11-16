@@ -58,7 +58,8 @@ export async function saveSocialPost(workspaceId: string, userId: string, input:
     mediaUrl: input.mediaUrl || null,
     mediaType: input.mediaType,
     status,
-    scheduledAt: input.action === 'schedule' ? new Date(input.scheduledAt!) : input.action === 'publish_now' ? now : null,
+    // P20: un borrador puede tener fecha planificada (aparece en el calendario, no se publica).
+    scheduledAt: input.action === 'publish_now' ? now : input.scheduledAt ? new Date(input.scheduledAt) : null,
     // Un post editado empieza de cero: contenedor y reintentos eran del contenido anterior.
     attempts: 0,
     nextAttemptAt: null,
@@ -80,7 +81,10 @@ export async function saveSocialPost(workspaceId: string, userId: string, input:
 }
 
 /** Reintentar un FAILED (publica ya) o cancelar una programación (vuelve a borrador). */
-export async function socialPostAction(workspaceId: string, postId: string, action: 'retry' | 'unschedule') {
+export type CalendarAction = { action: 'retry' | 'unschedule' | 'duplicate' | 'publish_now' } | { action: 'reschedule'; scheduledAt: string };
+
+export async function socialPostAction(workspaceId: string, postId: string, input: CalendarAction, userId?: string) {
+  const { action } = input;
   const now = new Date();
   const post = await prisma.socialPost.findFirst({ where: { id: postId, workspaceId } });
   if (!post) throw new SocialPostError('Publicación no encontrada.');
@@ -93,10 +97,45 @@ export async function socialPostAction(workspaceId: string, postId: string, acti
     });
     return (await publishSocialPost(workspaceId, post.id, { now })) ?? post;
   }
+  if (action === 'duplicate') {
+    // La copia nace borrador con la misma fecha planificada: se mueve y se programa aparte.
+    return prisma.socialPost.create({
+      data: {
+        workspaceId, network: post.network, channelAccountId: post.channelAccountId, caption: post.caption, hashtags: post.hashtags,
+        mediaUrl: post.mediaUrl, mediaType: post.mediaType, status: 'DRAFT', scheduledAt: post.scheduledAt, createdById: userId ?? null,
+        history: appendHistory([], 'duplicated', undefined, now) as Prisma.InputJsonValue,
+      },
+    });
+  }
+  if (action === 'reschedule') {
+    if (!('scheduledAt' in input)) throw new SocialPostError('Falta la fecha.');
+    const when = new Date(input.scheduledAt);
+    if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED') throw new SocialPostError('Solo se mueve un borrador o una publicación programada.');
+    if (post.status === 'SCHEDULED' && when.getTime() < now.getTime() - 60_000) throw new SocialPostError('Esa fecha ya pasó: elige otra o usa "Publicar ahora".');
+    // Condicional: si el cron ya la tomó, no se mueve (se estaría publicando).
+    const moved = await prisma.socialPost.updateMany({
+      where: { id: post.id, workspaceId, status: post.status },
+      data: { scheduledAt: when, nextAttemptAt: null, history: appendHistory(post.history, 'rescheduled', input.scheduledAt, now) as Prisma.InputJsonValue },
+    });
+    if (moved.count === 0) throw new SocialPostError('Se está publicando en este momento.');
+    return prisma.socialPost.findFirstOrThrow({ where: { id: post.id, workspaceId } });
+  }
+  if (action === 'publish_now') {
+    if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED') throw new SocialPostError('Solo se publica un borrador o una publicación programada.');
+    if (!post.mediaUrl) throw new SocialPostError('Instagram exige una imagen o un video para publicar.');
+    await assertFeature(workspaceId, 'channels.messaging');
+    const claimed = await prisma.socialPost.updateMany({
+      where: { id: post.id, workspaceId, status: post.status },
+      data: { status: 'SCHEDULED', scheduledAt: now, attempts: 0, nextAttemptAt: null, history: appendHistory(post.history, 'publish_requested', undefined, now) as Prisma.InputJsonValue },
+    });
+    if (claimed.count === 0) throw new SocialPostError('Se está publicando en este momento.');
+    return (await publishSocialPost(workspaceId, post.id, { now })) ?? post;
+  }
   if (post.status !== 'SCHEDULED') throw new SocialPostError('Solo se cancela una publicación programada.');
   const updated = await prisma.socialPost.updateMany({
     where: { id: post.id, workspaceId, status: 'SCHEDULED' },
-    data: { status: 'DRAFT', scheduledAt: null, nextAttemptAt: null, history: appendHistory(post.history, 'unscheduled', undefined, now) as Prisma.InputJsonValue },
+    // Cancelar = vuelve a borrador y conserva su fecha planificada en el calendario.
+    data: { status: 'DRAFT', nextAttemptAt: null, history: appendHistory(post.history, 'unscheduled', undefined, now) as Prisma.InputJsonValue },
   });
   if (updated.count === 0) throw new SocialPostError('Se está publicando en este momento.');
   return prisma.socialPost.findFirstOrThrow({ where: { id: post.id, workspaceId } });

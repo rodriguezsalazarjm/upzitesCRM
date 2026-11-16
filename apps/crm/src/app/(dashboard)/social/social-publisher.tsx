@@ -12,6 +12,9 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { moveToDay } from '@/lib/social/calendar';
+import { cn } from '@/lib/utils';
+import { SocialCalendar } from './social-calendar';
 
 type Account = { id: string; name: string; ready: boolean; canPublish: boolean };
 export type PostRow = {
@@ -48,6 +51,8 @@ const EVENT: Record<string, string> = {
   failed: 'Intento fallido',
   retry_requested: 'Reintento manual',
   unscheduled: 'Programación cancelada',
+  rescheduled: 'Fecha cambiada',
+  duplicated: 'Duplicado',
 };
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '');
@@ -67,6 +72,11 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [openHistory, setOpenHistory] = useState<string | null>(null);
+  // P20: vistas y filtros del calendario editorial.
+  const [view, setView] = useState<'month' | 'week' | 'list'>('month');
+  const [network, setNetwork] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const visible = posts.filter((p) => (!network || p.network === network) && (!accountFilter || p.channelAccountId === accountFilter));
   const [pending, startTransition] = useTransition();
   const account = accounts.find((a) => a.id === draft.channelAccountId);
 
@@ -100,13 +110,31 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
     );
   }
 
-  const edit = (post: PostRow) =>
+  const remove = (post: PostRow) => {
+    if (confirm(post.status === 'PUBLISHED' ? 'Se borra solo de Upzites; en Instagram sigue publicado.' : '¿Borrar esta publicación?')) void call(`/api/social-posts/${post.id}`, 'DELETE');
+  };
+  const focusComposer = () => document.querySelector('[data-social-composer]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const planDay = (day: Date) => {
+    setDraft({ ...empty, scheduledAt: toLocalInput(moveToDay(null, day).toISOString()) });
+    focusComposer();
+  };
+  async function calendarAction(post: PostRow, body: Record<string, string>) {
+    const result = await call(`/api/social-posts/${post.id}`, 'POST', body);
+    if (result && body.action === 'duplicate') setNotice('Duplicado como borrador en la misma fecha.');
+    if (result && body.action === 'reschedule') setNotice('Fecha actualizada.');
+    if (result && body.action === 'publish_now') setNotice(result.status === 'PUBLISHED' ? 'Publicado en Instagram.' : `No se publicó: ${result.lastError ?? 'se reintenta solo'}`);
+    return result;
+  }
+
+  const edit = (post: PostRow) => {
+    focusComposer();
     setDraft({ id: post.id, channelAccountId: post.channelAccountId ?? accounts[0]?.id ?? '', caption: post.caption, hashtags: post.hashtags.map((t) => `#${t}`).join(' '), mediaUrl: post.mediaUrl ?? '', mediaType: post.mediaType, scheduledAt: toLocalInput(post.scheduledAt) });
+  };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]" aria-busy={pending}>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]" aria-busy={pending}>
       {canManage && (
-        <Card className="space-y-4 p-5" data-social-composer>
+        <Card className="order-2 space-y-4 p-5 xl:order-none" data-social-composer>
           <div>
             <Eyebrow>{draft.id ? 'Editar publicación' : 'Nueva publicación'}</Eyebrow>
             <p className="mt-1 text-xs text-soft">Instagram ahora. TikTok se habilita cuando su conexión esté disponible.</p>
@@ -171,11 +199,34 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
       )}
 
       <div className="min-w-0 space-y-3">
-        <Eyebrow>Historial</Eyebrow>
-        {posts.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Vista">
+            {([['month', 'Mes'], ['week', 'Semana'], ['list', 'Lista']] as const).map(([id, label]) => (
+              <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-1 text-sm', view === id ? 'bg-carbon text-canvas' : 'text-graphite hover:bg-ivory')}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <Select density="sm" wrapperClassName="w-auto" value={network} onChange={(e) => setNetwork(e.target.value)} aria-label="Filtrar por red">
+            <option value="">Todas las redes</option>
+            <option value="INSTAGRAM">Instagram</option>
+            <option value="TIKTOK" disabled>TikTok · próximamente</option>
+          </Select>
+          {accounts.length > 1 && (
+            <Select density="sm" wrapperClassName="w-auto" value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} aria-label="Filtrar por cuenta">
+              <option value="">Todas las cuentas</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          )}
+        </div>
+        {!canManage && error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
+        {canManage && (error || notice) && view !== 'list' && <p role={error ? 'alert' : 'status'} className={cn('text-sm', error ? 'text-danger-ink' : 'text-graphite')} data-calendar-notice>{error || notice}</p>}
+        {view !== 'list' ? (
+          <SocialCalendar mode={view} posts={visible} canManage={canManage} pending={pending} onEdit={edit} onPlanDay={planDay} onAction={calendarAction} onDelete={remove} />
+        ) : visible.length === 0 ? (
           <EmptyState icon={Megaphone} title="Todavía no hay publicaciones" description="Lo que guardes, programes o publiques aparece aquí con su estado." />
         ) : (
-          posts.map((post) => (
+          visible.map((post) => (
             <Card key={post.id} className="space-y-2 p-4" data-social-post={post.id} data-status={post.status}>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={STATUS[post.status].variant}>{STATUS[post.status].label}</Badge>
@@ -210,7 +261,7 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
                   <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void call(`/api/social-posts/${post.id}`, 'POST', { action: 'unschedule' })}>Cancelar programación</Button>
                 )}
                 {canManage && post.status !== 'PUBLISHING' && (
-                  <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { if (confirm(post.status === 'PUBLISHED' ? 'Se borra solo de Upzites; en Instagram sigue publicado.' : '¿Borrar esta publicación?')) void call(`/api/social-posts/${post.id}`, 'DELETE'); }}>Borrar</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => remove(post)}>Borrar</Button>
                 )}
                 <button type="button" className="ml-auto text-xs text-soft hover:text-carbon" onClick={() => setOpenHistory(openHistory === post.id ? null : post.id)} aria-expanded={openHistory === post.id}>
                   {openHistory === post.id ? 'Ocultar historial' : `Historial (${post.history.length})`}

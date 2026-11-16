@@ -9,7 +9,10 @@ import { SocialPostError, deleteSocialPost, saveSocialPost, socialPostAction, so
 
 export const dynamic = 'force-dynamic';
 
-const actionSchema = z.object({ action: z.enum(['retry', 'unschedule']) });
+const actionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.enum(['retry', 'unschedule', 'duplicate', 'publish_now']) }),
+  z.object({ action: z.literal('reschedule'), scheduledAt: z.string().datetime({ offset: true }) }),
+]);
 
 async function guarded(run: (workspaceId: string, userId: string) => Promise<unknown>) {
   const user = await requireCurrentUser();
@@ -31,12 +34,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return guarded((workspaceId, userId) => saveSocialPost(workspaceId, userId, parsed.data, id));
 }
 
-/** Reintentar o cancelar la programación. */
+/** Reintentar, cancelar, duplicar, publicar ya o mover de fecha (calendario P20). */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const parsed = await parseBody(request, actionSchema);
   if (!parsed.ok) return parsed.response;
-  return guarded((workspaceId) => socialPostAction(workspaceId, id, parsed.data.action));
+  return guarded((workspaceId, userId) => socialPostAction(workspaceId, id, parsed.data, userId));
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
