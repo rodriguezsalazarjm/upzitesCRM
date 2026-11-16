@@ -116,6 +116,8 @@ export async function GET(request: Request) {
       update: {
         workspaceId: user.workspace.id,
         displayName: profile.username,
+        // Reconectar es la forma de sumar un permiso nuevo (P19: publicar).
+        scopes: INSTAGRAM_OAUTH_SCOPES.join(','),
         accessTokenEncrypted: encryptSecret(longLived.accessToken),
         accessTokenExpiresAt: new Date(Date.now() + longLived.expiresInSeconds * 1000),
         status: 'CONNECTED',

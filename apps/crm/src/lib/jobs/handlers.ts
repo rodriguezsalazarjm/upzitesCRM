@@ -33,6 +33,7 @@ import { downloadWhatsAppMedia } from '../whatsapp/media';
 import { purgeExpiredMedia, purgeOrphanMedia, requeueBlockedMedia } from '../media/maintenance';
 import { processChannelEvent } from '../channels/process';
 import { advanceFlowRun } from '../automations/engine';
+import { publishDueSocialPosts } from '../social/publisher';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -364,6 +365,9 @@ const handlers: Record<JobType, JobHandler> = {
     return advanceFlowRun(runId);
   },
 
+  // P19: publica los posts programados que ya vencieron (y sus reintentos).
+  [JobType.PUBLISH_SOCIAL_POSTS]: async () => publishDueSocialPosts(),
+
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
     const segments = await crossTenantPrisma.segment.findMany({
       where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
@@ -410,6 +414,13 @@ export async function enqueueRecurringJobs(now = new Date()) {
     type: JobType.PROCESS_JOURNEYS,
     payload: {},
     dedupeKey: `journeys:${minute}`,
+    priority: 30,
+  });
+
+  await enqueue({
+    type: JobType.PUBLISH_SOCIAL_POSTS,
+    payload: {},
+    dedupeKey: `social:${minute}`,
     priority: 30,
   });
 

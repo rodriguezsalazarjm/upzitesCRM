@@ -269,6 +269,7 @@ test('P17: each priority module page shows its first-visit tip, and tips stay br
     'ai.first_visit': 'src/app/(dashboard)/ia/agente/page.tsx',
     'recovery.first_visit': 'src/app/(dashboard)/recuperacion/page.tsx',
     'orders.first_visit': 'src/app/(dashboard)/pedidos/page.tsx',
+    'social.first_visit': 'src/app/(dashboard)/social/page.tsx',
     'team.first_visit': 'src/app/(dashboard)/configuracion/equipo/page.tsx',
   };
   assert.deepEqual(Object.keys(pages).sort(), [...TUTORIAL_KEYS].sort());

@@ -1,0 +1,109 @@
+import { z } from 'zod';
+import type { Prisma } from '../../../generated/prisma/client';
+import { assertFeature } from '../entitlements';
+import { prisma } from '../prisma';
+import { appendHistory, composeCaption, publishSocialPost } from './publisher';
+
+export class SocialPostError extends Error {}
+
+/** Límites de Instagram: 2.200 caracteres de texto (con hashtags) y 30 hashtags. */
+export const CAPTION_MAX = 2200;
+export const HASHTAGS_MAX = 30;
+
+export const socialPostInputSchema = z.object({
+  channelAccountId: z.string().min(1),
+  caption: z.string().max(CAPTION_MAX),
+  hashtags: z.array(z.string().trim().regex(/^#?[\p{L}\p{N}_]{1,80}$/u, 'Hashtag inválido.')).max(HASHTAGS_MAX),
+  mediaUrl: z.union([z.literal(''), z.string().url().max(2000).refine((url) => url.startsWith('https://'), 'La URL del archivo debe empezar con https://')]),
+  mediaType: z.enum(['IMAGE', 'REEL']),
+  action: z.enum(['draft', 'schedule', 'publish_now']),
+  scheduledAt: z.string().datetime({ offset: true }).optional(),
+});
+export type SocialPostInput = z.infer<typeof socialPostInputSchema>;
+
+/** Pura: valida lo que depende de la acción elegida. Devuelve el mensaje o null. */
+export function validateForAction(input: SocialPostInput, now: Date): string | null {
+  if (composeCaption(input.caption, input.hashtags).length > CAPTION_MAX) return `El texto con hashtags supera ${CAPTION_MAX} caracteres.`;
+  if (input.action === 'draft') return null;
+  if (!input.mediaUrl) return 'Instagram exige una imagen o un video para publicar.';
+  if (input.action === 'schedule') {
+    if (!input.scheduledAt) return 'Elige fecha y hora.';
+    if (new Date(input.scheduledAt).getTime() < now.getTime() - 60_000) return 'La fecha ya pasó: usa "Publicar ahora" o elige otra.';
+  }
+  return null;
+}
+
+const EDITABLE = ['DRAFT', 'SCHEDULED', 'FAILED'] as const;
+
+export async function saveSocialPost(workspaceId: string, userId: string, input: SocialPostInput, postId?: string) {
+  const now = new Date();
+  const problem = validateForAction(input, now);
+  if (problem) throw new SocialPostError(problem);
+  if (input.action !== 'draft') await assertFeature(workspaceId, 'channels.messaging');
+
+  const account = await prisma.channelAccount.findFirst({ where: { id: input.channelAccountId, workspaceId, channel: 'INSTAGRAM' }, select: { id: true } });
+  if (!account) throw new SocialPostError('La cuenta elegida no es una cuenta de Instagram de este negocio.');
+
+  const existing = postId ? await prisma.socialPost.findFirst({ where: { id: postId, workspaceId } }) : null;
+  if (postId && !existing) throw new SocialPostError('Publicación no encontrada.');
+  if (existing && !(EDITABLE as readonly string[]).includes(existing.status)) throw new SocialPostError('Ya se publicó o se está publicando: no se puede editar.');
+
+  const status = input.action === 'draft' ? ('DRAFT' as const) : ('SCHEDULED' as const);
+  const event = input.action === 'draft' ? 'draft_saved' : input.action === 'schedule' ? 'scheduled' : 'publish_requested';
+  const data = {
+    network: 'INSTAGRAM' as const,
+    channelAccountId: account.id,
+    caption: input.caption,
+    hashtags: input.hashtags.map((tag) => tag.replace(/^#+/, '')),
+    mediaUrl: input.mediaUrl || null,
+    mediaType: input.mediaType,
+    status,
+    scheduledAt: input.action === 'schedule' ? new Date(input.scheduledAt!) : input.action === 'publish_now' ? now : null,
+    // Un post editado empieza de cero: contenedor y reintentos eran del contenido anterior.
+    attempts: 0,
+    nextAttemptAt: null,
+    containerId: null,
+    lastError: null,
+    history: appendHistory(existing?.history, event, input.action === 'schedule' ? input.scheduledAt : undefined, now) as Prisma.InputJsonValue,
+  };
+  let post;
+  if (existing) {
+    // Condicional: si el cron lo tomó entre la lectura y este update, no se pisa.
+    const updated = await prisma.socialPost.updateMany({ where: { id: existing.id, workspaceId, status: { in: [...EDITABLE] } }, data });
+    if (updated.count === 0) throw new SocialPostError('Se está publicando en este momento: no se puede editar.');
+    post = await prisma.socialPost.findFirstOrThrow({ where: { id: existing.id, workspaceId } });
+  } else {
+    post = await prisma.socialPost.create({ data: { ...data, workspaceId, createdById: userId } });
+  }
+
+  return input.action === 'publish_now' ? ((await publishSocialPost(workspaceId, post.id, { now })) ?? post) : post;
+}
+
+/** Reintentar un FAILED (publica ya) o cancelar una programación (vuelve a borrador). */
+export async function socialPostAction(workspaceId: string, postId: string, action: 'retry' | 'unschedule') {
+  const now = new Date();
+  const post = await prisma.socialPost.findFirst({ where: { id: postId, workspaceId } });
+  if (!post) throw new SocialPostError('Publicación no encontrada.');
+  if (action === 'retry') {
+    if (post.status !== 'FAILED') throw new SocialPostError('Solo se reintenta una publicación que falló.');
+    await assertFeature(workspaceId, 'channels.messaging');
+    await prisma.socialPost.updateMany({
+      where: { id: post.id, workspaceId, status: 'FAILED' },
+      data: { status: 'SCHEDULED', scheduledAt: now, attempts: 0, nextAttemptAt: null, history: appendHistory(post.history, 'retry_requested', undefined, now) as Prisma.InputJsonValue },
+    });
+    return (await publishSocialPost(workspaceId, post.id, { now })) ?? post;
+  }
+  if (post.status !== 'SCHEDULED') throw new SocialPostError('Solo se cancela una publicación programada.');
+  const updated = await prisma.socialPost.updateMany({
+    where: { id: post.id, workspaceId, status: 'SCHEDULED' },
+    data: { status: 'DRAFT', scheduledAt: null, nextAttemptAt: null, history: appendHistory(post.history, 'unscheduled', undefined, now) as Prisma.InputJsonValue },
+  });
+  if (updated.count === 0) throw new SocialPostError('Se está publicando en este momento.');
+  return prisma.socialPost.findFirstOrThrow({ where: { id: post.id, workspaceId } });
+}
+
+export async function deleteSocialPost(workspaceId: string, postId: string) {
+  // Borrar no toca lo ya publicado en Instagram: solo saca el registro de Upzites.
+  const deleted = await prisma.socialPost.deleteMany({ where: { id: postId, workspaceId, status: { not: 'PUBLISHING' } } });
+  if (deleted.count === 0) throw new SocialPostError('No se puede borrar (no existe o se está publicando).');
+}

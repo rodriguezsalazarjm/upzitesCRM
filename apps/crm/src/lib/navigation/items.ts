@@ -26,6 +26,7 @@ export type NavIcon =
   | 'plug'
   | 'bot'
   | 'send'
+  | 'megaphone'
   | 'sparkles'
   | 'book'
   | 'chart'
@@ -54,6 +55,7 @@ export const NAV_ITEMS = [
   { id: 'products', href: '/productos', label: 'Productos', icon: 'package', requires: 'commerce.products' },
   { id: 'recovery', href: '/recuperacion', label: 'Recuperación', icon: 'send', requires: 'campaigns.journeys' },
   { id: 'automations', href: '/automatizaciones', label: 'Automatizaciones', icon: 'bot' },
+  { id: 'social', href: '/social', label: 'Social', icon: 'megaphone', requires: 'channels.messaging' },
   { id: 'ai', href: '/ia/agente', label: 'IA', icon: 'sparkles', requires: 'agents' },
   { id: 'ai_knowledge', href: '/ia/conocimiento', label: 'IA · Conocimiento', icon: 'book', requires: 'ai' },
   // No existe un modulo de analitica aparte: "Insights" (scoring, resumenes,

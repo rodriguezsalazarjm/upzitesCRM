@@ -3,7 +3,7 @@
  * consejo la primera vez; la persona lo descarta y queda descartado SOLO para
  * ella y SOLO en ese workspace (WorkspaceUserPreference.dismissedTutorials).
  */
-export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit', 'team.first_visit', 'ai.first_visit', 'recovery.first_visit', 'orders.first_visit'] as const;
+export const TUTORIAL_KEYS = ['pipeline.first_visit', 'automation.first_visit', 'products.first_visit', 'inbox.first_visit', 'team.first_visit', 'ai.first_visit', 'recovery.first_visit', 'orders.first_visit', 'social.first_visit'] as const;
 export type TutorialKey = (typeof TUTORIAL_KEYS)[number];
 
 export function isTutorialKey(value: unknown): value is TutorialKey {
@@ -39,6 +39,10 @@ export const TUTORIALS: Record<TutorialKey, { title: string; body: string }> = {
   'orders.first_visit': {
     title: 'Tus pedidos',
     body: 'Cada compra aparece aquí con su estado de pago y de entrega. Los productos digitales se entregan solos cuando el pago se confirma.',
+  },
+  'social.first_visit': {
+    title: 'Social',
+    body: 'Escribe el texto, pega la URL de la imagen o el reel y publícalo ya o prográmalo. Si Instagram lo rechaza, verás el motivo y podrás reintentar.',
   },
   'inbox.first_visit': {
     title: 'Inbox',

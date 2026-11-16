@@ -52,6 +52,7 @@ model Workspace {
 
   whatsappChannels WhatsAppChannel[]
   campaignRoutes   CampaignRoute[]
+  socialPosts      SocialPost[]
   conversations    Conversation[]
   messages         Message[]
   outboxEvents     OutboxEvent[]
@@ -1050,6 +1051,7 @@ model ChannelAccount {
   conversations Conversation[]
   identities    ContactChannelIdentity[]
   events        ChannelEvent[]
+  socialPosts   SocialPost[]
 
   // Una cuenta externa (una pagina de FB, una cuenta IG) solo puede estar
   // conectada a UN workspace a la vez: igual que el dominio de Shopify o el
@@ -3465,6 +3467,8 @@ enum JobType {
   // Fase C
   PROCESS_CHANNEL_EVENT
   RUN_FLOW_STEP
+  // P19
+  PUBLISH_SOCIAL_POSTS
 }
 
 enum JobStatus {
@@ -3910,4 +3914,51 @@ enum CampaignRouteLevel {
   AD
   ADSET
   CAMPAIGN
+}
+
+/// P19 Social Publisher: un contenido para una red. El historial es una lista
+/// corta de eventos ({at, event, detail}); los reintentos los lleva el propio post.
+enum SocialPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+enum SocialMediaType {
+  IMAGE
+  REEL
+}
+
+model SocialPost {
+  id               String           @id @default(cuid())
+  workspaceId      String           @map("workspace_id")
+  network          Channel
+  channelAccountId String?          @map("channel_account_id")
+  caption          String           @default("")
+  hashtags         String[]         @default([])
+  mediaUrl         String?          @map("media_url")
+  mediaType        SocialMediaType  @default(IMAGE) @map("media_type")
+  status           SocialPostStatus @default(DRAFT)
+  scheduledAt      DateTime?        @map("scheduled_at")
+  nextAttemptAt    DateTime?        @map("next_attempt_at")
+  attempts         Int              @default(0)
+  /// Contenedor de Meta ya creado (un reel se procesa en minutos): el reintento lo reutiliza.
+  containerId      String?          @map("container_id")
+  externalPostId   String?          @map("external_post_id")
+  permalink        String?
+  publishedAt      DateTime?        @map("published_at")
+  lastError        String?          @map("last_error")
+  history          Json             @default("[]")
+  createdById      String?          @map("created_by_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount? @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("social_posts")
 }

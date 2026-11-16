@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/activation-checklist-p18` (P18). La cadena es P8 → … → P17 → P18, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/social-publisher-p19` (P19). La cadena es P8 → … → P18 → P19, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -11,6 +11,7 @@
 - QA P14: owner-a es OWNER de A (Servicios) y B (Infoproductos); cambiar con POST /api/workspaces/switch. Los scripts visuales fijan A por nombre.
 - Si `tsc` falla en `.next/dev/types` tras parar el servidor: es un archivo generado a medias; borrar esa carpeta.
 - QA P16: cuenta nueva en `.local-visual/p16-account.json` (no versionado); `scripts/visual/p16-plan.ts` le da COMP PRO.
-- Siguiente: P19 (Social Publisher, bloque Social 19–24; APIs Meta/TikTok externas). Agregar su consejo de primera visita.
+- Hito P19: `scripts/visual/p19-social-hito.ts` (Instagram falso; deja "QA Instagram" y posts en A). Migración aplicada a crm_pruebas con `prisma migrate deploy` + preload.
+- Siguiente: P20 (Calendario editorial, sobre `SocialPost`).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

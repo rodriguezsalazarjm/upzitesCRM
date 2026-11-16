@@ -7,13 +7,14 @@
  * proposito, documentados por Meta para este producto especifico.
  *
  * Principio de minimo privilegio (spec Fase D1, seccion 2): solo se piden los
- * tres scopes que Upzites Flow usa hoy. NO se pide
- * `instagram_business_content_publish` porque no publicamos posts.
+ * scopes que Upzites Flow usa. P19 agrega `instagram_business_content_publish`
+ * para el Social Publisher (requiere App Review como los demas).
  */
 export const INSTAGRAM_OAUTH_SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_messages',
   'instagram_business_manage_comments',
+  'instagram_business_content_publish',
 ] as const;
 
 export const INSTAGRAM_OAUTH_NONCE_COOKIE = 'upzites_ig_oauth_nonce';
