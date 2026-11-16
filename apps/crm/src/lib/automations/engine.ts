@@ -248,13 +248,15 @@ export async function advanceFlowRun(runId: string, provider?: ModelProvider): P
         provider,
       });
     } catch (error) {
+      // P12: el paso que falló también queda en la traza, para verlo en el historial.
+      const failedTimeline = Array.isArray(state.timeline) ? state.timeline : [];
       await finishRun(
         run.id,
         version.id,
         AutomationFlowRunStatus.FAILED,
         error instanceof Error ? error.message : 'Error desconocido ejecutando el nodo.',
         stepsExecuted,
-        state,
+        { ...state, timeline: [...failedTimeline, { nodeId: node.id, type: node.type, result: 'ERROR', at: new Date().toISOString() }] },
       );
       return;
     }
