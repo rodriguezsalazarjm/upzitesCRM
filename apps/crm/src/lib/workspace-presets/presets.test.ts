@@ -241,3 +241,21 @@ test('P15: the menu customizer patch round-trips through resolveNavigation and r
   const reset = resolveNavigation({ preset: PRESETS.services, features: ALL, role: WorkspaceRole.OWNER, preference: { navOrder: [], hiddenNavItems: [] } });
   assert.deepEqual(reset.primary.map((e) => e.id), ids);
 });
+
+test('P16: every business type walks the plan flow: profile → … → IA → automation → first result', () => {
+  for (const preset of Object.values(PRESETS)) {
+    const list = preset.onboardingChecklist as string[];
+    const at = (id: string) => list.indexOf(id);
+    const result = list.includes('first_sale') ? 'first_sale' : 'first_lead';
+    assert.equal(list[0], 'setup_profile', preset.key);
+    assert.ok(at('setup_ai') > 0 && at('setup_ai') < at('create_automation'), `${preset.key}: IA antes de automatización`);
+    assert.ok(at(result) > at('create_automation'), `${preset.key}: primer resultado al final`);
+  }
+  assert.ok(PRESETS.infoproduct.onboardingChecklist.includes('first_sale'));
+  assert.ok(PRESETS.services.onboardingChecklist.includes('first_lead'));
+  // MEMBER: la IA es de OWNER/ADMIN → aviso sin enlace, no pendiente propio.
+  const member = resolveChecklist({ presetTasks: PRESETS.services.onboardingChecklist, completed: {}, access: () => ({ allowed: true, requiredPlanName: null }), role: WorkspaceRole.MEMBER });
+  const ai = member.items.find((i) => i.id === 'setup_ai')!;
+  assert.equal(ai.href, null);
+  assert.equal(ai.roleRestricted, true);
+});

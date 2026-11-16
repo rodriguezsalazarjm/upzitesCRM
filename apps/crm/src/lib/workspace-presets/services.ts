@@ -10,7 +10,7 @@ export const servicesPreset: WorkspacePreset = {
   navigationOrder: ['home', 'inbox', 'contacts', 'pipeline', 'quotes', 'activities', 'automations', 'ai', 'analytics'],
   defaultHiddenItems: ['orders', 'products', 'recovery'],
   dashboardWidgets: ['new_contacts', 'open_opportunities', 'pipeline_value', 'quotes_pending', 'unread_messages', 'automation_activity'],
-  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_opportunity', 'setup_quotes', 'create_automation', 'invite_team'],
+  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'setup_quotes', 'setup_ai', 'create_automation', 'first_lead', 'create_opportunity', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram', 'messenger'],
   recommendedAutomations: ['nuevo-lead-tarea', 'seguimiento-2h', 'silencio-3-dias'],
   recommendedTemplates: ['qualification', 'quote', 'faq'],

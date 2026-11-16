@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -185,9 +186,15 @@ export function SetupForm({ initial }: { initial: Initial }) {
           {error}
         </p>
       )}
-      <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-        {pending ? 'Guardando…' : 'Guardar y adaptar mi CRM'}
-      </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+          {pending ? 'Guardando…' : 'Guardar y adaptar mi CRM'}
+        </Button>
+        {/* P16: saltar. Los primeros pasos del inicio siguen ofreciendo "Configura tu negocio". */}
+        <Link href="/dashboard" className="text-center text-sm font-medium text-soft hover:text-carbon">
+          Saltar por ahora
+        </Link>
+      </div>
     </form>
   );
 }

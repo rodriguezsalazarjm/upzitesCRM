@@ -1,5 +1,6 @@
-import { ChannelAccountStatus, Channel, JourneyStatus, JourneyTrigger, AutomationFlowStatus, MembershipStatus, WhatsAppChannelStatus, WorkspaceRole } from '../../generated/prisma/enums';
+import { AgentVersionStatus, ChannelAccountStatus, Channel, JourneyStatus, JourneyTrigger, AutomationFlowStatus, MembershipStatus, WhatsAppChannelStatus, WorkspaceRole } from '../../generated/prisma/enums';
 import { PLAN_CATALOG } from './billing/plan-catalog';
+import { SOLD_ORDER_STATUSES } from './dashboard/widgets/loaders/commerce';
 import { WIDGET_REGISTRY } from './dashboard/widgets/registry';
 import { resolveDashboard, type ResolvedDashboard } from './dashboard/widgets/layout';
 import type { WidgetData, WidgetId } from './dashboard/widgets/types';
@@ -86,7 +87,7 @@ export async function getWorkspaceExperience(scope: ExperienceScope): Promise<Wo
 
 /** Evidencia REAL de cada tarea (no casillas marcadas). */
 export async function checklistEvidence(workspaceId: string): Promise<Record<ChecklistTaskId, boolean>> {
-  const [profile, whatsapp, instagram, contacts, opportunities, quotes, products, recovery, rules, flows, members, invitations] = await Promise.all([
+  const [profile, whatsapp, instagram, contacts, opportunities, quotes, products, recovery, rules, flows, members, invitations, agents, conversations, sales] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId }, select: { onboardingCompletedAt: true } }),
     prisma.whatsAppChannel.count({ where: { workspaceId, status: WhatsAppChannelStatus.CONNECTED } }),
     prisma.channelAccount.count({ where: { workspaceId, channel: Channel.INSTAGRAM, status: ChannelAccountStatus.CONNECTED } }),
@@ -102,6 +103,9 @@ export async function checklistEvidence(workspaceId: string): Promise<Record<Che
     // Solo invitaciones que aun reservan asiento (no vencidas): abrir la
     // pantalla o dejar vencer una invitacion no completa la tarea.
     prisma.workspaceInvitation.count({ where: reservingInvitationWhere(workspaceId, new Date()) }),
+    prisma.agentVersion.count({ where: { status: AgentVersionStatus.PUBLISHED, definition: { workspaceId, isActive: true } } }),
+    prisma.conversation.count({ where: { workspaceId } }),
+    prisma.customerOrder.count({ where: { workspaceId, status: { in: SOLD_ORDER_STATUSES } } }),
   ]);
   return {
     setup_profile: Boolean(profile?.onboardingCompletedAt),
@@ -114,6 +118,9 @@ export async function checklistEvidence(workspaceId: string): Promise<Record<Che
     setup_recovery: recovery > 0,
     create_automation: rules + flows > 0,
     invite_team: members > 1 || invitations > 0,
+    setup_ai: agents > 0,
+    first_lead: conversations > 0,
+    first_sale: sales > 0,
   };
 }
 

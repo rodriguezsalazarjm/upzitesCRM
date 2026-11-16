@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, Lock, X } from 'lucide-react';
+import { ArrowRight, Check, Lock, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import type { ChecklistItem } from '@/lib/onboarding-checklist/resolve';
@@ -43,16 +43,37 @@ function ItemBody({ item }: { item: ChecklistItem }) {
  * calcula del estado real. Lo bloqueado por plan se ve con "Disponible en X"
  * y NO cuenta como pendiente obligatorio.
  */
+async function setHidden(hidden: boolean) {
+  await fetch('/api/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ checklistHidden: hidden }),
+  });
+}
+
+/** P16: "continuar después": quien ocultó los primeros pasos los recupera mientras queden pendientes. */
+export function ResumeChecklist({ pending }: { pending: number }) {
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      onClick={() => void setHidden(false).then(() => router.refresh())}
+      className="inline-flex items-center gap-1 text-sm font-semibold text-electric hover:underline"
+      data-resume-checklist
+    >
+      Retomar primeros pasos ({pending} {pending === 1 ? 'pendiente' : 'pendientes'}) <ArrowRight className="h-4 w-4" aria-hidden />
+    </button>
+  );
+}
+
 export function ChecklistCard({ items, completed, actionable }: { items: ChecklistItem[]; completed: number; actionable: number }) {
   const router = useRouter();
   async function hide() {
-    await fetch('/api/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checklistHidden: true }),
-    });
+    await setHidden(true);
     router.refresh();
   }
+  // P16: el siguiente paso es la primera tarea que ESTA persona puede hacer ya, en el orden del rubro.
+  const next = items.find((item) => item.state === 'available' && item.href);
   const percent = actionable === 0 ? 100 : Math.round((completed / actionable) * 100);
   return (
     <Card className="p-6" data-checklist>
@@ -63,13 +84,26 @@ export function ChecklistCard({ items, completed, actionable }: { items: Checkli
             {completed} de {actionable} listos
           </h2>
         </div>
-        <button type="button" onClick={() => void hide()} className="rounded p-1 text-soft hover:bg-ivory hover:text-carbon" aria-label="Ocultar primeros pasos">
+        <button type="button" onClick={() => void hide()} className="rounded p-1 text-soft hover:bg-ivory hover:text-carbon" aria-label="Ocultar primeros pasos por ahora" title="Ocultar por ahora (puedes retomarlos desde el inicio)">
           <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-ivory" aria-hidden>
         <div className="h-full rounded-full bg-electric" style={{ width: `${percent}%` }} />
       </div>
+      {next && (
+        <Link
+          href={next.href!}
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-carbon px-4 py-3 text-sm text-canvas hover:bg-carbon/90"
+          data-next-step={next.id}
+        >
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-lime">Siguiente paso</span>
+            <span className="block truncate font-semibold">{next.label}</span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+        </Link>
+      )}
       <ul className="mt-4 grid gap-2 md:grid-cols-2">
         {items.map((item) => (
           <li key={item.id} data-task={item.id} data-state={item.state} data-role-restricted={item.roleRestricted || undefined}>

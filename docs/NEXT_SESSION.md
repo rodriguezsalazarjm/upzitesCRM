@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/ui-personalization-p15` (P15). La cadena es P8 → … → P14 → P15, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/first-contact-onboarding-p16` (P16). La cadena es P8 → … → P15 → P16, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -10,6 +10,7 @@
 - Hito P13: publicar "Postventa" desde el wizard (canal WHATSAPP) y luego correr `scripts/visual/p13-template-hito.ts fire` (`comp` le da START a owner-a). Smoke base: cargar `.env.local` y correr `npx tsx scripts/smoke-meta-oauth.ts` (18 checks, Meta falso).
 - QA P14: owner-a es OWNER de A (Servicios) y B (Infoproductos); cambiar con POST /api/workspaces/switch. Los scripts visuales fijan A por nombre.
 - Si `tsc` falla en `.next/dev/types` tras parar el servidor: es un archivo generado a medias; borrar esa carpeta.
-- Siguiente: P16 (onboarding / tutorial del primer contacto) según el plan.
+- QA P16: cuenta nueva en `.local-visual/p16-account.json` (no versionado); `scripts/visual/p16-plan.ts` le da COMP PRO.
+- Siguiente: P17 (tutoriales contextuales) según el plan.
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

@@ -15,7 +15,7 @@ export const infoproductPreset: WorkspacePreset = {
   navigationOrder: ['home', 'inbox', 'orders', 'products', 'contacts', 'recovery', 'automations', 'ai', 'analytics'],
   defaultHiddenItems: ['pipeline', 'quotes', 'activities'],
   dashboardWidgets: ['orders_today', 'revenue_today', 'top_products', 'recovered_sales', 'unread_messages', 'automation_activity'],
-  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'setup_recovery', 'create_automation', 'invite_team'],
+  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'setup_ai', 'create_automation', 'setup_recovery', 'first_sale', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram', 'mercado_pago'],
   recommendedAutomations: ['pago-limpia-seguimientos', 'silencio-3-dias', 'opt-out-limpieza'],
   recommendedTemplates: ['sale', 'post-sale', 'comment-guide'],

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Card } from '@/components/ui/card';
-import { ChecklistCard } from '@/components/dashboard/checklist-card';
+import { ChecklistCard, ResumeChecklist } from '@/components/dashboard/checklist-card';
 import { DashboardToolbar } from '@/components/dashboard/dashboard-controls';
 import { WidgetCard } from '@/components/dashboard/widget-card';
 import { requireCurrentUser } from '@/lib/auth';
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
   const experience = await getWorkspaceExperience({ workspaceId: user.workspace.id, userId: user.id, role: user.role });
   const [dashboard, checklist] = await Promise.all([
     loadDashboard(experience, user.workspace.id),
-    experience.preference.checklistHidden ? null : getChecklist(experience, { workspaceId: user.workspace.id, role: user.role }),
+    getChecklist(experience, { workspaceId: user.workspace.id, role: user.role }),
   ]);
   const needsSetup = !experience.profile.onboardingCompletedAt;
   const canSetup = canManageProfile(user.role);
@@ -70,9 +70,12 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {checklist && !checklist.done && (
-          <ChecklistCard items={checklist.items} completed={checklist.completed} actionable={checklist.actionable} />
-        )}
+        {!checklist.done &&
+          (experience.preference.checklistHidden ? (
+            <ResumeChecklist pending={checklist.actionable - checklist.completed} />
+          ) : (
+            <ChecklistCard items={checklist.items} completed={checklist.completed} actionable={checklist.actionable} />
+          ))}
 
         {recommended.length > 0 && (
           <Card className="p-5" data-recommended-templates>

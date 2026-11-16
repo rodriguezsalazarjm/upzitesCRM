@@ -10,7 +10,7 @@ export const generalPreset: WorkspacePreset = {
   navigationOrder: ['home', 'inbox', 'contacts', 'pipeline', 'automations', 'ai'],
   defaultHiddenItems: [],
   dashboardWidgets: ['new_contacts', 'unread_messages', 'automation_activity'],
-  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_automation', 'invite_team'],
+  onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'setup_ai', 'create_automation', 'first_lead', 'invite_team'],
   recommendedIntegrations: ['whatsapp'],
   recommendedAutomations: ['nuevo-lead-tarea'],
   recommendedTemplates: ['faq', 'keyword', 'handoff'],
