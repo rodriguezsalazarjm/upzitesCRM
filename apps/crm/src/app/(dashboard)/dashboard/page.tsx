@@ -6,6 +6,8 @@ import { ChecklistCard } from '@/components/dashboard/checklist-card';
 import { DashboardToolbar } from '@/components/dashboard/dashboard-controls';
 import { WidgetCard } from '@/components/dashboard/widget-card';
 import { requireCurrentUser } from '@/lib/auth';
+import { AUTOMATION_TEMPLATES } from '@/lib/automations/catalog';
+import { canManageAutomations } from '@/lib/automations/roles';
 import { DEV_DEMO_USER } from '@/lib/dev-demo';
 import { getChecklist, getWorkspaceExperience, loadDashboard } from '@/lib/workspace-experience';
 import { canManageProfile } from '@/lib/workspace-profile/service';
@@ -37,10 +39,17 @@ export default async function DashboardPage() {
   ]);
   const needsSetup = !experience.profile.onboardingCompletedAt;
   const canSetup = canManageProfile(user.role);
+  const { preset } = experience.preset;
+  // La acción del rubro solo si el plan habilita su módulo; si no, la neutra.
+  const nav = [...experience.navigation.primary, ...experience.navigation.hidden];
+  const actionLocked = nav.some((entry) => entry.locked && preset.primaryAction.href.startsWith(entry.href));
+  const primaryAction = actionLocked ? { label: 'Nuevo contacto', href: '/contactos/nuevo' } : preset.primaryAction;
+  // P14: plantillas del rubro, en el orden del preset.
+  const recommended = canManageAutomations(user.role) ? preset.recommendedTemplates.flatMap((id) => AUTOMATION_TEMPLATES.filter((t) => t.id === id)) : [];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Header title="Inicio" subtitle={subtitle} action={{ label: 'Nuevo contacto', href: '/contactos/nuevo' }} />
+      <Header title="Inicio" subtitle={subtitle} action={primaryAction} />
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-8 pt-2 sm:px-8">
         {needsSetup && (
@@ -63,6 +72,23 @@ export default async function DashboardPage() {
 
         {checklist && !checklist.done && (
           <ChecklistCard items={checklist.items} completed={checklist.completed} actionable={checklist.actionable} />
+        )}
+
+        {recommended.length > 0 && (
+          <Card className="p-5" data-recommended-templates>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-bold text-carbon">Automatizaciones recomendadas para {preset.label.toLowerCase()}</h2>
+              <Link href="/automatizaciones/nueva" className="text-xs font-semibold text-electric">Ver todas las plantillas</Link>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {recommended.map((t) => (
+                <Link key={t.id} href={`/automatizaciones/nueva?plantilla=${t.id}`} className="rounded-xl border border-line p-3 transition-colors hover:border-stone">
+                  <p className="text-sm font-semibold text-carbon">{t.name}</p>
+                  <p className="mt-1 text-xs text-soft">{t.description}</p>
+                </Link>
+              ))}
+            </div>
+          </Card>
         )}
 
         <DashboardToolbar

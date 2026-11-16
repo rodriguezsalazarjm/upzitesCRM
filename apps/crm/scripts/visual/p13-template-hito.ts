@@ -8,7 +8,7 @@ import { prisma } from '../../src/lib/prisma';
 import { assignCompSubscription } from '../../src/lib/billing/subscription-admin';
 import { matchAndStartFlowsForPayment } from '../../src/lib/automations/triggers';
 
-const user = await prisma.user.findFirstOrThrow({ where: { email: 'owner-a@visual.test' }, select: { memberships: { select: { workspaceId: true } } } });
+const user = await prisma.user.findFirstOrThrow({ where: { email: 'owner-a@visual.test' }, select: { memberships: { where: { workspace: { name: { startsWith: 'Visual Flow A' } } }, select: { workspaceId: true } } } }); // desde P14 owner-a también está en Visual Flow B
 const workspaceId = user.memberships[0].workspaceId;
 
 if (process.argv[2] === 'comp') {

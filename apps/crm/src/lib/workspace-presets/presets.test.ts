@@ -10,6 +10,7 @@ import { NAV_ITEMS } from '../navigation/items';
 import { resolveNavigation, type FeatureAccess } from '../navigation/resolve';
 import { SIDEBAR, clampSidebarWidth, sidebarWidthFor } from '../navigation/sidebar-layout';
 import { resolveChecklist } from '../onboarding-checklist/resolve';
+import { AUTOMATION_TEMPLATES } from '../automations/catalog';
 import { CHECKLIST_TASK_IDS } from '../onboarding-checklist/tasks';
 import { shouldShowTutorial } from '../tutorials';
 import { canonicalBusiness, normalizeBusinessInput, wizardSalesMode } from '../workspace-profile/business';
@@ -210,4 +211,20 @@ test('tutoriales: se muestran hasta que la persona los descarta', () => {
   assert.equal(shouldShowTutorial(null, 'inbox.first_visit'), true);
   assert.equal(shouldShowTutorial({ dismissedTutorials: ['inbox.first_visit'] }, 'inbox.first_visit'), false);
   assert.equal(shouldShowTutorial({ dismissedTutorials: ['inbox.first_visit'] }, 'pipeline.first_visit'), true);
+});
+
+test('P14: each preset recommends real templates, has a primary action and renames only labels', () => {
+  const ids = new Set(AUTOMATION_TEMPLATES.map((t) => t.id));
+  for (const preset of Object.values(PRESETS)) {
+    assert.ok(preset.recommendedTemplates.length > 0, preset.key);
+    for (const id of preset.recommendedTemplates) assert.ok(ids.has(id), `${preset.key}: ${id}`);
+    assert.match(preset.primaryAction.href, /^\//);
+  }
+  assert.notDeepEqual(PRESETS.services.recommendedTemplates, PRESETS.infoproduct.recommendedTemplates);
+  const services = resolveNavigation({ preset: PRESETS.services, features: ALL, role: WorkspaceRole.OWNER });
+  const general = resolveNavigation({ preset: PRESETS.general, features: ALL, role: WorkspaceRole.OWNER });
+  const contacts = (nav: typeof services) => nav.primary.find((e) => e.id === 'contacts')!;
+  assert.equal(contacts(services).label, 'Leads y clientes');
+  assert.equal(contacts(general).label, 'Contactos');
+  assert.equal(contacts(services).href, contacts(general).href);
 });

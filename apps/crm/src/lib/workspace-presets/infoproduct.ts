@@ -18,4 +18,7 @@ export const infoproductPreset: WorkspacePreset = {
   onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'setup_recovery', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram', 'mercado_pago'],
   recommendedAutomations: ['pago-limpia-seguimientos', 'silencio-3-dias', 'opt-out-limpieza'],
+  recommendedTemplates: ['sale', 'post-sale', 'comment-guide'],
+  primaryAction: { label: 'Nuevo producto', href: '/productos/nuevo' },
+  terms: { contacts: 'Clientes' },
 };

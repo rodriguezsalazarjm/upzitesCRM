@@ -31,4 +31,10 @@ export type WorkspacePreset = {
   recommendedIntegrations: string[];
   /** Claves de `lib/automation/presets`. */
   recommendedAutomations: string[];
+  /** P14: ids de plantillas de Flow Builder (`lib/automations/catalog`) que se ofrecen primero. */
+  recommendedTemplates: string[];
+  /** P14: acción principal del inicio. */
+  primaryAction: { label: string; href: string };
+  /** P14: terminología del rubro para el menú (solo el rótulo, nunca el acceso). */
+  terms?: Partial<Record<NavItemId, string>>;
 };

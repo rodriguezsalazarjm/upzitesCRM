@@ -13,4 +13,6 @@ export const generalPreset: WorkspacePreset = {
   onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp'],
   recommendedAutomations: ['nuevo-lead-tarea'],
+  recommendedTemplates: ['faq', 'keyword', 'handoff'],
+  primaryAction: { label: 'Nuevo contacto', href: '/contactos/nuevo' },
 };

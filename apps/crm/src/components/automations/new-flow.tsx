@@ -42,16 +42,22 @@ const RECOVERY_TEMPLATES = [
 const CHANNELS: Channel[] = ['INSTAGRAM', 'MESSENGER', 'WHATSAPP', 'TIKTOK'];
 const CATEGORIES = ['Todas', 'Captación', 'Ventas', 'Atención', 'Instagram', 'Messenger', 'WhatsApp', 'TikTok', 'IA'];
 
-export function NewFlow({ accounts, agents, products }: { accounts: AccountView[]; agents: { id: string; label: string }[]; products: { id: string; name: string }[] }) {
+const templateValues = (t: (typeof AUTOMATION_TEMPLATES)[number]) => ({ text: '¡Gracias por escribirnos!', match: 'CONTAINS', delayMinutes: '60', ...Object.fromEntries(Object.entries(t.config).map(([k, v]) => [k, String(v)])) });
+
+export function NewFlow({ accounts, agents, products, recommended = [], initialTemplateId }: { accounts: AccountView[]; agents: { id: string; label: string }[]; products: { id: string; name: string }[]; recommended?: string[]; initialTemplateId?: string }) {
   const router = useRouter();
-  const [mode, setMode] = useState<'scratch' | 'quick' | 'templates'>('scratch');
+  const initial = AUTOMATION_TEMPLATES.find((t) => t.id === initialTemplateId);
+  // P14: las plantillas del rubro van primero.
+  const rank = (id: string) => (recommended.includes(id) ? recommended.indexOf(id) : recommended.length);
+  const templates = [...AUTOMATION_TEMPLATES].sort((a, b) => rank(a.id) - rank(b.id));
+  const [mode, setMode] = useState<'scratch' | 'quick' | 'templates'>(initial || recommended.length ? 'templates' : 'scratch');
   const [kind, setKind] = useState<QuickKind>('comment');
-  const [templateId, setTemplate] = useState('');
+  const [templateId, setTemplate] = useState(initial?.id ?? '');
   const [category, setCategory] = useState('Todas');
   const [channel, setChannel] = useState<Channel>('INSTAGRAM');
   const [accountId, setAccount] = useState(accounts.find((a) => a.channel === 'INSTAGRAM')?.id ?? '');
-  const [name, setName] = useState('Nueva automatización');
-  const [values, setValues] = useState<Record<string, string>>({ keyword: 'GUIA', text: '¡Gracias por escribirnos!', match: 'CONTAINS', delayMinutes: '60' });
+  const [name, setName] = useState(initial?.name ?? 'Nueva automatización');
+  const [values, setValues] = useState<Record<string, string>>(initial ? templateValues(initial) : { keyword: 'GUIA', text: '¡Gracias por escribirnos!', match: 'CONTAINS', delayMinutes: '60' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [draftId, setDraftId] = useState('');
@@ -110,7 +116,7 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
             ))}
           </Select>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {AUTOMATION_TEMPLATES.filter(
+            {templates.filter(
               (t) =>
                 category === 'Todas' ||
                 t.category === category ||
@@ -123,11 +129,16 @@ export function NewFlow({ accounts, agents, products }: { accounts: AccountView[
                 onClick={() => {
                   setTemplate(t.id);
                   setName(t.name);
-                  setValues({ text: '¡Gracias por escribirnos!', match: 'CONTAINS', delayMinutes: '60', ...Object.fromEntries(Object.entries(t.config).map(([k, v]) => [k, String(v)])) });
+                  setValues(templateValues(t));
                 }}
                 className={`rounded-2xl border bg-paper p-5 text-left transition-colors ${templateId === t.id ? 'border-electric ring-2 ring-electric/15' : 'border-line hover:border-stone'}`}
               >
                 <p className="text-sm font-bold text-carbon">{t.name}</p>
+                {recommended.includes(t.id) && (
+                  <StatusBadge tone="success" className="mt-2">
+                    Recomendada para tu negocio
+                  </StatusBadge>
+                )}
                 <p className="mt-2 text-sm text-soft">{t.description}</p>
                 <p className="mt-3 text-xs font-medium text-electric">
                   {t.supportedChannels.join(' · ')} · v{t.version}

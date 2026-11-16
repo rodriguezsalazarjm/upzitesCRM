@@ -23,7 +23,7 @@ import { roleAllows } from '../workspace-roles';
 export type FeatureAccess = { allowed: boolean; requiredPlanName: string | null };
 
 export type NavigationInput = {
-  preset: Pick<WorkspacePreset, 'navigationOrder' | 'defaultHiddenItems'>;
+  preset: Pick<WorkspacePreset, 'navigationOrder' | 'defaultHiddenItems' | 'terms'>;
   /** Todas las FeatureKey del plan vigente. Una clave ausente se trata como bloqueada. */
   features: Partial<Record<FeatureKey, FeatureAccess>>;
   role: WorkspaceRole;
@@ -48,13 +48,13 @@ export type ResolvedNavigation = {
 };
 
 
-function entry(item: NavItemDef, features: NavigationInput['features']): ResolvedNavEntry {
+function entry(item: NavItemDef, features: NavigationInput['features'], terms: WorkspacePreset['terms'] = {}): ResolvedNavEntry {
   const access = item.requires ? features[item.requires] : undefined;
   const locked = item.requires ? !access?.allowed : false;
   return {
     id: item.id,
     href: item.href,
-    label: item.label,
+    label: terms[item.id as keyof typeof terms] ?? item.label,
     icon: item.icon,
     locked,
     lockedPlan: locked ? (access?.requiredPlanName ?? null) : null,
@@ -88,8 +88,8 @@ export function resolveNavigation(input: NavigationInput): ResolvedNavigation {
 
   // 2. Entitlements: disponible o bloqueado.
   return {
-    primary: visible.map((id) => entry(byId.get(id)!, input.features)),
+    primary: visible.map((id) => entry(byId.get(id)!, input.features, input.preset.terms)),
     system: items.filter((item) => item.system).map((item) => entry(item, input.features)),
-    hidden: hidden.map((id) => entry(byId.get(id)!, input.features)),
+    hidden: hidden.map((id) => entry(byId.get(id)!, input.features, input.preset.terms)),
   };
 }

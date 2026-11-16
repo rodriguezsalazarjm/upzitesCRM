@@ -18,4 +18,7 @@ export const appointmentsPreset: WorkspacePreset = {
   onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'import_contacts', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram'],
   recommendedAutomations: ['nuevo-lead-tarea', 'silencio-3-dias'],
+  recommendedTemplates: ['appointment', 'faq', 'handoff'],
+  primaryAction: { label: 'Nuevo cliente', href: '/contactos/nuevo' },
+  terms: { contacts: 'Clientes' },
 };

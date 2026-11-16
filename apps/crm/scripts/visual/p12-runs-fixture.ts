@@ -6,7 +6,7 @@
 import { startFlowRun } from '../../src/lib/automations/engine';
 import { prisma } from '../../src/lib/prisma';
 
-const owner = await prisma.user.findFirstOrThrow({ where: { email: 'owner-a@visual.test' }, select: { memberships: { select: { workspaceId: true } } } });
+const owner = await prisma.user.findFirstOrThrow({ where: { email: 'owner-a@visual.test' }, select: { memberships: { where: { workspace: { name: { startsWith: 'Visual Flow A' } } }, select: { workspaceId: true } } } }); // desde P14 owner-a también está en Visual Flow B
 const workspaceId = owner.memberships[0].workspaceId;
 const contacts = await prisma.contact.findMany({ where: { workspaceId }, take: 3, select: { id: true } });
 if (contacts.length === 0) throw new Error('El workspace de owner-a no tiene contactos.');

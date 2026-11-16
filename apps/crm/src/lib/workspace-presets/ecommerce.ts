@@ -13,4 +13,7 @@ export const ecommercePreset: WorkspacePreset = {
   onboardingChecklist: ['setup_profile', 'connect_whatsapp', 'connect_instagram', 'create_product', 'import_contacts', 'setup_recovery', 'create_automation', 'invite_team'],
   recommendedIntegrations: ['whatsapp', 'instagram', 'shopify', 'mercado_pago'],
   recommendedAutomations: ['pago-limpia-seguimientos', 'mensaje-fallido-aviso', 'silencio-3-dias'],
+  recommendedTemplates: ['sale', 'post-sale', 'faq'],
+  primaryAction: { label: 'Nuevo producto', href: '/productos/nuevo' },
+  terms: { contacts: 'Clientes' },
 };

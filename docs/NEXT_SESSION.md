@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/automation-templates` (P13). La cadena es P8 → P9 → P10 → D1 → P11 → P12 → P13, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/experience-p14` (P14). La cadena es P8 → P9 → P10 → D1 → P11 → P12 → P13 → P14, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -8,6 +8,7 @@
 - Decisión: el webhook de WhatsApp solo trae el id del anuncio; conjunto y campaña coinciden únicamente si llega esa atribución (Marketing API, no integrada).
 - QA visual: `preview_start crm-preview-visual` (la config ya existe en el launch.json de `C:\dev\upzites`); cuentas en `.local-visual/accounts.json`.
 - Hito P13: publicar "Postventa" desde el wizard (canal WHATSAPP) y luego correr `scripts/visual/p13-template-hito.ts fire` (`comp` le da START a owner-a). Smoke base: cargar `.env.local` y correr `npx tsx scripts/smoke-meta-oauth.ts` (18 checks, Meta falso).
-- Siguiente: P14 (experiencia, bloques 14–18) según el plan.
+- QA P14: owner-a es OWNER de A (Servicios) y B (Infoproductos); cambiar con POST /api/workspaces/switch. Los scripts visuales fijan A por nombre.
+- Siguiente: P15 (personalización de interfaz) según el plan.
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.
