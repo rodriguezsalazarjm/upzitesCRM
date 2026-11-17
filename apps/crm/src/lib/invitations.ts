@@ -231,6 +231,7 @@ export async function sendInvitationEmail(
   const url = invitationUrl(input.token);
   const outcome = await sendPlatformEmail(
     {
+      kind: 'INVITATION',
       to: invitation.email,
       subject: `Te invitaron a ${invitation.workspace.name} en Upzites Flow`,
       text: `Te invitaron a unirte a ${invitation.workspace.name} en Upzites Flow.\n\nAcepta aqui (vence en ${INVITATION_TTL_DAYS} dias):\n${url}\n`,

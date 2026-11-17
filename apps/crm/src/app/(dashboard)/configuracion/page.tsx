@@ -5,11 +5,13 @@ import {
   CalendarClock,
   FileText,
   Globe2,
+  Mail,
   Settings2,
   ShieldCheck,
   ShoppingCart,
   Users,
 } from 'lucide-react';
+import { EmailDomainsCard } from '@/components/email/email-domains-card';
 import { Header } from '@/components/layout/header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SettingsSection } from '@/components/ui/settings-card';
@@ -42,6 +44,7 @@ const navigation = [
   ['horarios', 'Horarios de atención'],
   ['informacion', 'Información y políticas'],
   ['sitio-web', 'Conexión con mi sitio web'],
+  ['email', 'Email de envío'],
   ['avanzada', 'Configuración avanzada'],
 ] as const;
 
@@ -78,6 +81,7 @@ export default async function ConfiguracionPage() {
   const menuItem = ({ id, label, locked, lockedPlan }: NonNullable<typeof menu>['primary'][number]) => ({ id, label, locked, lockedPlan });
   const salesMode = wizardSalesMode(storedProfile);
   const canEdit = canManageMarketing(user.role);
+  const emailDomains = await getEmailDomains(user.workspace.id);
   const snippet = `<script async src="${baseUrl}/api/capture/snippet?key=${workspacePublicKey}"></script>`;
   const formEmbed = form
     ? `<iframe src="${baseUrl}/api/capture/forms/${form.publicId}?pageUrl=https://tusitio.cl/contacto" style="width:100%;height:520px;border:0"></iframe>`
@@ -238,6 +242,15 @@ export default async function ConfiguracionPage() {
             </SettingsSection>
 
             <SettingsSection
+              id="email"
+              icon={Mail}
+              title="Email de envío"
+              description="Dominio desde el que salen tus entregas, recibos y campañas."
+            >
+              <EmailDomainsCard domains={emailDomains} canManage={canEdit} />
+            </SettingsSection>
+
+            <SettingsSection
               id="avanzada"
               icon={Settings2}
               title="Configuración avanzada"
@@ -331,6 +344,20 @@ function SettingsLink({ href, children }: { href: string; children: React.ReactN
       <ArrowRight className="h-4 w-4" aria-hidden />
     </Link>
   );
+}
+
+async function getEmailDomains(workspaceId: string) {
+  try {
+    const domains = await prisma.emailDomain.findMany({ where: { workspaceId }, orderBy: { createdAt: 'asc' } });
+    return domains.map((d) => ({
+      id: d.id, domain: d.domain, status: d.status, fromEmail: d.fromEmail, fromName: d.fromName, lastError: d.lastError,
+      lastCheckedAt: d.lastCheckedAt?.toISOString() ?? null,
+      dnsRecords: Array.isArray(d.dnsRecords) ? (d.dnsRecords as { type: string; name: string; value: string; priority?: number }[]) : [],
+    }));
+  } catch (error) {
+    if (isDevDemoEnabled() && isDatabaseUnavailable(error)) return [];
+    throw error;
+  }
 }
 
 async function getActiveForm(workspaceId: string) {

@@ -65,7 +65,7 @@ export default async function RecuperacionPage() {
         {!verifiedDomain && (
           <p className="rounded-xl bg-solar/20 p-4 text-sm text-warning-ink">
             Sin dominio de envio verificado. Las campanas de email no salen hasta que el dominio
-            este verificado. Registralo en <code>POST /api/email/domains</code> y publica los
+            este verificado. Agrégalo en <a href="/configuracion#email" className="font-semibold underline">Configuración → Email de envío</a> y publica los
             registros DNS que devuelve. Los journeys de WhatsApp funcionan igual.
           </p>
         )}

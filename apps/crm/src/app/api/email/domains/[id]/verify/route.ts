@@ -32,7 +32,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!domain) return NextResponse.json({ message: 'Dominio no encontrado' }, { status: 404 });
 
   const provider = defaultProvider();
-  const verification = await provider.verifyDomain(domain.domain);
+  // El id solo sirve con el proveedor que lo creo (un dominio guionado no existe en Resend).
+  const verification = await provider.verifyDomain(domain.domain, domain.provider === provider.kind ? domain.providerDomainId : null);
 
   const status =
     verification.status === 'VERIFIED'
@@ -45,6 +46,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     where: { id: domain.id },
     data: {
       status,
+      provider: provider.kind,
       dnsRecords: verification.dnsRecords ?? undefined,
       providerDomainId: verification.providerDomainId ?? domain.providerDomainId,
       verifiedAt: status === EmailDomainStatus.VERIFIED ? (domain.verifiedAt ?? new Date()) : null,

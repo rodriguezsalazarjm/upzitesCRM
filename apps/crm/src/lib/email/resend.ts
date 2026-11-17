@@ -104,8 +104,29 @@ const EVENT_MAP: Record<string, EmailEventType> = {
   'email.clicked': EmailEventType.CLICKED,
   'email.bounced': EmailEventType.BOUNCED,
   'email.complained': EmailEventType.COMPLAINED,
-  'email.delivery_delayed': EmailEventType.FAILED,
+  // delivery_delayed es transitorio (Resend reintenta): no se mapea, porque FAILED
+  // pesa mas que DELIVERED y el mensaje quedaria fallido aunque luego llegue.
+  'email.failed': EmailEventType.FAILED,
 };
+
+/** Estado de Resend: not_started | pending | temporary_failure → PENDING; failed → FAILED. */
+export function domainResult(body: Record<string, unknown>): DomainVerification {
+  const records = Array.isArray(body.records) ? body.records : [];
+  return {
+    status: body.status === 'verified' ? 'VERIFIED' : body.status === 'failed' ? 'FAILED' : 'PENDING',
+    providerDomainId: typeof body.id === 'string' ? body.id : null,
+    ...(body.status === 'failed' ? { error: 'Resend no encontró los registros DNS. Revísalos y vuelve a verificar.' } : {}),
+    dnsRecords: records.map((record) => {
+      const item = record as Record<string, unknown>;
+      return {
+        type: String(item.type ?? 'TXT'),
+        name: String(item.name ?? ''),
+        value: String(item.value ?? ''),
+        ...(typeof item.priority === 'number' ? { priority: item.priority } : {}),
+      };
+    }),
+  };
+}
 
 export function createResendProvider(apiKey = process.env.RESEND_API_KEY): EmailProvider {
   const configured = Boolean(apiKey?.trim());
@@ -160,36 +181,30 @@ export function createResendProvider(apiKey = process.env.RESEND_API_KEY): Email
       return { ok: true, providerMessageId: id };
     },
 
-    async verifyDomain(domain: string): Promise<DomainVerification> {
+    async verifyDomain(domain: string, providerDomainId?: string | null): Promise<DomainVerification> {
       if (!apiKey) return { status: 'FAILED', error: 'RESEND_API_KEY no configurada' };
 
-      const { response, body } = await call('/domains', apiKey, {
-        method: 'POST',
-        body: JSON.stringify({ name: domain }),
-      });
-
+      // Ya creado: se pide re-verificar y se lee el estado. Volver a crearlo
+      // falla en Resend ("ya registrado") y dejaria el dominio en FAILED.
+      let id = providerDomainId ?? null;
+      if (!id) {
+        const created = await call('/domains', apiKey, { method: 'POST', body: JSON.stringify({ name: domain }) });
+        if (created.response.ok && typeof created.body.id === 'string') return domainResult(created.body);
+        const list = await call('/domains', apiKey);
+        const found = Array.isArray(list.body.data) ? (list.body.data as Record<string, unknown>[]).find((d) => d.name === domain) : undefined;
+        if (!found || typeof found.id !== 'string') {
+          const error = created.body as ResendError;
+          return { status: 'FAILED', error: error.message ?? `Resend respondio ${created.response.status}` };
+        }
+        id = found.id;
+      }
+      await call(`/domains/${encodeURIComponent(id)}/verify`, apiKey, { method: 'POST' });
+      const { response, body } = await call(`/domains/${encodeURIComponent(id)}`, apiKey);
       if (!response.ok) {
         const error = body as ResendError;
-        return { status: 'FAILED', error: error.message ?? `Resend respondio ${response.status}` };
+        return { status: 'FAILED', providerDomainId: id, error: error.message ?? `Resend respondio ${response.status}` };
       }
-
-      const records = Array.isArray(body.records) ? body.records : [];
-
-      return {
-        // Un dominio recien creado nunca esta verificado: el cliente todavia
-        // tiene que publicar los registros en su DNS.
-        status: body.status === 'verified' ? 'VERIFIED' : 'PENDING',
-        providerDomainId: typeof body.id === 'string' ? body.id : null,
-        dnsRecords: records.map((record) => {
-          const item = record as Record<string, unknown>;
-          return {
-            type: String(item.type ?? 'TXT'),
-            name: String(item.name ?? ''),
-            value: String(item.value ?? ''),
-            ...(typeof item.priority === 'number' ? { priority: item.priority } : {}),
-          };
-        }),
-      };
+      return domainResult(body);
     },
 
     verifySignature(rawBody: string, headers: Headers): SignatureCheck {

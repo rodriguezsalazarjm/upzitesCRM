@@ -2736,6 +2736,35 @@ model EmailMessage {
 
 /// Hecho reportado por el proveedor de email. `dedupeKey` hace idempotente el
 /// webhook: el mismo evento reintentado no cuenta dos veces.
+/// P25: email transaccional de PLATAFORMA (invitación, reset, seguridad, prueba).
+/// No tiene workspace: el webhook lo encuentra por providerMessageId. Nunca guarda
+/// el cuerpo (lleva tokens de un solo uso).
+model PlatformEmailMessage {
+  id                String             @id @default(cuid())
+  kind              PlatformEmailKind
+  toEmail           String             @map("to_email")
+  subject           String
+  status            EmailMessageStatus @default(SENT)
+  providerMessageId String?            @unique @map("provider_message_id")
+  lastError         String?            @map("last_error")
+  deliveredAt       DateTime?          @map("delivered_at")
+  bouncedAt         DateTime?          @map("bounced_at")
+  complainedAt      DateTime?          @map("complained_at")
+  failedAt          DateTime?          @map("failed_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("platform_email_messages")
+}
+
+enum PlatformEmailKind {
+  INVITATION
+  PASSWORD_RESET
+  SECURITY
+  TEST
+}
+
 model EmailEvent {
   id             String         @id @default(cuid())
   workspaceId    String         @map("workspace_id")

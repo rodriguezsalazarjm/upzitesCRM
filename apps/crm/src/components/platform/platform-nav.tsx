@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Building2, CreditCard, Gauge, History, KeyRound, Mail, ShieldCheck, Tags, Users } from 'lucide-react';
+import { ArrowLeft, Building2, CreditCard, Gauge, History, KeyRound, Mail, Send, ShieldCheck, Tags, Users } from 'lucide-react';
 import { Wordmark } from '@/components/ui/wordmark';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ const items = [
   { href: '/platform/clients', label: 'Clientes SaaS', icon: Users },
   { href: '/platform/workspaces', label: 'Workspaces', icon: Building2 },
   { href: '/platform/invitations', label: 'Invitaciones', icon: Mail },
+  { href: '/platform/email', label: 'Email', icon: Send },
   { href: '/platform/billing', label: 'Billing SaaS', icon: CreditCard },
   { href: '/platform/prices', label: 'Price Book', icon: Tags, superOnly: true },
   { href: '/platform/roles', label: 'Roles plataforma', icon: KeyRound, superOnly: true },

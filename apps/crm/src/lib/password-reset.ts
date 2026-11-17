@@ -122,6 +122,7 @@ export async function deliverPasswordResetEmail(
 export function sendPasswordResetEmail(issued: IssuedPasswordReset, sender?: PlatformEmailSender): Promise<PlatformEmailOutcome> {
   return sendPlatformEmail(
     {
+      kind: 'PASSWORD_RESET',
       to: issued.email,
       subject: 'Restablece tu contraseña de Upzites Flow',
       text: `Hola ${issued.name}:\n\nPediste restablecer tu contraseña. Usa este enlace (vence en ${PASSWORD_RESET_TTL_MINUTES} minutos y sirve una sola vez):\n${issued.url}\n\nSi no fuiste tú, ignora este correo: tu contraseña no cambia.\n`,

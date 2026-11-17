@@ -60,7 +60,8 @@ export type EmailProvider = {
   /** false cuando falta configuracion: la integracion queda inactiva, no rota. */
   configured: boolean;
   send(input: SendEmailInput): Promise<SendEmailResult>;
-  verifyDomain(domain: string): Promise<DomainVerification>;
+  /** Con providerDomainId re-verifica el dominio ya creado en lugar de crearlo otra vez. */
+  verifyDomain(domain: string, providerDomainId?: string | null): Promise<DomainVerification>;
   verifySignature(rawBody: string, headers: Headers): SignatureCheck;
   parseEvents(rawBody: string): NormalizedEmailEvent[];
 };

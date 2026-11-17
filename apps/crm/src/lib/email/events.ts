@@ -80,6 +80,7 @@ const AUTOMATION_TRIGGER: Partial<Record<EmailEventType, AutomationTrigger>> = {
 
 export type ProcessEventResult =
   | { applied: true; emailMessageId: string; type: EmailEventType; suppressed: boolean }
+  | { applied: true; platformEmailId: string; type: EmailEventType }
   | { applied: false; reason: 'DUPLICATE' | 'UNKNOWN_MESSAGE' };
 
 export async function processEmailEvent(event: NormalizedEmailEvent): Promise<ProcessEventResult> {
@@ -99,7 +100,7 @@ export async function processEmailEvent(event: NormalizedEmailEvent): Promise<Pr
       })
     : null;
 
-  if (!message) return { applied: false, reason: 'UNKNOWN_MESSAGE' };
+  if (!message) return processPlatformEmailEvent(event);
 
   try {
     await prisma.emailEvent.create({
@@ -183,6 +184,33 @@ export async function processEmailEvent(event: NormalizedEmailEvent): Promise<Pr
   }
 
   return { applied: true, emailMessageId: message.id, type: event.type, suppressed };
+}
+
+const PLATFORM_TIMESTAMP: Partial<Record<EmailEventType, 'deliveredAt' | 'bouncedAt' | 'complainedAt' | 'failedAt'>> = {
+  [EmailEventType.DELIVERED]: 'deliveredAt',
+  [EmailEventType.BOUNCED]: 'bouncedAt',
+  [EmailEventType.COMPLAINED]: 'complainedAt',
+  [EmailEventType.FAILED]: 'failedAt',
+};
+
+/**
+ * P25: invitaciones y resets no tienen workspace ni EmailEvent. El estado solo
+ * avanza y cada fecha se fija una vez, asi que un reintento del proveedor es
+ * inocuo (devuelve DUPLICATE). Sin supresion: es correo de cuenta, no marketing.
+ */
+async function processPlatformEmailEvent(event: NormalizedEmailEvent): Promise<ProcessEventResult> {
+  const message = event.providerMessageId
+    ? await prisma.platformEmailMessage.findUnique({ where: { providerMessageId: event.providerMessageId }, select: { id: true, status: true, deliveredAt: true, bouncedAt: true, complainedAt: true, failedAt: true } })
+    : null;
+  if (!message) return { applied: false, reason: 'UNKNOWN_MESSAGE' };
+  const data: Prisma.PlatformEmailMessageUpdateInput = {};
+  const field = PLATFORM_TIMESTAMP[event.type];
+  if (field && !message[field]) data[field] = event.occurredAt;
+  const next = STATUS_FOR_EVENT[event.type];
+  if (next && STATUS_RANK[next] > STATUS_RANK[message.status]) data.status = next;
+  if (!Object.keys(data).length) return { applied: false, reason: 'DUPLICATE' };
+  await prisma.platformEmailMessage.update({ where: { id: message.id }, data });
+  return { applied: true, platformEmailId: message.id, type: event.type };
 }
 
 export async function processEmailEvents(events: NormalizedEmailEvent[]) {
