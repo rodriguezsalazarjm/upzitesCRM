@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { moveToDay } from '@/lib/social/calendar';
 import { cn } from '@/lib/utils';
 import { SocialCalendar } from './social-calendar';
+import { SocialFeedGrid } from './social-feed-grid';
 
 type Account = { id: string; name: string; ready: boolean; canPublish: boolean };
 export type PostRow = {
@@ -53,6 +54,7 @@ const EVENT: Record<string, string> = {
   unscheduled: 'Programación cancelada',
   rescheduled: 'Fecha cambiada',
   duplicated: 'Duplicado',
+  feed_plan: 'Fecha ajustada por el plan del feed',
 };
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '');
@@ -73,9 +75,15 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
   const [notice, setNotice] = useState('');
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   // P20: vistas y filtros del calendario editorial.
-  const [view, setView] = useState<'month' | 'week' | 'list'>('month');
+  const [view, setView] = useState<'month' | 'week' | 'list' | 'feed'>('month');
   const [network, setNetwork] = useState('');
   const [accountFilter, setAccountFilter] = useState('');
+  const feedAccount = accountFilter || accounts[0]?.id;
+  const feedPosts = posts.filter((p) => p.channelAccountId === feedAccount);
+  // Al refrescar con fechas nuevas, la grilla vuelve a partir de la programación real.
+  const feedKey = feedPosts.map((p) => p.id + p.status + (p.scheduledAt ?? '')).join('|');
+  const latest = Math.max(Date.now(), ...feedPosts.map((p) => (p.scheduledAt ? new Date(p.scheduledAt).getTime() : 0)));
+  const nextFreeDay = new Date(latest + 86_400_000);
   const visible = posts.filter((p) => (!network || p.network === network) && (!accountFilter || p.channelAccountId === accountFilter));
   const [pending, startTransition] = useTransition();
   const account = accounts.find((a) => a.id === draft.channelAccountId);
@@ -201,7 +209,7 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Vista">
-            {([['month', 'Mes'], ['week', 'Semana'], ['list', 'Lista']] as const).map(([id, label]) => (
+            {([['month', 'Mes'], ['week', 'Semana'], ['list', 'Lista'], ['feed', 'Feed']] as const).map(([id, label]) => (
               <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} className={cn('rounded-md px-3 py-1 text-sm', view === id ? 'bg-carbon text-canvas' : 'text-graphite hover:bg-ivory')}>
                 {label}
               </button>
@@ -221,7 +229,18 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
         </div>
         {!canManage && error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
         {canManage && (error || notice) && view !== 'list' && <p role={error ? 'alert' : 'status'} className={cn('text-sm', error ? 'text-danger-ink' : 'text-graphite')} data-calendar-notice>{error || notice}</p>}
-        {view !== 'list' ? (
+        {view === 'feed' ? (
+          // El feed es de UNA cuenta: la del filtro o la primera.
+          <SocialFeedGrid
+            key={feedKey}
+            posts={feedPosts}
+            canManage={canManage}
+            pending={pending}
+            onEdit={edit}
+            onPlanNew={() => planDay(nextFreeDay)}
+            onSave={async (order) => { if (await call('/api/social-posts/plan', 'POST', { order })) setNotice('Plan guardado: las fechas siguen el orden de la grilla.'); }}
+          />
+        ) : view !== 'list' ? (
           <SocialCalendar mode={view} posts={visible} canManage={canManage} pending={pending} onEdit={edit} onPlanDay={planDay} onAction={calendarAction} onDelete={remove} />
         ) : visible.length === 0 ? (
           <EmptyState icon={Megaphone} title="Todavía no hay publicaciones" description="Lo que guardes, programes o publiques aparece aquí con su estado." />

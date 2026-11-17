@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Prisma } from '../../../generated/prisma/client';
 import { assertFeature } from '../entitlements';
 import { prisma } from '../prisma';
+import { planAssignments } from './feed';
 import { appendHistory, composeCaption, publishSocialPost } from './publisher';
 
 export class SocialPostError extends Error {}
@@ -145,4 +146,40 @@ export async function deleteSocialPost(workspaceId: string, postId: string) {
   // Borrar no toca lo ya publicado en Instagram: solo saca el registro de Upzites.
   const deleted = await prisma.socialPost.deleteMany({ where: { id: postId, workspaceId, status: { not: 'PUBLISHING' } } });
   if (deleted.count === 0) throw new SocialPostError('No se puede borrar (no existe o se está publicando).');
+}
+
+/**
+ * P21: guarda el plan del Feed Planner. `order` = piezas futuras de la grilla,
+ * de arriba a la izquierda hacia abajo. Solo borradores y programados de UNA
+ * cuenta; lo publicado no se toca. Todo o nada.
+ */
+export async function applyFeedPlan(workspaceId: string, order: string[]) {
+  const now = new Date();
+  const posts = await prisma.socialPost.findMany({ where: { workspaceId, id: { in: order } } });
+  if (posts.length !== order.length) throw new SocialPostError('Alguna pieza ya no existe en este negocio.');
+  if (posts.some((p) => p.status !== 'DRAFT' && p.status !== 'SCHEDULED')) throw new SocialPostError('Lo publicado o en publicación no se reordena: Instagram no permite cambiar el feed histórico.');
+  if (new Set(posts.map((p) => p.channelAccountId)).size > 1) throw new SocialPostError('El plan es por cuenta: elige una sola cuenta.');
+  let plan;
+  try {
+    plan = planAssignments(order, posts);
+  } catch (error) {
+    throw new SocialPostError((error as Error).message);
+  }
+  const byId = new Map(posts.map((p) => [p.id, p]));
+  if (plan.some((p) => byId.get(p.id)!.status === 'SCHEDULED' && p.scheduledAt.getTime() < now.getTime() - 60_000)) {
+    throw new SocialPostError('El plan dejaría una publicación programada en una fecha pasada. Mueve primero los borradores con fecha vieja.');
+  }
+  await prisma.$transaction(async (tx) => {
+    for (const { id, scheduledAt } of plan) {
+      const post = byId.get(id)!;
+      if (post.scheduledAt?.getTime() === scheduledAt.getTime()) continue;
+      // Condicional: si el cron tomó alguna, se cancela todo el plan.
+      const moved = await tx.socialPost.updateMany({
+        where: { id, workspaceId, status: post.status },
+        data: { scheduledAt, nextAttemptAt: null, history: appendHistory(post.history, 'feed_plan', scheduledAt.toISOString(), now) as Prisma.InputJsonValue },
+      });
+      if (moved.count === 0) throw new SocialPostError('Una pieza se está publicando en este momento: vuelve a intentarlo.');
+    }
+  });
+  return plan;
 }
