@@ -34,9 +34,11 @@ type ChargeDraft = { id: string; label: string; amount: string; taxable: boolean
 const uid = () => Math.random().toString(36).slice(2, 10);
 const dateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
 
-export function QuoteEditor({ quote, brand, logo, taxRateBp, templates, catalog, contacts, members }: {
+export function QuoteEditor({ quote, brand, logo, taxRateBp, templates, catalog, contacts, members, hasMailbox = false }: {
   quote: QuoteData; brand: Brand; logo: { dataUrl: string; width: number; height: number } | null; taxRateBp: number;
   templates: Template[]; catalog: CatalogItem[]; contacts: ContactOption[]; members: { id: string; name: string }[];
+  /** P38: con buzón conectado, el email sale desde tu correo (PDF adjunto) en vez del envío automático. */
+  hasMailbox?: boolean;
 }) {
   const router = useRouter();
   const exp = exponentOf(quote.currency);
@@ -156,7 +158,7 @@ export function QuoteEditor({ quote, brand, logo, taxRateBp, templates, catalog,
         {!locked && <Button type="button" disabled={busy || !dirty} onClick={() => void save()}>Guardar</Button>}
         <Button type="button" variant="outline" disabled={busy} onClick={async () => { if (!dirty || (await save())) window.open(`/api/quote-studio/quotes/${quote.id}/pdf`, '_blank'); }}><Download aria-hidden /> PDF</Button>
         {!locked && <>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void send('email')} data-send="email"><Mail aria-hidden /> Enviar por email</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={async () => { if (!hasMailbox) return void send('email'); if (!dirty || (await save())) router.push(`/inbox/email/redactar?cotizacion=${quote.id}`); }} data-send="email"><Mail aria-hidden /> Enviar por email</Button>
           <Button type="button" variant="outline" disabled={busy} onClick={() => void send('whatsapp')} data-send="whatsapp"><MessageCircle aria-hidden /> WhatsApp</Button>
           <Button type="button" variant="outline" disabled={busy} onClick={() => void send('link')} data-send="link"><Copy aria-hidden /> Copiar enlace</Button>
         </>}
@@ -282,7 +284,7 @@ export function QuoteEditor({ quote, brand, logo, taxRateBp, templates, catalog,
             <Card className="space-y-2 p-4">
               <Eyebrow>Envíos</Eyebrow>
               <ul className="space-y-1 text-xs text-graphite">
-                {quote.versions.map((v) => <li key={v.version}>Versión {v.version} · {v.channel === 'email' ? 'Email' : v.channel === 'whatsapp' ? 'WhatsApp' : 'Enlace'}{v.recipient ? ` · ${v.recipient}` : ''} · {new Date(v.createdAt).toLocaleString('es-CL')}</li>)}
+                {quote.versions.map((v) => <li key={v.version}>Versión {v.version} · {v.channel === 'email' || v.channel === 'mailbox' ? 'Email' : v.channel === 'whatsapp' ? 'WhatsApp' : 'Enlace'}{v.recipient ? ` · ${v.recipient}` : ''} · {new Date(v.createdAt).toLocaleString('es-CL')}</li>)}
               </ul>
             </Card>
           )}

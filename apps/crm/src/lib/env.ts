@@ -41,6 +41,16 @@ const OPTIONAL_INTEGRATIONS = [
     effect: 'el boton de conectar Messenger quedara deshabilitado',
   },
   {
+    name: 'Correo Gmail (P38)',
+    vars: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'],
+    effect: 'no se podra conectar un buzon de Gmail en Inbox > Email',
+  },
+  {
+    name: 'Correo Microsoft 365 (P38)',
+    vars: ['MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET'],
+    effect: 'no se podra conectar un buzon de Outlook en Inbox > Email',
+  },
+  {
     name: 'Worker interno',
     vars: ['INTERNAL_WORKER_SECRET'],
     effect: '/api/internal/* respondera 401 y el outbox no se procesara en background',

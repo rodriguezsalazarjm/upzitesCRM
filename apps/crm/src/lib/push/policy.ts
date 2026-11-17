@@ -12,6 +12,8 @@ export type PushEvent = {
   userId?: string | null;
   conversationId?: string;
   quoteId?: string;
+  /** P38: correo entrante de un contacto conocido. */
+  mailThreadId?: string;
 };
 
 export function recipientStrategy(event: PushEvent) {
@@ -21,7 +23,9 @@ export function recipientStrategy(event: PushEvent) {
 }
 
 export function notificationForEvent(event: PushEvent) {
-  const url = event.conversationId
+  const url = event.mailThreadId
+    ? `/inbox/email/${encodeURIComponent(event.mailThreadId)}`
+    : event.conversationId
     ? `/inbox/${encodeURIComponent(event.conversationId)}`
     : event.quoteId
       ? '/cotizaciones'

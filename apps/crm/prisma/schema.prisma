@@ -114,6 +114,8 @@ model Workspace {
   productOffers            ProductOffer[]
   orderOffers              OrderOffer[]
 
+  mailboxAccounts  MailboxAccount[]
+  mailThreads      MailThread[]
   @@map("workspaces")
 }
 
@@ -165,6 +167,7 @@ model User {
 
   whatsappFallbackChannels WhatsAppChannel[] @relation("WhatsAppChannelFallbackUser")
 
+  mailboxAccounts       MailboxAccount[]
   @@index([workspaceId])
   @@map("users")
 }
@@ -327,6 +330,7 @@ model Company {
   contacts      Contact[]
   opportunities Opportunity[]
 
+  mailThreads MailThread[]
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("companies")
@@ -389,6 +393,7 @@ model Contact {
   channelIdentities  ContactChannelIdentity[]
   automationFlowRuns AutomationFlowRun[]
 
+  mailThreads      MailThread[]
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
   @@index([workspaceId, source])
@@ -443,6 +448,7 @@ model Opportunity {
   followUps  JourneyEnrollment[]
   salesQuotes SalesQuote[]
 
+  mailThreads MailThread[]
   @@index([workspaceId, status])
   @@index([workspaceId, stageId])
   @@map("opportunities")
@@ -3477,6 +3483,7 @@ enum JobType {
   RUN_FLOW_STEP
   // P19
   PUBLISH_SOCIAL_POSTS
+  SYNC_MAILBOXES
 }
 
 enum JobStatus {
@@ -4158,4 +4165,108 @@ model SalesQuoteVersion {
   @@unique([salesQuoteId, version])
   @@index([workspaceId, createdAt])
   @@map("sales_quote_versions")
+}
+
+// --- P38: Email Client Lite --------------------------------------------------
+// Correo HUMANO (buzón personal conectado por OAuth). Separado a propósito del
+// email transaccional (EmailMessage/sendEmail): otro remitente, otros permisos.
+
+enum MailProvider {
+  GMAIL
+  MICROSOFT
+}
+
+enum MailboxStatus {
+  CONNECTED
+  ERROR
+  REVOKED
+}
+
+model MailboxAccount {
+  id                    String        @id @default(cuid())
+  workspaceId           String        @map("workspace_id")
+  /// El buzón es personal: solo su dueño lo lee y envía desde él.
+  userId                String        @map("user_id")
+  provider              MailProvider
+  emailAddress          String        @map("email_address")
+  accessTokenEncrypted  String?       @map("access_token_encrypted")
+  refreshTokenEncrypted String?       @map("refresh_token_encrypted")
+  accessTokenExpiresAt  DateTime?     @map("access_token_expires_at")
+  scopes                String?
+  status                MailboxStatus @default(CONNECTED)
+  lastSyncedAt          DateTime?     @map("last_synced_at")
+  lastError             String?       @map("last_error")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threads   MailThread[]
+  messages  MailMessage[]
+
+  @@unique([workspaceId, userId, provider, emailAddress])
+  @@index([status, lastSyncedAt])
+  @@map("mailbox_accounts")
+}
+
+model MailThread {
+  id               String    @id @default(cuid())
+  workspaceId      String    @map("workspace_id")
+  mailboxId        String    @map("mailbox_id")
+  providerThreadId String    @map("provider_thread_id")
+  subject          String    @default("")
+  snippet          String    @default("")
+  /// Direcciones que participan (sin la del buzón), en minúsculas: para buscar y asociar.
+  participants     String[]  @default([])
+  lastMessageAt    DateTime  @map("last_message_at")
+  unread           Boolean   @default(false)
+  inInbox          Boolean   @default(true) @map("in_inbox")
+  hasSent          Boolean   @default(false) @map("has_sent")
+  hasAttachments   Boolean   @default(false) @map("has_attachments")
+  contactId        String?   @map("contact_id")
+  companyId        String?   @map("company_id")
+  opportunityId    String?   @map("opportunity_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mailbox     MailboxAccount @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  contact     Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  opportunity Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  messages    MailMessage[]
+
+  @@unique([mailboxId, providerThreadId])
+  @@index([mailboxId, lastMessageAt])
+  @@index([workspaceId, contactId])
+  @@map("mail_threads")
+}
+
+model MailMessage {
+  id                String   @id @default(cuid())
+  workspaceId       String   @map("workspace_id")
+  mailboxId         String   @map("mailbox_id")
+  threadId          String   @map("thread_id")
+  providerMessageId String   @map("provider_message_id")
+  /// Message-ID del encabezado: para responder dentro del mismo hilo.
+  internetMessageId String?  @map("internet_message_id")
+  outbound          Boolean  @default(false)
+  fromAddress       String   @map("from_address")
+  fromName          String   @default("") @map("from_name")
+  to                String[] @default([])
+  cc                String[] @default([])
+  subject           String   @default("")
+  bodyText          String   @default("") @map("body_text")
+  /// [{ id, filename, mimeType, size }]: los bytes se piden al proveedor al descargar.
+  attachments       Json     @default("[]")
+  salesQuoteId      String?  @map("sales_quote_id")
+  sentAt            DateTime @map("sent_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  mailbox MailboxAccount @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  thread  MailThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, providerMessageId])
+  @@index([threadId, sentAt])
+  @@map("mail_messages")
 }

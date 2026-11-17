@@ -11,7 +11,7 @@ import { decodeLogo, logoMime, LogoError, tryDecodeLogo } from './logo';
 export { formatQuoteNumber } from './schema';
 import {
   blocksSchema, catalogItemSchema, contentSchema, customerSchema, defaultBlocks, formatQuoteNumber, parseBrand, quoteInputSchema, settingsInputSchema, templateInputSchema, TEXT_BLOCKS,
-  type Block, type QuoteInput,
+  type Block, type Customer, type QuoteInput,
 } from './schema';
 
 /**
@@ -293,13 +293,15 @@ export function publicToken(quoteId: string) {
 export const hashPublicToken = (token: string) => createHash('sha256').update(token).digest('hex');
 export const publicQuoteUrl = (token: string) => `${(process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, '')}/cotizacion/${token}`;
 
-export type SendChannel = 'email' | 'whatsapp' | 'link';
+export type SendChannel = 'email' | 'whatsapp' | 'link' | 'mailbox';
+/** P38: envío desde el buzón del usuario. Recibe lo que se congela y devuelve el destinatario. */
+export type QuoteDelivery = (input: { snapshot: QuoteSnapshot; url: string; number: string; customer: Customer }) => Promise<string>;
 
 /**
  * Envía la versión actual: congela el snapshot, deja el enlace público activo y
  * marca SENT. Con email, solo si el correo salió de verdad.
  */
-export async function sendSalesQuote(workspaceId: string, quoteId: string, channel: SendChannel, userId: string) {
+export async function sendSalesQuote(workspaceId: string, quoteId: string, channel: SendChannel, userId: string, deliver?: QuoteDelivery) {
   await assertQuotesPlan(workspaceId);
   const quote = await prisma.salesQuote.findFirst({ where: { id: quoteId, workspaceId } });
   if (!quote) throw new QuoteStudioError('Cotización no encontrada.');
@@ -331,6 +333,11 @@ export async function sendSalesQuote(workspaceId: string, quoteId: string, chann
     recipient = customer.email;
   }
   if (channel === 'whatsapp') recipient = customer.phone || null;
+  if (channel === 'mailbox') {
+    if (!deliver) throw new QuoteStudioError('Falta el buzón desde el que se envía.');
+    // Se envía antes de congelar: si el correo falla, la cotización no queda como enviada.
+    recipient = await deliver({ snapshot: { doc, logo }, url, number: quote.number, customer });
+  }
 
   const snapshot: QuoteSnapshot = { doc, logo };
   const now = new Date();

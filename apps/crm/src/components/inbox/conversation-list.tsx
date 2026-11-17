@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { MessageSquare, PlugZap } from 'lucide-react';
+import { MessageSquare, PlugZap, Mail } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Tabs } from '@/components/ui/tabs';
+import { Tabs, type TabItem } from '@/components/ui/tabs';
 import { ChannelLabel, CHANNEL_ICON, CHANNEL_LABEL } from '@/components/channels/channel-badge';
 import { MODE_SHORT, MODE_TONE, relativeTime } from '@/components/inbox/conversation-meta';
 import type { ConversationListItem } from '@/lib/conversations';
@@ -49,7 +49,7 @@ export function ConversationList({
           semantics="filter"
           ariaLabel="Filtrar por canal"
           value={activeChannel}
-          items={CHANNEL_FILTERS.map((option) => {
+          items={CHANNEL_FILTERS.map((option): TabItem => {
             if (option === 'ALL') return { value: option, label: 'Todos', href: base };
             const Icon = CHANNEL_ICON[option];
             return {
@@ -62,6 +62,9 @@ export function ConversationList({
               iconOnly: true,
               href: `${base}?channel=${option}`,
             };
+          }).concat({
+            // P38: el correo vive en su propia bandeja (buzón personal), un clic desde aquí.
+            value: 'EMAIL', label: 'Email', title: 'Email', iconElement: <Mail className="h-4 w-4" strokeWidth={1.75} aria-hidden />, iconOnly: true, href: '/inbox/email',
           })}
         />
       </div>

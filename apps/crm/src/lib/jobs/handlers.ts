@@ -34,6 +34,7 @@ import { purgeExpiredMedia, purgeOrphanMedia, requeueBlockedMedia } from '../med
 import { processChannelEvent } from '../channels/process';
 import { advanceFlowRun } from '../automations/engine';
 import { publishDueSocialPosts } from '../social/publisher';
+import { syncDueMailboxes } from '../mail/service';
 
 /**
  * Handlers de la cola. Cada uno debe ser idempotente: la cola garantiza
@@ -368,6 +369,9 @@ const handlers: Record<JobType, JobHandler> = {
   // P19: publica los posts programados que ya vencieron (y sus reintentos).
   [JobType.PUBLISH_SOCIAL_POSTS]: async () => publishDueSocialPosts(),
 
+  // P38: trae el correo nuevo de los buzones conectados.
+  [JobType.SYNC_MAILBOXES]: async () => syncDueMailboxes(),
+
   [JobType.REFRESH_SEGMENT_COUNTS]: async (_payload, workspaceId) => {
     const segments = await crossTenantPrisma.segment.findMany({
       where: { isActive: true, ...(workspaceId ? { workspaceId } : {}) },
@@ -423,6 +427,10 @@ export async function enqueueRecurringJobs(now = new Date()) {
     dedupeKey: `social:${minute}`,
     priority: 30,
   });
+
+  // P38: correo cada 5 minutos (cada buzón, como mucho cada 4).
+  const fiveMinutes = `${now.toISOString().slice(0, 15)}${Math.floor(now.getUTCMinutes() % 10 / 5)}`;
+  await enqueue({ type: JobType.SYNC_MAILBOXES, payload: {}, dedupeKey: `mail-sync:${fiveMinutes}`, priority: 50 });
 
   // El barrido de silencio es caro: basta una vez por hora.
   const hour = now.toISOString().slice(0, 13);

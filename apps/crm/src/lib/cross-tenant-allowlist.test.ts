@@ -33,6 +33,7 @@ const CROSS_TENANT_PRISMA: Record<string, Entry> = {
   // --- Webhooks globales que resuelven el tenant --------------------------
   'src/lib/shopify/webhooks.ts': { uses: 1, why: 'El tenant sale del dominio de la tienda, nunca del payload: hay que buscarlo sin workspace.' },
   // --- Enlaces públicos firmados (sin sesión) -----------------------------
+  'src/lib/mail/service.ts': { uses: 1, why: 'P38: cron de sincronización; lista los buzones conectados de todos los negocios y cada uno se sincroniza con su propio workspaceId.' },
   'src/lib/social/publisher.ts': { uses: 3, why: 'P19: worker de publicación programada; recorre los posts vencidos de todos los negocios y cada post se publica con su propio workspaceId.' },
   'src/lib/social/library-service.ts': { uses: 1, why: 'P22: archivo de una pieza para Instagram; solo tras verificar la firma HMAC que ata la URL a la pieza.' },
   'src/lib/quote-studio/public.ts': { uses: 4, why: 'P37: cotización pública por token (hash único): ver, marcar vista/vencida y aceptar o rechazar; todo acotado a la cotización del token.' },

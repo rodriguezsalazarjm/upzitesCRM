@@ -4,6 +4,7 @@ import { requireCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { blocksSchema, contentSchema, customerSchema, parseBrand } from '@/lib/quote-studio/schema';
 import { getStudioSettings, listTemplates, logoForClient, publicQuoteUrl, publicToken } from '@/lib/quote-studio/service';
+import { userMailboxes } from '@/lib/mail/service';
 import { QuoteEditor } from './quote-editor';
 
 export const dynamic = 'force-dynamic';
@@ -14,13 +15,14 @@ export default async function QuoteEditorPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const quote = await prisma.salesQuote.findFirst({ where: { id, workspaceId }, include: { versions: { orderBy: { version: 'desc' }, select: { version: true, channel: true, recipient: true, createdAt: true } } } });
   if (!quote) notFound();
-  const [settings, templates, catalog, contacts, members] = await Promise.all([
+  const [settings, templates, catalog, contacts, members, mailboxes] = await Promise.all([
     getStudioSettings(workspaceId),
     listTemplates(workspaceId),
     prisma.quoteCatalogItem.findMany({ where: { workspaceId, archivedAt: null }, orderBy: { name: 'asc' }, take: 500 }),
     // shortcut: los 300 contactos más recientes; cambiar a un buscador si el negocio tiene muchos más.
     prisma.contact.findMany({ where: { workspaceId }, orderBy: { updatedAt: 'desc' }, take: 300, select: { id: true, firstName: true, lastName: true, email: true, phone: true, company: { select: { name: true } } } }),
     prisma.workspaceMembership.findMany({ where: { workspaceId, status: 'ACTIVE' }, select: { user: { select: { id: true, name: true } } } }),
+    userMailboxes(workspaceId, user.id),
   ]);
 
   return (
@@ -43,6 +45,7 @@ export default async function QuoteEditorPage({ params }: { params: Promise<{ id
           catalog={catalog.map((c) => ({ id: c.id, name: c.name, description: c.description, unit: c.unit, unitPriceMinor: c.unitPriceMinor, taxRateBp: c.taxRateBp }))}
           contacts={contacts.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), email: c.email ?? '', phone: c.phone ?? '', company: c.company?.name ?? '' }))}
           members={members.map((m) => m.user)}
+          hasMailbox={mailboxes.some((m) => m.status === 'CONNECTED')}
         />
       </div>
     </div>
