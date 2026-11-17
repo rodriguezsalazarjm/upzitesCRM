@@ -3,6 +3,7 @@ import type { Prisma } from '../../../generated/prisma/client';
 import { assertFeature } from '../entitlements';
 import { prisma } from '../prisma';
 import { planAssignments } from './feed';
+import { assetPublicUrl } from './library-service';
 import { appendHistory, composeCaption, publishSocialPost } from './publisher';
 
 export class SocialPostError extends Error {}
@@ -17,6 +18,8 @@ export const socialPostInputSchema = z.object({
   hashtags: z.array(z.string().trim().regex(/^#?[\p{L}\p{N}_]{1,80}$/u, 'Hashtag inválido.')).max(HASHTAGS_MAX),
   mediaUrl: z.union([z.literal(''), z.string().url().max(2000).refine((url) => url.startsWith('https://'), 'La URL del archivo debe empezar con https://')]),
   mediaType: z.enum(['IMAGE', 'REEL']),
+  /** P22: pieza de la biblioteca; si viene, manda sobre mediaUrl/mediaType. */
+  contentAssetId: z.string().min(1).optional(),
   action: z.enum(['draft', 'schedule', 'publish_now']),
   scheduledAt: z.string().datetime({ offset: true }).optional(),
 });
@@ -26,7 +29,7 @@ export type SocialPostInput = z.infer<typeof socialPostInputSchema>;
 export function validateForAction(input: SocialPostInput, now: Date): string | null {
   if (composeCaption(input.caption, input.hashtags).length > CAPTION_MAX) return `El texto con hashtags supera ${CAPTION_MAX} caracteres.`;
   if (input.action === 'draft') return null;
-  if (!input.mediaUrl) return 'Instagram exige una imagen o un video para publicar.';
+  if (!input.mediaUrl && !input.contentAssetId) return 'Instagram exige una imagen o un video para publicar.';
   if (input.action === 'schedule') {
     if (!input.scheduledAt) return 'Elige fecha y hora.';
     if (new Date(input.scheduledAt).getTime() < now.getTime() - 60_000) return 'La fecha ya pasó: usa "Publicar ahora" o elige otra.';
@@ -45,6 +48,9 @@ export async function saveSocialPost(workspaceId: string, userId: string, input:
   const account = await prisma.channelAccount.findFirst({ where: { id: input.channelAccountId, workspaceId, channel: 'INSTAGRAM' }, select: { id: true } });
   if (!account) throw new SocialPostError('La cuenta elegida no es una cuenta de Instagram de este negocio.');
 
+  const asset = input.contentAssetId ? await prisma.contentAsset.findFirst({ where: { id: input.contentAssetId, workspaceId }, select: { id: true, kind: true } }) : null;
+  if (input.contentAssetId && !asset) throw new SocialPostError('La pieza de la biblioteca no existe en este negocio.');
+
   const existing = postId ? await prisma.socialPost.findFirst({ where: { id: postId, workspaceId } }) : null;
   if (postId && !existing) throw new SocialPostError('Publicación no encontrada.');
   if (existing && !(EDITABLE as readonly string[]).includes(existing.status)) throw new SocialPostError('Ya se publicó o se está publicando: no se puede editar.');
@@ -56,8 +62,10 @@ export async function saveSocialPost(workspaceId: string, userId: string, input:
     channelAccountId: account.id,
     caption: input.caption,
     hashtags: input.hashtags.map((tag) => tag.replace(/^#+/, '')),
-    mediaUrl: input.mediaUrl || null,
-    mediaType: input.mediaType,
+    // Reutilizar = apuntar al MISMO archivo: no se sube otra vez.
+    contentAssetId: asset?.id ?? null,
+    mediaUrl: asset ? assetPublicUrl(asset.id) : input.mediaUrl || null,
+    mediaType: asset ? (asset.kind === 'VIDEO' ? ('REEL' as const) : ('IMAGE' as const)) : input.mediaType,
     status,
     // P20: un borrador puede tener fecha planificada (aparece en el calendario, no se publica).
     scheduledAt: input.action === 'publish_now' ? now : input.scheduledAt ? new Date(input.scheduledAt) : null,
@@ -103,7 +111,7 @@ export async function socialPostAction(workspaceId: string, postId: string, inpu
     return prisma.socialPost.create({
       data: {
         workspaceId, network: post.network, channelAccountId: post.channelAccountId, caption: post.caption, hashtags: post.hashtags,
-        mediaUrl: post.mediaUrl, mediaType: post.mediaType, status: 'DRAFT', scheduledAt: post.scheduledAt, createdById: userId ?? null,
+        mediaUrl: post.mediaUrl, mediaType: post.mediaType, contentAssetId: post.contentAssetId, status: 'DRAFT', scheduledAt: post.scheduledAt, createdById: userId ?? null,
         history: appendHistory([], 'duplicated', undefined, now) as Prisma.InputJsonValue,
       },
     });

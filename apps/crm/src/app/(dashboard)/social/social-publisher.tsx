@@ -35,7 +35,9 @@ export type PostRow = {
   attempts: number;
   lastError: string | null;
   history: { at: string; event: string; detail?: string }[];
+  contentAssetId: string | null;
 };
+export type PickerAsset = { id: string; name: string; kind: 'IMAGE' | 'VIDEO'; url: string; caption: string; hashtags: string[] };
 
 const STATUS: Record<PostRow['status'], { label: string; variant: 'outline' | 'warning' | 'info' | 'success' | 'danger' }> = {
   DRAFT: { label: 'Borrador', variant: 'outline' },
@@ -65,12 +67,22 @@ const toLocalInput = (iso: string | null) => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 
-type Draft = { id?: string; channelAccountId: string; caption: string; hashtags: string; mediaUrl: string; mediaType: 'IMAGE' | 'REEL'; scheduledAt: string };
+type Draft = { id?: string; channelAccountId: string; caption: string; hashtags: string; mediaUrl: string; mediaType: 'IMAGE' | 'REEL'; scheduledAt: string; contentAssetId: string };
 
-export function SocialPublisher({ canManage, accounts, posts }: { canManage: boolean; accounts: Account[]; posts: PostRow[] }) {
+export function SocialPublisher({ canManage, accounts, posts, assets, initialAssetId }: { canManage: boolean; accounts: Account[]; posts: PostRow[]; assets: PickerAsset[]; initialAssetId?: string }) {
   const router = useRouter();
-  const empty: Draft = { channelAccountId: accounts[0]?.id ?? '', caption: '', hashtags: '', mediaUrl: '', mediaType: 'IMAGE', scheduledAt: '' };
-  const [draft, setDraft] = useState<Draft>(empty);
+  const empty: Draft = { channelAccountId: accounts[0]?.id ?? '', caption: '', hashtags: '', mediaUrl: '', mediaType: 'IMAGE', scheduledAt: '', contentAssetId: '' };
+  // P22: "Usar en una publicación" desde la Biblioteca llega con ?pieza=.
+  const [draft, setDraft] = useState<Draft>(() => {
+    const asset = assets.find((a) => a.id === initialAssetId);
+    return asset ? { ...empty, contentAssetId: asset.id, caption: asset.caption, hashtags: asset.hashtags.map((t) => '#' + t).join(' ') } : empty;
+  });
+  const pickedAsset = assets.find((a) => a.id === draft.contentAssetId);
+  const pickAsset = (id: string) => {
+    const asset = assets.find((a) => a.id === id);
+    // El texto sugerido de la pieza solo completa lo que esté vacío.
+    setDraft({ ...draft, contentAssetId: id, caption: draft.caption || asset?.caption || '', hashtags: draft.hashtags || (asset?.hashtags.map((t) => '#' + t).join(' ') ?? '') });
+  };
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [openHistory, setOpenHistory] = useState<string | null>(null);
@@ -106,7 +118,8 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
       channelAccountId: draft.channelAccountId,
       caption: draft.caption,
       hashtags: draft.hashtags.split(/[\s,]+/).filter(Boolean),
-      mediaUrl: draft.mediaUrl.trim(),
+      mediaUrl: draft.contentAssetId ? '' : draft.mediaUrl.trim(),
+      contentAssetId: draft.contentAssetId || undefined,
       mediaType: draft.mediaType,
       action,
       scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
@@ -136,7 +149,7 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
 
   const edit = (post: PostRow) => {
     focusComposer();
-    setDraft({ id: post.id, channelAccountId: post.channelAccountId ?? accounts[0]?.id ?? '', caption: post.caption, hashtags: post.hashtags.map((t) => `#${t}`).join(' '), mediaUrl: post.mediaUrl ?? '', mediaType: post.mediaType, scheduledAt: toLocalInput(post.scheduledAt) });
+    setDraft({ id: post.id, channelAccountId: post.channelAccountId ?? accounts[0]?.id ?? '', caption: post.caption, hashtags: post.hashtags.map((t) => `#${t}`).join(' '), mediaUrl: post.contentAssetId ? '' : post.mediaUrl ?? '', mediaType: post.mediaType, scheduledAt: toLocalInput(post.scheduledAt), contentAssetId: post.contentAssetId ?? '' });
   };
 
   return (
@@ -176,6 +189,26 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
                 <span className="font-semibold text-carbon">Hashtags</span>
                 <Input value={draft.hashtags} onChange={(e) => setDraft({ ...draft, hashtags: e.target.value })} placeholder="#oracion #devocional" />
               </label>
+              <label className="block space-y-1 text-sm">
+                <span className="flex items-center justify-between font-semibold text-carbon">
+                  Imagen o video de la biblioteca
+                  <Link href="/social/biblioteca" className="text-xs font-semibold text-electric hover:underline">Abrir biblioteca</Link>
+                </span>
+                <Select value={draft.contentAssetId} onChange={(e) => pickAsset(e.target.value)} data-asset-picker>
+                  <option value="">Ninguna (pegar una URL)</option>
+                  {assets.map((a) => <option key={a.id} value={a.id}>{a.kind === 'VIDEO' ? 'Video' : 'Imagen'} · {a.name}</option>)}
+                </Select>
+              </label>
+              {pickedAsset ? (
+                <div className="h-28 w-28 overflow-hidden rounded-lg bg-ivory" data-picked-asset={pickedAsset.id}>
+                  {pickedAsset.kind === 'VIDEO' ? (
+                    <video src={pickedAsset.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element -- ruta firmada propia.
+                    <img src={pickedAsset.url} alt={pickedAsset.name} className="h-full w-full object-cover" />
+                  )}
+                </div>
+              ) : (
               <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                 <label className="block space-y-1 text-sm">
                   <span className="font-semibold text-carbon">URL pública de la imagen o video</span>
@@ -189,6 +222,7 @@ export function SocialPublisher({ canManage, accounts, posts }: { canManage: boo
                   </Select>
                 </label>
               </div>
+              )}
               <label className="block space-y-1 text-sm">
                 <span className="font-semibold text-carbon">Fecha y hora (para programar)</span>
                 <Input type="datetime-local" value={draft.scheduledAt} onChange={(e) => setDraft({ ...draft, scheduledAt: e.target.value })} />

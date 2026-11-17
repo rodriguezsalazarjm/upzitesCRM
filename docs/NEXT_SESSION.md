@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/feed-planner-p21` (P21). La cadena es P8 → … → P20 → P21, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/content-library-p22` (P22). La cadena es P8 → … → P21 → P22, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -14,6 +14,7 @@
 - Hito P19: `scripts/visual/p19-social-hito.ts` (Instagram falso; deja "QA Instagram" y posts en A). Migración aplicada a crm_pruebas con `prisma migrate deploy` + preload.
 - Hito P20: `scripts/visual/p20-calendar-hito.ts` (después del P19; cada corrida agrega otra semana de posts QA).
 - Hito P21: `scripts/visual/p21-feed-hito.ts` (cuenta "QA Feed", idempotente). La CSP del servidor visual bloquea imágenes externas: usar data: URLs en QA.
-- Siguiente: P22 (Content Library).
+- Hito P22: `scripts/visual/p22-library-hito.ts` (sube `apps/web/public/blog/ia-content.jpg` a `.media/content/`, la reutiliza en 4 posts).
+- Siguiente: P23 (IA para contenido).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

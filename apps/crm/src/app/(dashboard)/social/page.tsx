@@ -5,14 +5,20 @@ import { requireCurrentUser } from '@/lib/auth';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { prisma } from '@/lib/prisma';
 import { INSTAGRAM_PUBLISH_SCOPE } from '@/lib/social/instagram-publish';
+import { assetFilePath } from '@/lib/social/library';
+import { getSessionSecret } from '@/lib/session-token';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { SocialPublisher, type PostRow } from './social-publisher';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SocialPage() {
+export default async function SocialPage({ searchParams }: { searchParams: Promise<{ pieza?: string }> }) {
   const user = await requireCurrentUser();
   const workspaceId = user.workspace.id;
-  const [accounts, posts] = await Promise.all([
+  const { pieza } = await searchParams;
+  const secret = getSessionSecret();
+  const [accounts, posts, assets] = await Promise.all([
     prisma.channelAccount.findMany({
       where: { workspaceId, channel: 'INSTAGRAM' },
       select: { id: true, displayName: true, externalAccountId: true, status: true, scopes: true, planLimitedAt: true },
@@ -25,6 +31,7 @@ export default async function SocialPage() {
       take: 300,
       include: { channelAccount: { select: { displayName: true } } },
     }),
+    prisma.contentAsset.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, name: true, kind: true, caption: true, hashtags: true } }),
   ]);
 
   const rows: PostRow[] = posts.map((post) => ({
@@ -34,7 +41,9 @@ export default async function SocialPage() {
     accountName: post.channelAccount?.displayName ?? null,
     caption: post.caption,
     hashtags: post.hashtags,
-    mediaUrl: post.mediaUrl,
+    // Con pieza de la biblioteca se muestra por la ruta firmada relativa (mismo origen).
+    mediaUrl: post.contentAssetId ? assetFilePath(post.contentAssetId, secret) : post.mediaUrl,
+    contentAssetId: post.contentAssetId,
     mediaType: post.mediaType,
     status: post.status,
     scheduledAt: post.scheduledAt?.toISOString() ?? null,
@@ -52,6 +61,9 @@ export default async function SocialPage() {
       <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <TutorialHint tutorialKey="social.first_visit" />
         <PlanLockedNotice workspaceId={workspaceId} feature="channels.messaging" />
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/social/biblioteca">Biblioteca de contenido</Link>
+        </Button>
         <SocialPublisher
           canManage={canManageMarketing(user.role)}
           accounts={accounts.map((account) => ({
@@ -61,6 +73,8 @@ export default async function SocialPage() {
             canPublish: Boolean(account.scopes?.split(',').includes(INSTAGRAM_PUBLISH_SCOPE)),
           }))}
           posts={rows}
+          assets={assets.map((asset) => ({ ...asset, url: assetFilePath(asset.id, secret) }))}
+          initialAssetId={pieza}
         />
       </div>
     </div>

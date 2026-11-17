@@ -53,6 +53,7 @@ model Workspace {
   whatsappChannels WhatsAppChannel[]
   campaignRoutes   CampaignRoute[]
   socialPosts      SocialPost[]
+  contentAssets    ContentAsset[]
   conversations    Conversation[]
   messages         Message[]
   outboxEvents     OutboxEvent[]
@@ -3950,6 +3951,8 @@ model SocialPost {
   permalink        String?
   publishedAt      DateTime?        @map("published_at")
   lastError        String?          @map("last_error")
+  /// P22: pieza de la biblioteca reutilizada (el archivo se sube una sola vez).
+  contentAssetId   String?          @map("content_asset_id")
   history          Json             @default("[]")
   createdById      String?          @map("created_by_id")
   createdAt        DateTime         @default(now()) @map("created_at")
@@ -3957,8 +3960,42 @@ model SocialPost {
 
   workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   channelAccount ChannelAccount? @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+  contentAsset   ContentAsset?   @relation(fields: [contentAssetId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, createdAt])
   @@index([status, nextAttemptAt])
+  @@index([contentAssetId])
   @@map("social_posts")
+}
+
+/// P22 Content Library: un archivo subido una vez y reutilizable en varias
+/// publicaciones. Vive en el storage de medios bajo content/<workspace>/.
+enum ContentAssetKind {
+  IMAGE
+  VIDEO
+}
+
+model ContentAsset {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  kind        ContentAssetKind
+  name        String
+  storageKey  String           @unique @map("storage_key")
+  mimeType    String           @map("mime_type")
+  sizeBytes   Int              @map("size_bytes")
+  /// Carpeta/colección libre (p. ej. "Lanzamiento 5MCD").
+  collection  String?
+  tags        String[]         @default([])
+  caption     String           @default("")
+  hashtags    String[]         @default([])
+  createdById String?          @map("created_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  posts     SocialPost[]
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, collection])
+  @@map("content_assets")
 }
