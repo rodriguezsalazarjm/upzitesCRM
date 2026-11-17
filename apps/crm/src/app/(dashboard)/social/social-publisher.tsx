@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { SocialCalendar } from './social-calendar';
 import { SocialFeedGrid } from './social-feed-grid';
 import { ContentAssistant } from './content-assistant';
+import { FeedAdvisorPanel } from './feed-advisor-panel';
 
 const TIKTOK = '__tiktok';
 export const networkLabel = (network: string) => (network === 'TIKTOK' ? 'TikTok' : 'Instagram');
@@ -40,6 +41,8 @@ export type PostRow = {
   lastError: string | null;
   history: { at: string; event: string; detail?: string }[];
   contentAssetId: string | null;
+  /** P24: etiquetas de la pieza (diseño/foto) para el asistente del feed. */
+  assetTags?: string[];
 };
 export type PickerAsset = { id: string; name: string; kind: 'IMAGE' | 'VIDEO'; url: string; caption: string; hashtags: string[] };
 
@@ -87,6 +90,8 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
     // El texto sugerido de la pieza solo completa lo que esté vacío.
     setDraft({ ...draft, contentAssetId: id, caption: draft.caption || asset?.caption || '', hashtags: draft.hashtags || (asset?.hashtags.map((t) => '#' + t).join(' ') ?? '') });
   };
+  // P24: "Crear pieza" desde el asistente del feed abre el asistente de contenido con un pedido.
+  const [assistantPreset, setAssistantPreset] = useState({ n: 0, brief: '' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [openHistory, setOpenHistory] = useState<string | null>(null);
@@ -244,6 +249,8 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
                 {draft.id && <Button type="button" variant="ghost" onClick={() => setDraft(empty)}>Cancelar edición</Button>}
               </div>
               <ContentAssistant
+                key={assistantPreset.n}
+                initialBrief={assistantPreset.brief}
                 source={{ caption: draft.caption, hashtags: draft.hashtags.split(/[s,]+/).filter(Boolean), contentAssetId: draft.contentAssetId, mediaUrl: draft.mediaUrl, scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : '', instagramAccountId: draft.network === 'INSTAGRAM' ? draft.channelAccountId : accounts[0]?.id ?? '' }}
                 onUse={(s) => {
                   setDraft({ ...draft, network: s.network, mediaType: s.format, caption: s.text, hashtags: s.hashtags.map((t) => '#' + t).join(' '), scheduledAt: s.date ? toLocalInput(new Date(`${s.date}T11:00`).toISOString()) : draft.scheduledAt });
@@ -286,6 +293,19 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
         {canManage && (error || notice) && view !== 'list' && <p role={error ? 'alert' : 'status'} className={cn('text-sm', error ? 'text-danger-ink' : 'text-graphite')} data-calendar-notice>{error || notice}</p>}
         {view === 'feed' ? (
           // El feed es de UNA cuenta: la del filtro o la primera.
+          <>
+          <FeedAdvisorPanel
+            posts={feedPosts}
+            canManage={canManage}
+            pending={pending}
+            onEdit={edit}
+            onReorder={async (order) => { if (await call('/api/social-posts/plan', 'POST', { order })) setNotice('Recomendación aplicada: fechas intercambiadas.'); }}
+            onCreate={(action) => {
+              setDraft({ ...empty, mediaType: action.mediaType, scheduledAt: action.scheduledAt ? toLocalInput(action.scheduledAt) : '' });
+              setAssistantPreset((p) => ({ n: p.n + 1, brief: action.brief }));
+              focusComposer();
+            }}
+          />
           <SocialFeedGrid
             key={feedKey}
             posts={feedPosts}
@@ -295,6 +315,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
             onPlanNew={() => planDay(nextFreeDay)}
             onSave={async (order) => { if (await call('/api/social-posts/plan', 'POST', { order })) setNotice('Plan guardado: las fechas siguen el orden de la grilla.'); }}
           />
+          </>
         ) : view !== 'list' ? (
           <SocialCalendar mode={view} posts={visible} canManage={canManage} pending={pending} onEdit={edit} onPlanDay={planDay} onAction={calendarAction} onDelete={remove} />
         ) : visible.length === 0 ? (

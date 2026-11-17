@@ -17,10 +17,10 @@ const plannedAt = (s: ContentSuggestion, fallback: string) => (s.date ? new Date
  * P23: asistente de contenido. Genera sugerencias; nada se guarda hasta que el
  * usuario lo pide ("Usar" pasa al formulario, "Guardar" crea un borrador).
  */
-export function ContentAssistant({ source, onUse, onSaved }: { source: AssistantSource; onUse: (s: ContentSuggestion) => void; onSaved: (message: string) => void }) {
-  const [task, setTask] = useState<ContentTask>('variants');
+export function ContentAssistant({ source, onUse, onSaved, initialBrief = '' }: { source: AssistantSource; onUse: (s: ContentSuggestion) => void; onSaved: (message: string) => void; initialBrief?: string }) {
+  const [task, setTask] = useState<ContentTask>(initialBrief ? 'captions' : 'variants');
   const [tone, setTone] = useState('');
-  const [brief, setBrief] = useState('');
+  const [brief, setBrief] = useState(initialBrief);
   const [items, setItems] = useState<(ContentSuggestion & { saved?: string })[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -70,7 +70,7 @@ export function ContentAssistant({ source, onUse, onSaved }: { source: Assistant
   const canSchedule = (s: ContentSuggestion) => s.network === 'INSTAGRAM' && Boolean(source.instagramAccountId) && Boolean(source.contentAssetId || source.mediaUrl.trim()) && Boolean(s.date || source.scheduledAt);
 
   return (
-    <details className="rounded-xl border border-line p-3" data-content-assistant>
+    <details className="rounded-xl border border-line p-3" data-content-assistant open={Boolean(initialBrief) || undefined}>
       <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-carbon">
         <Sparkles className="h-4 w-4 text-electric" aria-hidden /> Asistente de contenido (IA)
       </summary>

@@ -29,7 +29,7 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
       orderBy: { createdAt: 'desc' },
       // shortcut: los 300 más recientes alcanzan para meses de calendario; paginar por rango si un negocio publica mucho más.
       take: 300,
-      include: { channelAccount: { select: { displayName: true } } },
+      include: { channelAccount: { select: { displayName: true } }, contentAsset: { select: { tags: true } } },
     }),
     prisma.contentAsset.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, name: true, kind: true, caption: true, hashtags: true } }),
   ]);
@@ -44,6 +44,7 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
     // Con pieza de la biblioteca se muestra por la ruta firmada relativa (mismo origen).
     mediaUrl: post.contentAssetId ? assetFilePath(post.contentAssetId, secret) : post.mediaUrl,
     contentAssetId: post.contentAssetId,
+    assetTags: post.contentAsset?.tags ?? [],
     mediaType: post.mediaType,
     status: post.status,
     scheduledAt: post.scheduledAt?.toISOString() ?? null,
