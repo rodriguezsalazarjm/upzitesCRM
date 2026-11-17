@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/content-library-p22` (P22). La cadena es P8 → … → P21 → P22, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/content-ai-p23` (P23). La cadena es P8 → … → P22 → P23, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -15,6 +15,7 @@
 - Hito P20: `scripts/visual/p20-calendar-hito.ts` (después del P19; cada corrida agrega otra semana de posts QA).
 - Hito P21: `scripts/visual/p21-feed-hito.ts` (cuenta "QA Feed", idempotente). La CSP del servidor visual bloquea imágenes externas: usar data: URLs en QA.
 - Hito P22: `scripts/visual/p22-library-hito.ts` (sube `apps/web/public/blog/ia-content.jpg` a `.media/content/`, la reutiliza en 4 posts).
-- Siguiente: P23 (IA para contenido).
+- Hito P23: `scripts/visual/p23-content-ai-hito.ts` (después del P22; IA local determinista con el preload). TikTok = borrador planificado hasta P29.
+- Siguiente: P24 (IA asistente del feed).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

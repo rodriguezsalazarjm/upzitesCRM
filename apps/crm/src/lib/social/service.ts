@@ -12,8 +12,12 @@ export class SocialPostError extends Error {}
 export const CAPTION_MAX = 2200;
 export const HASHTAGS_MAX = 30;
 
+export const TIKTOK_NOT_CONNECTED = 'TikTok todavía no se conecta en Flow: guárdalo como borrador con fecha (queda en el calendario) y se podrá programar cuando llegue la conexión.';
+
 export const socialPostInputSchema = z.object({
-  channelAccountId: z.string().min(1),
+  /** P23: TikTok entra como borrador planificado; Instagram publica. */
+  network: z.enum(['INSTAGRAM', 'TIKTOK']).default('INSTAGRAM'),
+  channelAccountId: z.string().min(1).optional(),
   caption: z.string().max(CAPTION_MAX),
   hashtags: z.array(z.string().trim().regex(/^#?[\p{L}\p{N}_]{1,80}$/u, 'Hashtag inválido.')).max(HASHTAGS_MAX),
   mediaUrl: z.union([z.literal(''), z.string().url().max(2000).refine((url) => url.startsWith('https://'), 'La URL del archivo debe empezar con https://')]),
@@ -23,12 +27,14 @@ export const socialPostInputSchema = z.object({
   action: z.enum(['draft', 'schedule', 'publish_now']),
   scheduledAt: z.string().datetime({ offset: true }).optional(),
 });
-export type SocialPostInput = z.infer<typeof socialPostInputSchema>;
+export type SocialPostInput = z.input<typeof socialPostInputSchema>;
 
 /** Pura: valida lo que depende de la acción elegida. Devuelve el mensaje o null. */
 export function validateForAction(input: SocialPostInput, now: Date): string | null {
   if (composeCaption(input.caption, input.hashtags).length > CAPTION_MAX) return `El texto con hashtags supera ${CAPTION_MAX} caracteres.`;
+  if (input.network !== 'TIKTOK' && !input.channelAccountId) return 'Elige la cuenta de Instagram.';
   if (input.action === 'draft') return null;
+  if (input.network === 'TIKTOK') return TIKTOK_NOT_CONNECTED;
   if (!input.mediaUrl && !input.contentAssetId) return 'Instagram exige una imagen o un video para publicar.';
   if (input.action === 'schedule') {
     if (!input.scheduledAt) return 'Elige fecha y hora.';
@@ -39,14 +45,15 @@ export function validateForAction(input: SocialPostInput, now: Date): string | n
 
 const EDITABLE = ['DRAFT', 'SCHEDULED', 'FAILED'] as const;
 
-export async function saveSocialPost(workspaceId: string, userId: string, input: SocialPostInput, postId?: string) {
+export async function saveSocialPost(workspaceId: string, userId: string, raw: SocialPostInput, postId?: string) {
+  const input = socialPostInputSchema.parse(raw);
   const now = new Date();
   const problem = validateForAction(input, now);
   if (problem) throw new SocialPostError(problem);
   if (input.action !== 'draft') await assertFeature(workspaceId, 'channels.messaging');
 
-  const account = await prisma.channelAccount.findFirst({ where: { id: input.channelAccountId, workspaceId, channel: 'INSTAGRAM' }, select: { id: true } });
-  if (!account) throw new SocialPostError('La cuenta elegida no es una cuenta de Instagram de este negocio.');
+  const account = input.channelAccountId ? await prisma.channelAccount.findFirst({ where: { id: input.channelAccountId, workspaceId, channel: input.network }, select: { id: true } }) : null;
+  if (input.channelAccountId && !account) throw new SocialPostError(`La cuenta elegida no es una cuenta de ${input.network === 'TIKTOK' ? 'TikTok' : 'Instagram'} de este negocio.`);
 
   const asset = input.contentAssetId ? await prisma.contentAsset.findFirst({ where: { id: input.contentAssetId, workspaceId }, select: { id: true, kind: true } }) : null;
   if (input.contentAssetId && !asset) throw new SocialPostError('La pieza de la biblioteca no existe en este negocio.');
@@ -58,8 +65,8 @@ export async function saveSocialPost(workspaceId: string, userId: string, input:
   const status = input.action === 'draft' ? ('DRAFT' as const) : ('SCHEDULED' as const);
   const event = input.action === 'draft' ? 'draft_saved' : input.action === 'schedule' ? 'scheduled' : 'publish_requested';
   const data = {
-    network: 'INSTAGRAM' as const,
-    channelAccountId: account.id,
+    network: input.network,
+    channelAccountId: account?.id ?? null,
     caption: input.caption,
     hashtags: input.hashtags.map((tag) => tag.replace(/^#+/, '')),
     // Reutilizar = apuntar al MISMO archivo: no se sube otra vez.
@@ -99,6 +106,7 @@ export async function socialPostAction(workspaceId: string, postId: string, inpu
   if (!post) throw new SocialPostError('Publicación no encontrada.');
   if (action === 'retry') {
     if (post.status !== 'FAILED') throw new SocialPostError('Solo se reintenta una publicación que falló.');
+    if (post.network === 'TIKTOK') throw new SocialPostError(TIKTOK_NOT_CONNECTED);
     await assertFeature(workspaceId, 'channels.messaging');
     await prisma.socialPost.updateMany({
       where: { id: post.id, workspaceId, status: 'FAILED' },
@@ -131,6 +139,7 @@ export async function socialPostAction(workspaceId: string, postId: string, inpu
   }
   if (action === 'publish_now') {
     if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED') throw new SocialPostError('Solo se publica un borrador o una publicación programada.');
+    if (post.network === 'TIKTOK') throw new SocialPostError(TIKTOK_NOT_CONNECTED);
     if (!post.mediaUrl) throw new SocialPostError('Instagram exige una imagen o un video para publicar.');
     await assertFeature(workspaceId, 'channels.messaging');
     const claimed = await prisma.socialPost.updateMany({

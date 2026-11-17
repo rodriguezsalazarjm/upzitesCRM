@@ -141,7 +141,7 @@ export function SocialCalendar({ mode, posts, canManage, pending, onEdit, onPlan
       {selected && (
         <Card className="space-y-3 p-4" data-calendar-selected={selected.id}>
           <div className="text-sm">
-            <p className="font-semibold text-carbon">{STATUS_LABEL[selected.status]} · Instagram{selected.accountName ? ` · ${selected.accountName}` : ''}</p>
+            <p className="font-semibold text-carbon">{STATUS_LABEL[selected.status]} · {selected.network === 'TIKTOK' ? 'TikTok' : 'Instagram'}{selected.accountName ? ` · ${selected.accountName}` : ''}</p>
             <p className="line-clamp-2 break-words text-graphite">{selected.caption || '(sin texto)'}</p>
             {selected.lastError && selected.status !== 'PUBLISHED' && <p className="mt-1 text-xs text-danger-ink">{selected.lastError}</p>}
           </div>
@@ -162,7 +162,7 @@ export function SocialCalendar({ mode, posts, canManage, pending, onEdit, onPlan
               )}
               {['DRAFT', 'SCHEDULED', 'FAILED'].includes(selected.status) && <Button type="button" size="sm" variant="ghost" onClick={() => onEdit(selected)}>Editar</Button>}
               <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void onAction(selected, { action: 'duplicate' })}>Duplicar</Button>
-              {movable(selected) && <Button type="button" size="sm" disabled={pending} onClick={() => void onAction(selected, { action: 'publish_now' })}>Publicar ahora</Button>}
+              {movable(selected) && selected.network !== 'TIKTOK' && <Button type="button" size="sm" disabled={pending} onClick={() => void onAction(selected, { action: 'publish_now' })}>Publicar ahora</Button>}
               {selected.status === 'SCHEDULED' && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void onAction(selected, { action: 'unschedule' })}>Cancelar programación</Button>}
               {selected.status === 'FAILED' && <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void onAction(selected, { action: 'retry' })}>Reintentar</Button>}
               {selected.status !== 'PUBLISHING' && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onDelete(selected)}>Borrar</Button>}

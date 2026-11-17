@@ -16,6 +16,10 @@ import { moveToDay } from '@/lib/social/calendar';
 import { cn } from '@/lib/utils';
 import { SocialCalendar } from './social-calendar';
 import { SocialFeedGrid } from './social-feed-grid';
+import { ContentAssistant } from './content-assistant';
+
+const TIKTOK = '__tiktok';
+export const networkLabel = (network: string) => (network === 'TIKTOK' ? 'TikTok' : 'Instagram');
 
 type Account = { id: string; name: string; ready: boolean; canPublish: boolean };
 export type PostRow = {
@@ -67,11 +71,11 @@ const toLocalInput = (iso: string | null) => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 
-type Draft = { id?: string; channelAccountId: string; caption: string; hashtags: string; mediaUrl: string; mediaType: 'IMAGE' | 'REEL'; scheduledAt: string; contentAssetId: string };
+type Draft = { id?: string; network: 'INSTAGRAM' | 'TIKTOK'; channelAccountId: string; caption: string; hashtags: string; mediaUrl: string; mediaType: 'IMAGE' | 'REEL'; scheduledAt: string; contentAssetId: string };
 
 export function SocialPublisher({ canManage, accounts, posts, assets, initialAssetId }: { canManage: boolean; accounts: Account[]; posts: PostRow[]; assets: PickerAsset[]; initialAssetId?: string }) {
   const router = useRouter();
-  const empty: Draft = { channelAccountId: accounts[0]?.id ?? '', caption: '', hashtags: '', mediaUrl: '', mediaType: 'IMAGE', scheduledAt: '', contentAssetId: '' };
+  const empty: Draft = { network: 'INSTAGRAM', channelAccountId: accounts[0]?.id ?? '', caption: '', hashtags: '', mediaUrl: '', mediaType: 'IMAGE', scheduledAt: '', contentAssetId: '' };
   // P22: "Usar en una publicación" desde la Biblioteca llega con ?pieza=.
   const [draft, setDraft] = useState<Draft>(() => {
     const asset = assets.find((a) => a.id === initialAssetId);
@@ -115,7 +119,8 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
 
   async function submit(action: 'draft' | 'schedule' | 'publish_now') {
     const result = await call(draft.id ? `/api/social-posts/${draft.id}` : '/api/social-posts', draft.id ? 'PATCH' : 'POST', {
-      channelAccountId: draft.channelAccountId,
+      network: draft.network,
+      channelAccountId: draft.network === 'TIKTOK' ? undefined : draft.channelAccountId,
       caption: draft.caption,
       hashtags: draft.hashtags.split(/[\s,]+/).filter(Boolean),
       mediaUrl: draft.contentAssetId ? '' : draft.mediaUrl.trim(),
@@ -149,7 +154,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
 
   const edit = (post: PostRow) => {
     focusComposer();
-    setDraft({ id: post.id, channelAccountId: post.channelAccountId ?? accounts[0]?.id ?? '', caption: post.caption, hashtags: post.hashtags.map((t) => `#${t}`).join(' '), mediaUrl: post.contentAssetId ? '' : post.mediaUrl ?? '', mediaType: post.mediaType, scheduledAt: toLocalInput(post.scheduledAt), contentAssetId: post.contentAssetId ?? '' });
+    setDraft({ id: post.id, network: post.network === 'TIKTOK' ? 'TIKTOK' : 'INSTAGRAM', channelAccountId: post.channelAccountId ?? accounts[0]?.id ?? '', caption: post.caption, hashtags: post.hashtags.map((t) => `#${t}`).join(' '), mediaUrl: post.contentAssetId ? '' : post.mediaUrl ?? '', mediaType: post.mediaType, scheduledAt: toLocalInput(post.scheduledAt), contentAssetId: post.contentAssetId ?? '' });
   };
 
   return (
@@ -158,7 +163,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
         <Card className="order-2 space-y-4 p-5 xl:order-none" data-social-composer>
           <div>
             <Eyebrow>{draft.id ? 'Editar publicación' : 'Nueva publicación'}</Eyebrow>
-            <p className="mt-1 text-xs text-soft">Instagram ahora. TikTok se habilita cuando su conexión esté disponible.</p>
+            <p className="mt-1 text-xs text-soft">Instagram publica. TikTok se guarda como borrador planificado hasta que su conexión esté disponible.</p>
           </div>
           {accounts.length === 0 ? (
             <p className="rounded-xl bg-ivory p-4 text-sm text-graphite">
@@ -169,14 +174,19 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
             <>
               <label className="block space-y-1 text-sm">
                 <span className="font-semibold text-carbon">Red y cuenta</span>
-                <Select value={draft.channelAccountId} onChange={(e) => setDraft({ ...draft, channelAccountId: e.target.value })}>
+                <Select value={draft.network === 'TIKTOK' ? TIKTOK : draft.channelAccountId} onChange={(e) => setDraft(e.target.value === TIKTOK ? { ...draft, network: 'TIKTOK', mediaType: 'REEL' } : { ...draft, network: 'INSTAGRAM', channelAccountId: e.target.value })} data-network-picker>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>Instagram · {a.name}</option>
                   ))}
-                  <option disabled>TikTok · próximamente</option>
+                  <option value={TIKTOK}>TikTok · borrador planificado (sin conexión)</option>
                 </Select>
               </label>
-              {account && (!account.ready || !account.canPublish) && (
+              {draft.network === 'TIKTOK' && (
+                <p className="rounded-lg bg-solar/20 p-3 text-xs text-warning-ink" data-tiktok-note>
+                  TikTok todavía no se conecta: guárdalo como borrador con fecha y queda en el calendario. Se podrá programar cuando llegue la conexión.
+                </p>
+              )}
+              {draft.network === 'INSTAGRAM' && account && (!account.ready || !account.canPublish) && (
                 <p className="rounded-lg bg-solar/20 p-3 text-xs text-warning-ink" data-account-warning>
                   {!account.ready ? 'Esta cuenta no está conectada o la limita tu plan: puedes guardar borradores, no publicar.' : 'Reconecta Instagram y acepta el permiso de publicar contenido.'}
                 </p>
@@ -228,11 +238,22 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
                 <Input type="datetime-local" value={draft.scheduledAt} onChange={(e) => setDraft({ ...draft, scheduledAt: e.target.value })} />
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={pending} onClick={() => void submit('publish_now')}>Publicar ahora</Button>
-                <Button type="button" variant="outline" disabled={pending || !draft.scheduledAt} onClick={() => void submit('schedule')}>Programar</Button>
+                <Button type="button" disabled={pending || draft.network === 'TIKTOK'} onClick={() => void submit('publish_now')}>Publicar ahora</Button>
+                <Button type="button" variant="outline" disabled={pending || !draft.scheduledAt || draft.network === 'TIKTOK'} onClick={() => void submit('schedule')}>Programar</Button>
                 <Button type="button" variant="ghost" disabled={pending} onClick={() => void submit('draft')}>Guardar borrador</Button>
                 {draft.id && <Button type="button" variant="ghost" onClick={() => setDraft(empty)}>Cancelar edición</Button>}
               </div>
+              <ContentAssistant
+                source={{ caption: draft.caption, hashtags: draft.hashtags.split(/[s,]+/).filter(Boolean), contentAssetId: draft.contentAssetId, mediaUrl: draft.mediaUrl, scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : '', instagramAccountId: draft.network === 'INSTAGRAM' ? draft.channelAccountId : accounts[0]?.id ?? '' }}
+                onUse={(s) => {
+                  setDraft({ ...draft, network: s.network, mediaType: s.format, caption: s.text, hashtags: s.hashtags.map((t) => '#' + t).join(' '), scheduledAt: s.date ? toLocalInput(new Date(`${s.date}T11:00`).toISOString()) : draft.scheduledAt });
+                  focusComposer();
+                }}
+                onSaved={(message) => {
+                  setNotice(message);
+                  startTransition(() => router.refresh());
+                }}
+              />
             </>
           )}
           {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
@@ -252,7 +273,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
           <Select density="sm" wrapperClassName="w-auto" value={network} onChange={(e) => setNetwork(e.target.value)} aria-label="Filtrar por red">
             <option value="">Todas las redes</option>
             <option value="INSTAGRAM">Instagram</option>
-            <option value="TIKTOK" disabled>TikTok · próximamente</option>
+            <option value="TIKTOK">TikTok</option>
           </Select>
           {accounts.length > 1 && (
             <Select density="sm" wrapperClassName="w-auto" value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} aria-label="Filtrar por cuenta">
@@ -284,7 +305,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={STATUS[post.status].variant}>{STATUS[post.status].label}</Badge>
                 <span className="text-xs text-soft">
-                  Instagram{post.accountName ? ` · ${post.accountName}` : ''} · {post.mediaType === 'REEL' ? 'Reel' : 'Imagen'}
+                  {networkLabel(post.network)}{post.accountName ? ` · ${post.accountName}` : ''} · {post.mediaType === 'REEL' ? 'Reel' : 'Imagen'}
                 </span>
                 <span className="ml-auto text-xs text-soft">
                   {post.status === 'PUBLISHED' ? `Publicado ${when(post.publishedAt)}` : post.status === 'SCHEDULED' ? `Para ${when(post.nextAttemptAt ?? post.scheduledAt)}` : ''}
