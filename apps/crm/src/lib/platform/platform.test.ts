@@ -127,3 +127,11 @@ test('password reset: sube sessionVersion en la misma transaccion que el passwor
   assert.ok(tx.indexOf('data: { passwordHash }') > 0 && tx.indexOf('revokeAllSessions(row!.userId, tx)') > tx.indexOf('data: { passwordHash }'));
   assert.doesNotMatch(confirm, /setSessionCookie|createSessionToken/, 'el reset no inicia sesion');
 });
+
+test('cada página de /platform verifica al operador por sí misma (el layout no protege el payload)', () => {
+  const pages = files(join(root, 'src/app/platform')).filter((f) => f.endsWith(`${sep}page.tsx`));
+  assert.ok(pages.length >= 9);
+  for (const page of pages) {
+    assert.match(readFileSync(page, 'utf8'), /currentPlatformActor\(/, `${page} debe llamar currentPlatformActor y notFound()`);
+  }
+});

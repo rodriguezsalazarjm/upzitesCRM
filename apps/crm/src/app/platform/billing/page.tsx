@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation';
+import { currentPlatformActor } from '@/lib/platform/access';
 import Link from 'next/link';
 import { DataTable, Empty, PlatformPage, Section, StateBadge, fmtDate } from '@/components/platform/ui';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -8,6 +10,8 @@ export const dynamic = 'force-dynamic';
 
 /** Libro SaaS (SubscriptionPayment). Nunca muestra commerce (Payment/CustomerOrder). */
 export default async function BillingPage() {
+  // El layout no basta: Next renderiza la pagina en paralelo y su payload saldria en el 404.
+  if (!(await currentPlatformActor())) notFound();
   const [payments, clients] = await Promise.all([listSaasPayments({ take: 100 }), listPlatformWorkspaces({ internal: false })]);
   const attention = clients.filter((c) => c.subscription.state === 'GRACE' || (c.subscription.state === 'ACTIVE' && c.subscription.daysLeft <= 7 && c.subscription.renewsAt));
   return (

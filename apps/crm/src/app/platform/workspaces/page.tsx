@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation';
+import { currentPlatformActor } from '@/lib/platform/access';
 import Link from 'next/link';
 import { DataTable, Empty, PlatformPage, Section, StateBadge, fmtDate } from '@/components/platform/ui';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -6,6 +8,8 @@ import { listPlatformWorkspaces } from '@/lib/platform/clients';
 export const dynamic = 'force-dynamic';
 
 export default async function WorkspacesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  // El layout no basta: Next renderiza la pagina en paralelo y su payload saldria en el 404.
+  if (!(await currentPlatformActor())) notFound();
   const { q } = await searchParams;
   const workspaces = await listPlatformWorkspaces({ query: q });
   return (

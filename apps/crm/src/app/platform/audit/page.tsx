@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation';
+import { currentPlatformActor } from '@/lib/platform/access';
 import Link from 'next/link';
 import { DataTable, Empty, PlatformPage, Section } from '@/components/platform/ui';
 import { listPlatformAudit } from '@/lib/platform/clients';
@@ -5,6 +7,8 @@ import { listPlatformAudit } from '@/lib/platform/clients';
 export const dynamic = 'force-dynamic';
 
 export default async function AuditPage() {
+  // El layout no basta: Next renderiza la pagina en paralelo y su payload saldria en el 404.
+  if (!(await currentPlatformActor())) notFound();
   const rows = await listPlatformAudit(200);
   return (
     <PlatformPage title="Auditoría de plataforma" subtitle="Últimos 200 eventos: roles, billing, invitaciones, soporte, Price Book.">

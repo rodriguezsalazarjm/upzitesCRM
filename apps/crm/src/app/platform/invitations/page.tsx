@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation';
+import { currentPlatformActor } from '@/lib/platform/access';
 import Link from 'next/link';
 import { ActionForm } from '@/components/platform/action-form';
 import { DataTable, Empty, PlatformPage, Section, fmtDate } from '@/components/platform/ui';
@@ -7,6 +9,8 @@ import { platformEmailConfigured } from '@/lib/platform/transactional-email';
 export const dynamic = 'force-dynamic';
 
 export default async function InvitationsPage() {
+  // El layout no basta: Next renderiza la pagina en paralelo y su payload saldria en el 404.
+  if (!(await currentPlatformActor())) notFound();
   const [pending, workspaces] = await Promise.all([listPendingInvitations(), listPlatformWorkspaces()]);
   const emailReady = platformEmailConfigured();
   return (
