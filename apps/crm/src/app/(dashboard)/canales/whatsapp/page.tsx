@@ -50,6 +50,9 @@ export default async function WhatsAppChannelsPage() {
           <Link href="/canales/whatsapp/campanas" className="block rounded-xl border border-mist bg-paper p-3 text-xs text-graphite hover:border-carbon">
             <span className="font-semibold text-carbon">Reglas de campaña →</span> qué producto, agente y automatización usa cada anuncio que llega a tus números.
           </Link>
+          <Link href="/canales/whatsapp/plantillas" className="block rounded-xl border border-mist bg-paper p-3 text-xs text-graphite hover:border-carbon" data-templates-link>
+            <span className="font-semibold text-carbon">Plantillas →</span> los mensajes aprobados por Meta para escribir fuera de la ventana de 24 horas.
+          </Link>
 
           <section className="space-y-2">
             <Eyebrow>Números ({channels.length})</Eyebrow>

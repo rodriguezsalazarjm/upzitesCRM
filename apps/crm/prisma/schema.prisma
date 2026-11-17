@@ -50,18 +50,19 @@ model Workspace {
   scheduledActions   ScheduledAction[]
   usageRecords       UsageRecord[]
 
-  whatsappChannels WhatsAppChannel[]
-  campaignRoutes   CampaignRoute[]
-  socialPosts      SocialPost[]
-  contentAssets    ContentAsset[]
+  whatsappChannels    WhatsAppChannel[]
+  whatsappTemplates   WhatsAppTemplate[]
+  campaignRoutes      CampaignRoute[]
+  socialPosts         SocialPost[]
+  contentAssets       ContentAsset[]
   quoteStudioSettings QuoteStudioSettings?
-  quoteTemplates   QuoteTemplate[]
-  quoteCatalogItems QuoteCatalogItem[]
-  salesQuotes      SalesQuote[]
-  salesQuoteVersions SalesQuoteVersion[]
-  conversations    Conversation[]
-  messages         Message[]
-  outboxEvents     OutboxEvent[]
+  quoteTemplates      QuoteTemplate[]
+  quoteCatalogItems   QuoteCatalogItem[]
+  salesQuotes         SalesQuote[]
+  salesQuoteVersions  SalesQuoteVersion[]
+  conversations       Conversation[]
+  messages            Message[]
+  outboxEvents        OutboxEvent[]
 
   jobs                 Job[]
   automationExecutions AutomationExecution[]
@@ -114,8 +115,9 @@ model Workspace {
   productOffers            ProductOffer[]
   orderOffers              OrderOffer[]
 
-  mailboxAccounts  MailboxAccount[]
-  mailThreads      MailThread[]
+  mailboxAccounts MailboxAccount[]
+  mailThreads     MailThread[]
+
   @@map("workspaces")
 }
 
@@ -167,7 +169,8 @@ model User {
 
   whatsappFallbackChannels WhatsAppChannel[] @relation("WhatsAppChannelFallbackUser")
 
-  mailboxAccounts       MailboxAccount[]
+  mailboxAccounts MailboxAccount[]
+
   @@index([workspaceId])
   @@map("users")
 }
@@ -331,6 +334,7 @@ model Company {
   opportunities Opportunity[]
 
   mailThreads MailThread[]
+
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("companies")
@@ -393,7 +397,8 @@ model Contact {
   channelIdentities  ContactChannelIdentity[]
   automationFlowRuns AutomationFlowRun[]
 
-  mailThreads      MailThread[]
+  mailThreads MailThread[]
+
   @@unique([workspaceId, email])
   @@index([workspaceId, status])
   @@index([workspaceId, source])
@@ -438,17 +443,18 @@ model Opportunity {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
-  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact    Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  company    Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  stage      PipelineStage       @relation(fields: [stageId], references: [id], onDelete: Restrict)
-  owner      User?               @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  activities Activity[]
-  aiInsights AiInsight[]
-  followUps  JourneyEnrollment[]
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company     Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  stage       PipelineStage       @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner       User?               @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities  Activity[]
+  aiInsights  AiInsight[]
+  followUps   JourneyEnrollment[]
   salesQuotes SalesQuote[]
 
   mailThreads MailThread[]
+
   @@index([workspaceId, status])
   @@index([workspaceId, stageId])
   @@map("opportunities")
@@ -984,15 +990,60 @@ model WhatsAppChannel {
   createdAt            DateTime                  @default(now()) @map("created_at")
   updatedAt            DateTime                  @updatedAt @map("updated_at")
 
-  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations  Conversation[]
-  defaultAgent   AgentDefinition? @relation(fields: [defaultAgentId], references: [id], onDelete: SetNull)
-  defaultProduct Product?         @relation("WhatsAppChannelDefaultProduct", fields: [defaultProductId], references: [id], onDelete: SetNull)
-  defaultFlow    AutomationFlow?  @relation(fields: [defaultFlowId], references: [id], onDelete: SetNull)
-  fallbackUser   User?            @relation("WhatsAppChannelFallbackUser", fields: [fallbackUserId], references: [id], onDelete: SetNull)
+  defaultAgent   AgentDefinition?   @relation(fields: [defaultAgentId], references: [id], onDelete: SetNull)
+  defaultProduct Product?           @relation("WhatsAppChannelDefaultProduct", fields: [defaultProductId], references: [id], onDelete: SetNull)
+  defaultFlow    AutomationFlow?    @relation(fields: [defaultFlowId], references: [id], onDelete: SetNull)
+  fallbackUser   User?              @relation("WhatsAppChannelFallbackUser", fields: [fallbackUserId], references: [id], onDelete: SetNull)
+  templates      WhatsAppTemplate[]
 
   @@index([workspaceId, status])
   @@map("whatsapp_channels")
+}
+
+/// P26: plantilla de WhatsApp registrada en Meta para un numero (su WABA).
+/// Es lo unico que se puede enviar fuera de la ventana de 24 horas. El estado
+/// lo decide Meta (sync o webhook `message_template_status_update`).
+model WhatsAppTemplate {
+  id             String                   @id @default(cuid())
+  workspaceId    String                   @map("workspace_id")
+  channelId      String                   @map("channel_id")
+  externalId     String?                  @unique @map("external_id")
+  name           String
+  language       String
+  category       WhatsAppTemplateCategory
+  status         WhatsAppTemplateStatus   @default(PENDING)
+  /// Cuerpo tal como lo tiene Meta, con {{1}}, {{2}}...
+  body           String
+  /// Dato del CRM que va en cada {{n}} (posicion n-1): "nombre", "producto", "negocio".
+  variables      String[]                 @default([])
+  rejectedReason String?                  @map("rejected_reason")
+  lastSyncedAt   DateTime?                @map("last_synced_at")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   WhatsAppChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  steps     JourneyStep[]
+
+  @@unique([channelId, name, language])
+  @@index([workspaceId, status])
+  @@map("whatsapp_templates")
+}
+
+enum WhatsAppTemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
+}
+
+enum WhatsAppTemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
 }
 
 // --- Fase C: gateway multicanal (Instagram/Messenger/TikTok + WhatsApp) ------
@@ -2442,8 +2493,10 @@ model JourneyStep {
   /// Espera desde el paso anterior; en el primero, desde la inscripcion.
   delayHours Float @default(0) @map("delay_hours")
 
-  channel    ConsentChannel?
-  templateId String?         @map("template_id")
+  channel            ConsentChannel?
+  templateId         String?         @map("template_id")
+  /// P26: plantilla aprobada que se usa si el paso vence fuera de la ventana de 24 h.
+  whatsappTemplateId String?         @map("whatsapp_template_id")
 
   /// Cuerpo para WhatsApp, o para email sin template. En modo IA es el texto
   /// de respaldo si la IA no puede generar un mensaje seguro.
@@ -2459,8 +2512,9 @@ model JourneyStep {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  journey  Journey        @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  template EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  journey          Journey           @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  template         EmailTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  whatsappTemplate WhatsAppTemplate? @relation(fields: [whatsappTemplateId], references: [id], onDelete: SetNull)
 
   @@unique([journeyId, position])
   @@map("journey_steps")
@@ -4239,24 +4293,24 @@ model MailboxAccount {
 }
 
 model MailThread {
-  id               String    @id @default(cuid())
-  workspaceId      String    @map("workspace_id")
-  mailboxId        String    @map("mailbox_id")
-  providerThreadId String    @map("provider_thread_id")
-  subject          String    @default("")
-  snippet          String    @default("")
+  id               String   @id @default(cuid())
+  workspaceId      String   @map("workspace_id")
+  mailboxId        String   @map("mailbox_id")
+  providerThreadId String   @map("provider_thread_id")
+  subject          String   @default("")
+  snippet          String   @default("")
   /// Direcciones que participan (sin la del buzón), en minúsculas: para buscar y asociar.
-  participants     String[]  @default([])
-  lastMessageAt    DateTime  @map("last_message_at")
-  unread           Boolean   @default(false)
-  inInbox          Boolean   @default(true) @map("in_inbox")
-  hasSent          Boolean   @default(false) @map("has_sent")
-  hasAttachments   Boolean   @default(false) @map("has_attachments")
-  contactId        String?   @map("contact_id")
-  companyId        String?   @map("company_id")
-  opportunityId    String?   @map("opportunity_id")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  participants     String[] @default([])
+  lastMessageAt    DateTime @map("last_message_at")
+  unread           Boolean  @default(false)
+  inInbox          Boolean  @default(true) @map("in_inbox")
+  hasSent          Boolean  @default(false) @map("has_sent")
+  hasAttachments   Boolean  @default(false) @map("has_attachments")
+  contactId        String?  @map("contact_id")
+  companyId        String?  @map("company_id")
+  opportunityId    String?  @map("opportunity_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   mailbox     MailboxAccount @relation(fields: [mailboxId], references: [id], onDelete: Cascade)

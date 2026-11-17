@@ -11,13 +11,14 @@ import {
 import { canWorkspaceConsume } from '../billing/subscription-access';
 import { recordAudit } from '../domain/audit';
 import { crossTenantPrisma, prisma } from '../prisma';
-import { sendTextMessage } from './client';
+import { sendTemplateMessage, sendTextMessage } from './client';
 import { recordChannelError } from './channel-runtime';
 import { queuePushSafely } from '../push/events';
 import {
   inferOutboundOrigin,
   isOriginCompatibleWithSender,
   type OutboundOrigin,
+  type OutboundTemplate,
   type OutboxMessagePayload,
   pausesOnHumanTakeover,
   shouldCancelAutomaticSend,
@@ -46,6 +47,8 @@ export type QueueMessageInput = {
   idempotencyKey?: string;
   senderUserId?: string | null;
   agentRunId?: string | null;
+  /** P26: plantilla aprobada; solo para automatizaciones (la ventana cerrada no la bloquea). */
+  template?: OutboundTemplate;
 };
 
 export async function lockConversation(
@@ -171,8 +174,9 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
         senderType: input.senderType,
         senderUserId: input.senderUserId ?? null,
         agentRunId: input.agentRunId ?? null,
-        type: MessageType.TEXT,
+        type: input.template ? MessageType.TEMPLATE : MessageType.TEXT,
         text: input.text,
+        payload: input.template ? { template: input.template } : undefined,
         status: MessageStatus.QUEUED,
       },
     });
@@ -183,6 +187,7 @@ export async function queueOutboundMessage(input: QueueMessageInput) {
       text: input.text,
       origin: input.origin,
       conversationLockVersion: conversation.lockVersion,
+      ...(input.template ? { template: input.template } : {}),
     };
 
     await tx.outboxEvent.create({
@@ -376,7 +381,9 @@ export async function processOutbox(limit = 20): Promise<ProcessOutboxResult> {
         continue;
       }
 
-      const sent = await sendTextMessage({ channel, to: payload.to, text: payload.text });
+      const sent = payload.template
+        ? await sendTemplateMessage({ channel, to: payload.to, template: payload.template })
+        : await sendTextMessage({ channel, to: payload.to, text: payload.text });
       if (sent.ok) {
         await prisma.$transaction([
           prisma.message.updateMany({
@@ -582,6 +589,7 @@ export async function retryMessage(input: {
       select: {
         id: true,
         text: true,
+        payload: true,
         senderType: true,
         conversationId: true,
         conversation: {
@@ -617,6 +625,9 @@ export async function retryMessage(input: {
       origin,
       conversationLockVersion: message.conversation.lockVersion,
     };
+    // P26: un reintento de plantilla vuelve a salir como plantilla, no como texto libre.
+    const template = (message.payload as { template?: OutboundTemplate } | null)?.template;
+    if (template) payload.template = template;
     await tx.message.update({
       where: { id: message.id },
       data: { status: MessageStatus.QUEUED, failedAt: null, errorCode: null, errorMessage: null },

@@ -31,7 +31,40 @@ export async function sendTextMessage(input: {
   to: string;
   text: string;
 }): Promise<SendResult> {
-  const token = resolveToken(input.channel);
+  return postMessage(input.channel, input.to, { type: 'text', text: { preview_url: false, body: input.text } });
+}
+
+/** P26: plantilla aprobada (unico envio permitido fuera de la ventana de 24 h). */
+export async function sendTemplateMessage(input: {
+  channel: ChannelCredentials;
+  to: string;
+  template: { name: string; language: string; params: string[] };
+}): Promise<SendResult> {
+  const { name, language, params } = input.template;
+  return postMessage(input.channel, input.to, {
+    type: 'template',
+    template: {
+      name,
+      language: { code: language },
+      ...(params.length ? { components: [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text })) }] } : {}),
+    },
+  });
+}
+
+/** Errores de plantilla de Meta, dichos de forma que el negocio sepa que arreglar. */
+const TEMPLATE_ERRORS: Record<string, string> = {
+  '132000': 'La plantilla no coincide con Meta: la cantidad de variables es distinta. Sincroniza las plantillas.',
+  '132001': 'Meta no encuentra la plantilla con ese nombre e idioma en este número. Sincroniza las plantillas.',
+  '132005': 'El texto de la plantilla con las variables reemplazadas es demasiado largo.',
+  '132007': 'Meta bloqueó la plantilla por sus políticas de contenido.',
+  '132012': 'Una variable de la plantilla tiene un formato que Meta no acepta.',
+  '132015': 'Meta pausó la plantilla por baja calidad. Usa otra o espera a que la reactive.',
+  '132016': 'Meta deshabilitó la plantilla. Usa otra plantilla aprobada.',
+  '131047': 'La ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada.',
+};
+
+async function postMessage(channel: ChannelCredentials, to: string, message: Record<string, unknown>): Promise<SendResult> {
+  const token = resolveToken(channel);
 
   if (!token) {
     return {
@@ -41,7 +74,7 @@ export async function sendTextMessage(input: {
     };
   }
 
-  const url = `https://graph.facebook.com/${whatsappGraphVersion()}/${input.channel.phoneNumberId}/messages`;
+  const url = `https://graph.facebook.com/${whatsappGraphVersion()}/${channel.phoneNumberId}/messages`;
 
   let response: Response;
   try {
@@ -54,9 +87,8 @@ export async function sendTextMessage(input: {
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
-        to: input.to.replace(/^\+/, ''),
-        type: 'text',
-        text: { preview_url: false, body: input.text },
+        to: to.replace(/^\+/, ''),
+        ...message,
       }),
     });
   } catch {
@@ -84,7 +116,7 @@ export async function sendTextMessage(input: {
       // repetir partes de credenciales enviadas por el operador.
       errorMessage: invalidCredentials
         ? 'Las credenciales de WhatsApp son invalidas o vencieron.'
-        : `WhatsApp rechazo el envio (codigo ${errorCode}).`,
+        : TEMPLATE_ERRORS[errorCode] ?? `WhatsApp rechazo el envio (codigo ${errorCode}).`,
     };
   }
 

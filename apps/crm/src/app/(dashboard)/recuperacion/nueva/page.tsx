@@ -7,17 +7,17 @@ import { DEFAULT_DRAFT, StrategyEditor } from '@/components/followups/strategy-e
 import { requireCurrentUser } from '@/lib/auth';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { prisma } from '@/lib/prisma';
+import { templateOptions } from '@/lib/whatsapp/template-options';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewStrategyPage() {
   const user = await requireCurrentUser();
   if (!canManageMarketing(user.role)) redirect('/recuperacion');
-  const products = await prisma.product.findMany({
-    where: { workspaceId: user.workspace.id },
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true },
-  });
+  const [products, templates] = await Promise.all([
+    prisma.product.findMany({ where: { workspaceId: user.workspace.id }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    templateOptions(user.workspace.id),
+  ]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -29,7 +29,7 @@ export default async function NewStrategyPage() {
               <ArrowLeft strokeWidth={1.75} /> Volver a recuperación
             </Link>
           </Button>
-          <StrategyEditor initial={DEFAULT_DRAFT} products={products} workspaceName={user.workspace.name} />
+          <StrategyEditor initial={DEFAULT_DRAFT} products={products} workspaceName={user.workspace.name} templates={templates} />
         </div>
       </div>
     </div>

@@ -15,7 +15,11 @@ export type OutboxMessagePayload = {
   text: string;
   origin?: OutboundOrigin;
   conversationLockVersion?: number;
+  /** P26: si existe se envia la plantilla; `text` queda como lo que ve la bandeja. */
+  template?: OutboundTemplate;
 };
+
+export type OutboundTemplate = { id: string; name: string; language: string; params: string[] };
 
 export function isOutboundOrigin(value: unknown): value is OutboundOrigin {
   return typeof value === 'string' && OUTBOUND_ORIGINS.includes(value as OutboundOrigin);

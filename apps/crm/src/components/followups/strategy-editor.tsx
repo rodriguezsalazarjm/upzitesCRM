@@ -37,7 +37,11 @@ type StepDraft = {
   messageMode: 'FIXED' | 'AI';
   body: string;
   aiGoal: string;
+  whatsappTemplateId: string | null;
 };
+
+/** P26: plantilla elegible para los pasos de WhatsApp. `problem` = por que hoy no saldria. */
+export type TemplateOption = { id: string; label: string; statusLabel: string; problem: string | null; usesProduct: boolean };
 
 export type StrategyDraft = {
   name: string;
@@ -60,6 +64,7 @@ const BLANK_STEP: Omit<StepDraft, 'key'> = {
   messageMode: 'FIXED',
   body: '',
   aiGoal: '',
+  whatsappTemplateId: null,
 };
 
 export const DEFAULT_DRAFT: StrategyDraft = {
@@ -86,11 +91,13 @@ export function StrategyEditor({
   initial,
   products,
   workspaceName,
+  templates = [],
 }: {
   strategyId?: string;
   initial: StrategyDraft;
   products: { id: string; name: string }[];
   workspaceName: string;
+  templates?: TemplateOption[];
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(() => ({ ...initial, steps: initial.steps.map((step) => ({ ...step, key: nextKey() })) }));
@@ -101,7 +108,7 @@ export function StrategyEditor({
   const payload = useMemo(
     () => ({
       ...draft,
-      steps: draft.steps.map((step) => ({ label: step.label, action: step.action, delayHours: step.delayHours, messageMode: step.messageMode, body: step.body, aiGoal: step.aiGoal })),
+      steps: draft.steps.map((step) => ({ label: step.label, action: step.action, delayHours: step.delayHours, messageMode: step.messageMode, body: step.body, aiGoal: step.aiGoal, whatsappTemplateId: step.action === 'SEND_WHATSAPP' ? step.whatsappTemplateId : null })),
     }),
     [draft],
   );
@@ -349,9 +356,34 @@ export function StrategyEditor({
                   <p className="whitespace-pre-wrap text-sm text-carbon">{preview}</p>
                 </div>
               )}
-              {!isTask && step.action === 'SEND_WHATSAPP' && (
-                <p className="text-[11px] text-soft">WhatsApp: solo se envía dentro de la ventana de 24 h desde el último mensaje del contacto. Fuera de ella el paso queda bloqueado (las plantillas aprobadas llegan en una etapa posterior).</p>
-              )}
+              {!isTask && step.action === 'SEND_WHATSAPP' && (() => {
+                const chosen = templates.find((t) => t.id === step.whatsappTemplateId);
+                const warning = chosen ? (chosen.problem ?? (chosen.usesProduct && !draft.productId ? 'usa {{producto}}: elige un producto para la estrategia' : null)) : null;
+                return (
+                  <FormField
+                    label="Si la ventana de 24 h ya cerró"
+                    htmlFor={`${step.key}-template`}
+                    description="Dentro de las 24 h desde el último mensaje del contacto se envía el texto de arriba. Fuera de ellas WhatsApp solo admite una plantilla aprobada; sin ella el paso queda bloqueado."
+                  >
+                    <div className="space-y-1.5" data-template-picker>
+                      <Select id={`${step.key}-template`} value={step.whatsappTemplateId ?? ''} onChange={(event) => patchStep(step.key, { whatsappTemplateId: event.target.value || null })}>
+                        <option value="">Sin plantilla: bloquear el paso</option>
+                        {templates.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.label} · {t.statusLabel}
+                          </option>
+                        ))}
+                      </Select>
+                      {warning && <p className="text-[11px] text-warning-ink" data-template-warning>Hoy no saldría: {warning}.</p>}
+                      {templates.length === 0 && (
+                        <p className="text-[11px] text-soft">
+                          No hay plantillas. <a href="/canales/whatsapp/plantillas" className="font-semibold underline">Crea o sincroniza plantillas</a>.
+                        </p>
+                      )}
+                    </div>
+                  </FormField>
+                );
+              })()}
             </Card>
           );
         })}

@@ -36,6 +36,7 @@ import {
   type NormalizedInboundMessage,
   type NormalizedStatusUpdate,
 } from './normalize';
+import { applyTemplateStatusUpdate } from './templates';
 
 export const PROVIDER = 'whatsapp';
 
@@ -140,6 +141,7 @@ export async function processWebhookEvent(eventId: string) {
 }
 
 async function applyEvent(event: NormalizedEvent) {
+  if (event.kind === 'template_status') return applyTemplateStatusUpdate(event);
   // Punto 8: lo que realmente llego de Meta para este numero. Es la unica
   // prueba de que el webhook funciona; tener la app suscrita no lo es.
   await prisma.whatsAppChannel.updateMany({

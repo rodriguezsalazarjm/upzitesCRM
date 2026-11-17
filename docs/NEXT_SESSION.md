@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/transactional-email-p25` (P25). La cadena es P8 → … → P24 → P37 → P38 → P25, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/whatsapp-templates-p26` (P26). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -20,6 +20,7 @@
 - Hito P37: `scripts/visual/p37-quote-hito.ts` (idempotente; borra las cotizaciones "QA P37"; crea un dominio de email VERIFIED SCRIPTED en A si falta). Studio en /cotizaciones; enlace público /cotizacion/[token].
 - Hito P38: `scripts/visual/p38-mail-hito.ts` (buzón falso en `.local-visual/fake-mailbox.json`; `--dejar` deja el buzón conectado para QA en /inbox/email).
 - Hito P25: `scripts/visual/p25-email-hito.ts` (Resend simulado; borra lo que crea). Con Resend real: configurar las 4 variables, verificar el dominio y usar "Enviarme una prueba" en /platform/email.
-- Siguiente según orden congelado: P26 (templates WhatsApp).
-- Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, OAuth Google (verificación gmail.modify) y Microsoft Entra.
+- Hito P26: `scripts/visual/p26-template-hito.ts` (Meta simulado; fija A por nombre; aparta y devuelve el outbox ajeno pendiente). QA deja en A el número "QA P26" (sin token) con 2 plantillas y la estrategia "QA P26 carrito" (borrador).
+- Siguiente según orden congelado: P27 (Mercado Pago TEST E2E).
+- Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, plantilla WhatsApp aprobada real, OAuth Google (verificación gmail.modify) y Microsoft Entra.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

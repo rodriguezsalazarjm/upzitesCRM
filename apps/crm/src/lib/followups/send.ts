@@ -15,6 +15,8 @@ import { ChannelOutboundError, sendChannelMessage } from '../channels/outbound';
 import { evaluateSend, getPolicy, isQuietHour, nextAllowedInstant, recordSend } from '../marketing/policy';
 import { prisma } from '../prisma';
 import { OutboundError } from '../whatsapp/outbound';
+import type { OutboundTemplate } from '../whatsapp/outbound-policy';
+import { renderTemplate, templateUnusableReason } from '../whatsapp/templates';
 import { composeAiFollowUp } from './ai';
 import { EXIT_REASON, renderMessage } from './rules';
 
@@ -41,6 +43,43 @@ export type MessageStepOutcome =
 
 const WINDOW_MS = 24 * 3_600_000;
 export const WINDOW_BLOCK_REASON = 'fuera de la ventana de 24 horas: requiere una plantilla aprobada';
+/** Prefijo del `reason` de un paso enviado con plantilla: lo lee el historial y la reanudacion. */
+export const TEMPLATE_NOTE = 'con plantilla ';
+
+type StepValues = { nombre?: string | null; producto?: string | null; negocio?: string | null };
+
+async function stepValues(enrollment: JourneyEnrollment, journey: Journey): Promise<StepValues> {
+  const [workspace, contact, product] = await Promise.all([
+    prisma.workspace.findUnique({ where: { id: enrollment.workspaceId }, select: { name: true } }),
+    prisma.contact.findFirst({ where: { id: enrollment.contactId, workspaceId: enrollment.workspaceId }, select: { firstName: true } }),
+    journey.productId ? prisma.product.findFirst({ where: { id: journey.productId, workspaceId: enrollment.workspaceId }, select: { name: true } }) : null,
+  ]);
+  return { nombre: contact?.firstName, producto: product?.name, negocio: workspace?.name };
+}
+
+type TemplateResolution =
+  | { ok: true; template: OutboundTemplate; text: string; note: string }
+  | { ok: false; reason: string };
+
+/**
+ * P26: plantilla del paso para un envio fuera de la ventana. Devuelve el motivo
+ * concreto si no sirve; en ese caso el paso se bloquea, nunca sale texto libre.
+ */
+async function resolveStepTemplate(enrollment: JourneyEnrollment, step: JourneyStep, channelId: string | null, values: StepValues): Promise<TemplateResolution> {
+  if (!step.whatsappTemplateId) return { ok: false, reason: WINDOW_BLOCK_REASON };
+  const template = await prisma.whatsAppTemplate.findFirst({ where: { id: step.whatsappTemplateId, workspaceId: enrollment.workspaceId } });
+  if (!template) return { ok: false, reason: `${WINDOW_BLOCK_REASON} (la plantilla del paso ya no existe)` };
+  const unusable = templateUnusableReason(template, channelId);
+  if (unusable) return { ok: false, reason: `fuera de la ventana de 24 horas: ${unusable}` };
+  const rendered = renderTemplate(template, values);
+  if (!rendered.ok) return { ok: false, reason: `fuera de la ventana de 24 horas: ${rendered.reason}` };
+  return {
+    ok: true,
+    template: { id: template.id, name: template.name, language: template.language, params: rendered.params },
+    text: rendered.text,
+    note: `${TEMPLATE_NOTE}${template.name} (${template.language})`,
+  };
+}
 
 export function idempotencyKeyFor(enrollmentId: string, position: number) {
   return `followup:${enrollmentId}:${position}`;
@@ -103,10 +142,11 @@ async function resumeSending(
   enrollment: JourneyEnrollment,
   journey: Journey,
   step: JourneyStep,
-  run: { channel: string | null; text: string | null; aiGenerated: boolean },
-  conversationId: string | null,
+  run: { channel: string | null; text: string | null; aiGenerated: boolean; reason: string | null },
+  conversation: { id: string; channelId: string | null } | null,
   now: Date,
 ): Promise<MessageStepOutcome> {
+  const conversationId = conversation?.id ?? null;
   if (journey.simulate || enrollment.simulated) {
     await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.SIMULATED, reason: 'retomado tras un reinicio' });
     await countMessage(enrollment, journey, channelOf(step.action), now, false);
@@ -123,7 +163,17 @@ async function resumeSending(
     return { kind: 'SKIPPED', reason: 'resultado incierto' };
   }
 
-  return deliver(enrollment, journey, step, conversationId, Channel.WHATSAPP, run.text, run.aiGenerated, now);
+  // Si el intento original iba con plantilla se repite con plantilla (misma clave: no sale dos veces).
+  let template: OutboundTemplate | undefined;
+  if (run.reason?.startsWith(TEMPLATE_NOTE)) {
+    const resolved = await resolveStepTemplate(enrollment, step, conversation?.channelId ?? null, await stepValues(enrollment, journey));
+    if (!resolved.ok) {
+      await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.BLOCKED, reason: resolved.reason });
+      return { kind: 'SKIPPED', reason: resolved.reason };
+    }
+    template = resolved.template;
+  }
+  return deliver(enrollment, journey, step, conversationId, Channel.WHATSAPP, run.text, run.aiGenerated, now, template, run.reason);
 }
 
 async function deliver(
@@ -135,9 +185,12 @@ async function deliver(
   text: string,
   aiGenerated: boolean,
   now: Date,
+  template?: OutboundTemplate,
+  note?: string | null,
 ): Promise<MessageStepOutcome> {
   try {
     const message = await sendChannelMessage({
+      template,
       workspaceId: enrollment.workspaceId,
       conversationId,
       text,
@@ -145,7 +198,7 @@ async function deliver(
       origin: 'JOURNEY',
       idempotencyKey: channel === Channel.WHATSAPP ? idempotencyKeyFor(enrollment.id, step.position) : undefined,
     });
-    await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.SENT, messageId: message.id, text, aiGenerated, channel });
+    await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.SENT, messageId: message.id, text, aiGenerated, channel, reason: note ?? null });
     await countMessage(enrollment, journey, channel, now, true);
     return { kind: 'DONE', detail: message.id };
   } catch (error) {
@@ -180,7 +233,7 @@ export async function runMessageStep(
 
   const existing = await prisma.journeyStepRun.findUnique({
     where: { enrollmentId_position: { enrollmentId: enrollment.id, position: step.position } },
-    select: { status: true, channel: true, text: true, aiGenerated: true, messageId: true },
+    select: { status: true, channel: true, text: true, aiGenerated: true, messageId: true, reason: true },
   });
   if (existing && existing.status !== JourneyStepRunStatus.SENDING) {
     // Ya ejecutado (otra corrida lo termino y murio antes de avanzar).
@@ -206,10 +259,10 @@ export async function runMessageStep(
       ...(enrollment.conversationId ? { id: enrollment.conversationId } : {}),
     },
     orderBy: { lastMessageAt: 'desc' },
-    select: { id: true, mode: true, lastInboundAt: true, customerServiceWindowEndsAt: true },
+    select: { id: true, channelId: true, mode: true, lastInboundAt: true, customerServiceWindowEndsAt: true },
   });
 
-  if (existing) return resumeSending(enrollment, journey, step, existing, conversation?.id ?? null, now);
+  if (existing) return resumeSending(enrollment, journey, step, existing, conversation ?? null, now);
 
   if (!conversation) {
     const reason = channel === Channel.INSTAGRAM ? 'el contacto no tiene una conversación abierta por Instagram' : 'el contacto no tiene una conversación abierta por WhatsApp';
@@ -250,9 +303,16 @@ export async function runMessageStep(
     channel === Channel.WHATSAPP
       ? Boolean(conversation.customerServiceWindowEndsAt && conversation.customerServiceWindowEndsAt > now)
       : Boolean(conversation.lastInboundAt && conversation.lastInboundAt.getTime() + WINDOW_MS > now.getTime());
+  const values = await stepValues(enrollment, journey);
+  let templated: Extract<TemplateResolution, { ok: true }> | null = null;
   if (!windowOpen) {
-    await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.BLOCKED, reason: WINDOW_BLOCK_REASON, channel });
-    return { kind: 'SKIPPED', reason: WINDOW_BLOCK_REASON };
+    const resolved: TemplateResolution =
+      channel === Channel.WHATSAPP ? await resolveStepTemplate(enrollment, step, conversation.channelId, values) : { ok: false, reason: WINDOW_BLOCK_REASON };
+    if (!resolved.ok) {
+      await writeRun(enrollment, step, now, { status: JourneyStepRunStatus.BLOCKED, reason: resolved.reason, channel });
+      return { kind: 'SKIPPED', reason: resolved.reason };
+    }
+    templated = resolved;
   }
 
   if (conversation.mode === ConversationMode.HUMAN_ACTIVE) return { kind: 'EXIT', reason: EXIT_REASON.HUMAN };
@@ -263,17 +323,13 @@ export async function runMessageStep(
   }
 
   // --- Texto -------------------------------------------------------------------
-  const [workspace, contact, product] = await Promise.all([
-    prisma.workspace.findUnique({ where: { id: enrollment.workspaceId }, select: { name: true } }),
-    prisma.contact.findFirst({ where: { id: enrollment.contactId, workspaceId: enrollment.workspaceId }, select: { firstName: true } }),
-    journey.productId ? prisma.product.findFirst({ where: { id: journey.productId, workspaceId: enrollment.workspaceId }, select: { name: true } }) : null,
-  ]);
-  const fixed = step.body ? renderMessage(step.body, { nombre: contact?.firstName, producto: product?.name, negocio: workspace?.name }) : null;
+  // Con plantilla el texto es el aprobado por Meta: ni el fijo ni la IA aplican.
+  const fixed = templated ? templated.text : step.body ? renderMessage(step.body, values) : null;
 
   let text = fixed;
   let aiGenerated = false;
-  let note: string | null = null;
-  if (step.messageMode === FollowUpMessageMode.AI) {
+  let note: string | null = templated?.note ?? null;
+  if (!templated && step.messageMode === FollowUpMessageMode.AI) {
     const ai = await composeAiFollowUp({
       workspaceId: enrollment.workspaceId,
       journey: { id: journey.id, name: journey.name, productId: journey.productId, trigger: journey.trigger },
@@ -305,7 +361,7 @@ export async function runMessageStep(
     return { kind: 'DONE', detail: 'simulado' };
   }
 
-  return deliver(enrollment, journey, step, conversation.id, channel, text, aiGenerated, now);
+  return deliver(enrollment, journey, step, conversation.id, channel, text, aiGenerated, now, templated?.template, note);
 }
 
 /** Paso sin mensaje (tarea, temperatura): se deja constancia en el historial. */

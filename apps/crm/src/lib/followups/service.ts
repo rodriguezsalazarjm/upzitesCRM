@@ -61,7 +61,16 @@ function stepRows(input: StrategyInput) {
     messageMode: step.messageMode as FollowUpMessageMode,
     body: step.body?.trim() || null,
     aiGoal: step.messageMode === 'AI' ? step.aiGoal?.trim() || null : null,
+    whatsappTemplateId: step.action === 'SEND_WHATSAPP' ? step.whatsappTemplateId ?? null : null,
   }));
+}
+
+/** P26: la plantilla del paso debe ser de este workspace (JourneyStep no tiene workspaceId propio). */
+async function assertTemplates(workspaceId: string, input: StrategyInput) {
+  const ids = [...new Set(input.steps.map((step) => (step.action === 'SEND_WHATSAPP' ? step.whatsappTemplateId : null)).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return;
+  const found = await prisma.whatsAppTemplate.count({ where: { id: { in: ids }, workspaceId } });
+  if (found !== ids.length) throw new FollowUpError('La plantilla de WhatsApp no existe en este workspace.', 404, 'TEMPLATE_NOT_FOUND');
 }
 
 async function assertProduct(workspaceId: string, productId: string | null) {
@@ -116,7 +125,7 @@ export async function listStrategies(workspaceId: string) {
 export async function getStrategy(workspaceId: string, id: string) {
   const journey = await prisma.journey.findFirst({
     where: { id, workspaceId },
-    include: { steps: { orderBy: { position: 'asc' } }, product: { select: { id: true, name: true } } },
+    include: { steps: { orderBy: { position: 'asc' }, include: { whatsappTemplate: { select: { name: true, language: true, status: true } } } }, product: { select: { id: true, name: true } } },
   });
   if (!journey) throw new FollowUpError('Estrategia no encontrada.', 404, 'NOT_FOUND');
 
@@ -161,6 +170,7 @@ export async function contactFollowUps(workspaceId: string, contactId: string) {
 export async function createStrategy(actor: Actor, input: StrategyInput) {
   requireManager(actor);
   await assertProduct(actor.workspaceId, input.productId);
+  await assertTemplates(actor.workspaceId, input);
   const journey = await prisma.journey.create({
     data: {
       workspaceId: actor.workspaceId,
@@ -187,6 +197,7 @@ export async function updateStrategy(actor: Actor, id: string, input: StrategyIn
   }
   if (current.status === JourneyStatus.ARCHIVED) throw new FollowUpError('La estrategia está desactivada.', 409, 'ARCHIVED');
   await assertProduct(actor.workspaceId, input.productId);
+  await assertTemplates(actor.workspaceId, input);
 
   const journey = await prisma.$transaction(async (tx) => {
     await tx.journeyStep.deleteMany({ where: { journeyId: id } });
@@ -235,6 +246,7 @@ export async function duplicateStrategy(actor: Actor, id: string) {
           delayHours: step.delayHours,
           channel: step.channel,
           templateId: step.templateId,
+          whatsappTemplateId: step.whatsappTemplateId,
           body: step.body,
           messageMode: step.messageMode,
           aiGoal: step.aiGoal,

@@ -140,6 +140,8 @@ export const stepInputSchema = z
     messageMode: z.enum(['FIXED', 'AI']).default('FIXED'),
     body: optionalText(BODY_MAX, `El mensaje admite hasta ${BODY_MAX} caracteres.`),
     aiGoal: optionalText(AI_GOAL_MAX, `El objetivo admite hasta ${AI_GOAL_MAX} caracteres.`),
+    /** P26: plantilla para cuando el paso vence fuera de la ventana de 24 h. */
+    whatsappTemplateId: z.string().regex(/^[a-z0-9]{10,40}$/i, 'Plantilla inválida.').nullable().optional().default(null),
   })
   .strict();
 export type StepInput = z.infer<typeof stepInputSchema>;

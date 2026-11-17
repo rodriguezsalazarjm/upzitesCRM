@@ -16,6 +16,8 @@ import { ACTION_LABEL, FOLLOW_UP_TRIGGERS, TRIGGER_LABEL, formatDelay, stepSched
 import { FollowUpError, getStrategy } from '@/lib/followups/service';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { prisma } from '@/lib/prisma';
+import { templateOptions } from '@/lib/whatsapp/template-options';
+import { TEMPLATE_STATUS_LABEL } from '@/lib/whatsapp/template-rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +46,7 @@ export default async function StrategyPage({
     strategy.steps.every((step) => EDITABLE_ACTIONS.includes(step.action));
   const editing = canManage && editable && editar === '1' && (strategy.status === 'DRAFT' || strategy.status === 'PAUSED');
 
-  const [products, contacts] = await Promise.all([
+  const [products, contacts, templates] = await Promise.all([
     editing ? prisma.product.findMany({ where: { workspaceId }, orderBy: { name: 'asc' }, select: { id: true, name: true } }) : [],
     canManage && strategy.simulate
       ? prisma.contact.findMany({
@@ -54,6 +56,7 @@ export default async function StrategyPage({
           select: { id: true, firstName: true, lastName: true },
         })
       : [],
+    editing ? templateOptions(workspaceId) : [],
   ]);
 
   const status = STRATEGY_STATUS[strategy.status] ?? { label: strategy.status, tone: 'outline' as const };
@@ -84,6 +87,7 @@ export default async function StrategyPage({
       messageMode: step.messageMode,
       body: step.body ?? '',
       aiGoal: step.aiGoal ?? '',
+      whatsappTemplateId: step.whatsappTemplateId ?? null,
     })),
   };
 
@@ -111,7 +115,7 @@ export default async function StrategyPage({
           </div>
 
           {editing ? (
-            <StrategyEditor strategyId={strategy.id} initial={draft} products={products} workspaceName={user.workspace.name} />
+            <StrategyEditor strategyId={strategy.id} initial={draft} products={products} workspaceName={user.workspace.name} templates={templates} />
           ) : (
             <>
               <section>
@@ -152,6 +156,14 @@ export default async function StrategyPage({
                         <p className="text-[11px] text-soft">{stepScheduleLabel(index, step.delayHours, strategy.trigger)}</p>
                         {step.messageMode === 'AI' && step.aiGoal && <p className="mt-1 text-[11px] text-graphite">Objetivo: {step.aiGoal}</p>}
                         {step.body && <p className="mt-1 whitespace-pre-wrap text-xs text-graphite">{step.body}</p>}
+                        {step.action === 'SEND_WHATSAPP' && (
+                          <p className="mt-1 text-[11px] text-soft" data-step-template>
+                            Fuera de la ventana de 24 h:{' '}
+                            {step.whatsappTemplate
+                              ? `plantilla ${step.whatsappTemplate.name} (${step.whatsappTemplate.language}) · ${TEMPLATE_STATUS_LABEL[step.whatsappTemplate.status]}`
+                              : 'sin plantilla, el paso se bloquea'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}

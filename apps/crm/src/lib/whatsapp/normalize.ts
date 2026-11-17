@@ -41,7 +41,16 @@ export type NormalizedStatusUpdate = {
   errorMessage?: string;
 };
 
-export type NormalizedEvent = NormalizedInboundMessage | NormalizedStatusUpdate;
+/** P26: cambio de estado de una plantilla (`message_template_status_update`). No trae numero: trae la WABA. */
+export type NormalizedTemplateStatus = {
+  kind: 'template_status';
+  wabaId: string;
+  externalId: string;
+  event: string;
+  reason: string | null;
+};
+
+export type NormalizedEvent = NormalizedInboundMessage | NormalizedStatusUpdate | NormalizedTemplateStatus;
 
 const MESSAGE_TYPE_MAP: Record<string, MessageType> = {
   text: MessageType.TEXT,
@@ -161,6 +170,13 @@ export function normalizeWebhookPayload(body: unknown): NormalizedEvent[] {
   for (const entry of asArray(root.entry)) {
     for (const change of asArray(at(entry, 'changes'))) {
       const value = (at(change, 'value') ?? {}) as Json;
+      if (str(at(change, 'field')) === 'message_template_status_update') {
+        const wabaId = str(at(entry, 'id'));
+        const externalId = value.message_template_id != null ? String(value.message_template_id) : undefined;
+        const event = str(value.event);
+        if (wabaId && externalId && event) events.push({ kind: 'template_status', wabaId, externalId, event, reason: str(value.reason) ?? null });
+        continue;
+      }
       const phoneNumberId = str(at(value, 'metadata', 'phone_number_id'));
       if (!phoneNumberId) continue;
 
@@ -227,7 +243,9 @@ export function dedupeKeyFor(events: NormalizedEvent[], rawBody: string) {
     const parts = events.map((event) =>
       event.kind === 'message'
         ? `m:${event.externalMessageId}`
-        : `s:${event.externalMessageId}:${event.status}`,
+        : event.kind === 'template_status'
+          ? `t:${event.externalId}:${event.event}`
+          : `s:${event.externalMessageId}:${event.status}`,
     );
     return parts.sort().join('|').slice(0, 500);
   }
