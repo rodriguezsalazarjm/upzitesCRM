@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { prisma } from '../prisma';
+import { crossTenantPrisma, prisma } from '../prisma';
 import { getSessionSecret } from '../session-token';
 import { resolveStorage } from '../storage';
 import { LIBRARY_TYPES, assetFilePath, libraryKey, libraryMimeFor, signLibraryIntent, verifyLibraryFile, verifyLibraryIntent } from './library';
@@ -81,6 +81,14 @@ export async function deleteLibraryAsset(workspaceId: string, id: string) {
 }
 
 /** URL absoluta que Instagram descarga (firmada, sin sesión). */
+/**
+ * Archivo de una pieza para la ruta pública firmada (la descarga Instagram, sin sesión).
+ * Cross-tenant a propósito: solo se llama DESPUÉS de verificar la firma, que ata la URL a esta pieza.
+ */
+export function findSignedAssetFile(assetId: string) {
+  return crossTenantPrisma.contentAsset.findUnique({ where: { id: assetId }, select: { storageKey: true, mimeType: true } });
+}
+
 export function assetPublicUrl(assetId: string) {
   return `${(process.env.NEXT_PUBLIC_CRM_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, '')}${assetFilePath(assetId, getSessionSecret())}`;
 }

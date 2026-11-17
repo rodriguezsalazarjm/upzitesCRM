@@ -9,6 +9,7 @@ import { quoteStatusLabel, quoteStatusTone } from '@/lib/status-tone';
 import { AprobacionesClient, type PendingQuoteView } from './aprobaciones-client';
 import { HistorialClient } from './historial-client';
 import Link from 'next/link';
+import { StudioSection } from './studio-section';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +90,8 @@ export default async function CotizacionesPage() {
             </Link>
           </p>
         )}
+
+        <StudioSection workspaceId={user.workspace.id} canManage={canApproveQuotes(user.role)} />
 
         <section>
           <Eyebrow className="mb-2">Esperando revision ({queue.length})</Eyebrow>

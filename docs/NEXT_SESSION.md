@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/feed-advisor-p24` (P24). La cadena es P8 → … → P23 → P24, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/quote-studio-p37` (P37). La cadena es P8 → … → P24 → P37, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -17,6 +17,7 @@
 - Hito P22: `scripts/visual/p22-library-hito.ts` (sube `apps/web/public/blog/ia-content.jpg` a `.media/content/`, la reutiliza en 4 posts).
 - Hito P23: `scripts/visual/p23-content-ai-hito.ts` (después del P22; IA local determinista con el preload). TikTok = borrador planificado hasta P29.
 - Hito P24: `scripts/visual/p24-advisor-hito.ts` (cuenta "QA Advisor", idempotente; `--solo-analizar` deja la racha de promos para probar "Aplicar orden" en la UI).
-- Siguiente según orden congelado: Fase 5 → P37 (Quote Studio).
+- Hito P37: `scripts/visual/p37-quote-hito.ts` (idempotente; borra las cotizaciones "QA P37"; crea un dominio de email VERIFIED SCRIPTED en A si falta). Studio en /cotizaciones; enlace público /cotizacion/[token].
+- Siguiente según orden congelado: P38 (Email Client Lite), luego Fase 6 (P25–P29).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

@@ -87,6 +87,7 @@ function OpportunityCard({ opp }: { opp: Opportunity }) {
         <span className="truncate text-graphite">{opp.contactName}</span>
         <span className={cn('shrink-0 font-medium', signal.className)}>{signal.text}</span>
       </div>
+      <Link href={`/cotizaciones/studio/nueva?oportunidad=${opp.id}`} className="mt-2 inline-block text-xs font-semibold text-electric hover:underline" data-quote-opportunity>Cotizar</Link>
     </article>
   );
 }
@@ -243,6 +244,7 @@ export function OportunidadesClient({
                           <p className="text-xs text-soft">
                             {opp.company} · {opp.contactName}
                           </p>
+                          <Link href={`/cotizaciones/studio/nueva?oportunidad=${opp.id}`} className="text-xs font-semibold text-electric hover:underline">Cotizar</Link>
                         </TableCell>
                         <TableCell>
                           <StatusBadge variant="dot" tone={stageTone[opp.stage]}>

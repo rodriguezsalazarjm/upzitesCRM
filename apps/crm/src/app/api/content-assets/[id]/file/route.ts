@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { crossTenantPrisma } from '@/lib/prisma';
 import { getSessionSecret } from '@/lib/session-token';
 import { verifyAssetKey } from '@/lib/social/library';
+import { findSignedAssetFile } from '@/lib/social/library-service';
 import { resolveStorage } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!verifyAssetKey(id, new URL(request.url).searchParams.get('k'), getSessionSecret())) return new NextResponse(null, { status: 404 });
-  // Cross-tenant a propósito: la firma ya ata la URL a esta pieza.
-  const asset = await crossTenantPrisma.contentAsset.findUnique({ where: { id }, select: { storageKey: true, mimeType: true } });
+  const asset = await findSignedAssetFile(id);
   if (!asset) return new NextResponse(null, { status: 404 });
   const storage = await resolveStorage();
   if (storage.signedDownloadUrl) {

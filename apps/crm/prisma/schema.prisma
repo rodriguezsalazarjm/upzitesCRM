@@ -54,6 +54,11 @@ model Workspace {
   campaignRoutes   CampaignRoute[]
   socialPosts      SocialPost[]
   contentAssets    ContentAsset[]
+  quoteStudioSettings QuoteStudioSettings?
+  quoteTemplates   QuoteTemplate[]
+  quoteCatalogItems QuoteCatalogItem[]
+  salesQuotes      SalesQuote[]
+  salesQuoteVersions SalesQuoteVersion[]
   conversations    Conversation[]
   messages         Message[]
   outboxEvents     OutboxEvent[]
@@ -375,6 +380,7 @@ model Contact {
   orders           CustomerOrder[]
   deliveries       DigitalDelivery[]
   quotes           Quote[]
+  salesQuotes      SalesQuote[]
 
   journeyEnrollments JourneyEnrollment[]
   campaignRecipients CampaignRecipient[]
@@ -435,6 +441,7 @@ model Opportunity {
   activities Activity[]
   aiInsights AiInsight[]
   followUps  JourneyEnrollment[]
+  salesQuotes SalesQuote[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, stageId])
@@ -3998,4 +4005,157 @@ model ContentAsset {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, collection])
   @@map("content_assets")
+}
+
+// --- P37: Quote Studio (cotizaciones por líneas, plantillas por bloques) ------
+// Distinto del cotizador por reglas de la Fase 7 (Quote): aquí una persona arma
+// la cotización con líneas libres o del catálogo y la envía con su marca.
+
+enum SalesQuoteStatus {
+  DRAFT
+  READY
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+/// Brand Kit, numeración e impuestos del workspace (1:1).
+model QuoteStudioSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique @map("workspace_id")
+  /// Colores, tipografías del catálogo y estilos permitidos (validado con Zod; sin CSS libre).
+  brand            Json     @default("{}")
+  logo             Bytes?
+  logoMime         String?  @map("logo_mime")
+  numberPrefix     String   @default("COT") @map("number_prefix")
+  includeYear      Boolean  @default(true) @map("include_year")
+  yearlyReset      Boolean  @default(true) @map("yearly_reset")
+  numberPadding    Int      @default(4) @map("number_padding")
+  lastNumber       Int      @default(0) @map("last_number")
+  lastNumberYear   Int?     @map("last_number_year")
+  currency         String   @default("CLP")
+  /// Tasa por defecto en puntos básicos (1900 = 19 %).
+  taxRateBp        Int      @default(1900) @map("tax_rate_bp")
+  pricesIncludeTax Boolean  @default(false) @map("prices_include_tax")
+  validityDays     Int      @default(15) @map("validity_days")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("quote_studio_settings")
+}
+
+/// Plantilla = lista ordenada de bloques (no hay posicionamiento libre).
+model QuoteTemplate {
+  id          String    @id @default(cuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  blocks      Json
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  quotes    SalesQuote[]
+
+  @@index([workspaceId, createdAt])
+  @@map("quote_templates")
+}
+
+/// Productos y servicios frecuentes. Usarlos copia los datos a la línea.
+model QuoteCatalogItem {
+  id             String    @id @default(cuid())
+  workspaceId    String    @map("workspace_id")
+  name           String
+  description    String    @default("")
+  unit           String    @default("unidad")
+  unitPriceMinor Int       @map("unit_price_minor")
+  /// null = la tasa por defecto del workspace.
+  taxRateBp      Int?      @map("tax_rate_bp")
+  category       String?
+  archivedAt     DateTime? @map("archived_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, name])
+  @@map("quote_catalog_items")
+}
+
+model SalesQuote {
+  id               String           @id @default(cuid())
+  workspaceId      String           @map("workspace_id")
+  templateId       String?          @map("template_id")
+  contactId        String?          @map("contact_id")
+  opportunityId    String?          @map("opportunity_id")
+  ownerId          String?          @map("owner_id")
+  number           String
+  /// Versión en edición. Las enviadas quedan congeladas en SalesQuoteVersion.
+  version          Int              @default(1)
+  status           SalesQuoteStatus @default(DRAFT)
+  title            String           @default("")
+  currency         String
+  pricesIncludeTax Boolean          @map("prices_include_tax")
+  /// Datos del cliente copiados al cotizar (nombre, empresa, email, teléfono, RUT, dirección).
+  customer         Json             @default("{}")
+  /// Textos: intro, pago, condiciones, plazos, notas, términos, contacto.
+  content          Json             @default("{}")
+  lines            Json             @default("[]")
+  globalDiscountBp Int              @default(0) @map("global_discount_bp")
+  charges          Json             @default("[]")
+  /// Totales calculados SIEMPRE en el servidor.
+  subtotalMinor    Int              @default(0) @map("subtotal_minor")
+  discountMinor    Int              @default(0) @map("discount_minor")
+  taxMinor         Int              @default(0) @map("tax_minor")
+  chargesMinor     Int              @default(0) @map("charges_minor")
+  totalMinor       Int              @default(0) @map("total_minor")
+  issuedAt         DateTime         @default(now()) @map("issued_at")
+  validUntil       DateTime?        @map("valid_until")
+  publicTokenHash  String?          @unique @map("public_token_hash")
+  sentAt           DateTime?        @map("sent_at")
+  viewedAt         DateTime?        @map("viewed_at")
+  acceptedAt       DateTime?        @map("accepted_at")
+  rejectedAt       DateTime?        @map("rejected_at")
+  cancelledAt      DateTime?        @map("cancelled_at")
+  responseComment  String?          @map("response_comment")
+  duplicatedFromId String?          @map("duplicated_from_id")
+  createdById      String?          @map("created_by_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template    QuoteTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  contact     Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunity Opportunity?        @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  versions    SalesQuoteVersion[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, opportunityId])
+  @@map("sales_quotes")
+}
+
+/// Lo que vio el cliente: snapshot completo (líneas, totales, textos, cliente, marca y plantilla).
+model SalesQuoteVersion {
+  id           String   @id @default(cuid())
+  workspaceId  String   @map("workspace_id")
+  salesQuoteId String   @map("sales_quote_id")
+  version      Int
+  snapshot     Json
+  channel      String
+  recipient    String?
+  sentById     String?  @map("sent_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salesQuote SalesQuote @relation(fields: [salesQuoteId], references: [id], onDelete: Cascade)
+
+  @@unique([salesQuoteId, version])
+  @@index([workspaceId, createdAt])
+  @@map("sales_quote_versions")
 }

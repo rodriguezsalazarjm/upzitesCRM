@@ -44,7 +44,7 @@ const WIN_ANSI: Record<string, string> = {
   '·': '\xb7', '×': '\xd7', '±': '\xb1', º: '\xba', ª: '\xaa', '€': '\x80',
 };
 
-function pdfText(value: string) {
+export function pdfText(value: string) {
   let out = '';
   for (const char of value) {
     const mapped = WIN_ANSI[char] ?? (char.charCodeAt(0) < 128 ? char : '?');
