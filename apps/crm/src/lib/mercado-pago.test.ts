@@ -9,6 +9,7 @@ import {
   MercadoPagoCredentialError,
   preferenceCheckoutUrl,
   refreshMercadoPagoOAuthToken,
+  detectMercadoPagoMode,
   verifyMercadoPagoAccessToken,
   verifyWebhookSignature,
   verifyWorkspaceWebhookSignature,
@@ -163,7 +164,21 @@ describe('verifyMercadoPagoAccessToken', () => {
       })) as typeof fetch;
 
     const profile = await verifyMercadoPagoAccessToken('TEST-token-valido');
-    assert.deepEqual(profile, { accountId: 42, email: 'owner@negocio.test', siteId: 'MLC' });
+    assert.deepEqual(profile, { accountId: 42, email: 'owner@negocio.test', siteId: 'MLC', testUser: false });
+  });
+
+  test('P27: un vendedor de prueba con token APP_USR- es modo TEST, no produccion', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ id: 7, email: 'test_user_1@testuser.com', site_id: 'MLC', tags: ['test_user', 'normal'] }), {
+        status: 200,
+      })) as typeof fetch;
+
+    const profile = await verifyMercadoPagoAccessToken('APP_USR-vendedor-de-prueba');
+    assert.equal(profile.testUser, true);
+    assert.equal(detectMercadoPagoMode('APP_USR-vendedor-de-prueba', profile.testUser), 'TEST');
+    assert.equal(detectMercadoPagoMode('APP_USR-cuenta-real', false), 'PRODUCTION');
+    assert.equal(detectMercadoPagoMode('TEST-legacy', false), 'TEST');
+    assert.equal(detectMercadoPagoMode('otro-formato', false), null);
   });
 
   test('rechaza un token invalido sin guardar nada', async () => {

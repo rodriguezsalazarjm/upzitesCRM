@@ -287,5 +287,17 @@ export async function verifyMercadoPagoAccessToken(accessToken: string) {
     accountId: profile.id ?? null,
     email: profile.email ?? null,
     siteId: profile.site_id ?? null,
+    testUser: Boolean(profile.tags?.includes('test_user')),
   };
+}
+
+/**
+ * P27: modo real de una credencial. Los usuarios de prueba de Mercado Pago
+ * (vendedor TEST) tienen tokens `APP_USR-`: el prefijo solo no distingue dinero
+ * real de prueba, lo decide la etiqueta `test_user` de /users/me.
+ */
+export function detectMercadoPagoMode(accessToken: string, testUser: boolean): 'TEST' | 'PRODUCTION' | null {
+  if (accessToken.startsWith('TEST-')) return 'TEST';
+  if (accessToken.startsWith('APP_USR-')) return testUser ? 'TEST' : 'PRODUCTION';
+  return null;
 }

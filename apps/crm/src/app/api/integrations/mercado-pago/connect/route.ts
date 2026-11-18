@@ -12,6 +12,7 @@ import { parseBody } from '@/lib/http';
 import {
   MercadoPagoCredentialError,
   canManageMercadoPago,
+  detectMercadoPagoMode,
   verifyMercadoPagoAccessToken,
 } from '@/lib/mercado-pago';
 import { prisma } from '@/lib/prisma';
@@ -48,22 +49,6 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
-  // El prefijo del token declara su propio modo; no confiamos en el select
-  // del formulario para decidir si es dinero real o de prueba.
-  const detectedMode = input.accessToken.startsWith('APP_USR-')
-    ? 'PRODUCTION'
-    : input.accessToken.startsWith('TEST-')
-      ? 'TEST'
-      : null;
-  if (detectedMode && detectedMode !== input.mode) {
-    return NextResponse.json(
-      {
-        message: `Este token es de modo ${detectedMode === 'TEST' ? 'prueba' : 'produccion'}, pero elegiste ${input.mode === 'TEST' ? 'prueba' : 'produccion'}.`,
-      },
-      { status: 400 },
-    );
-  }
-
   let profile;
   try {
     profile = await verifyMercadoPagoAccessToken(input.accessToken);
@@ -72,6 +57,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 422 });
     }
     throw error;
+  }
+
+  // El modo lo declara la cuenta, no el select del formulario: un vendedor de
+  // prueba tiene token APP_USR- y etiqueta test_user (P27).
+  const detectedMode = detectMercadoPagoMode(input.accessToken, profile.testUser);
+  if (detectedMode && detectedMode !== input.mode) {
+    return NextResponse.json(
+      {
+        message: `Esta credencial es de ${detectedMode === 'TEST' ? 'una cuenta de prueba' : 'una cuenta real (cobra dinero real)'}, pero elegiste ${input.mode === 'TEST' ? 'prueba' : 'produccion'}.`,
+      },
+      { status: 400 },
+    );
   }
 
   let accessTokenEncrypted: string;
