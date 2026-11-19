@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, PackageCheck } from 'lucide-react';
+import { SaleTrail } from '@/components/analytics/sale-trail';
 import { DeliveryActions } from '@/components/orders/delivery-actions';
+import { loadSaleTrail } from '@/lib/analytics/funnel';
 import { SettingsCard } from '@/components/ui/settings-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { requireCurrentUser } from '@/lib/auth';
@@ -35,6 +37,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { order } = view;
   const manager = canManageChannels(user.role);
   const payment = order.payments[0];
+  const trail = await loadSaleTrail(user.workspace.id, order.id);
   const buyer = order.contact ? `${order.contact.firstName} ${order.contact.lastName ?? ''}`.trim() : (order.customerName ?? 'Sin contacto');
 
   return (
@@ -140,6 +143,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             )}
           </div>
 
+          <div className="space-y-4">
           <SettingsCard title="Resumen">
             <dl className="space-y-2">
               <Row label="Total">{formatMinor(order.total, order.currency)}</Row>
@@ -161,6 +165,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               ))}
             </ul>
           </SettingsCard>
+          {trail && (
+            <SettingsCard title="Recorrido de la venta" description="De la fuente al pago.">
+              <SaleTrail steps={trail.steps} />
+            </SettingsCard>
+          )}
+          </div>
         </div>
       </div>
     </div>

@@ -58,9 +58,8 @@ export const NAV_ITEMS = [
   { id: 'social', href: '/social', label: 'Social', icon: 'megaphone', requires: 'channels.messaging' },
   { id: 'ai', href: '/ia/agente', label: 'IA', icon: 'sparkles', requires: 'agents' },
   { id: 'ai_knowledge', href: '/ia/conocimiento', label: 'IA · Conocimiento', icon: 'book', requires: 'ai' },
-  // No existe un modulo de analitica aparte: "Insights" (scoring, resumenes,
-  // siguiente accion) es la analitica disponible hoy.
-  { id: 'analytics', href: '/insights', label: 'Analítica', icon: 'chart' },
+  // P30: embudo comercial; Insights IA queda enlazado desde ahí.
+  { id: 'analytics', href: '/analitica', label: 'Analítica', icon: 'chart' },
   { id: 'activation', href: '/onboarding', label: 'Puesta en marcha', icon: 'rocket', system: true },
   { id: 'sources', href: '/fuentes', label: 'Fuentes', icon: 'globe', system: true },
   // Punto 8: administracion de numeros de WhatsApp (Canales → WhatsApp).
