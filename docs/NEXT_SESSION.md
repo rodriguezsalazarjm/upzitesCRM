@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/payment-exceptions-p31` (P31). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28 → P29 → P30 → P31, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/upzites-business-p32` (P32). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28 → P29 → P30 → P31 → P32, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -29,6 +29,8 @@
 - Hito P30: `scripts/visual/p30-funnel-hito.ts` con preload.cjs (cada corrida crea otra venta "QA P30" con su anuncio; usa sus propios productos "QA P30 Producto/Bump"; COMP PRO temporal y restaura la suscripción de A). Embudo en /analitica; recorrido también en /pedidos/[id]. Ojo: no crear ventas sobre "QA P27 Guía TEST": p27-mp-verify toma el último pedido pagado de ese producto.
 - Hito P31: `scripts/visual/p31-incidents-hito.ts` con preload.cjs (pagos simulados por processOrderPayment; COMP PRO temporal; cada corrida deja 4-5 incidencias "QA P31" abiertas en A). Cola en /pedidos/incidencias. Migración `20261128120000_payment_incidents` aplicada a crm_pruebas.
 - Los smoke (`scripts/smoke-*.ts`) se corren SIN el preload visual (su fixture valida la base y el preload lo hace fallar con "coincide con produccion").
-- Siguiente según orden congelado: P32 (Configurar UPZITES como negocio real).
+- Ensayo P32: `scripts/visual/p32-upzites-hito.ts` con preload.cjs (crea/reusa el SUPER_ADMIN `superadmin-p32@visual.test`, clave de `.local-visual/accounts.json`, y el negocio "UPZITES (QA P32)"; cada corrida mete otro lead). Pasos de producción: `docs/p32-upzites-negocio-real.md`.
+- smoke-p0e O2 (checklist "Configura tu negocio" para MEMBER) falla desde antes de P32: pendiente de revisar.
+- Siguiente según orden congelado: P33 (5 Minutos con Dios como negocio real).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, plantilla WhatsApp aprobada real, OAuth Google (verificación gmail.modify) y Microsoft Entra.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

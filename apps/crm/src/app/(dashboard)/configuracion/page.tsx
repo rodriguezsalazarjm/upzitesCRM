@@ -238,7 +238,7 @@ export default async function ConfiguracionPage() {
               title="Conexión con mi sitio web"
               description="Estas opciones son para conectar el CRM con un sitio web existente."
             >
-              <WebsiteConnection snippet={snippet} formEmbed={formEmbed} hasForm={Boolean(form)} />
+              <WebsiteConnection snippet={snippet} formEmbed={formEmbed} hasForm={Boolean(form)} form={form} canEdit={canEdit} />
             </SettingsSection>
 
             <SettingsSection
@@ -365,10 +365,10 @@ async function getActiveForm(workspaceId: string) {
     return await prisma.form.findFirst({
       where: { workspaceId, isActive: true },
       orderBy: { createdAt: 'asc' },
-      select: { publicId: true },
+      select: { publicId: true, createsOpportunity: true },
     });
   } catch (error) {
-    if (isDevDemoEnabled() && isDatabaseUnavailable(error)) return { publicId: 'demo-contacto' };
+    if (isDevDemoEnabled() && isDatabaseUnavailable(error)) return { publicId: 'demo-contacto', createsOpportunity: false };
     throw error;
   }
 }

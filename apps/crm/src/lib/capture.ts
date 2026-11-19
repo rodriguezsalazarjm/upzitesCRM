@@ -1,4 +1,4 @@
-import { ContactStatus, WebEventType } from '../../generated/prisma/client';
+import { ContactStatus, OpportunityStatus, WebEventType } from '../../generated/prisma/client';
 import { prisma } from './prisma';
 import { noteInboundContact } from './entitlements/inbound';
 
@@ -130,7 +130,38 @@ export async function upsertLeadContact(input: {
   }
 
   if (!existing) await noteInboundContact({ workspaceId: input.workspaceId, contactId: contact.id, source: 'FORM' });
-  return contact;
+  return { ...contact, isNew: !existing };
+}
+
+/**
+ * P32: abre la oportunidad de un lead del formulario en la primera etapa
+ * abierta del pipeline. Una oportunidad abierta por contacto basta (igual que
+ * la herramienta del agente): un segundo envío no duplica el negocio.
+ */
+export async function openFormOpportunity(input: { workspaceId: string; contactId: string; title: string; companyId?: string | null }) {
+  const open = await prisma.opportunity.findFirst({
+    where: { workspaceId: input.workspaceId, contactId: input.contactId, status: OpportunityStatus.OPEN },
+    select: { id: true },
+  });
+  if (open) return { id: open.id, created: false };
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { workspaceId: input.workspaceId, isWon: false, isLost: false },
+    orderBy: { position: 'asc' },
+    select: { id: true, probability: true },
+  });
+  if (!stage) return null;
+  const opportunity = await prisma.opportunity.create({
+    data: {
+      workspaceId: input.workspaceId,
+      contactId: input.contactId,
+      companyId: input.companyId ?? null,
+      stageId: stage.id,
+      title: input.title.slice(0, 200),
+      probability: stage.probability,
+    },
+    select: { id: true },
+  });
+  return { id: opportunity.id, created: true };
 }
 
 export function publicCorsHeaders() {

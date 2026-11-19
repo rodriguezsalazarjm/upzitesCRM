@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, Clipboard, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 
 function InstallationCode({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -81,7 +83,52 @@ function ConnectionOption({
   );
 }
 
-export function WebsiteConnection({ snippet, formEmbed, hasForm }: { snippet: string; formEmbed: string; hasForm: boolean }) {
+/** P32: qué hace el CRM con cada consulta del formulario, y su id para conectarlo desde un servidor. */
+function FormLeadSettings({ form, canEdit }: { form: { publicId: string; createsOpportunity: boolean }; canEdit: boolean }) {
+  const router = useRouter();
+  const labelId = useId();
+  const [checked, setChecked] = useState(form.createsOpportunity);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    setError(null);
+    setChecked(next);
+    try {
+      const response = await fetch('/api/forms/main', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ createsOpportunity: next }) });
+      if (!response.ok) {
+        setChecked(!next);
+        setError(((await response.json().catch(() => ({}))) as { message?: string }).message ?? 'No pudimos guardar el cambio.');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setChecked(!next);
+      setError('No pudimos conectar con el servidor.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-line bg-paper p-4 sm:p-5 lg:col-span-2" data-form-lead-settings>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 id={labelId} className="text-sm font-semibold text-carbon">Abrir una oportunidad por cada consulta</h3>
+          <p className="mt-1 text-sm leading-6 text-soft">Cada lead nuevo del formulario entra a la primera etapa del pipeline. Si ya tiene una oportunidad abierta, no se duplica.</p>
+        </div>
+        <Switch checked={checked} onCheckedChange={toggle} disabled={!canEdit || busy} aria-labelledby={labelId} />
+      </div>
+      {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
+      <p className="text-xs text-soft">
+        Id del formulario (para conectar una web propia desde su servidor): <code className="break-all rounded bg-ivory px-1.5 py-0.5 text-carbon">{form.publicId}</code>
+      </p>
+    </div>
+  );
+}
+
+export function WebsiteConnection({ snippet, formEmbed, hasForm, form, canEdit }: { snippet: string; formEmbed: string; hasForm: boolean; form: { publicId: string; createsOpportunity: boolean } | null; canEdit: boolean }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ConnectionOption
@@ -95,6 +142,7 @@ export function WebsiteConnection({ snippet, formEmbed, hasForm }: { snippet: st
         code={formEmbed}
         available={hasForm}
       />
+      {form && <FormLeadSettings form={form} canEdit={canEdit} />}
     </div>
   );
 }

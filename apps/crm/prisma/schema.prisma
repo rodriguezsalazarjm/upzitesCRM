@@ -506,6 +506,8 @@ model Form {
   submitLabel String   @default("Enviar") @map("submit_label")
   source      String   @default("Formulario web")
   isActive    Boolean  @default(true) @map("is_active")
+  /// P32: cada lead nuevo del formulario abre una oportunidad en la primera etapa del pipeline.
+  createsOpportunity Boolean @default(false) @map("creates_opportunity")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

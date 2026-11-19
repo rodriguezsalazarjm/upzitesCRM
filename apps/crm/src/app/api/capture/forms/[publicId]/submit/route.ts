@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { ActivityType, ConsentChannel, WebEventType } from '../../../../../../../generated/prisma/client';
-import { publicCorsHeaders, upsertLeadContact } from '@/lib/capture';
+import { ActivityType, AutomationTrigger, ConsentChannel, WebEventType } from '../../../../../../../generated/prisma/client';
+import { emitDomainEvent } from '@/lib/automation/emit';
+import { openFormOpportunity, publicCorsHeaders, upsertLeadContact } from '@/lib/capture';
 import { grantConsent } from '@/lib/domain';
 import { enforce } from '@/lib/ops/rate-limit';
 import { prisma } from '@/lib/prisma';
@@ -130,6 +131,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ pub
       metadata: { formPublicId: form.publicId },
     },
   });
+
+  // P32: el lead de la web entra al pipeline (si el formulario lo pide) y, si
+  // es nuevo, dispara las automatizaciones de lead nuevo igual que WhatsApp.
+  const opportunity = form.createsOpportunity
+    ? await openFormOpportunity({
+        workspaceId: form.workspaceId,
+        contactId: contact.id,
+        companyId: contact.companyId,
+        title: `${company || `${contact.firstName} ${contact.lastName}`.trim()} · consulta web`,
+      })
+    : null;
+  if (contact.isNew) {
+    await emitDomainEvent({
+      workspaceId: form.workspaceId,
+      trigger: AutomationTrigger.LEAD_CREATED,
+      dedupeKey: `contact:${contact.id}`,
+      contactId: contact.id,
+      opportunityId: opportunity?.id ?? null,
+      context: { source: 'form', formId: form.id },
+    });
+  }
 
   if (contentType.includes('application/json')) {
     return NextResponse.json({ ok: true, contactId: contact.id }, { headers: publicCorsHeaders() });
