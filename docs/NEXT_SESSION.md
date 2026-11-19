@@ -33,6 +33,7 @@
 - smoke-p0e O2 (checklist "Configura tu negocio" para MEMBER) falla desde antes de P32: pendiente de revisar.
 - Ensayo P33: `scripts/visual/p33-5mcd-hito.ts` con preload.cjs (después del P32: reusa `superadmin-p32@visual.test`; crea/reusa "5 Minutos con Dios (QA P33)"; cada corrida mete otro lead y otro pedido). Los pedidos "Esperando pago" que hay ahí son de corridas interrumpidas.
 - Ensayo P34: `scripts/visual/p34-ads-funnel-hito.ts` con preload.cjs (después del P33; regla "Meta Ads · 30 experiencias" del anuncio 120234000000005034 y flujo "Postventa 5MCD"). Hito real: `scripts/p34-funnel-verify.ts --anuncio <id>` sin preload, solo lectura; guía `docs/p34-funnel-meta-ads-real.md`.
-- Siguiente según orden congelado: P35 (release a producción; requiere autorización explícita del usuario para desplegar).
+- P35 preparado y ensayado (`docs/p35-release-produccion.md`): espera (1) la nueva contraseña de la base de producción (la de `C:\dev\upzites\apps\crm\.env` no autentica) y (2) autorización explícita para la ventana. crm_rehearsal ya está en 57/57; `crm_rehearsal_pre_p35` es la copia previa. La cola de jobs necesita cron por minuto (pg_cron + pg_net) antes de abrir la IA a clientes.
+- Después: P36 (observabilidad).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, plantilla WhatsApp aprobada real, OAuth Google (verificación gmail.modify) y Microsoft Entra.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.
