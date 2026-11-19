@@ -197,7 +197,8 @@ export function ProductEditor({
 
       <fieldset disabled={!editable || saveState === 'saving'} className="min-w-0 space-y-4">
         <SettingsCard title="Información" description="Lo que verá el comprador antes de pagar.">
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
+          {/* Flex con wrap, no breakpoint de viewport: la tarjeta vive en una columna angosta del editor. */}
+          <div className="flex flex-wrap gap-4 [&>*:first-child]:min-w-0 [&>*:first-child]:flex-[1_1_16rem] [&>*:last-child]:flex-[0_1_200px]">
             <FormField label="Nombre" htmlFor="product-name" required error={err('name')}>
               <Input value={form.name} maxLength={NAME_MAX} autoComplete="off" onChange={(event) => update({ name: event.target.value })} />
             </FormField>
@@ -223,7 +224,7 @@ export function ProductEditor({
         </SettingsCard>
 
         <SettingsCard title="Precio" description="El precio que cobra el checkout sale siempre de aquí, nunca del navegador del comprador.">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="flex flex-wrap gap-4 [&>*]:min-w-0 [&>*]:flex-[1_1_8rem]">
             <FormField label="Moneda" htmlFor="product-currency" error={err('currency')}>
               <Select value={form.currency} onChange={(event) => update({ currency: event.target.value as StudioCurrency })}>
                 {STUDIO_CURRENCIES.map((currency) => (
