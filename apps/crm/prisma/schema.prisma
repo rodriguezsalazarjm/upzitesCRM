@@ -76,6 +76,7 @@ model Workspace {
   productSalesBrains    ProductSalesBrain[]
   orders                CustomerOrder[]
   payments              Payment[]
+  paymentIncidents      PaymentIncident[]
   digitalAssets         DigitalAsset[]
   digitalDeliveries     DigitalDelivery[]
 
@@ -1995,6 +1996,7 @@ model CustomerOrder {
   contact       Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lines         OrderLine[]
   payments      Payment[]
+  paymentIncidents PaymentIncident[]
   fulfillments  FulfillmentOrder[]
   deliveries    DigitalDelivery[]
   offers        OrderOffer[]        @relation("OrderOffers")
@@ -2112,9 +2114,55 @@ model Payment {
 
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   order     CustomerOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  incidents PaymentIncident[]
 
   @@index([workspaceId, status])
   @@map("payments")
+}
+
+/// P31: incidencia de pago que el motor detectó y necesita a una persona
+/// (monto/moneda distintos, preferencia vencida, pago sin pedido, duplicado,
+/// reembolso, contracargo). Una por (workspace, tipo, pago externo).
+model PaymentIncident {
+  id                String                @id @default(cuid())
+  workspaceId       String                @map("workspace_id")
+  kind              PaymentIncidentKind
+  status            PaymentIncidentStatus @default(OPEN)
+  externalPaymentId String                @map("external_payment_id")
+  paymentId         String?               @map("payment_id")
+  orderId           String?               @map("order_id")
+  amount            Int?
+  currency          String?
+  evidence          Json
+  resolutionNote    String?               @map("resolution_note")
+  resolvedById      String?               @map("resolved_by_id")
+  resolvedAt        DateTime?             @map("resolved_at")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  payment   Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  order     CustomerOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, kind, externalPaymentId])
+  @@index([workspaceId, status, createdAt])
+  @@map("payment_incidents")
+}
+
+enum PaymentIncidentKind {
+  AMOUNT_MISMATCH
+  CURRENCY_MISMATCH
+  STALE_PREFERENCE
+  ORPHAN_PAYMENT
+  DUPLICATE_PAYMENT
+  REFUND
+  CHARGEBACK
+}
+
+enum PaymentIncidentStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
 }
 
 model FulfillmentOrder {

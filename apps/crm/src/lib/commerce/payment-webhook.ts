@@ -2,6 +2,7 @@ import {
   ActivityType,
   DeliveryStatus,
   OrderStatus,
+  PaymentIncidentKind,
   PaymentStatus,
 } from '../../../generated/prisma/client';
 import { prisma } from '../prisma';
@@ -11,6 +12,47 @@ import { applyApprovedPayment } from '../domain';
 import { safely, stopFollowUpsForPurchase } from '../followups/stop';
 import { cancelCheckoutRecovery, upsertPayment } from './checkout';
 import { grantDigitalDelivery, sendDelivery } from './delivery';
+import { recordPaymentIncident } from './payment-incidents';
+
+const PAID_ORDER_STATUSES: OrderStatus[] = [OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.FULFILLED];
+const MISMATCH_KIND: Record<string, PaymentIncidentKind> = {
+  'order.payment_amount_mismatch': PaymentIncidentKind.AMOUNT_MISMATCH,
+  'order.payment_currency_mismatch': PaymentIncidentKind.CURRENCY_MISMATCH,
+  'order.payment_stale_preference': PaymentIncidentKind.STALE_PREFERENCE,
+};
+
+/**
+ * P31: un pago que no se pudo asociar a un pedido del workspace que cobró.
+ * Solo se encola cuando se sabe qué cuenta cobró (webhook por workspace): nunca
+ * en la cola de otro negocio, y sin enlazar el pedido ajeno.
+ */
+export async function recordOrphanPayment(input: {
+  workspaceId?: string;
+  externalPaymentId: string;
+  amount: number;
+  currency: string;
+  reason: string;
+  referencedOrderId?: string | null;
+  externalReference?: string | null;
+  rawStatus?: string;
+}) {
+  if (!input.workspaceId) return;
+  await recordPaymentIncident({
+    workspaceId: input.workspaceId,
+    kind: PaymentIncidentKind.ORPHAN_PAYMENT,
+    externalPaymentId: input.externalPaymentId,
+    amount: input.amount,
+    currency: input.currency,
+    evidence: {
+      reason: input.reason,
+      referencedOrderId: input.referencedOrderId ?? null,
+      externalReference: input.externalReference ?? null,
+      rawStatus: input.rawStatus ?? null,
+      receivedAmount: input.amount,
+      receivedCurrency: input.currency,
+    },
+  });
+}
 
 /**
  * Procesa el pago de un PEDIDO (no de una suscripcion).
@@ -109,7 +151,19 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     include: { lines: true },
   });
 
+  const orphan = (reason: string) => recordOrphanPayment({
+    workspaceId: input.workspaceId,
+    externalPaymentId: input.externalPaymentId,
+    amount: input.amount,
+    currency: input.currency,
+    reason,
+    referencedOrderId: input.orderId,
+    externalReference: input.externalReference,
+    rawStatus: input.rawStatus,
+  });
+
   if (!order) {
+    await orphan('pedido no encontrado');
     return { handled: false, reason: 'pedido no encontrado' };
   }
 
@@ -117,10 +171,12 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
   // pagar pedidos de A. El orderId viene de la metadata del pago, y quien
   // controla la cuenta de A podria poner ahi el id de un pedido ajeno.
   if (input.workspaceId && order.workspaceId !== input.workspaceId) {
+    await orphan('el pedido indicado no es de este negocio');
     return { handled: false, reason: 'pedido de otro workspace' };
   }
 
   if (input.externalReference && input.externalReference !== order.id) {
+    await orphan('la referencia externa no coincide con el pedido');
     return { handled: false, reason: 'external_reference no coincide con el pedido' };
   }
 
@@ -128,7 +184,7 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
 
   // Un pago pendiente o rechazado se registra, pero NO entrega nada.
   if (input.status !== PaymentStatus.APPROVED) {
-    await upsertPayment({
+    const { payment } = await upsertPayment({
       workspaceId,
       orderId: order.id,
       externalId: input.externalPaymentId,
@@ -142,10 +198,26 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
     // D27: un reembolso o un contracargo tienen que revocar lo entregado. Antes
     // se registraba el pago devuelto y el cliente se quedaba con el acceso.
     if (input.status === PaymentStatus.REFUNDED) {
-      const revoked = await revokeOrderAccess({
+      // Devolver el pago DUPLICADO no deshace la compra: el pedido sigue pagado por el original.
+      const stored = await prisma.payment.findFirst({ where: { workspaceId, id: payment.id }, select: { metadata: true } });
+      const duplicateOf = (stored?.metadata as Record<string, unknown> | null)?.duplicateOf;
+      const revoked = duplicateOf
+        ? 0
+        : await revokeOrderAccess({
+            workspaceId,
+            orderId: order.id,
+            reason: `pago ${input.rawStatus}`,
+          });
+      // Mercado Pago informa el contracargo como charged_back (mapeado a REFUNDED).
+      await recordPaymentIncident({
         workspaceId,
+        kind: input.rawStatus === 'charged_back' ? PaymentIncidentKind.CHARGEBACK : PaymentIncidentKind.REFUND,
+        externalPaymentId: input.externalPaymentId,
+        paymentId: payment.id,
         orderId: order.id,
-        reason: `pago ${input.rawStatus}`,
+        amount: input.amount,
+        currency: input.currency,
+        evidence: { rawStatus: input.rawStatus, receivedAmount: input.amount, receivedCurrency: input.currency, revoked, ...(duplicateOf ? { previousPaymentId: duplicateOf } : {}) },
       });
 
       return {
@@ -214,7 +286,57 @@ export async function processOrderPayment(input: OrderPaymentInput): Promise<Ord
         metadata: { ...evidence, orderId: order.id, paymentId: input.externalPaymentId },
       });
     }
+    await recordPaymentIncident({
+      workspaceId,
+      kind: MISMATCH_KIND[mismatch.action],
+      externalPaymentId: input.externalPaymentId,
+      paymentId: payment.id,
+      orderId: order.id,
+      amount: input.amount,
+      currency: input.currency,
+      evidence,
+    });
     return { handled: false, orderId: order.id, reason: mismatch.reason, delivered: 0 };
+  }
+
+  // P31: el pedido ya estaba pagado por OTRO pago aprobado: se registra el cobro
+  // y se encola, pero no se vuelve a confirmar ni a entregar. handled=true para
+  // que Mercado Pago no reintente: lo que falta es una devolución manual.
+  // El original es el que confirmó: un pago rechazado por mismatch (metadata.validation)
+  // o ya marcado duplicado también queda APPROVED, pero no pagó el pedido.
+  const previousPayment = PAID_ORDER_STATUSES.includes(order.status)
+    ? (await prisma.payment.findMany({
+        where: { workspaceId, orderId: order.id, status: PaymentStatus.APPROVED, externalId: { not: input.externalPaymentId } },
+        orderBy: { createdAt: 'asc' },
+        select: { externalId: true, metadata: true },
+      })).find((p) => {
+        const meta = (p.metadata ?? {}) as Record<string, unknown>;
+        return !meta.validation && !meta.duplicateOf;
+      }) ?? null
+    : null;
+  if (previousPayment) {
+    const { payment, alreadyProcessed: seen } = await upsertPayment({
+      workspaceId,
+      orderId: order.id,
+      externalId: input.externalPaymentId,
+      status: PaymentStatus.APPROVED,
+      rawStatus: input.rawStatus,
+      amount: input.amount,
+      currency: input.currency,
+      payerEmail: input.payerEmail,
+      metadata: { duplicateOf: previousPayment.externalId, ...(input.simulated ? { simulated: true } : {}) },
+    });
+    await recordPaymentIncident({
+      workspaceId,
+      kind: PaymentIncidentKind.DUPLICATE_PAYMENT,
+      externalPaymentId: input.externalPaymentId,
+      paymentId: payment.id,
+      orderId: order.id,
+      amount: input.amount,
+      currency: input.currency,
+      evidence: { previousPaymentId: previousPayment.externalId, receivedAmount: input.amount, receivedCurrency: input.currency, expectedAmount: order.total, expectedCurrency: order.currency },
+    });
+    return { handled: true, orderId: order.id, alreadyProcessed: seen, reason: 'pago duplicado: el pedido ya estaba pagado', delivered: 0 };
   }
 
   const { alreadyProcessed } = await upsertPayment({

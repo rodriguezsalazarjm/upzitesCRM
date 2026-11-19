@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableR
 import { requireCurrentUser } from '@/lib/auth';
 import { PlanLockedNotice } from '@/components/billing/plan-locked-notice';
 import { formatMinor } from '@/lib/commerce/product-studio/rules';
+import { countOpenIncidents } from '@/lib/commerce/payment-incidents';
 import { prisma } from '@/lib/prisma';
 import { deliveryStatusLabel, deliveryStatusTone, orderStatusLabel, orderStatusTone, paymentStatusLabel, paymentStatusTone } from '@/lib/status-tone';
 
@@ -26,6 +27,7 @@ export default async function PedidosPage() {
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
+  const openIncidents = await countOpenIncidents(user.workspace.id);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -34,6 +36,14 @@ export default async function PedidosPage() {
         <TutorialHint tutorialKey="orders.first_visit" className="mb-4" />
         <div className="mb-4 space-y-3 empty:hidden">
           <PlanLockedNotice workspaceId={user.workspace.id} feature="commerce.orders" />
+        </div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2" data-incidents-link>
+          {openIncidents > 0 ? (
+            <p className="rounded-md bg-ivory px-3 py-2 text-sm text-carbon" role="status">
+              <span className="font-semibold">{openIncidents} incidencia(s) de pago</span> esperan revisión.
+            </p>
+          ) : <span />}
+          <Link href="/pedidos/incidencias" className="text-sm font-semibold text-electric hover:underline">Incidencias de pago{openIncidents > 0 ? ` (${openIncidents})` : ''}</Link>
         </div>
         <Card className="overflow-hidden">
           <Table density="compact">

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { BillingInterval, PaymentStatus, PlanCode } from '../../../../../generated/prisma/client';
-import { classifyPayment, processOrderPayment } from '@/lib/commerce/payment-webhook';
+import { classifyPayment, processOrderPayment, recordOrphanPayment } from '@/lib/commerce/payment-webhook';
 import { enforce } from '@/lib/ops/rate-limit';
 import { isKnownLegacySaasPreference, resolvePaymentPreferenceId } from '@/lib/billing/saas-payments';
 import { prisma } from '@/lib/prisma';
@@ -382,6 +382,18 @@ async function handleWorkspaceOrderWebhook(input: {
 
   const metadataOrderId = typeof metadata.orderId === 'string' ? metadata.orderId : null;
   const externalReference = typeof payment.external_reference === 'string' ? payment.external_reference : null;
+  // P31: desde aquí el cobro ya se verificó como de esta cuenta; si no se puede
+  // asociar a un pedido, queda en la cola de incidencias del negocio.
+  const orphan = (reason: string) => recordOrphanPayment({
+    workspaceId: input.workspaceId,
+    externalPaymentId: String(input.dataId),
+    amount: providerAmountToMinor(Number(payment.transaction_amount ?? 0), String(payment.currency_id ?? 'CLP')),
+    currency: String(payment.currency_id ?? 'CLP'),
+    reason,
+    referencedOrderId: metadataOrderId,
+    externalReference,
+    rawStatus: String(payment.status ?? 'unknown'),
+  });
   if (!metadataOrderId || !externalReference) {
     console.error('order_webhook_missing_order_reference', {
       workspaceId: input.workspaceId,
@@ -389,6 +401,7 @@ async function handleWorkspaceOrderWebhook(input: {
       metadataOrderId,
       externalReference,
     });
+    await orphan('el pago no trae la referencia del pedido');
     return NextResponse.json({ message: 'Referencias del pedido ausentes' }, { status: 400 });
   }
   if (metadataOrderId && externalReference && metadataOrderId !== externalReference) {
@@ -398,6 +411,7 @@ async function handleWorkspaceOrderWebhook(input: {
       metadataOrderId,
       externalReference,
     });
+    await orphan('las referencias del pago no coinciden entre sí');
     return NextResponse.json({ message: 'Las referencias del pago no coinciden' }, { status: 400 });
   }
 
