@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       appSecret: config.appSecret,
     });
     const profile = await fetchInstagramProfile({ accessToken: longLived.accessToken });
+    const grantedScopes = (shortLived.grantedScopes ?? [...INSTAGRAM_OAUTH_SCOPES]).join(',');
 
     // Una cuenta de Instagram profesional pertenece a un solo workspace: si ya
     // esta conectada a otro, se rechaza en vez de reasignarla en silencio
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
         displayName: profile.username,
         accessTokenEncrypted: encryptSecret(longLived.accessToken),
         accessTokenExpiresAt: new Date(Date.now() + longLived.expiresInSeconds * 1000),
-        scopes: INSTAGRAM_OAUTH_SCOPES.join(','),
+        scopes: grantedScopes,
         capabilities: [],
         status: 'CONNECTED',
         connectedAt: new Date(),
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
         workspaceId: user.workspace.id,
         displayName: profile.username,
         // Reconectar es la forma de sumar un permiso nuevo (P19: publicar).
-        scopes: INSTAGRAM_OAUTH_SCOPES.join(','),
+        scopes: grantedScopes,
         accessTokenEncrypted: encryptSecret(longLived.accessToken),
         accessTokenExpiresAt: new Date(Date.now() + longLived.expiresInSeconds * 1000),
         status: 'CONNECTED',

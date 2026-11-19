@@ -14,11 +14,11 @@ import { persistChannelEvent } from '../channels/ingest';
  * motor de extremo a extremo), pero no hay garantia de que Meta los entregue
  * asi en produccion hasta confirmarlo con una app real. Ver capabilities.ts.
  */
-type RawIgEntry = {
+export type RawIgEntry = {
   id: string;
   messaging?: Array<{
     sender?: { id?: string; username?: string };
-    message?: { text?: string; reply_to?: { story?: { id?: string } } };
+    message?: { text?: string; is_echo?: boolean; reply_to?: { story?: { id?: string } } };
     story_mention?: { id?: string };
     follow?: unknown;
     share?: { link?: string };
@@ -34,6 +34,23 @@ type RawIgEntry = {
     };
   }>;
 };
+
+/**
+ * Eventos que Meta entrega en el mismo webhook pero que NO son algo que el
+ * cliente hizo: el eco de lo que envio la propia cuenta (`is_echo`, o el
+ * remitente es la cuenta misma), `read`/`reaction`/`postback` sin mensaje, y
+ * las respuestas publicas de la cuenta a sus comentarios. Sin este filtro,
+ * cada respuesta del bot volvia como "DM recibido" y podia dispararse a si mismo.
+ */
+export function isIgnoredIgMessaging(entryId: string, item: NonNullable<RawIgEntry['messaging']>[number]) {
+  if (!item.sender?.id || item.sender.id === entryId || item.message?.is_echo) return true;
+  return !item.message && !item.story_mention && !item.follow && !item.share;
+}
+
+export function isIgnoredIgChange(entryId: string, change: NonNullable<RawIgEntry['changes']>[number]) {
+  if (change.field !== 'comments' && change.field !== 'live_comments') return true;
+  return !change.value?.from?.id || change.value.from.id === entryId;
+}
 
 /**
  * Busca la cuenta conectada por el ID que la propia notificacion trae en
@@ -58,8 +75,8 @@ export async function ingestInstagramWebhook(parsed: unknown): Promise<{ events:
     if (!account || account.status !== 'CONNECTED') continue;
 
     for (const item of entry.messaging ?? []) {
-      const senderId = item.sender?.id;
-      if (!senderId) continue;
+      if (isIgnoredIgMessaging(entry.id, item)) continue;
+      const senderId = item.sender!.id!;
 
       let type: ChannelEventType = 'DM_RECEIVED';
       let content: Record<string, unknown> = { text: item.message?.text ?? null, displayName: item.sender?.username ?? null };
@@ -95,17 +112,17 @@ export async function ingestInstagramWebhook(parsed: unknown): Promise<{ events:
     }
 
     for (const change of entry.changes ?? []) {
-      const value = change.value;
-      if (!value?.from?.id) continue;
-      const type: ChannelEventType = value.is_live ? 'LIVE_COMMENT' : 'COMMENT';
+      if (isIgnoredIgChange(entry.id, change)) continue;
+      const value = change.value!;
+      const type: ChannelEventType = value.is_live || change.field === 'live_comments' ? 'LIVE_COMMENT' : 'COMMENT';
       const idempotencyKey = `instagram:${account.id}:comment:${value.id ?? hashOf(JSON.stringify(change))}`;
       const result = await persistChannelEvent({
         workspaceId: account.workspaceId,
         channel: 'INSTAGRAM',
         channelAccountId: account.id,
         type,
-        externalUserId: value.from.id,
-        content: { text: value.text ?? null, commentId: value.id, postId: value.media?.id, displayName: value.from.username },
+        externalUserId: value.from!.id!,
+        content: { text: value.text ?? null, commentId: value.id, postId: value.media?.id, displayName: value.from!.username },
         rawMetadata: change as never,
         idempotencyKey,
       });

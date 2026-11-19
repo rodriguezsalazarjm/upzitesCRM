@@ -5,7 +5,8 @@ const net = require('node:net');
 const tls = require('node:tls');
 const { syncBuiltinESMExports } = require('node:module');
 
-const ALLOWED = 'api.mercadopago.com';
+// P28 reutiliza esta guarda con PRELOAD_ALLOW_HOST=graph.instagram.com (un solo host).
+const ALLOWED = process.env.PRELOAD_ALLOW_HOST || 'api.mercadopago.com';
 const originalFetch = globalThis.fetch;
 const originalConnect = net.Socket.prototype.connect;
 const originalTls = tls.connect;

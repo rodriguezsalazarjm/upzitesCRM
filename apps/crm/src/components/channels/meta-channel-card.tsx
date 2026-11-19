@@ -14,6 +14,12 @@ type Account = {
   capabilities: string[];
   connectedAt: string | null;
   lastVerifiedAt: string | null;
+  lastError?: string | null;
+  /** Solo Instagram (P28): evidencia de funcionamiento real. */
+  missingScopes?: string[];
+  lastDmAt?: string | null;
+  lastCommentAt?: string | null;
+  lastReplyAt?: string | null;
 };
 
 type StatusResponse = { data: Account[]; canManage: boolean; configured: boolean };
@@ -129,6 +135,21 @@ export function MetaChannelCard(props: {
             <p className="text-xs text-slate-500">
               {props.accountNoun} conectado{date(account.connectedAt) ? ` el ${date(account.connectedAt)}` : ''} · última verificación: {date(account.lastVerifiedAt) ?? 'pendiente'}
             </p>
+            {account.status !== 'CONNECTED' && account.lastError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">Último error de Meta: {account.lastError}</p>
+            )}
+            {account.missingScopes && account.missingScopes.length > 0 && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Permisos no concedidos: {account.missingScopes.join(', ')}. Reconecta y acepta todos los permisos.
+              </p>
+            )}
+            {account.lastDmAt !== undefined && (
+              <ul className="space-y-0.5 text-xs text-slate-600">
+                <li>Último DM recibido: {date(account.lastDmAt ?? null) ?? 'ninguno todavía'}</li>
+                <li>Último comentario recibido: {date(account.lastCommentAt ?? null) ?? 'ninguno todavía'}</li>
+                <li>Última respuesta enviada: {date(account.lastReplyAt ?? null) ?? 'ninguna todavía'}</li>
+              </ul>
+            )}
             {status?.canManage && (
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button
@@ -144,7 +165,7 @@ export function MetaChannelCard(props: {
                   {busy === 'verify' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                   Verificar ahora
                 </Button>
-                {account.status === 'REAUTH_REQUIRED' && (
+                {(account.status !== 'CONNECTED' || (account.missingScopes?.length ?? 0) > 0) && (
                   <Button size="sm" asChild>
                     <a href={`/api/integrations/${base}/oauth/connect`}>Reconectar {props.label}</a>
                   </Button>

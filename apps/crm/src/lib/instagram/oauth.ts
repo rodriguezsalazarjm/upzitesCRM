@@ -50,7 +50,20 @@ export function buildInstagramAuthorizationUrl(input: { config: InstagramOAuthCo
 
 export class InstagramOAuthError extends Error {}
 
-export type InstagramShortLivedToken = { accessToken: string; userId: string };
+/** `grantedScopes`: lo que el usuario REALMENTE concedio (puede desmarcar permisos); null si Meta no lo informa. */
+export type InstagramShortLivedToken = { accessToken: string; userId: string; grantedScopes: string[] | null };
+
+export function parseGrantedScopes(permissions: unknown): string[] | null {
+  if (Array.isArray(permissions)) return permissions.map(String);
+  if (typeof permissions === 'string') return permissions.split(',').map((p) => p.trim()).filter(Boolean);
+  return null;
+}
+
+/** Scopes requeridos que la cuenta no concedio (para mostrar y para el diagnostico). */
+export function missingInstagramScopes(stored: string | null | undefined) {
+  const granted = new Set((stored ?? '').split(',').map((p) => p.trim()));
+  return INSTAGRAM_OAUTH_SCOPES.filter((scope) => !granted.has(scope));
+}
 
 /** Canjea el `code` del callback por un token de corta duracion (~1h). */
 export async function exchangeInstagramOAuthCode(input: {
@@ -76,12 +89,13 @@ export async function exchangeInstagramOAuthCode(input: {
   const payload = (await response.json().catch(() => ({}))) as {
     access_token?: string;
     user_id?: string | number;
+    permissions?: unknown;
     error_message?: string;
   };
   if (!response.ok || !payload.access_token || payload.user_id === undefined) {
     throw new InstagramOAuthError(payload.error_message ?? `HTTP ${response.status}`);
   }
-  return { accessToken: payload.access_token, userId: String(payload.user_id) };
+  return { accessToken: payload.access_token, userId: String(payload.user_id), grantedScopes: parseGrantedScopes(payload.permissions) };
 }
 
 export type InstagramLongLivedToken = { accessToken: string; expiresInSeconds: number };
