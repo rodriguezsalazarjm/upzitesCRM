@@ -12,10 +12,11 @@ export class SocialPostError extends Error {}
 export const CAPTION_MAX = 2200;
 export const HASHTAGS_MAX = 30;
 
-export const TIKTOK_NOT_CONNECTED = 'TikTok todavía no se conecta en Flow: guárdalo como borrador con fecha (queda en el calendario) y se podrá programar cuando llegue la conexión.';
+export const TIKTOK_NOT_CONNECTED = 'Elige una cuenta de TikTok conectada (Integraciones → TikTok) para programar o publicar. Sin cuenta, guárdalo como borrador con fecha.';
+export const TIKTOK_NEEDS_VIDEO = 'TikTok publica videos: elige un video (MP4).';
 
 export const socialPostInputSchema = z.object({
-  /** P23: TikTok entra como borrador planificado; Instagram publica. */
+  /** P23: TikTok sin cuenta = borrador planificado. P29: con cuenta conectada, publica igual que Instagram. */
   network: z.enum(['INSTAGRAM', 'TIKTOK']).default('INSTAGRAM'),
   channelAccountId: z.string().min(1).optional(),
   caption: z.string().max(CAPTION_MAX),
@@ -34,8 +35,9 @@ export function validateForAction(input: SocialPostInput, now: Date): string | n
   if (composeCaption(input.caption, input.hashtags).length > CAPTION_MAX) return `El texto con hashtags supera ${CAPTION_MAX} caracteres.`;
   if (input.network !== 'TIKTOK' && !input.channelAccountId) return 'Elige la cuenta de Instagram.';
   if (input.action === 'draft') return null;
-  if (input.network === 'TIKTOK') return TIKTOK_NOT_CONNECTED;
-  if (!input.mediaUrl && !input.contentAssetId) return 'Instagram exige una imagen o un video para publicar.';
+  if (input.network === 'TIKTOK' && !input.channelAccountId) return TIKTOK_NOT_CONNECTED;
+  if (!input.mediaUrl && !input.contentAssetId) return input.network === 'TIKTOK' ? TIKTOK_NEEDS_VIDEO : 'Instagram exige una imagen o un video para publicar.';
+  if (input.network === 'TIKTOK' && !input.contentAssetId && input.mediaType !== 'REEL') return TIKTOK_NEEDS_VIDEO;
   if (input.action === 'schedule') {
     if (!input.scheduledAt) return 'Elige fecha y hora.';
     if (new Date(input.scheduledAt).getTime() < now.getTime() - 60_000) return 'La fecha ya pasó: usa "Publicar ahora" o elige otra.';
@@ -83,6 +85,8 @@ export async function saveSocialPost(workspaceId: string, userId: string, raw: S
     lastError: null,
     history: appendHistory(existing?.history, event, input.action === 'schedule' ? input.scheduledAt : undefined, now) as Prisma.InputJsonValue,
   };
+  // La pieza de la biblioteca manda sobre el tipo: un TikTok con imagen no se programa.
+  if (input.network === 'TIKTOK' && input.action !== 'draft' && data.mediaType !== 'REEL') throw new SocialPostError(TIKTOK_NEEDS_VIDEO);
   let post;
   if (existing) {
     // Condicional: si el cron lo tomó entre la lectura y este update, no se pisa.
@@ -106,7 +110,7 @@ export async function socialPostAction(workspaceId: string, postId: string, inpu
   if (!post) throw new SocialPostError('Publicación no encontrada.');
   if (action === 'retry') {
     if (post.status !== 'FAILED') throw new SocialPostError('Solo se reintenta una publicación que falló.');
-    if (post.network === 'TIKTOK') throw new SocialPostError(TIKTOK_NOT_CONNECTED);
+    if (post.network === 'TIKTOK' && !post.channelAccountId) throw new SocialPostError(TIKTOK_NOT_CONNECTED);
     await assertFeature(workspaceId, 'channels.messaging');
     await prisma.socialPost.updateMany({
       where: { id: post.id, workspaceId, status: 'FAILED' },
@@ -139,7 +143,8 @@ export async function socialPostAction(workspaceId: string, postId: string, inpu
   }
   if (action === 'publish_now') {
     if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED') throw new SocialPostError('Solo se publica un borrador o una publicación programada.');
-    if (post.network === 'TIKTOK') throw new SocialPostError(TIKTOK_NOT_CONNECTED);
+    if (post.network === 'TIKTOK' && !post.channelAccountId) throw new SocialPostError(TIKTOK_NOT_CONNECTED);
+    if (post.network === 'TIKTOK' && (!post.mediaUrl || post.mediaType !== 'REEL')) throw new SocialPostError(TIKTOK_NEEDS_VIDEO);
     if (!post.mediaUrl) throw new SocialPostError('Instagram exige una imagen o un video para publicar.');
     await assertFeature(workspaceId, 'channels.messaging');
     const claimed = await prisma.socialPost.updateMany({

@@ -45,7 +45,7 @@ assert.equal(programmed.status, 'SCHEDULED');
 assert.deepEqual([tt.status, tt.network, tt.mediaType, tt.channelAccountId, tt.scheduledAt?.toISOString(), tt.contentAssetId], ['DRAFT', 'TIKTOK', 'IMAGE', null, scheduledAt, asset.id], 'la pieza (imagen) manda sobre el formato sugerido');
 await assert.rejects(
   saveSocialPost(workspaceId, owner.id, { network: 'TIKTOK', caption: tt.caption, hashtags: tt.hashtags, mediaUrl: '', mediaType: 'REEL', contentAssetId: asset.id, action: 'schedule', scheduledAt }, tt.id),
-  (e) => e instanceof SocialPostError && /TikTok todavía no/.test(e.message),
+  (e) => e instanceof SocialPostError && /cuenta de TikTok conectada/.test(e.message),
 );
 
 // 3. Calendario sugerido y qué falta

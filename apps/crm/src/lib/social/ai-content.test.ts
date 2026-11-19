@@ -30,6 +30,11 @@ test('P23: mezcla reciente y TikTok solo como borrador planificado', () => {
   const now = new Date('2026-11-16T12:00:00Z');
   const tiktok = { network: 'TIKTOK' as const, caption: 'x', hashtags: [], mediaUrl: '', mediaType: 'REEL' as const };
   assert.equal(validateForAction({ ...tiktok, action: 'draft', scheduledAt: '2026-11-20T10:00:00Z' }, now), null, 'TikTok sin cuenta se guarda con fecha');
-  assert.match(validateForAction({ ...tiktok, action: 'schedule', scheduledAt: '2026-11-20T10:00:00Z' }, now)!, /TikTok todavía no/);
+  assert.match(validateForAction({ ...tiktok, action: 'schedule', scheduledAt: '2026-11-20T10:00:00Z' }, now)!, /cuenta de TikTok conectada/);
   assert.match(validateForAction({ caption: 'x', hashtags: [], mediaUrl: '', mediaType: 'IMAGE', action: 'draft' }, now)!, /cuenta de Instagram/);
+  // P29: con cuenta conectada TikTok se programa, pero solo con video.
+  const conCuenta = { ...tiktok, channelAccountId: 'tt1', scheduledAt: '2026-11-20T10:00:00Z' };
+  assert.match(validateForAction({ ...conCuenta, action: 'schedule' }, now)!, /exige un video|elige un video/);
+  assert.equal(validateForAction({ ...conCuenta, mediaUrl: 'https://x/v.mp4', action: 'schedule' }, now), null);
+  assert.match(validateForAction({ ...conCuenta, mediaUrl: 'https://x/i.jpg', mediaType: 'IMAGE', action: 'schedule' }, now)!, /elige un video/);
 });

@@ -2,6 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client';
 import { canWorkspaceConsume } from '../billing/subscription-access';
 import { crossTenantPrisma, prisma } from '../prisma';
 import { publishToInstagram, type PublishInput, type PublishResult } from './instagram-publish';
+import { publishToTikTok } from './tiktok-publish';
 
 /**
  * P19 Social Publisher. Estados: DRAFT → SCHEDULED → PUBLISHING → PUBLISHED | FAILED.
@@ -35,7 +36,9 @@ export function composeCaption(caption: string, hashtags: string[]) {
   return [caption.trim(), tags].filter(Boolean).join('\n\n');
 }
 
-type Publisher = (input: PublishInput) => Promise<PublishResult>;
+const networkName = (network: string) => (network === 'TIKTOK' ? 'TikTok' : 'Instagram');
+
+type Publisher = (input: PublishInput & { account: { id: string } }) => Promise<PublishResult>;
 
 export async function publishSocialPost(workspaceId: string, postId: string, options: { now?: Date; publish?: Publisher } = {}) {
   const now = options.now ?? new Date();
@@ -50,12 +53,12 @@ export async function publishSocialPost(workspaceId: string, postId: string, opt
 
   let result: PublishResult;
   if (!(await canWorkspaceConsume(workspaceId))) result = { ok: false, error: 'La suscripción del workspace no está vigente: no se publica.', retryable: false };
-  else if (post.network !== 'INSTAGRAM') result = { ok: false, error: 'Esta red todavía no se puede conectar en Upzites Flow.', retryable: false };
-  else if (!account || account.status !== 'CONNECTED') result = { ok: false, error: 'La cuenta de Instagram no está conectada.', retryable: false };
+  else if (post.network !== 'INSTAGRAM' && post.network !== 'TIKTOK') result = { ok: false, error: 'Esta red todavía no se puede conectar en Upzites Flow.', retryable: false };
+  else if (!account || account.status !== 'CONNECTED') result = { ok: false, error: `La cuenta de ${networkName(post.network)} no está conectada.`, retryable: false };
   else if (account.planLimitedAt) result = { ok: false, error: 'Esta cuenta está limitada por tu plan: no se publica.', retryable: false };
-  else if (!post.mediaUrl) result = { ok: false, error: 'Instagram exige una imagen o un video.', retryable: false };
+  else if (!post.mediaUrl) result = { ok: false, error: post.network === 'TIKTOK' ? 'TikTok exige un video.' : 'Instagram exige una imagen o un video.', retryable: false };
   else {
-    result = await (options.publish ?? publishToInstagram)({
+    result = await (options.publish ?? (post.network === 'TIKTOK' ? publishToTikTok : publishToInstagram))({
       account,
       caption: composeCaption(post.caption, post.hashtags),
       mediaUrl: post.mediaUrl,
@@ -91,7 +94,7 @@ export async function publishDueSocialPosts(options: { now?: Date; publish?: Pub
     take: 50,
   });
   for (const post of stale) {
-    const detail = 'Se cortó a mitad de la publicación. Revisa Instagram antes de reintentar para no duplicarla.';
+    const detail = 'Se cortó a mitad de la publicación. Revisa la red social antes de reintentar para no duplicarla.';
     await crossTenantPrisma.socialPost.updateMany({
       where: { id: post.id, status: 'PUBLISHING' },
       data: { status: 'FAILED', lastError: detail, history: appendHistory(post.history, 'failed', detail, now) as Prisma.InputJsonValue },

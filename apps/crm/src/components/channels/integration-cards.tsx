@@ -10,7 +10,7 @@ import { StatusBadge, type StatusTone } from '@/components/ui/status-badge';
 const CHANNEL_COPY: Record<string, { name: string; description: string }> = {
   INSTAGRAM: { name: 'Instagram', description: 'Responde mensajes y comentarios de tu cuenta profesional. No necesitas una Página de Facebook.' },
   MESSENGER: { name: 'Messenger', description: 'Responde los mensajes que llegan a tu Página de Facebook.' },
-  TIKTOK: { name: 'TikTok', description: 'La mensajería de TikTok está pendiente de aprobación.' },
+  TIKTOK: { name: 'TikTok mensajería', description: 'La mensajería de TikTok está pendiente de aprobación. Para publicar videos, conecta TikTok en su propia tarjeta.' },
 };
 const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   CONNECTED: { label: 'Conectado', tone: 'success' },

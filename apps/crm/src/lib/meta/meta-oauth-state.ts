@@ -14,7 +14,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
  */
 const STATE_TTL_MS = 10 * 60_000;
 
-export type MetaOAuthChannel = 'INSTAGRAM' | 'MESSENGER';
+// P29: TikTok reutiliza la misma primitiva (HMAC + nonce + canal), firmada con su client secret.
+export type MetaOAuthChannel = 'INSTAGRAM' | 'MESSENGER' | 'TIKTOK';
 
 export type MetaOAuthStatePayload = {
   workspaceId: string;

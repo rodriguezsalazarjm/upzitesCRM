@@ -5,6 +5,7 @@ import { requireCurrentUser } from '@/lib/auth';
 import { canManageMarketing } from '@/lib/marketing/roles';
 import { prisma } from '@/lib/prisma';
 import { INSTAGRAM_PUBLISH_SCOPE } from '@/lib/social/instagram-publish';
+import { TIKTOK_PUBLISH_SCOPE } from '@/lib/social/tiktok-publish';
 import { assetFilePath } from '@/lib/social/library';
 import { getSessionSecret } from '@/lib/session-token';
 import Link from 'next/link';
@@ -18,9 +19,15 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
   const workspaceId = user.workspace.id;
   const { pieza } = await searchParams;
   const secret = getSessionSecret();
-  const [accounts, posts, assets] = await Promise.all([
+  const [accounts, tiktokAccounts, posts, assets] = await Promise.all([
     prisma.channelAccount.findMany({
       where: { workspaceId, channel: 'INSTAGRAM' },
+      select: { id: true, displayName: true, externalAccountId: true, status: true, scopes: true, planLimitedAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+    // P29: cuentas de creador (Login Kit), no las de mensajería.
+    prisma.channelAccount.findMany({
+      where: { workspaceId, channel: 'TIKTOK', connectionMethod: 'OAUTH', status: { not: 'DISCONNECTED' } },
       select: { id: true, displayName: true, externalAccountId: true, status: true, scopes: true, planLimitedAt: true },
       orderBy: { createdAt: 'asc' },
     }),
@@ -72,6 +79,12 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
             name: account.displayName ?? account.externalAccountId,
             ready: account.status === 'CONNECTED' && !account.planLimitedAt,
             canPublish: Boolean(account.scopes?.split(',').includes(INSTAGRAM_PUBLISH_SCOPE)),
+          }))}
+          tiktokAccounts={tiktokAccounts.map((account) => ({
+            id: account.id,
+            name: account.displayName ?? 'TikTok',
+            ready: account.status === 'CONNECTED' && !account.planLimitedAt,
+            canPublish: Boolean(account.scopes?.split(',').includes(TIKTOK_PUBLISH_SCOPE)),
           }))}
           posts={rows}
           assets={assets.map((asset) => ({ ...asset, url: assetFilePath(asset.id, secret) }))}

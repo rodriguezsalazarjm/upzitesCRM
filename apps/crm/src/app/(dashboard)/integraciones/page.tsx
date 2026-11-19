@@ -46,6 +46,7 @@ export default async function IntegracionesPage({
           <>
             <MetaChannelCard channel="INSTAGRAM" label="Instagram" accountNoun="Cuenta" />
             <MetaChannelCard channel="MESSENGER" label="Messenger" accountNoun="Página" />
+            <MetaChannelCard channel="TIKTOK" label="TikTok" accountNoun="Cuenta" />
           </>
         )}
         <WhatsAppChannelsSummary workspaceId={user.workspace.id} />

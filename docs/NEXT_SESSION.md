@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/instagram-e2e-p28` (P28). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/tiktok-p29` (P29). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28 → P29, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -25,6 +25,7 @@
 - P27 en espera por decisión del usuario (19-11): el pago TEST se hará cuando llegue la cuenta empresarial. cloudflared portable ya está en `.local-visual/bin` (gitignored); el túnel cambia de URL en cada arranque.
 - P28 (Instagram real): con la app de Meta configurada y el webhook público, conectar la cuenta en /integraciones, publicar una automatización de comentario → DM, mandar DM + comentario desde otra cuenta y correr (desde apps/crm) `PRELOAD_ALLOW_HOST=graph.instagram.com NODE_OPTIONS="--require ./scripts/visual/p27-preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p28-ig-verify.ts --cuenta <username>`. `--cuenta` es obligatorio: crm_pruebas tiene cuentas QA "OAUTH" con token falso (p. ej. QA Advisor) y tocarlas contra Meta real las deja REAUTH_REQUIRED.
 - Tests que importan Prisma necesitan `DATABASE_URL`: tras cargar `.env.local`, `export DATABASE_URL="$TEST_DATABASE_URL"`.
-- Siguiente según orden congelado: P29 (TikTok).
+- Hito P29 local: `scripts/visual/p29-tiktok-hito.ts` con preload.cjs (TikTok simulado, idempotente; deja la cuenta "QA TikTok" CONNECTED en A y sus posts). P29 real: conectar en /integraciones, publicar o programar un video desde /social y correr `PRELOAD_ALLOW_HOST=open.tiktokapis.com NODE_OPTIONS="--require ./scripts/visual/p27-preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p29-tiktok-verify.ts --cuenta "<nombre visible>"` (excluye la cuenta QA). Sin auditoría de TikTok todo sale privado (SELF_ONLY).
+- Siguiente según orden congelado: P30 (Funnel / Attribution, Fase 7 Analytics).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, plantilla WhatsApp aprobada real, OAuth Google (verificación gmail.modify) y Microsoft Entra.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

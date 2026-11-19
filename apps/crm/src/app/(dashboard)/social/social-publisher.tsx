@@ -76,7 +76,10 @@ const toLocalInput = (iso: string | null) => {
 
 type Draft = { id?: string; network: 'INSTAGRAM' | 'TIKTOK'; channelAccountId: string; caption: string; hashtags: string; mediaUrl: string; mediaType: 'IMAGE' | 'REEL'; scheduledAt: string; contentAssetId: string };
 
-export function SocialPublisher({ canManage, accounts, posts, assets, initialAssetId }: { canManage: boolean; accounts: Account[]; posts: PostRow[]; assets: PickerAsset[]; initialAssetId?: string }) {
+type Metrics = { views: number; likes: number; comments: number; shares: number; followers: number | null };
+const metricsText = (m: Metrics) => `${m.views} vistas · ${m.likes} me gusta · ${m.comments} comentarios · ${m.shares} compartidos${m.followers !== null ? ` · ${m.followers} seguidores` : ''}`;
+
+export function SocialPublisher({ canManage, accounts, tiktokAccounts = [], posts, assets, initialAssetId }: { canManage: boolean; accounts: Account[]; tiktokAccounts?: Account[]; posts: PostRow[]; assets: PickerAsset[]; initialAssetId?: string }) {
   const router = useRouter();
   const empty: Draft = { network: 'INSTAGRAM', channelAccountId: accounts[0]?.id ?? '', caption: '', hashtags: '', mediaUrl: '', mediaType: 'IMAGE', scheduledAt: '', contentAssetId: '' };
   // P22: "Usar en una publicación" desde la Biblioteca llega con ?pieza=.
@@ -108,6 +111,14 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
   const visible = posts.filter((p) => (!network || p.network === network) && (!accountFilter || p.channelAccountId === accountFilter));
   const [pending, startTransition] = useTransition();
   const account = accounts.find((a) => a.id === draft.channelAccountId);
+  const tiktokAccount = draft.network === 'TIKTOK' ? tiktokAccounts.find((a) => a.id === draft.channelAccountId) : undefined;
+  const tiktokCanPost = Boolean(tiktokAccount?.ready && tiktokAccount.canPublish);
+  const [metrics, setMetrics] = useState<Record<string, Metrics | string>>({});
+  async function loadMetrics(postId: string) {
+    const response = await fetch(`/api/social-posts/${postId}/metrics`, { cache: 'no-store' }).catch(() => null);
+    const json = (await response?.json().catch(() => null)) as { data?: Metrics; message?: string } | null;
+    setMetrics((m) => ({ ...m, [postId]: response?.ok && json?.data ? json.data : json?.message ?? 'No se pudieron leer las métricas.' }));
+  }
 
   async function call(url: string, method: string, body?: unknown) {
     setError('');
@@ -125,7 +136,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
   async function submit(action: 'draft' | 'schedule' | 'publish_now') {
     const result = await call(draft.id ? `/api/social-posts/${draft.id}` : '/api/social-posts', draft.id ? 'PATCH' : 'POST', {
       network: draft.network,
-      channelAccountId: draft.network === 'TIKTOK' ? undefined : draft.channelAccountId,
+      channelAccountId: draft.network === 'TIKTOK' ? tiktokAccount?.id : draft.channelAccountId,
       caption: draft.caption,
       hashtags: draft.hashtags.split(/[\s,]+/).filter(Boolean),
       mediaUrl: draft.contentAssetId ? '' : draft.mediaUrl.trim(),
@@ -137,7 +148,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
     if (!result) return;
     setDraft(empty);
     setNotice(
-      result.status === 'PUBLISHED' ? 'Publicado en Instagram.' : result.status === 'FAILED' ? `No se publicó: ${result.lastError}` : result.status === 'SCHEDULED' && action === 'publish_now' ? `No se publicó todavía: ${result.lastError ?? 'se reintenta solo'}` : action === 'schedule' ? 'Programado.' : 'Borrador guardado.',
+      result.status === 'PUBLISHED' ? `Publicado en ${networkLabel(result.network)}.` : result.status === 'FAILED' ? `No se publicó: ${result.lastError}` : result.status === 'SCHEDULED' && action === 'publish_now' ? `No se publicó todavía: ${result.lastError ?? 'se reintenta solo'}` : action === 'schedule' ? 'Programado.' : 'Borrador guardado.',
     );
   }
 
@@ -153,7 +164,7 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
     const result = await call(`/api/social-posts/${post.id}`, 'POST', body);
     if (result && body.action === 'duplicate') setNotice('Duplicado como borrador en la misma fecha.');
     if (result && body.action === 'reschedule') setNotice('Fecha actualizada.');
-    if (result && body.action === 'publish_now') setNotice(result.status === 'PUBLISHED' ? 'Publicado en Instagram.' : `No se publicó: ${result.lastError ?? 'se reintenta solo'}`);
+    if (result && body.action === 'publish_now') setNotice(result.status === 'PUBLISHED' ? `Publicado en ${networkLabel(result.network)}.` : `No se publicó: ${result.lastError ?? 'se reintenta solo'}`);
     return result;
   }
 
@@ -168,27 +179,30 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
         <Card className="order-2 space-y-4 p-5 xl:order-none" data-social-composer>
           <div>
             <Eyebrow>{draft.id ? 'Editar publicación' : 'Nueva publicación'}</Eyebrow>
-            <p className="mt-1 text-xs text-soft">Instagram publica. TikTok se guarda como borrador planificado hasta que su conexión esté disponible.</p>
+            <p className="mt-1 text-xs text-soft">Publica en Instagram o TikTok. Sin cuenta de TikTok conectada, el TikTok queda como borrador planificado.</p>
           </div>
-          {accounts.length === 0 ? (
+          {accounts.length === 0 && tiktokAccounts.length === 0 ? (
             <p className="rounded-xl bg-ivory p-4 text-sm text-graphite">
-              Conecta una cuenta de Instagram para publicar.{' '}
+              Conecta una cuenta de Instagram o TikTok para publicar.{' '}
               <Link href="/integraciones" className="font-semibold text-electric hover:underline">Ir a Integraciones</Link>
             </p>
           ) : (
             <>
               <label className="block space-y-1 text-sm">
                 <span className="font-semibold text-carbon">Red y cuenta</span>
-                <Select value={draft.network === 'TIKTOK' ? TIKTOK : draft.channelAccountId} onChange={(e) => setDraft(e.target.value === TIKTOK ? { ...draft, network: 'TIKTOK', mediaType: 'REEL' } : { ...draft, network: 'INSTAGRAM', channelAccountId: e.target.value })} data-network-picker>
+                <Select value={draft.network === 'TIKTOK' ? (tiktokAccount ? `tt:${tiktokAccount.id}` : TIKTOK) : draft.channelAccountId} onChange={(e) => { const v = e.target.value; setDraft(v === TIKTOK ? { ...draft, network: 'TIKTOK', channelAccountId: '', mediaType: 'REEL' } : v.startsWith('tt:') ? { ...draft, network: 'TIKTOK', channelAccountId: v.slice(3), mediaType: 'REEL' } : { ...draft, network: 'INSTAGRAM', channelAccountId: v }); }} data-network-picker>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>Instagram · {a.name}</option>
                   ))}
-                  <option value={TIKTOK}>TikTok · borrador planificado (sin conexión)</option>
+                  {tiktokAccounts.map((a) => (
+                    <option key={a.id} value={`tt:${a.id}`}>TikTok · {a.name}</option>
+                  ))}
+                  {tiktokAccounts.length === 0 && <option value={TIKTOK}>TikTok · borrador planificado (sin conexión)</option>}
                 </Select>
               </label>
-              {draft.network === 'TIKTOK' && (
+              {draft.network === 'TIKTOK' && !tiktokCanPost && (
                 <p className="rounded-lg bg-solar/20 p-3 text-xs text-warning-ink" data-tiktok-note>
-                  TikTok todavía no se conecta: guárdalo como borrador con fecha y queda en el calendario. Se podrá programar cuando llegue la conexión.
+                  {!tiktokAccount ? 'Sin cuenta de TikTok conectada: guárdalo como borrador con fecha y queda en el calendario. Conecta TikTok en Integraciones para programarlo.' : !tiktokAccount.ready ? 'Esta cuenta de TikTok no está conectada o la limita tu plan: puedes guardar borradores, no publicar.' : 'Reconecta TikTok y acepta el permiso de publicar videos.'}
                 </p>
               )}
               {draft.network === 'INSTAGRAM' && account && (!account.ready || !account.canPublish) && (
@@ -243,8 +257,8 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
                 <Input type="datetime-local" value={draft.scheduledAt} onChange={(e) => setDraft({ ...draft, scheduledAt: e.target.value })} />
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={pending || draft.network === 'TIKTOK'} onClick={() => void submit('publish_now')}>Publicar ahora</Button>
-                <Button type="button" variant="outline" disabled={pending || !draft.scheduledAt || draft.network === 'TIKTOK'} onClick={() => void submit('schedule')}>Programar</Button>
+                <Button type="button" disabled={pending || (draft.network === 'TIKTOK' && !tiktokCanPost)} onClick={() => void submit('publish_now')}>Publicar ahora</Button>
+                <Button type="button" variant="outline" disabled={pending || !draft.scheduledAt || (draft.network === 'TIKTOK' && !tiktokCanPost)} onClick={() => void submit('schedule')}>Programar</Button>
                 <Button type="button" variant="ghost" disabled={pending} onClick={() => void submit('draft')}>Guardar borrador</Button>
                 {draft.id && <Button type="button" variant="ghost" onClick={() => setDraft(empty)}>Cancelar edición</Button>}
               </div>
@@ -343,8 +357,11 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
               <div className="flex flex-wrap items-center gap-2">
                 {post.permalink && (
                   <a href={post.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-electric hover:underline">
-                    Ver en Instagram <ExternalLink className="h-3 w-3" aria-hidden />
+                    Ver en {networkLabel(post.network)} <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
+                )}
+                {post.network === 'TIKTOK' && post.status === 'PUBLISHED' && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => void loadMetrics(post.id)} data-tiktok-metrics>Ver métricas</Button>
                 )}
                 {canManage && ['DRAFT', 'SCHEDULED', 'FAILED'].includes(post.status) && (
                   <Button type="button" size="sm" variant="ghost" onClick={() => edit(post)}>Editar</Button>
@@ -362,6 +379,9 @@ export function SocialPublisher({ canManage, accounts, posts, assets, initialAss
                   {openHistory === post.id ? 'Ocultar historial' : `Historial (${post.history.length})`}
                 </button>
               </div>
+              {metrics[post.id] && (
+                <p className="text-xs text-graphite" data-tiktok-metrics-result>{typeof metrics[post.id] === 'string' ? (metrics[post.id] as string) : metricsText(metrics[post.id] as Metrics)}</p>
+              )}
               {openHistory === post.id && (
                 <ol className="space-y-1 border-t border-line pt-2 text-xs text-graphite" data-social-history>
                   {post.history.map((entry, index) => (
