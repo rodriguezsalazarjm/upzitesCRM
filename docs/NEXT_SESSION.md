@@ -1,6 +1,6 @@
 # Siguiente sesión
 
-- Repo: `C:\dev\upzites-preview`, rama `feat/5mcd-business-p33` (P33). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28 → P29 → P30 → P31 → P32 → P33, una rama por bloque. Sin push.
+- Repo: `C:\dev\upzites-preview`, rama `feat/meta-ads-funnel-p34` (P34). La cadena es P8 → … → P24 → P37 → P38 → P25 → P26 → P27 → P28 → P29 → P30 → P31 → P32 → P33 → P34, una rama por bloque. Sin push.
 - D1 (OAuth Meta) ya está integrado aquí. Su copia sin commit sigue en `C:\dev\upzites` (release-hardening): descartarla allí solo con el OK del usuario. No tocar Harvey Control.
 - Migraciones solo en crm_pruebas: cargar `.env.local` y correr `npm run test:db:deploy` (usa TEST_DATABASE_URL).
 - Hito local P9: `NODE_OPTIONS="--require ./scripts/visual/preload.cjs" node node_modules/tsx/dist/cli.mjs scripts/visual/p9-campaign-hito.ts` (desde apps/crm).
@@ -32,6 +32,7 @@
 - Ensayo P32: `scripts/visual/p32-upzites-hito.ts` con preload.cjs (crea/reusa el SUPER_ADMIN `superadmin-p32@visual.test`, clave de `.local-visual/accounts.json`, y el negocio "UPZITES (QA P32)"; cada corrida mete otro lead). Pasos de producción: `docs/p32-upzites-negocio-real.md`.
 - smoke-p0e O2 (checklist "Configura tu negocio" para MEMBER) falla desde antes de P32: pendiente de revisar.
 - Ensayo P33: `scripts/visual/p33-5mcd-hito.ts` con preload.cjs (después del P32: reusa `superadmin-p32@visual.test`; crea/reusa "5 Minutos con Dios (QA P33)"; cada corrida mete otro lead y otro pedido). Los pedidos "Esperando pago" que hay ahí son de corridas interrumpidas.
-- Siguiente según orden congelado: P34 (primer funnel Meta Ads → venta; depende de Meta Ads/CTWA reales).
+- Ensayo P34: `scripts/visual/p34-ads-funnel-hito.ts` con preload.cjs (después del P33; regla "Meta Ads · 30 experiencias" del anuncio 120234000000005034 y flujo "Postventa 5MCD"). Hito real: `scripts/p34-funnel-verify.ts --anuncio <id>` sin preload, solo lectura; guía `docs/p34-funnel-meta-ads-real.md`.
+- Siguiente según orden congelado: P35 (release a producción; requiere autorización explícita del usuario para desplegar).
 - Bloqueos externos: Meta Tech Provider + CTWA, buckets `deliverables`/`knowledge`, MP TEST, OpenAI real, Resend + dominio, plantilla WhatsApp aprobada real, OAuth Google (verificación gmail.modify) y Microsoft Entra.
 - Estado completo: `docs/MASTER_EXECUTION_STATUS.md`.

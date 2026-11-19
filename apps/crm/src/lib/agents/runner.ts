@@ -329,7 +329,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 }
 
 type LoopInput = {
-  run: { id: string; workspaceId: string };
+  run: { id: string; workspaceId: string; agentDefinitionId: string };
   provider: ModelProvider;
   conversation: {
     id: string;
@@ -587,6 +587,10 @@ async function executeLoop(input: LoopInput): Promise<RunAgentResult> {
     create: { conversationId: conversation.id, lastRunId: run.id, currentAgentId: input.version.id },
     update: { lastRunId: run.id, currentAgentId: input.version.id },
   });
+  // P34: el embudo y el recorrido atribuyen la venta por Conversation.currentAgentId, que nadie escribía.
+  if (!input.dryRun) {
+    await prisma.conversation.updateMany({ where: { id: conversation.id, workspaceId: run.workspaceId }, data: { currentAgentId: run.agentDefinitionId } });
+  }
 
   // D22: el runner mandaba `conversation.summary` al modelo y nadie lo escribia.
   // Pasados los 12 mensajes de contexto, todo lo anterior desaparecia.
