@@ -51,6 +51,18 @@ Resultados:
      - OAuth de correo: `GOOGLE_OAUTH_*` y `MICROSOFT_OAUTH_*`.
    - Siguen faltando, desde septiembre: email (`EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_WEBHOOK_SECRET`), OAuth de Mercado Pago, `VAPID_*` y media de Supabase.
 
+## Estado pre-ventana (20-11-2026)
+
+- **Credenciales:** cargadas en `apps/crm/.env.production.local`.
+  - Se reseteó la contraseña y Vercel se actualizó.
+  - Caída de 00:49 a 01:08 UTC por el desfase entre el reset y Vercel.
+- **Migraciones:** `migrate status` contra prod da exactamente las 25 pendientes esperadas.
+- **Workspaces:** `upzites` (con 1 usuario) y `jose` / `jose-2` (cuentas smoketest).
+- **Cola de jobs:** ya existe el cron pg_cron `crm-run-jobs-every-minute` (`* * * * *`, `?limit=20`).
+  - Responde 200.
+  - La cola tiene 30.910 jobs en DONE y ninguno FAILED.
+  - El paso 3 de "Antes de la ventana" ya está cubierto.
+
 ## Ventana (una sola operación; las líneas 3 y 4 no se separan)
 
 ```
