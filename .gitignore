@@ -7,7 +7,8 @@ node_modules/
 out/
 dist/
 build/
-apps/crm/generated/
+apps/crm/generated/*
+!apps/crm/generated/package.json
 
 # turbo
 .turbo/

@@ -1,6 +1,8 @@
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
+  // ESM explicito: apps/crm ya no es "type":"module" (ver generated/package.json).
+  moduleFormat = "esm"
 }
 
 datasource db {

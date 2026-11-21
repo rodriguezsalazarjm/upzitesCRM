@@ -2,7 +2,6 @@
   "name": "@upzites/crm",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "visual:prepare": "node scripts/visual/run.mjs prepare",
     "visual:studio": "node scripts/visual/run.mjs studio",
@@ -12,7 +11,7 @@
     "visual:check": "node scripts/visual/run.mjs check",
     "dev": "next dev -p 3001",
     "prebuild": "prisma generate",
-    "build": "next build && node scripts/trace-dist-package-json.mjs",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test:whatsapp": "tsx --test src/lib/whatsapp/*.test.ts",
